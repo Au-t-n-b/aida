@@ -5,29 +5,15 @@ import pytest
 
 from mailgw.config import AppConfig, PolicyConfig, Pop3Config, SmtpConfig
 from mailgw.core.receiver import RawMail
-from mailgw.core.sender import SendError
 from mailgw.service import deliver_task, refresh_inbox, submit_send
-from mailgw.store.db import Database
+
+from tests.conftest import FakeReceiver, FakeSender
 
 
-class FakeSender:
-    def __init__(self):
-        self.sent = []
-        self.fail = False
-
-    def send(self, **kw):
-        if self.fail:
-            raise SendError("connection refused")
-        self.sent.append(kw)
-        return "<mid@test>"
-
-
-class FakeReceiver:
-    def __init__(self, mails):
-        self.mails = mails
-
-    def fetch_new(self, known_uidls):
-        return [m for m in self.mails if m.uidl not in known_uidls]
+def _receiver(mails) -> FakeReceiver:
+    r = FakeReceiver()
+    r.mails = mails
+    return r
 
 
 @pytest.fixture
@@ -42,11 +28,6 @@ def config(tmp_path) -> AppConfig:
         tokens={"aida": "tok"},
         admin_password="admin",
     )
-
-
-@pytest.fixture
-def db(tmp_path) -> Database:
-    return Database(tmp_path / "t.db")
 
 
 def _send(db, config, sender, **kw):
@@ -129,7 +110,7 @@ def _raw_mail(uidl: str, attach: bool = False) -> RawMail:
 
 
 def test_refresh_inbox_saves_mail_and_attachments(db, config):
-    receiver = FakeReceiver([_raw_mail("u1", attach=True)])
+    receiver = _receiver([_raw_mail("u1", attach=True)])
     assert refresh_inbox(db=db, receiver=receiver, data_dir=config.data_dir) == 1
     assert refresh_inbox(db=db, receiver=receiver, data_dir=config.data_dir) == 0  # 去重
     mail = db.list_inbox(limit=10)[0]
@@ -142,6 +123,6 @@ def test_refresh_inbox_saves_mail_and_attachments(db, config):
 
 def test_refresh_inbox_isolates_broken_mail(db, config):
     broken = RawMail(uidl="bad", content=b"\xff\xfe not a mail")
-    receiver = FakeReceiver([broken, _raw_mail("u2")])
+    receiver = _receiver([broken, _raw_mail("u2")])
     assert refresh_inbox(db=db, receiver=receiver, data_dir=config.data_dir) >= 1
     assert "u2" in db.known_uidls()  # 坏邮件不中断整次拉取
