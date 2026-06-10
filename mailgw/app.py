@@ -1,6 +1,7 @@
 """应用组装：依赖注入，便于测试替换 db/sender/receiver。"""
 from fastapi import FastAPI
 
+from mailgw.admin.routes import router as admin_router
 from mailgw.api.routes import router as api_router
 from mailgw.config import AppConfig
 from mailgw.core.receiver import MailReceiver, Pop3Receiver
@@ -18,4 +19,5 @@ def build_app(config: AppConfig, *, db: Database | None = None,
     app.state.sender = sender or SmtpSender(config.smtp)
     app.state.receiver = receiver or Pop3Receiver(config.pop3)
     app.include_router(api_router, prefix="/api")
+    app.include_router(admin_router)
     return app
