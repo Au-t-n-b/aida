@@ -163,9 +163,21 @@ class WaitSurveyStep(BaseStep):
         except Exception:
             pass
 
+        # 多轮复勘历史：累积每轮汇总（SDUI 轮次对比 Table）。
+        # metrics 扁平 merge 是 last-write-wins，故读旧历史→去重当前轮→追加→整列回写。
+        history = list((state.get("metrics") or {}).get("survey_round_history") or [])
+        history = [h for h in history if h.get("round") != round_num]
+        history.append({
+            "round": round_num,
+            "filled": len(results),
+            "total": len(filled_rows),
+        })
+        history.sort(key=lambda h: h.get("round", 0))
+
         return {
             "metrics": {
                 "survey_round": round_num,
                 "filled_count": len(results),
+                "survey_round_history": history,
             }
         }

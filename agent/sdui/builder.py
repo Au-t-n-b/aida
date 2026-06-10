@@ -643,16 +643,28 @@ class SduiInlinePreviewNode(BaseModel):
 
 class SduiImageItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    caption: str
-    label: str | None = None
+    caption: str                       # 底部浮层文件名（如 PDU-01.jpg）
+    label: str | None = None           # 无图时居中的场景占位标签（如「配电」）
+    src: str | None = None             # 真实图片路径 / URL；给定则渲染缩略图，否则回退占位
 
 
 class SduiImageGridNode(BaseModel):
-    """现场照片网格 · 缩略图 + 文件名。"""
+    """现场照片网格 · 缩略图 + 文件名（src 有值渲染真图，否则场景占位）。"""
     model_config = ConfigDict(extra="ignore")
     type: Literal["ImageGrid"] = "ImageGrid"
     id: str | None = None
     images: list[SduiImageItem]
+
+
+class SduiToastNode(BaseModel):
+    """浮层通知 · 单行轻提示（状态点 + 主文案 + 副文案）。
+    SDUI 静态投影里作为「已完成/已保存」类即时反馈展示，无自动消失计时。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["Toast"] = "Toast"
+    id: str | None = None
+    message: str
+    detail: str | None = None
+    tone: Literal["success", "info", "warning", "error"] | None = None
 
 
 class SduiSparklineNode(BaseModel):
@@ -869,6 +881,7 @@ SduiNode = Annotated[
         SduiDiffViewNode,
         SduiInlinePreviewNode,
         SduiImageGridNode,
+        SduiToastNode,
         SduiSparklineNode,
         SduiDashboardLayoutNode,
         SduiDrawerNode,

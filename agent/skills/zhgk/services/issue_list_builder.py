@@ -74,14 +74,15 @@ def build_issue_list(
     project_name: str,
     room_name: str,
     llm_call: LLMCallable,
-) -> str:
+) -> tuple[str, list[dict]]:
     """
     从全量勘测结果表生成问题清单表。
 
     筛选条件: AI评估结果 = "不满足" 或 "无法识别"
 
     返回:
-        生成的问题清单表文件路径
+        (生成的问题清单表文件路径, 问题摘要行列表)
+        摘要行: [{"序号", "问题描述", "状态", "整改建议"}]，供 SDUI 投影问题清单 Table。
     """
     if not os.path.exists(survey_table_path):
         raise IssueListError("SS-IL-E-003", f"全量勘测结果表不存在: {survey_table_path}")
@@ -141,6 +142,7 @@ def build_issue_list(
     for col_idx, header in enumerate(ISSUE_TABLE_HEADERS, 1):
         ws_out.cell(row=1, column=col_idx, value=header)
 
+    summary_rows: list[dict] = []
     for i, issue in enumerate(issues, 1):
         ws_out.cell(row=i + 1, column=1, value=i)
         ws_out.cell(row=i + 1, column=2, value=issue.problem_description)
@@ -149,13 +151,19 @@ def build_issue_list(
         ws_out.cell(row=i + 1, column=5, value="")
         ws_out.cell(row=i + 1, column=6, value="")
         ws_out.cell(row=i + 1, column=7, value="")
+        summary_rows.append({
+            "序号": i,
+            "问题描述": issue.problem_description,
+            "状态": IssueStatus.OPEN.value,
+            "整改建议": issue.remediation_suggestion,
+        })
 
     wb_out.save(output_path)
     wb_out.close()
 
     log_info("issue_list_builder", "build_issue_list",
              f"问题清单已生成: {len(issues)} 条问题 → {output_path}")
-    return output_path
+    return output_path, summary_rows
 
 
 def update_issue_status(

@@ -57,7 +57,7 @@ class IssueListStep(BaseStep):
         emit(f"[issue_list] 生成问题清单: {os.path.basename(survey_table)}")
         llm = make_llm_adapter(ctx, step_key=self.key)
 
-        issue_list_path = build_issue_list(
+        issue_list_path, issue_rows = build_issue_list(
             survey_table_path=survey_table,
             output_dir=str(ctx.output_dir),
             activity_id=proj.get("activity_id", ""),
@@ -66,9 +66,14 @@ class IssueListStep(BaseStep):
             llm_call=llm,
         )
 
-        emit(f"[issue_list] ✓ 问题清单: {os.path.basename(issue_list_path)}")
+        emit(f"[issue_list] ✓ 问题清单: {os.path.basename(issue_list_path)}（{len(issue_rows)} 条）")
 
         return {
-            "metrics": {"issue_list_path": issue_list_path},
+            "metrics": {
+                "issue_list_path": issue_list_path,
+                "issue_count": len(issue_rows),
+                # 仅前 10 条进 metrics（SDUI 问题清单 Table 预览）
+                "issue_rows": issue_rows[:10],
+            },
             "artifacts": [ctx.rel(issue_list_path)],
         }

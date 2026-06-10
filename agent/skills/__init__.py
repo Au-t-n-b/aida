@@ -19,18 +19,28 @@ from ._loader import SkillMetadata, load_skill_md, default_skill_md_path
 
 
 def _register_all():
-    """启动时只注册工厂引用，不实例化（lazy）"""
-    from .zhgk.skill import get_zhgk_skill
-    registry.register("zhgk", get_zhgk_skill)
+    """启动时只注册工厂引用，不实例化（lazy）。
 
-    from .guihua.skill import get_guihua_skill
-    registry.register("guihua", get_guihua_skill)
+    单个 skill 缺目录 / 导入失败时**只跳过它**，不拖垮整个注册表——
+    否则一个未提交的可选 skill（如 device_install）会让全部 skill 不可用。
+    """
+    import sys
 
-    from .xtsj.skill import get_xtsj_skill
-    registry.register("xtsj", get_xtsj_skill)
-
-    from .device_install.skill import get_device_install_skill
-    registry.register("device_install", get_device_install_skill)
+    # (skill 名, "模块路径:工厂函数名")
+    _specs = [
+        ("zhgk",           ".zhgk.skill:get_zhgk_skill"),
+        ("guihua",         ".guihua.skill:get_guihua_skill"),
+        ("xtsj",           ".xtsj.skill:get_xtsj_skill"),
+        ("device_install", ".device_install.skill:get_device_install_skill"),
+    ]
+    import importlib
+    for name, target in _specs:
+        mod_path, factory_name = target.split(":")
+        try:
+            mod = importlib.import_module(mod_path, package=__name__)
+            registry.register(name, getattr(mod, factory_name))
+        except Exception as e:  # noqa: BLE001 — 缺件/语法错都不应阻断其余 skill
+            sys.stderr.write(f"[skills] 跳过 {name}：{type(e).__name__}: {e}\n")
 
 
 _register_all()

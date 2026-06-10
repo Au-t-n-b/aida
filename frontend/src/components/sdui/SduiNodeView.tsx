@@ -1400,16 +1400,75 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
 
     case 'ImageGrid':
+      // 对齐 SDUI v4 设计稿 .d-imgs：3 列 · aspect-ratio 4/3 · 文件名浮层于底部
       return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
           {(node.images ?? []).map((im, i) => (
-            <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ height: 64, background: 'var(--c-bg-soft, #eef2f7)', display: 'grid', placeItems: 'center', fontSize: 12, color: 'var(--text-tertiary)' }}>{im.label ?? '📷'}</div>
-              <div style={{ padding: '6px 8px', fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{im.caption}</div>
+            <div
+              key={i}
+              style={{
+                aspectRatio: '4 / 3', borderRadius: 'var(--r-md, 6px)',
+                border: '1px solid var(--border)', overflow: 'hidden',
+                background: 'var(--c-bg-soft, #eef2f7)', position: 'relative',
+                cursor: im.src ? 'pointer' : 'default',
+              }}
+            >
+              {im.src ? (
+                <img
+                  src={im.src}
+                  alt={im.caption}
+                  loading="lazy"
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+              ) : (
+                <div style={{ height: '100%', display: 'grid', placeItems: 'center', fontSize: 11, color: 'var(--text-tertiary, #94a3b8)' }}>
+                  {im.label ?? '📷'}
+                </div>
+              )}
+              <div
+                style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
+                  padding: '4px 8px', background: 'rgba(15,23,42,.55)', color: '#fff',
+                  fontSize: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                }}
+              >
+                {im.caption}
+              </div>
             </div>
           ))}
         </div>
       );
+
+    case 'Toast': {
+      // 对齐设计稿 .d-toast：状态点 + 主文案 + 副文案，inline 浮层卡
+      const dotColor =
+        node.tone === 'warning' ? 'var(--c-warning, #d97706)' :
+        node.tone === 'error'   ? 'var(--c-danger, #dc2626)'  :
+        node.tone === 'info'    ? 'var(--c-info, #2563eb)'    :
+        'var(--c-success, #0f9d58)';
+      return (
+        <div
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 10,
+            padding: '10px 13px', borderRadius: 'var(--r-md, 6px)',
+            background: 'var(--surface, #fff)', border: '1px solid var(--border)',
+            boxShadow: 'var(--shadow-md, 0 4px 14px rgba(15,23,42,.06))',
+            fontSize: 13, color: 'var(--text-primary)',
+          }}
+        >
+          <span style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: dotColor }} />
+          <div>
+            {node.message}
+            {node.detail && (
+              <>
+                <br />
+                <small style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{node.detail}</small>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    }
 
     case 'Sparkline': {
       const pts = node.points ?? [];

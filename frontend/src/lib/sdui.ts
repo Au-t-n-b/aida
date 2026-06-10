@@ -247,9 +247,12 @@ export type SduiDiffViewNode = OptId & { type: 'DiffView'; rows: SduiDiffRow[]; 
 /** InlinePreview — 内嵌产物预览。*/
 export type SduiInlinePreviewNode = OptId & { type: 'InlinePreview'; filename: string; placeholder?: string };
 
-/** ImageGrid — 现场照片网格。*/
-export type SduiImageItem = { caption: string; label?: string };
+/** ImageGrid — 现场照片网格（src 有值渲染真图，否则场景占位）。*/
+export type SduiImageItem = { caption: string; label?: string; src?: string };
 export type SduiImageGridNode = OptId & { type: 'ImageGrid'; images: SduiImageItem[] };
+
+/** Toast — 浮层通知（状态点 + 主文案 + 副文案）。*/
+export type SduiToastNode = OptId & { type: 'Toast'; message: string; detail?: string; tone?: 'success' | 'info' | 'warning' | 'error' };
 
 /** Sparkline — 指标迷你趋势。*/
 export type SduiSparklineNode = OptId & { type: 'Sparkline'; points: number[]; label?: string; value?: string | number; delta?: string };
@@ -339,7 +342,7 @@ export type SduiNode =
   | SduiMultiSelectNode | SduiSliderNode | SduiConfirmDialogNode | SduiFormGroupNode
   // tier C (v4 业务扩展)
   | SduiStatusBannerNode | SduiSegmentedControlNode | SduiVerticalStepperNode | SduiAssessmentBarNode
-  | SduiRecipientListNode | SduiDiffViewNode | SduiInlinePreviewNode | SduiImageGridNode | SduiSparklineNode
+  | SduiRecipientListNode | SduiDiffViewNode | SduiInlinePreviewNode | SduiImageGridNode | SduiToastNode | SduiSparklineNode
   | SduiDashboardLayoutNode | SduiDrawerNode
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode

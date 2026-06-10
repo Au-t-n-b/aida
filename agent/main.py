@@ -164,9 +164,14 @@ def get_skill(skill_name: str):
 
 # ─── 工作流启动 ───
 
-async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None):
+async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None,
+                               suppress_replay: bool = False):
     """后台跑 LangGraph，所有 update 推到 run_id 对应 queue。
-    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。"""
+    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。
+
+    suppress_replay=True（full_restart 重放专用）：重放期间抑制所有中间 SDUI 帧
+    （overlay + 逐节点），仅在重放结束（HITL 暂停 / 完成）后补推一帧最终树——
+    避免右侧界面「回退到环境准备再逐帧爬回当前」的闪烁。/ui 快照期间由 display_state 兜底。"""
     from .skills.base import register_run_push, unregister_run_push
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
@@ -218,6 +223,8 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
 
     def _push_sdui_overlay() -> None:
         """用带 running 记录的 patched state 生成 SDUI 并推入队列（线程安全）。"""
+        if suppress_replay:
+            return  # 重放期间不推中间帧
         try:
             _proj = _get_sdui_projector(skill_id)
             if _proj is None:
@@ -277,14 +284,26 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                         cur.setdefault(k, []).extend(v)
                     else:
                         cur[k] = v
-                # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）
-                try:
-                    _proj = _get_sdui_projector(skill_id)
-                    if _proj is not None:
-                        sdui_doc = _proj(RUNS[run_id]["state"])
-                        await queue.put({"event": "sdui", "data": sdui_doc})
-                except Exception:
-                    pass
+                # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）。
+                # 重放期间跳过——避免逐帧爬升的回退闪烁。
+                if not suppress_replay:
+                    try:
+                        _proj = _get_sdui_projector(skill_id)
+                        if _proj is not None:
+                            sdui_doc = _proj(RUNS[run_id]["state"])
+                            await queue.put({"event": "sdui", "data": sdui_doc})
+                    except Exception:
+                        pass
+
+        # 重放结束：补推一帧最终树（暂停态 / 完成态），并解除 display_state 兜底
+        if suppress_replay:
+            try:
+                _proj = _get_sdui_projector(skill_id)
+                if _proj is not None:
+                    await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
+            except Exception:
+                pass
+            RUNS[run_id]["display_state"] = RUNS[run_id]["state"]
 
         final_state = RUNS[run_id]["state"]
         hitl = final_state.get("hitl") or {}
@@ -330,13 +349,15 @@ async def _sse_generator(run_id: str) -> AsyncIterator[dict]:
         return
 
     async def _send_snapshot() -> AsyncIterator[dict]:
-        """快照辅助：发 snapshot + sdui，供首连和 resume 无缝切换时复用。"""
-        yield {"event": "snapshot", "data": json.dumps(RUNS[run_id]["state"], ensure_ascii=False, default=str)}
+        """快照辅助：发 snapshot + sdui，供首连和 resume 无缝切换时复用。
+        full_restart 重放期间用 display_state（重放前旧态）兜底，避免快照回退到「环境准备」。"""
+        snap_state = RUNS[run_id].get("display_state") or RUNS[run_id]["state"]
+        yield {"event": "snapshot", "data": json.dumps(snap_state, ensure_ascii=False, default=str)}
         try:
-            _skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
+            _skill_id = snap_state.get("skill_id", "zhgk")
             _proj = _get_sdui_projector(_skill_id)
             if _proj is not None:
-                sdui_snap = _proj(RUNS[run_id]["state"])
+                sdui_snap = _proj(snap_state)
                 yield {"event": "sdui", "data": json.dumps(sdui_snap, ensure_ascii=False, default=str)}
         except Exception:
             pass
@@ -636,9 +657,13 @@ async def resume_run(skill: str, req: ResumeReq):
         "logs": [f"[resume] 补齐文件后全量重跑（attempt {attempt}）"],
         "overall_progress": 0,
     }
+    # 重放前保留旧 state：重放期间 /ui 快照据此返回，避免回退到「环境准备」
+    RUNS[req.run_id]["display_state"] = prev
     RUNS[req.run_id]["state"] = init_state
     new_tid = f"{req.run_id}-r{attempt}"
-    task = asyncio.create_task(_run_graph_streaming(req.run_id, init_state, thread_id=new_tid))
+    task = asyncio.create_task(
+        _run_graph_streaming(req.run_id, init_state, thread_id=new_tid, suppress_replay=True)
+    )
     RUNS[req.run_id]["task"] = task
     return {
         "run_id": req.run_id,
@@ -1021,7 +1046,8 @@ def get_ui_snapshot(skill: str, run_id: str):
     """返回指定 run 的当前 SDUI 文档（JSON）。前端断线重连或初始化时调用。"""
     if run_id not in RUNS:
         raise HTTPException(404, "run_id not found")
-    state = RUNS[run_id]["state"]
+    # full_restart 重放期间返回重放前的旧 state，避免快照回退到「环境准备」早期态
+    state = RUNS[run_id].get("display_state") or RUNS[run_id]["state"]
     skill_id = state.get("skill_id", skill)
     proj_fn = _get_sdui_projector(skill_id)
     if proj_fn is None:

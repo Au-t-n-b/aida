@@ -52,7 +52,7 @@ def _survey_table_stats(survey_table_path: str) -> dict:
 class ConfirmTableStep(BaseStep):
     key = "confirm_table"
     name = "勘测表确认"
-    artifacts_pattern = []
+    artifacts_pattern = ["*勘测任务包*.zip"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -113,9 +113,38 @@ class ConfirmTableStep(BaseStep):
         if stats["scenes"]:
             emit(f"[confirm_table] 细分场景: {stats['scenes']}")
 
+        # v4：生成勘测任务包（供视频勘测下发 / 现场勘测下载，设计文档 Step 7a/7b）
+        package_path = None
+        if survey_table:
+            try:
+                from ..services.survey_task_package import (
+                    build_survey_task_package, collect_on_site_items,
+                )
+                info: dict = {}
+                info_path = ctx.runtime_dir / "project_info.json"
+                if info_path.exists():
+                    try:
+                        info = json.loads(info_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        info = {}
+                on_site = collect_on_site_items(survey_table)
+                package_path = build_survey_task_package(
+                    survey_table,
+                    str(ctx.output_dir),
+                    project_name=info.get("项目名称", ""),
+                    room_name=info.get("机房名称", ""),
+                    activity_id=info.get("工勘活动ID", "") or info.get("activity_id", ""),
+                    on_site_items=on_site,
+                )
+                emit(f"[confirm_table] ✓ 勘测任务包已生成：{os.path.basename(package_path)}"
+                     f"（现场勘测 {len(on_site)} 条）")
+            except Exception as e:  # noqa: BLE001
+                emit(f"[confirm_table] [提示] 勘测任务包生成失败：{e}")
+
         return {
             "metrics": {
                 "confirmed_rows": stats["rows"],
                 "confirmed_scenes": stats["scenes"],
+                "task_package": os.path.basename(package_path) if package_path else "",
             }
         }

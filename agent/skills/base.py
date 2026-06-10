@@ -533,6 +533,19 @@ class BaseSkill(abc.ABC):
         result_logs = result.get("logs") or []
         all_logs = logs + result_logs
 
+        # step.run() 主动返回 HITL（如 determine_gen 解析 BOQ 后才发现推不出代际制冷
+        # → 手选 ChoiceCard）：与 check_inputs 的 HITL 同等对待——记 hitl 状态、保留
+        # hitl 字段、不推进 current_step，由 router 据 state["hitl"].step 路由到 END。
+        run_hitl = result.get("hitl")
+        if run_hitl and run_hitl.get("step"):
+            if not result.get("steps"):
+                result["steps"] = [step.make_record(
+                    "hitl", ended_at=step._now(), log_tail=all_logs[-8:],
+                )]
+            result["current_step"] = step.key
+            result["logs"] = all_logs
+            return result  # 保留 result["hitl"]，不清空
+
         # 如果 result 已经写了 steps，就用 result 的；否则补一个 completed 记录
         if not result.get("steps"):
             rec = step.make_record(

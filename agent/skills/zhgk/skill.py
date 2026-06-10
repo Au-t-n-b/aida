@@ -91,12 +91,16 @@ class ZhgkSkill(BaseSkill):
           wait_survey     → 文件型 HITL；若 resurvey_pending 则清 resurvey_decision
           resurvey_gate   → project["resurvey_decision"] = choice
           supplement_run  → project["supplement_choice"] = choice（追加/跳过）
+          report_distribute → project["approval_decision"] = choice（通过/驳回/暂存）
         """
         project = dict(project)
         choice = payload.get("choice", "")
 
         if hitl_step == "intent_select" and choice:
             project["intent"] = choice
+
+        elif hitl_step == "report_distribute" and choice:
+            project["approval_decision"] = choice
 
         elif hitl_step == "determine_gen" and choice:
             project["generation_cooling"] = choice

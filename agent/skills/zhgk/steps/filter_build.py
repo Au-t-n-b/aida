@@ -137,12 +137,24 @@ class FilterBuildStep(BaseStep):
         # 写路径到 project_info.json
         _update_project_info(ctx.runtime_dir, "survey_table_path", survey_table_path)
 
+        # 前 10 条进 metrics（SDUI 条目预览 Table）
+        preview_rows = [
+            {
+                "细分场景": str(it.get("细分场景", "") or ""),
+                "勘测要素": str(it.get("勘测要素", "") or ""),
+                "项目":     str(it.get("项目", "") or ""),
+                "勘测方法": str(it.get("勘测方法", "") or ""),
+            }
+            for it in filtered[:10]
+        ]
+
         return {
             "metrics": {
                 "generation_cooling":  gen_cooling,
                 "sub_scenes":          sub_scenes,
                 "filtered_count":      len(filtered),
                 "survey_table_path":   survey_table_path,
+                "preview_rows":        preview_rows,
             },
             "artifacts": [ctx.rel(survey_table_path)],
         }
