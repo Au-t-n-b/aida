@@ -1,0 +1,2255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>本体决策系统 · 项目可交付性决策</title>
+<style>
+  :root {
+    --bg-1: oklch(0.975 0.008 245);
+    --bg-2: oklch(0.945 0.014 247);
+    --bg-3: oklch(0.924 0.018 250);
+    --ink: oklch(0.255 0.045 260);
+    --ink-soft: oklch(0.448 0.040 262);
+    --ink-faint: oklch(0.660 0.036 264);
+    --blue: oklch(0.621 0.193 256);
+    --cyan: oklch(0.715 0.118 215);
+    --violet: oklch(0.620 0.190 285);
+    --success: oklch(0.710 0.148 162);
+    --success-dark: oklch(0.620 0.130 163);
+    --warning: oklch(0.760 0.158 70);
+    --warning-dark: oklch(0.548 0.130 56);
+    --danger: oklch(0.637 0.222 25);
+    --glass: rgba(255, 255, 255, 0.62);
+    --glass-border: rgba(120, 160, 220, 0.35);
+    --shadow: 0 18px 50px -20px rgba(38, 86, 160, 0.45);
+    --panel-width: 960px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(1300px 850px at 28% 16%, #ffffff 0%, rgba(255,255,255,0) 55%),
+      radial-gradient(1200px 950px at 82% 90%, #eef4ff 0%, rgba(238,244,255,0) 60%),
+      linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 45%, var(--bg-3) 100%);
+  }
+
+  #stage { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+
+  #stage::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(70,120,200,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(70,120,200,0.05) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(closest-side at 50% 50%, #000 35%, transparent 92%);
+    -webkit-mask-image: radial-gradient(closest-side at 50% 50%, #000 35%, transparent 92%);
+    pointer-events: none;
+    transition: opacity .6s ease;
+  }
+  body.report-open #stage::before { opacity: .4; }
+
+  canvas#field { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* ---------- Header ---------- */
+  .topbar {
+    position: absolute; top: 0; left: 0; right: 0;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 22px 34px; z-index: 30; pointer-events: none;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand .dot {
+    width: 30px; height: 30px; border-radius: 9px;
+    background: linear-gradient(135deg, var(--blue), var(--cyan));
+    box-shadow: 0 6px 18px -4px rgba(47,125,246,0.6); position: relative;
+  }
+  .brand .dot::after { content:""; position:absolute; inset:7px; border-radius:5px; background: rgba(255,255,255,0.85); }
+  .brand .txt b { font-size: 16px; letter-spacing: .5px; }
+  .brand .txt span { display:block; font-size: 11.5px; color: var(--ink-faint); letter-spacing: 2px; text-transform: uppercase; }
+
+  .status-pill {
+    display:flex; align-items:center; gap:9px;
+    background: var(--glass); border: 1px solid var(--glass-border);
+    padding: 8px 16px; border-radius: 999px;
+    font-size: 12.5px; color: var(--ink-soft);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: var(--shadow);
+  }
+  .status-pill i {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--cyan); box-shadow: 0 0 0 0 rgba(25,184,216,0.5);
+    animation: pulse 1.8s infinite;
+  }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(25,184,216,0.45); }
+    70% { box-shadow: 0 0 0 9px rgba(25,184,216,0); }
+    100% { box-shadow: 0 0 0 0 rgba(25,184,216,0); }
+  }
+
+  /* ---------- UI / spatial layer ---------- */
+  .ui-layer { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
+  .node-wrap {
+    position: absolute; top: 0; left: 0;
+    display: flex; justify-content: center; align-items: center;
+    will-change: transform;
+  }
+
+  /* ---------- Center brain ---------- */
+  .center { position: relative; width: 560px; height: 560px; display: grid; place-items: center; }
+  .center .halo {
+    position: absolute; top: 50%; left: 50%;
+    width: 560px; height: 560px; transform: translate(-50%,-50%);
+    border-radius: 50%;
+    background: radial-gradient(circle,
+      rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.74) 19%,
+      rgba(246,250,255,0.40) 37%, rgba(232,242,255,0.12) 55%, rgba(255,255,255,0) 70%);
+    animation: breathe 6.5s ease-in-out infinite; pointer-events: none;
+    transition: background .8s ease;
+  }
+  .center.res-success .halo {
+    background: radial-gradient(circle,
+      rgba(255,255,255,0.92) 0%, rgba(232,251,243,0.6) 28%,
+      rgba(209,245,231,0.2) 50%, rgba(255,255,255,0) 70%);
+  }
+  .center.res-risk .halo {
+    background: radial-gradient(circle,
+      rgba(255,255,255,0.92) 0%, rgba(255,247,232,0.62) 28%,
+      rgba(254,238,205,0.22) 50%, rgba(255,255,255,0) 70%);
+  }
+  @keyframes breathe {
+    0%, 100% { transform: translate(-50%,-50%) scale(1);   opacity: .92; }
+    50%      { transform: translate(-50%,-50%) scale(1.07); opacity: 1; }
+  }
+
+  .core-card {
+    position: relative; width: 360px; min-height: 220px;
+    padding: 12px 24px; border-radius: 26px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    background: transparent; border: 1px solid transparent; box-shadow: none;
+    opacity: 0; animation: centerIn 1.1s .25s ease both;
+    transition: background .8s ease, border-color .8s ease, box-shadow .8s ease, backdrop-filter .8s ease;
+  }
+  @keyframes centerIn { to { opacity: 1; } }
+  .center.is-resolved .core-card { opacity: 1; }
+  .center.is-resolved .core-card {
+    background: linear-gradient(160deg, #ffffff, #eef5ff);
+    cursor: pointer; pointer-events: auto;
+  }
+  .center.res-success .core-card { border-color: rgba(120,210,175,0.5); box-shadow: 0 30px 70px -22px rgba(16,160,110,0.4); }
+  .center.res-risk .core-card    { border-color: rgba(245,190,110,0.55); box-shadow: 0 30px 70px -22px rgba(200,130,20,0.4); }
+  .center.is-resolved .core-card:hover { transform: scale(1.02); }
+
+  .text-glow { text-shadow: 0 0 18px rgba(255,255,255,1), 0 0 40px rgba(255,255,255,0.85), 0 2px 12px rgba(120,160,230,0.30); }
+
+  .core-brainmark { color: var(--blue); margin-bottom: 12px; filter: drop-shadow(0 0 14px rgba(255,255,255,0.95)); animation: markspin 16s linear infinite; }
+  .core-brainmark svg { width: 36px; height: 36px; }
+  @keyframes markspin { to { transform: rotate(360deg); } }
+
+  .core-badge {
+    display:inline-flex; align-items:center; gap:7px;
+    font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; font-weight: 700;
+    color: var(--blue); background: rgba(255,255,255,0.55);
+    padding: 5px 12px; border-radius: 999px; margin-bottom: 12px;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  }
+  .core-title { font-size: 32px; font-weight: 800; letter-spacing: 1px; color: #16233c; margin-bottom: 6px; }
+  .core-sub {
+    font-size: 12px; color: var(--blue); font-weight: 600; letter-spacing: 3px;
+    text-transform: uppercase; font-family: "Segoe UI", monospace; margin-bottom: 14px; opacity: .85;
+  }
+  .core-state {
+    font-size: 14px; color: #2c3a55; font-weight: 500; min-height: 46px; line-height: 1.55; max-width: 300px;
+    padding: 10px 16px; border-radius: 16px;
+    background: rgba(255,255,255,0.55); border: 1px solid rgba(255,255,255,0.85);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: opacity .4s ease;
+  }
+  .core-state b { color: var(--blue); font-weight: 700; }
+  .progress { margin-top: 16px; height: 5px; width: 240px; border-radius: 99px; background: rgba(47,125,246,0.14); overflow: hidden; }
+  .progress i { display:block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--blue), var(--cyan)); border-radius: 99px; transition: width .8s ease; box-shadow: 0 0 12px rgba(25,184,216,0.6); }
+
+  /* ---- smooth crossfade reasoning -> resolved ---- */
+  .center .reasoning { display: flex; flex-direction: column; align-items: center; transition: opacity .45s ease, transform .45s ease; }
+  .center.fading .reasoning { opacity: 0; transform: scale(0.94); }
+  .center.is-resolved .reasoning { display: none; }
+
+  .resolved { display: none; flex-direction: column; align-items: center; width: 100%;
+    opacity: 0; transform: scale(0.95); transition: opacity .6s ease, transform .6s ease; }
+  .center.is-resolved .resolved { display: flex; opacity: 1; transform: scale(1); }
+
+  .resolved-badge {
+    display:inline-flex; align-items:center; gap:7px; font-family: "Segoe UI", monospace;
+    font-size: 12px; font-weight: 800; letter-spacing: 1.5px; padding: 6px 16px; border-radius: 999px;
+    margin-bottom: 14px; background: rgba(255,255,255,0.85);
+  }
+  .resolved-badge svg { width: 15px; height: 15px; }
+  .resolved-badge.success { color: var(--success-dark); border: 1px solid rgba(16,185,129,0.35); }
+  .resolved-badge.risk { color: var(--warning-dark); border: 1px solid rgba(245,158,11,0.4); }
+  .r-title { font-size: 34px; font-weight: 800; letter-spacing: 1px; margin-bottom: 8px; }
+  .r-title.success { color: #064e3b; } .r-title.risk { color: #78350f; }
+  .r-sub { font-size: 13px; color: var(--ink-soft); font-weight: 500; line-height: 1.6; max-width: 320px; margin-bottom: 16px; }
+
+  /* primary "view plan" button (matches reference pill) */
+  .r-cta {
+    display:inline-flex; align-items:center; gap:8px; cursor: pointer;
+    font-size: 13px; font-weight: 800; padding: 10px 20px; border-radius: 999px;
+    margin-bottom: 14px; transition: all .25s ease; border: 1px solid transparent;
+  }
+  .r-cta svg { width: 15px; height: 15px; }
+  .center.res-risk .r-cta { color: var(--warning-dark); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.28); }
+  .center.res-risk .r-cta:hover { background: rgba(245,158,11,0.2); transform: translateY(-2px); box-shadow: 0 10px 24px -10px rgba(245,158,11,0.6); }
+  .center.res-success .r-cta { color: var(--success-dark); background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.3); }
+  .center.res-success .r-cta:hover { background: rgba(16,185,129,0.2); transform: translateY(-2px); box-shadow: 0 10px 24px -10px rgba(16,160,110,0.6); }
+
+  /* risk / task stat chips */
+  .r-stats { display: flex; gap: 10px; }
+  .r-stat {
+    display:flex; align-items:center; gap:9px; cursor: pointer;
+    padding: 9px 14px; border-radius: 13px; background: rgba(255,255,255,0.7);
+    border: 1px solid rgba(40,80,150,0.12); transition: all .25s ease; min-width: 116px;
+  }
+  .r-stat:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -12px rgba(40,90,170,0.5); border-color: rgba(40,80,150,0.28); }
+  .r-stat .rs-ic { width: 30px; height: 30px; border-radius: 9px; display:grid; place-items:center; flex:none; }
+  .r-stat .rs-ic svg { width: 16px; height: 16px; }
+  .r-stat .rs-ic.warn { background: rgba(245,158,11,0.14); color: var(--warning-dark); }
+  .r-stat .rs-ic.task { background: rgba(47,125,246,0.12); color: var(--blue); }
+  .r-stat .rs-ic.ok { background: rgba(16,185,129,0.14); color: var(--success-dark); }
+  .r-stat .rs-txt { text-align: left; line-height: 1.1; }
+  .r-stat .rs-n { font-size: 18px; font-weight: 800; color: var(--ink); }
+  .r-stat .rs-l { font-size: 11px; color: var(--ink-soft); font-weight: 600; margin-top: 2px; display:flex; align-items:center; gap:4px; }
+  .r-stat .rs-l svg { width: 10px; height: 10px; opacity: .6; }
+
+  /* ---------- 生成处理态（点击生成最终方案后） ---------- */
+  .gen-wrap { display: flex; flex-direction: column; align-items: center; gap: 13px; padding: 4px 6px; }
+  .gen-orbit { position: relative; width: 64px; height: 64px; }
+  .gen-orbit i {
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 2px solid transparent; animation: genSpin 1.15s linear infinite;
+  }
+  .gen-orbit i:nth-child(1) { border-top-color: var(--blue); animation-duration: 1.05s; }
+  .gen-orbit i:nth-child(2) { inset: 8px; border-right-color: var(--cyan); animation-duration: 1.5s; animation-direction: reverse; }
+  .gen-orbit i:nth-child(3) { inset: 16px; border-bottom-color: #8b9cff; animation-duration: 1.9s; }
+  .gen-orbit .gen-core {
+    position: absolute; inset: 24px; border-radius: 50%;
+    background: radial-gradient(circle, #fff, var(--cyan));
+    box-shadow: 0 0 18px 4px rgba(47,125,246,0.55); animation: genBreath 1.3s ease-in-out infinite;
+  }
+  .center.res-risk .gen-orbit i:nth-child(1) { border-top-color: var(--warning-dark); }
+  .center.res-risk .gen-orbit i:nth-child(2) { border-right-color: #f59e0b; }
+  .center.res-risk .gen-orbit i:nth-child(3) { border-bottom-color: #fbbf24; }
+  .center.res-risk .gen-orbit .gen-core { background: radial-gradient(circle, #fff, #f59e0b); box-shadow: 0 0 18px 4px rgba(245,158,11,0.55); }
+  @keyframes genSpin { to { transform: rotate(360deg); } }
+  @keyframes genBreath { 0%,100% { transform: scale(0.8); opacity: .85; } 50% { transform: scale(1.12); opacity: 1; } }
+  .gen-title { font-size: 19px; font-weight: 800; color: var(--ink); letter-spacing: .5px; }
+  .gen-step {
+    font-size: 12.5px; font-weight: 600; color: var(--blue); min-height: 18px;
+    letter-spacing: .2px; animation: genFade .5s ease; max-width: 300px; text-align: center;
+  }
+  .center.res-risk .gen-step { color: var(--warning-dark); }
+  @keyframes genFade { from { opacity: .25; } to { opacity: 1; } }
+  .gen-bar { width: 248px; height: 5px; border-radius: 999px; background: rgba(40,80,150,0.12); overflow: hidden; }
+  .gen-bar i {
+    display: block; height: 100%; width: 6%; border-radius: 999px;
+    background: linear-gradient(90deg, var(--blue), var(--cyan));
+    box-shadow: 0 0 10px rgba(47,125,246,0.6); transition: width .5s ease;
+  }
+  .center.res-risk .gen-bar i { background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: 0 0 10px rgba(245,158,11,0.6); }
+  .gen-hint { font-size: 11px; color: var(--ink-soft); font-weight: 500; letter-spacing: .3px; }
+  .center.generating .core-card { opacity: 1; box-shadow: 0 26px 80px -26px rgba(47,125,246,0.55), 0 0 0 1px rgba(120,160,220,0.18); animation: genCardBreath 2.4s ease-in-out infinite; }
+  .center.res-risk.generating .core-card { box-shadow: 0 26px 80px -26px rgba(245,158,11,0.5), 0 0 0 1px rgba(245,158,11,0.18); }
+  @keyframes genCardBreath { 0%,100% { transform: scale(1); } 50% { transform: scale(1.018); } }
+
+  /* ---------- Node cards ---------- */
+  .node-card {
+    position: relative; width: 268px; padding: 16px 18px 16px; border-radius: 18px;
+    background: rgba(255,255,255,0.30); border: 1px solid rgba(120,160,220,0.18);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    box-shadow: 0 10px 30px -18px rgba(40,90,170,0.4);
+    opacity: 0.26; filter: saturate(0.6); transform: scale(0.96);
+    transition: opacity .7s ease, transform .7s ease, background .7s ease,
+                border-color .7s ease, backdrop-filter .7s ease, filter .7s ease, box-shadow .7s ease;
+  }
+  .node-card.active { opacity: 0.95; background: rgba(255,255,255,0.55); border-color: rgba(47,125,246,0.45); }
+  .node-card.completed {
+    opacity: 1; filter: saturate(1); transform: scale(1);
+    background: linear-gradient(160deg, rgba(255,255,255,0.84), rgba(236,244,255,0.6));
+    border-color: var(--glass-border); backdrop-filter: blur(13px); -webkit-backdrop-filter: blur(13px);
+    box-shadow: var(--shadow);
+  }
+  .node-card.clickable { cursor: pointer; pointer-events: auto; }
+  .node-card.clickable:hover { border-color: rgba(47,125,246,0.6); box-shadow: 0 20px 50px -12px rgba(47,125,246,0.3); }
+  .node-card.warn.completed { border-color: rgba(245,158,11,0.5); }
+  .node-card.warn.clickable:hover { border-color: rgba(245,158,11,0.7); box-shadow: 0 20px 50px -12px rgba(245,158,11,0.3); }
+  .node-card::before {
+    content:''; position:absolute; top:0; left:14px; right:14px; height:2px; border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0;
+    transition: opacity .6s ease;
+  }
+  .node-card.completed::before { opacity: .6; }
+  .node-card.warn.completed::before { background: linear-gradient(90deg, transparent, var(--warning), transparent); }
+
+  .node-card .head { display:flex; align-items:center; gap:11px; margin-bottom: 9px; }
+  .node-card .ic {
+    width: 40px; height: 40px; border-radius: 11px; flex: none; display:grid; place-items:center;
+    background: linear-gradient(135deg, rgba(47,125,246,0.14), rgba(25,184,216,0.14));
+    border: 1px solid rgba(47,125,246,0.22); color: var(--blue); transition: all .6s ease;
+  }
+  .node-card.completed .ic { background: linear-gradient(135deg, var(--blue), var(--cyan)); color: #fff; box-shadow: 0 8px 18px -6px rgba(47,125,246,0.6); }
+  .node-card.warn.completed .ic { background: linear-gradient(135deg, var(--warning), #ea580c); box-shadow: 0 8px 18px -6px rgba(245,158,11,0.6); }
+  .node-card .ic svg { width: 21px; height: 21px; }
+  .node-card .name { font-size: 16px; font-weight: 700; letter-spacing: .3px; }
+  .node-card .en { font-size: 10px; color: var(--ink-faint); letter-spacing: 1.5px; text-transform: uppercase; }
+  .node-card .desc { font-size: 12px; color: var(--ink-soft); line-height: 1.55; min-height: 36px; }
+  .node-card .foot { display:flex; align-items:center; justify-content: space-between; margin-top: 10px; }
+  .node-card .stat { font-size: 11px; color: var(--ink-faint); display:flex; align-items:center; gap:6px; }
+  .node-card .stat .led { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); transition: all .5s ease; }
+  .node-card.active .stat .led { background: var(--cyan); animation: pulse 1.6s infinite; }
+  .node-card.completed .stat .led { background: var(--success); animation: none; }
+  .node-card.warn.completed .stat .led { background: var(--warning); }
+  .node-card .badge {
+    font-size: 10.5px; font-weight: 700; font-family: "Segoe UI", monospace;
+    color: var(--success-dark); background: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.25);
+    padding: 3px 10px; border-radius: 999px; opacity: 0; transform: translateY(4px);
+    transition: opacity .5s ease, transform .5s ease; display:flex; align-items:center; gap:5px;
+  }
+  .node-card .badge svg { width: 11px; height: 11px; }
+  .node-card.completed .badge { opacity: 1; transform: translateY(0); }
+  .node-card.warn.completed .badge { color: var(--warning-dark); background: rgba(245,158,11,0.12); border-color: rgba(245,158,11,0.3); }
+  .energy { position:absolute; left:0; right:0; bottom:0; height:3px; background: rgba(0,0,0,0.05); border-radius:0 0 18px 18px; overflow:hidden; }
+  .energy i { display:block; height:100%; width:0%; background: var(--cyan); transition: width .5s ease; }
+  .node-card.active .energy i { width:100%; background: linear-gradient(90deg, transparent, var(--cyan), transparent); animation: escan 1.6s linear infinite; }
+  .node-card.completed .energy i { width:100%; background: var(--success); animation:none; }
+  .node-card.warn.completed .energy i { width:100%; background: var(--warning); animation:none; }
+  @keyframes escan { 0%{transform:translateX(-100%);} 100%{transform:translateX(100%);} }
+
+  /* ---------- Log stream ---------- */
+  .logs {
+    position: absolute; right: 28px; bottom: 28px; width: 320px;
+    background: var(--glass); border: 1px solid var(--glass-border); border-radius: 16px;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); box-shadow: var(--shadow);
+    padding: 14px 16px 12px; z-index: 25; transition: opacity .5s ease, transform .5s ease;
+  }
+  body.report-open .logs { opacity: 0; transform: translateY(20px); pointer-events: none; }
+  .logs h4 { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; display:flex; align-items:center; gap:8px; margin-bottom: 10px; }
+  .logs h4 .lv { width: 6px; height: 14px; border-radius: 3px; background: linear-gradient(var(--blue),var(--cyan)); }
+  .log-list { list-style: none; max-height: 174px; overflow: hidden; }
+  .log-list li { display:flex; align-items:flex-start; gap:9px; font-size: 12px; color: var(--ink-soft); padding: 5px 0; line-height: 1.4; opacity: 0; transform: translateX(10px); transition: opacity .5s ease, transform .5s ease; }
+  .log-list li.show { opacity: 1; transform: translateX(0); }
+  .log-list li .tick { flex: none; margin-top: 2px; width: 14px; height: 14px; border-radius: 50%; background: rgba(15,157,107,0.15); display:grid; place-items:center; }
+  .log-list li .tick svg { width: 9px; height: 9px; color: var(--success-dark); }
+  .log-list li.warn .tick { background: rgba(245,158,11,0.18); }
+  .log-list li.warn .tick svg { color: var(--warning-dark); }
+  .log-list li .t { font-family: monospace; color: var(--ink-faint); font-size: 10.5px; margin-right: 2px; }
+
+  .legend {
+    position: absolute; left: 28px; bottom: 28px; z-index: 25; display:flex; flex-direction: column; gap: 7px;
+    background: var(--glass); border: 1px solid var(--glass-border); border-radius: 14px; padding: 12px 15px;
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: var(--shadow);
+    font-size: 11.5px; color: var(--ink-soft); transition: opacity .5s ease, transform .5s ease;
+  }
+  body.report-open .legend { opacity: 0; transform: translateY(20px); pointer-events: none; }
+  .legend .row { display:flex; align-items:center; gap:8px; }
+  .legend .sw { width: 22px; height: 8px; border-radius: 99px; }
+  .legend .sw.s1 { background: rgba(122,140,170,0.5); }
+  .legend .sw.s2 { background: var(--cyan); }
+  .legend .sw.s3 { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+
+  /* ====================================================
+     Report Drawer
+     ==================================================== */
+  #drawer {
+    position: absolute; top: 0; right: calc(var(--panel-width) * -1 - 60px);
+    width: var(--panel-width); height: 100vh; z-index: 100;
+    background: rgba(255,255,255,0.74); backdrop-filter: blur(42px); -webkit-backdrop-filter: blur(42px);
+    border-left: 1px solid rgba(255,255,255,0.9); box-shadow: -24px 0 70px rgba(30,70,140,0.14);
+    transition: right .7s cubic-bezier(0.22, 0.9, 0.3, 1.15);
+    display: flex; flex-direction: column;
+  }
+  body.report-open #drawer { right: 0; }
+
+  /* ===== Report-open: fade brain field out, TOC + report take over ===== */
+  #uiLayer { transition: opacity .6s ease, transform .7s cubic-bezier(.22,.9,.3,1.15); transform-origin: center center; }
+  body.report-open #uiLayer { opacity: 0; transform: scale(0.92); pointer-events: none; }
+  canvas#field { transition: opacity .7s ease; }
+  body.report-open canvas#field { opacity: 0.10; }
+  .topbar { transition: opacity .5s ease; }
+  body.report-open .topbar { opacity: 0; pointer-events: none; }
+
+  /* ===== Left vertical TOC navigation ===== */
+  #toc {
+    position: absolute; top: 0; left: 0; width: var(--toc-width, 300px); height: 100vh; z-index: 90;
+    background: linear-gradient(180deg, rgba(255,255,255,0.93), rgba(244,249,255,0.93));
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    border-right: 1px solid rgba(120,160,220,0.22); box-shadow: 8px 0 44px rgba(30,70,140,0.08);
+    transform: translateX(-112%); opacity: 0; pointer-events: none;
+    transition: transform .7s cubic-bezier(.22,.9,.3,1.15), opacity .5s ease;
+    display: flex; flex-direction: column; padding: 24px 16px 16px;
+  }
+  body.report-open #toc { transform: translateX(0); opacity: 1; pointer-events: auto; }
+  .toc-head { padding: 0 8px 14px; border-bottom: 1px solid rgba(40,80,150,0.1); margin-bottom: 12px; }
+  .toc-title { font-size: 1.04rem; font-weight: 800; color: var(--ink); display:flex; align-items:center; gap:9px; }
+  .tl-bar { width: 5px; height: 18px; border-radius: 3px; background: linear-gradient(var(--blue), var(--cyan)); }
+  .toc-en { font-family: monospace; font-size: .58rem; letter-spacing: 1.6px; color: var(--ink-faint); margin: 7px 0 0 14px; text-transform: uppercase; }
+  .toc-verdict { margin: 0 6px 12px; padding: 10px 12px; border-radius: 10px; font-size: .72rem; font-weight: 700; line-height: 1.5; display:flex; align-items:center; gap:8px; }
+  .toc-verdict svg { width: 17px; height: 17px; flex:none; }
+  .toc-verdict.risk { background: #fff7ec; border: 1px solid #fde3a7; color: var(--warning-dark); }
+  .toc-verdict.success { background: #f0fdf8; border: 1px solid #b8ebd4; color: var(--success-dark); }
+  .toc-list { flex: 1; overflow-y: auto; display:flex; flex-direction:column; gap:3px; padding-right: 4px; }
+  .toc-list::-webkit-scrollbar { width: 6px; } .toc-list::-webkit-scrollbar-thumb { background: #cdd9ea; border-radius: 3px; }
+  .toc-item { display:flex; align-items:center; gap:10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; text-decoration: none; border: 1px solid transparent; transition: background .2s, border-color .2s, transform .2s; }
+  .toc-item:hover { background: rgba(47,125,246,0.06); transform: translateX(2px); }
+  .toc-item.active { background: rgba(47,125,246,0.10); border-color: rgba(47,125,246,0.26); }
+  .ti-idx { font-family: monospace; font-size: .72rem; font-weight: 800; color: var(--ink-faint); width: 22px; flex: none; text-align: center; }
+  .toc-item.active .ti-idx { color: var(--blue); }
+  .ti-main { display:flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .ti-name { font-size: .82rem; font-weight: 700; color: #2c3a55; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .toc-item.active .ti-name { color: var(--ink); }
+  .ti-src { font-size: .56rem; font-weight: 800; font-family: monospace; letter-spacing: .4px; padding: 1px 6px; border-radius: 4px; align-self: flex-start; }
+  .src-db { background: #eef1f6; color: #64748b; }
+  .src-net { background: #e7efff; color: #2563eb; }
+  .src-dev { background: #f1ecfe; color: #7c3aed; }
+  .src-svc { background: #e3f7fb; color: #0e8aa6; }
+  .src-acc { background: #e6fbf4; color: #0d9488; }
+  .src-risk { background: #fff1e0; color: #d97706; }
+  .src-plan { background: #eaeefe; color: #4f46e5; }
+  .toc-foot { margin-top: 10px; display:flex; align-items:center; justify-content:center; gap:7px; cursor:pointer; font-size:.76rem; font-weight:700; color:#475569; padding:11px; border-radius:10px; background: rgba(255,255,255,0.7); border:1px solid #dde5f0; transition: all .2s; }
+  .toc-foot:hover { background:#eef2f8; transform: translateX(-2px); }
+  .toc-foot svg { width: 14px; height: 14px; }
+
+  /* chapter source tag (in section headers) + content helpers */
+  .sec-src { font-size: .58rem; font-weight: 800; font-family: monospace; letter-spacing: .4px; padding: 2px 7px; border-radius: 5px; margin-left: 8px; }
+  .pill.info { background: rgba(47,125,246,0.1); color: var(--blue); }
+  .rci { font-family: monospace; font-weight: 800; font-size: .7rem; padding: 1px 7px; border-radius: 5px; }
+  .rci.R { background: #e0f2fe; color: #0369a1; }
+  .rci.A { background: #fee2e2; color: #b42318; }
+  .rci.C { background: #fef3c7; color: #92400e; }
+  .rci.I { background: #eef1f6; color: #64748b; }
+  .mstone { display:flex; gap: 0; margin: 6px 0 4px; }
+  .mstone .ms { flex:1; text-align:center; position:relative; padding-top: 18px; font-size: .66rem; color: var(--ink-soft); }
+  .mstone .ms::before { content:''; position:absolute; top:5px; left:50%; width:10px; height:10px; border-radius:50%; background:#fff; border:2px solid var(--blue); transform: translateX(-50%); z-index:2; }
+  .mstone .ms.done::before { background: var(--blue); }
+  .mstone .ms::after { content:''; position:absolute; top:9px; left:50%; width:100%; height:2px; background:#d6e2f3; z-index:1; }
+  .mstone .ms:last-child::after { display:none; }
+  .mstone .ms b { display:block; color: var(--ink); font-size:.7rem; font-weight:800; margin-top:2px; }
+
+  /* delivery-plan Gantt chart */
+  .gantt { border: 1px solid rgba(40,80,150,0.12); border-radius: 10px; overflow: hidden; background: #fbfdff; }
+  .gantt-row, .gantt-head { display: flex; align-items: center; min-height: 30px; border-bottom: 1px solid rgba(40,80,150,0.07); }
+  .gantt-row:last-child { border-bottom: none; }
+  .gantt-head { background: #eef4fc; min-height: 26px; }
+  .gantt .gl { flex: none; width: 168px; padding: 0 12px; font-size: .68rem; font-weight: 700; color: var(--ink); display: flex; flex-direction: column; justify-content: center; line-height: 1.2; }
+  .gantt .gl em { font-style: normal; font-size: .58rem; font-weight: 600; color: var(--ink-soft); margin-top: 1px; }
+  .gantt .gtrack { position: relative; flex: 1; height: 30px; }
+  .gantt .gweeks { display: flex; height: 26px; }
+  .gantt .gweeks i { flex: 1; font-style: normal; font-size: .56rem; font-weight: 700; color: var(--ink-soft); display: grid; place-items: center; border-left: 1px dashed rgba(40,80,150,0.1); }
+  .gantt .gtrack:not(.gweeks)::before { content:''; position:absolute; inset:0; background-image: repeating-linear-gradient(90deg, transparent, transparent calc(8.333% - 1px), rgba(40,80,150,0.07) calc(8.333% - 1px), rgba(40,80,150,0.07) 8.333%); }
+  .gbar { position: absolute; top: 6px; height: 18px; border-radius: 5px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; font-size: .56rem; font-weight: 800; color: #fff; box-shadow: 0 3px 8px -3px rgba(0,0,0,0.3); }
+  .gbar.done   { background: linear-gradient(90deg, #34d399, #10b981); }
+  .gbar.active { background: linear-gradient(90deg, #38bdf8, var(--blue)); animation: gbarPulse 2s ease-in-out infinite; }
+  .gbar.plan   { background: linear-gradient(90deg, #c4d2ea, #93a8cf); color: #2a4a7a; }
+  .gbar.risk   { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+  @keyframes gbarPulse { 0%,100% { box-shadow: 0 3px 8px -3px rgba(47,125,246,0.4); } 50% { box-shadow: 0 3px 16px -2px rgba(47,125,246,0.8); } }
+  .glegend { display: flex; gap: 16px; margin: 9px 0 2px; font-size: .64rem; color: var(--ink-soft); font-weight: 600; }
+  .glegend span { display: inline-flex; align-items: center; gap: 5px; }
+  .glegend .lg { width: 13px; height: 9px; border-radius: 3px; }
+  .glegend .lg.done { background: #10b981; } .glegend .lg.active { background: var(--blue); }
+  .glegend .lg.plan { background: #93a8cf; } .glegend .lg.risk { background: #f59e0b; }
+
+  /* compact, PD-grade professional document typography */
+  .rep-header { padding: 18px 32px; border-bottom: 1px solid rgba(40,80,150,0.08); display:flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.7); }
+  .rep-title { font-size: .98rem; font-weight: 800; color: var(--ink); display:flex; align-items:center; gap:10px; }
+  .rep-title > svg { width: 19px; height: 19px; }
+  .rep-title .vtag { font-family: monospace; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; letter-spacing: .5px; }
+  .vtag.risk { background: rgba(245,158,11,0.12); color: var(--warning-dark); border: 1px solid rgba(245,158,11,0.3); }
+  .vtag.success { background: rgba(16,185,129,0.12); color: var(--success-dark); border: 1px solid rgba(16,185,129,0.3); }
+  .rep-tools { display:flex; align-items:center; gap: 8px; }
+  .btn-exp { cursor: pointer; display:flex; align-items:center; gap:6px; font-size: .76rem; font-weight: 700; color: #1d4ed8; padding: 7px 12px; border-radius: 8px; background: rgba(47,125,246,0.08); border: 1px solid rgba(47,125,246,0.22); transition: all .2s; }
+  .btn-exp:hover { background: rgba(47,125,246,0.16); transform: translateY(-1px); }
+  .btn-exp.pdf { color: #b42318; background: rgba(239,68,68,0.07); border-color: rgba(239,68,68,0.22); }
+  .btn-exp.pdf:hover { background: rgba(239,68,68,0.14); }
+  .btn-exp svg { width: 14px; height: 14px; }
+  .btn-back { cursor: pointer; display:flex; align-items:center; gap:6px; font-size: .78rem; font-weight: 700; color: #475569; padding: 7px 13px; border-radius: 8px; background: #eef2f8; border: 1px solid #dde5f0; transition: all .2s; }
+  .btn-back:hover { background: #e2e9f3; transform: translateX(-3px); }
+  .btn-back svg { width: 14px; height: 14px; }
+
+  /* risk register card */
+  .act-card .act-head .sev { font-size: .58rem; padding: 2px 7px; border-radius: 5px; font-weight: 800; font-family: monospace; }
+  .sev.high { background: #fee2e2; color: #b42318; }
+  .sev.mid  { background: #fef3c7; color: #d97706; }
+  .sev.low  { background: #e0f2fe; color: #0369a1; }
+  .empty-risk { display:flex; align-items:center; gap:10px; padding: 16px 18px; border-radius: 11px; background: #f0fdf8; border: 1px solid #b8ebd4; color: var(--success-dark); font-size: .82rem; font-weight: 600; }
+  .empty-risk svg { width: 20px; height: 20px; }
+
+  .rep-body { flex: 1; height: 0; overflow-y: auto; padding: 22px 36px 36px; scroll-behavior: smooth; align-self: center; width: 100%; max-width: 1140px; }
+  .rep-body::-webkit-scrollbar { width: 7px; }
+  .rep-body::-webkit-scrollbar-thumb { background: #c4d2e6; border-radius: 4px; }
+  .doc-meta { display:flex; flex-wrap:wrap; gap:6px 18px; font-family: monospace; font-size: .68rem; color: var(--ink-faint); margin-bottom: 16px; border-bottom: 1px dashed #cbd8e8; padding-bottom: 12px; letter-spacing: .3px; }
+
+  .verdict { padding: 16px 20px; border-radius: 12px; margin-bottom: 22px; border: 1px solid; }
+  .verdict.risk { background: linear-gradient(135deg, #fffaf0, #fff5e6); border-color: #fde3a7; }
+  .verdict.success { background: linear-gradient(135deg, #f0fdf8, #ecfdf3); border-color: #b8ebd4; }
+  .verdict .vhead { font-size: 1rem; font-weight: 800; display:flex; align-items:center; gap:9px; margin-bottom: 8px; }
+  .verdict.risk .vhead { color: var(--warning-dark); } .verdict.success .vhead { color: var(--success-dark); }
+  .verdict .vhead svg { width: 19px; height: 19px; flex:none; }
+  .verdict .vbody { font-size: .8rem; color: #3a4a63; line-height: 1.7; }
+  .verdict .vbody b.r { color: var(--warning-dark); } .verdict .vbody b.g { color: var(--success-dark); }
+  .verdict .kpis { display:flex; flex-wrap:wrap; gap:8px; margin-top: 12px; }
+  .kpi { background: rgba(255,255,255,0.7); border: 1px solid rgba(40,80,150,0.1); border-radius: 9px; padding: 7px 12px; min-width: 92px; }
+  .kpi .kv { font-size: 1.02rem; font-weight: 800; color: var(--ink); line-height: 1.1; }
+  .kpi .kv.r { color: var(--warning-dark); } .kpi .kv.g { color: var(--success-dark); }
+  .kpi .kl { font-size: .62rem; color: var(--ink-faint); letter-spacing: .5px; text-transform: uppercase; margin-top: 2px; }
+
+  .doc-sec { position: relative; margin-bottom: 16px; padding: 18px 22px; background: #fff; border-radius: 12px; border: 1px solid #e6edf6; box-shadow: 0 3px 12px rgba(30,70,140,0.03); scroll-margin-top: 18px; transition: box-shadow .4s, border-color .4s, transform .4s; }
+  .doc-sec:hover { box-shadow: 0 10px 26px rgba(30,70,140,0.06); }
+  .doc-sec.highlight { animation: hl 1.6s ease; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(47,125,246,0.16); }
+  @keyframes hl { 0%,45%{ background:#eff6ff; transform: scale(1.008);} 100%{ background:#fff; transform: scale(1);} }
+  .dispatch { scroll-margin-top: 18px; border-radius: 12px; transition: box-shadow .4s; }
+  .dispatch.highlight { animation: hl 1.6s ease; box-shadow: 0 0 0 3px rgba(47,125,246,0.16); }
+  .sec-title { font-size: .96rem; font-weight: 800; color: var(--ink); margin-bottom: 4px; display:flex; align-items:center; gap:10px; }
+  .sec-title .idx { background: #e3ecff; color: var(--blue); font-size: .72rem; width: 24px; height: 24px; display:inline-flex; align-items:center; justify-content:center; border-radius: 7px; font-weight: 800; font-family: monospace; flex:none; }
+  .sec-title .st { margin-left: auto; font-family: monospace; font-size: .62rem; font-weight: 800; padding: 3px 9px; border-radius: 5px; letter-spacing: .5px; }
+  .st.ok { background: rgba(16,185,129,0.12); color: var(--success-dark); }
+  .st.warn { background: rgba(245,158,11,0.14); color: var(--warning-dark); }
+  .sec-sub { font-size: .68rem; color: var(--ink-faint); margin: 0 0 12px 34px; letter-spacing: .3px; }
+  .sec-content { font-size: .8rem; color: #3a4a63; line-height: 1.7; }
+  .sec-content p { margin-bottom: 8px; }
+  .sec-content code { font-family: monospace; background: #eef2f8; padding: 1px 5px; border-radius: 4px; font-size: .74rem; color: var(--blue); }
+
+  /* ---------- per-chapter editing toolbar + uploads ---------- */
+  .sec-tools { position: absolute; top: 14px; right: 16px; display: flex; gap: 6px; opacity: 0; transform: translateY(-3px); transition: opacity .25s ease, transform .25s ease; z-index: 4; }
+  .doc-sec:hover .sec-tools, .doc-sec.editing .sec-tools { opacity: 1; transform: translateY(0); }
+  .sec-tool {
+    display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-family: inherit;
+    font-size: .64rem; font-weight: 700; color: var(--ink-soft); padding: 5px 10px; border-radius: 8px;
+    background: rgba(255,255,255,0.9); border: 1px solid #e2e9f4; box-shadow: 0 2px 8px -3px rgba(40,90,170,0.25);
+    transition: all .2s ease; -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+  }
+  .sec-tool svg { width: 13px; height: 13px; }
+  .sec-tool:hover { color: var(--blue); border-color: rgba(47,125,246,0.5); background: #fff; transform: translateY(-1px); box-shadow: 0 6px 16px -6px rgba(47,125,246,0.5); }
+  .sec-tool.on { color: #fff; background: linear-gradient(135deg, var(--blue), #3f86ff); border-color: transparent; box-shadow: 0 6px 16px -6px rgba(47,125,246,0.7); }
+  .doc-sec.editing { border-color: rgba(47,125,246,0.55); box-shadow: 0 0 0 3px rgba(47,125,246,0.12); }
+  .sec-content[contenteditable="true"] { outline: none; }
+  .sec-content[contenteditable="true"]:focus { background: #fbfdff; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(47,125,246,0.18); padding: 6px; margin: -6px; }
+  .doc-sec.editing .sec-content { cursor: text; }
+
+  .sec-custom:not(:empty) { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #d6e2f3; display: flex; flex-wrap: wrap; gap: 12px; }
+  .sec-custom:not(:empty)::before { content: '自定义补充 / 上传内容'; flex-basis: 100%; font-size: .66rem; font-weight: 800; letter-spacing: .4px; color: var(--blue); }
+  .usr-fig { position: relative; width: 200px; margin: 0; border: 1px solid #e2e9f4; border-radius: 10px; overflow: hidden; background: #fff; box-shadow: 0 4px 14px -8px rgba(40,90,170,0.4); }
+  .usr-fig img { display: block; width: 100%; height: 120px; object-fit: cover; }
+  .usr-fig figcaption { font-size: .64rem; color: var(--ink-soft); padding: 6px 9px; line-height: 1.4; outline: none; }
+  .usr-fig figcaption:focus { background: #f1f6ff; color: var(--ink); }
+  .usr-file {
+    position: relative; display: inline-flex; align-items: center; gap: 9px; padding: 9px 32px 9px 11px;
+    border: 1px solid #e2e9f4; border-radius: 10px; background: #fbfdff; min-width: 188px; box-shadow: 0 3px 10px -6px rgba(40,90,170,0.3);
+  }
+  .usr-file .uf-ic { width: 30px; height: 30px; border-radius: 8px; flex: none; display: grid; place-items: center; background: rgba(47,125,246,0.1); color: var(--blue); }
+  .usr-file .uf-ic svg { width: 15px; height: 15px; }
+  .usr-file .uf-meta { display: flex; flex-direction: column; line-height: 1.25; overflow: hidden; }
+  .usr-file .uf-meta b { font-size: .68rem; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; }
+  .usr-file .uf-meta i { font-style: normal; font-size: .58rem; color: var(--ink-faint); margin-top: 1px; }
+  .usr-del {
+    position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%; cursor: pointer;
+    border: none; background: rgba(15,40,82,0.06); color: #64748b; font-size: 13px; line-height: 1; font-weight: 700;
+    display: grid; place-items: center; transition: all .2s ease;
+  }
+  .usr-del:hover { background: var(--warning-dark); color: #fff; }
+
+  /* sub-heading inside a section */
+  .subh { font-size: .76rem; font-weight: 800; color: var(--ink); margin: 16px 0 8px; display:flex; align-items:center; gap:7px; }
+  .subh::before { content:''; width: 3px; height: 13px; border-radius: 2px; background: linear-gradient(var(--blue), var(--cyan)); }
+
+  /* spec / parameter table */
+  .ptable { width: 100%; border-collapse: collapse; font-size: .74rem; margin: 4px 0 6px; }
+  .ptable th, .ptable td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #eef2f8; }
+  .ptable th { color: var(--ink-faint); font-weight: 700; font-size: .66rem; text-transform: uppercase; letter-spacing: .4px; background: #f7faff; }
+  .ptable td { color: #34435c; }
+  .ptable tr:last-child td { border-bottom: none; }
+  .ptable td.mono, .ptable td .mono { font-family: monospace; color: var(--ink); }
+  .pill { display:inline-flex; align-items:center; gap:4px; font-size: .64rem; font-weight: 800; font-family: monospace; padding: 2px 8px; border-radius: 999px; }
+  .pill.ok { background: rgba(16,185,129,0.12); color: var(--success-dark); }
+  .pill.warn { background: rgba(245,158,11,0.14); color: var(--warning-dark); }
+  .pill.info { background: rgba(47,125,246,0.1); color: var(--blue); }
+
+  /* capacity / utilization bar */
+  .ubar { display:flex; align-items:center; gap:8px; }
+  .ubar .track { flex:1; height: 6px; border-radius: 99px; background: #eef2f8; overflow: hidden; }
+  .ubar .fill { height: 100%; border-radius: 99px; }
+  .ubar .fill.g { background: linear-gradient(90deg, var(--success), #34d399); }
+  .ubar .fill.b { background: linear-gradient(90deg, var(--blue), var(--cyan)); }
+  .ubar .fill.r { background: linear-gradient(90deg, #f59e0b, #ef4444); }
+  .ubar .uv { font-family: monospace; font-size: .68rem; font-weight: 700; color: #34435c; min-width: 64px; text-align: right; }
+
+  /* SVG diagram frame */
+  .diagram { margin: 10px 0 6px; border: 1px solid #e6edf6; border-radius: 12px; background: linear-gradient(180deg, #fbfdff, #f4f8ff); padding: 12px 14px 8px; overflow: hidden; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+  .diagram .cap { font-size: .66rem; color: var(--ink-faint); margin-top: 6px; display:flex; align-items:center; gap:6px; letter-spacing: .3px; }
+  .diagram .cap b { color: var(--blue); font-weight: 700; }
+  .dleg { display:flex; flex-wrap:wrap; gap: 12px; font-size: .64rem; color: var(--ink-soft); margin-top: 4px; }
+  .dleg span { display:inline-flex; align-items:center; gap:5px; }
+  .dleg i { width: 14px; height: 3px; border-radius: 2px; display:inline-block; }
+
+  .alert { background: #fffbeb; border: 1px solid #fde68a; border-left: 3px solid var(--warning); padding: 12px 16px; border-radius: 9px; margin-top: 12px; }
+  .alert .at { font-weight: 800; color: #92400e; font-size: .8rem; margin-bottom: 5px; display:flex; align-items:center; gap:7px; }
+  .alert .at svg { width: 15px; height: 15px; }
+  .alert .ad { color: var(--warning-dark); font-size: .76rem; line-height: 1.6; }
+  .alert .ad code { font-family: monospace; background: rgba(245,158,11,0.12); padding: 1px 5px; border-radius: 4px; }
+
+  /* dispatch */
+  .dispatch { margin-top: 26px; }
+  .dispatch-h { font-size: 1rem; font-weight: 800; color: var(--ink); margin-bottom: 14px; display:flex; align-items:center; gap:9px; padding-bottom: 9px; border-bottom: 2px solid #e6edf6; }
+  .dispatch-h svg { width: 19px; height: 19px; color: var(--blue); }
+  .act-card { background: #fff; border: 1px solid #e6edf6; border-radius: 11px; padding: 13px 16px; margin-bottom: 11px; display:flex; gap: 13px; align-items: center; box-shadow: 0 3px 10px rgba(30,70,140,0.03); }
+  .act-card.risk { border-left: 3px solid var(--warning); }
+  .act-card.task { border-left: 3px solid var(--blue); }
+  .avatar { width: 40px; height: 40px; border-radius: 50%; display:grid; place-items:center; color:#fff; font-weight: 800; font-size: .9rem; flex:none; }
+  .avatar.risk { background: linear-gradient(135deg, var(--warning), #ea580c); box-shadow: 0 4px 12px rgba(245,158,11,0.3); }
+  .avatar.task { background: linear-gradient(135deg, #3b82f6, var(--cyan)); box-shadow: 0 4px 12px rgba(59,130,246,0.3); }
+  .act-main { flex: 1; }
+  .act-head { display:flex; align-items:center; gap:9px; margin-bottom: 4px; }
+  .act-title { font-weight: 800; color: var(--ink); font-size: .84rem; }
+  .act-tag { font-size: .58rem; padding: 2px 7px; border-radius: 5px; font-weight: 800; font-family: monospace; text-transform: uppercase; }
+  .act-tag.risk { background: #fef3c7; color: #d97706; } .act-tag.task { background: #eff6ff; color: var(--blue); }
+  .act-desc { font-size: .76rem; color: #475569; line-height: 1.5; margin-bottom: 6px; }
+  .act-meta { font-size: .7rem; font-weight: 600; color: var(--ink-faint); display:flex; align-items:center; gap:6px; }
+  .act-meta svg { width: 13px; height: 13px; }
+  .btn-dispatch { padding: 8px 15px; border-radius: 8px; font-weight: 700; font-size: .76rem; cursor: pointer; transition: all .3s; flex:none; display:flex; align-items:center; gap:6px; min-width: 104px; justify-content:center; border: 1px solid transparent; }
+  .btn-dispatch.go { background: var(--ink); color: #fff; box-shadow: 0 6px 16px rgba(22,35,60,0.2); }
+  .btn-dispatch.go:hover { background: #22344f; transform: translateY(-2px); }
+  .btn-dispatch.done { background: #ecfdf5; color: #065f46; border-color: #6ee7b7; cursor: default; }
+  .btn-dispatch.lock { background: #eef2f8; color: var(--ink-faint); cursor: not-allowed; }
+  .btn-dispatch svg { width: 15px; height: 15px; }
+
+  .rep-footer { padding: 16px 32px; border-top: 1px solid #e6edf6; background: rgba(255,255,255,0.85); display:flex; gap: 14px; }
+  .twin-btn { flex: 1; position: relative; padding: 13px; border-radius: 11px; font-weight: 800; font-size: .85rem; cursor: pointer; display:flex; justify-content:center; align-items:center; gap:8px; transition: all .3s; overflow: hidden; }
+  .twin-btn svg { width: 18px; height: 18px; }
+  .twin-primary { background: var(--ink); color:#fff; border: 1px solid #22344f; box-shadow: 0 8px 20px rgba(22,35,60,0.2); }
+  .twin-primary:hover { background: #22344f; transform: translateY(-2px); box-shadow: 0 12px 30px rgba(22,35,60,0.3); }
+  .twin-primary::after { content:''; position:absolute; top:0; left:-100%; width:50%; height:100%; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent); transform:skewX(-20deg); animation: shine 4s infinite; }
+  .twin-secondary { background: #fff; color: var(--ink); border: 1px solid #cdd9ea; }
+  .twin-secondary:hover { background: #eef2f8; transform: translateY(-2px); }
+  @keyframes shine { 100% { left: 200%; } }
+
+  .toast { position: absolute; left: 50%; bottom: 36px; transform: translate(-50%, 30px); z-index: 200; background: var(--ink); color: #fff; font-size: .9rem; font-weight: 600; padding: 13px 24px; border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: all .4s cubic-bezier(.22,.9,.3,1.15); display:flex; align-items:center; gap:9px; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast svg { width: 18px; height: 18px; color: #5eead4; }
+
+  @media (max-width: 1500px) { :root { --panel-width: 780px; } }
+
+  /* 交付进度孪生 (人/货/站) 已迁出至 /cockpit/progress-twin.html */
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="field"></canvas>
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div class="txt"><b>本体决策系统</b><span>Ontology Decision System</span></div>
+    </div>
+    <div class="status-pill"><i></i><span id="pillText">决策引擎运行中</span></div>
+  </div>
+
+  <!-- 交付进度孪生（人 / 货 / 站）已迁出 → /cockpit/progress-twin.html -->
+
+  <div class="ui-layer" id="uiLayer">
+    <!-- Center brain -->
+    <div class="node-wrap" id="wrap-center">
+      <div class="center" id="center">
+        <div class="halo"></div>
+        <div class="core-card" id="coreCard">
+          <div class="reasoning">
+            <div class="core-brainmark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </div>
+            <div class="core-badge">● CENTRAL DECISION</div>
+            <div class="core-title text-glow">可交付性决策中</div>
+            <div class="core-sub text-glow">Ontology Decision Brain is reasoning</div>
+            <div class="core-state text-glow" id="coreState">AI 决策大脑启动中<br>正在读取本体规则与项目上下文</div>
+            <div class="progress"><i id="progBar"></i></div>
+          </div>
+          <div class="resolved" id="resolved"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sub nodes -->
+    <div class="node-wrap" id="wrap-network">
+      <div class="node-card" data-key="network">
+        <div class="head">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/></svg></div>
+          <div><div class="name">组网配置</div><div class="en">Network Topology</div></div>
+        </div>
+        <div class="desc">拓扑结构、链路关系、网络资源校验与路由策略计算</div>
+        <div class="foot"><span class="stat"><i class="led"></i><span class="ststx">待决策</span></span><span class="badge"></span></div>
+        <div class="energy"><i></i></div>
+      </div>
+    </div>
+
+    <div class="node-wrap" id="wrap-device">
+      <div class="node-card" data-key="device">
+        <div class="head">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M6 16h.01M10 16h.01M14 16h.01M18 16h.01"/></svg></div>
+          <div><div class="name">设备配置</div><div class="en">Device Capability</div></div>
+        </div>
+        <div class="desc">设备型号识别、端口能力分配、硬件资源容量预留</div>
+        <div class="foot"><span class="stat"><i class="led"></i><span class="ststx">待决策</span></span><span class="badge"></span></div>
+        <div class="energy"><i></i></div>
+      </div>
+    </div>
+
+    <div class="node-wrap" id="wrap-service">
+      <div class="node-card" data-key="service">
+        <div class="head">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
+          <div><div class="name">服务配置</div><div class="en">Service Catalog</div></div>
+        </div>
+        <div class="desc">服务目录解析、能力开通、全域业务参数与 QoS 策略生成</div>
+        <div class="foot"><span class="stat"><i class="led"></i><span class="ststx">待决策</span></span><span class="badge"></span></div>
+        <div class="energy"><i></i></div>
+      </div>
+    </div>
+
+    <div class="node-wrap" id="wrap-acceptance">
+      <div class="node-card" data-key="acceptance">
+        <div class="head">
+          <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 15l2 2 4-4"/></svg></div>
+          <div><div class="name">验收策略</div><div class="en">Acceptance Rules</div></div>
+        </div>
+        <div class="desc">验收规则提取、测试项与联调脚本生成、交付质量卡点校验</div>
+        <div class="foot"><span class="stat"><i class="led"></i><span class="ststx">待决策</span></span><span class="badge"></span></div>
+        <div class="energy"><i></i></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="row"><span class="sw s1"></span>粒子呼吸态 · 思考中</div>
+    <div class="row"><span class="sw s2"></span>推理连接态 · 数据流</div>
+    <div class="row"><span class="sw s3"></span>具化完成态 · 方案生成</div>
+  </div>
+
+  <!-- Left TOC navigation (shown when report is open) -->
+  <div id="toc">
+    <div class="toc-head">
+      <div class="toc-title"><span class="tl-bar"></span>交付方案目录</div>
+      <div class="toc-en">SOLUTION CONTENTS · 12 章节</div>
+    </div>
+    <div class="toc-verdict" id="tocVerdict"></div>
+    <div class="toc-list">
+      <a class="toc-item" data-target="doc-ch1"  onclick="openReport('doc-ch1')"><span class="ti-idx">01</span><span class="ti-main"><span class="ti-name">客户需求</span><span class="ti-src src-db">数据库</span></span></a>
+      <a class="toc-item" data-target="doc-ch2"  onclick="openReport('doc-ch2')"><span class="ti-idx">02</span><span class="ti-main"><span class="ti-name">设备配置</span><span class="ti-src src-dev">设备决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch3"  onclick="openReport('doc-ch3')"><span class="ti-idx">03</span><span class="ti-main"><span class="ti-name">部件配置</span><span class="ti-src src-dev">设备决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch4"  onclick="openReport('doc-ch4')"><span class="ti-idx">04</span><span class="ti-main"><span class="ti-name">软件配置（版本配套）</span><span class="ti-src src-net">组网决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch5"  onclick="openReport('doc-ch5')"><span class="ti-idx">05</span><span class="ti-main"><span class="ti-name">网络平面配置</span><span class="ti-src src-net">组网决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch6"  onclick="openReport('doc-ch6')"><span class="ti-idx">06</span><span class="ti-main"><span class="ti-name">预集成预验证需求</span><span class="ti-src src-net">组网决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch7"  onclick="openReport('doc-ch7')"><span class="ti-idx">07</span><span class="ti-main"><span class="ti-name">交付场景与范围</span><span class="ti-src src-svc">服务决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch8"  onclick="openReport('doc-ch8')"><span class="ti-idx">08</span><span class="ti-main"><span class="ti-name">维保策略</span><span class="ti-src src-svc">服务决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch9"  onclick="openReport('doc-ch9')"><span class="ti-idx">09</span><span class="ti-main"><span class="ti-name">验收策略</span><span class="ti-src src-acc">验收决策</span></span></a>
+      <a class="toc-item" data-target="doc-ch10" onclick="openReport('doc-ch10')"><span class="ti-idx">10</span><span class="ti-main"><span class="ti-name">责任矩阵</span><span class="ti-src src-db">数据库</span></span></a>
+      <a class="toc-item" data-target="doc-ch11" onclick="openReport('doc-ch11')"><span class="ti-idx">11</span><span class="ti-main"><span class="ti-name">交付计划</span><span class="ti-src src-plan">综合编排</span></span></a>
+      <a class="toc-item" data-target="doc-ch12" onclick="openReport('doc-ch12')"><span class="ti-idx">12</span><span class="ti-main"><span class="ti-name">风险</span><span class="ti-src src-risk">决策识别</span></span></a>
+    </div>
+    <div class="toc-foot" onclick="closeReport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回决策大脑全景</div>
+  </div>
+
+  <!-- Report drawer -->
+  <div id="drawer">
+    <div class="rep-header">
+      <div class="rep-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        总体交付方案与分析报告
+        <span class="vtag" id="repVtag"></span>
+      </div>
+      <div class="rep-tools">
+        <button class="btn-exp" onclick="exportReport('word')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13l2 2 2-2M11 15V9"/></svg>导出 Word</button>
+        <button class="btn-exp pdf" onclick="exportReport('pdf')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6M9 15l3 3 3-3"/></svg>导出 PDF</button>
+        <div class="btn-back" onclick="closeReport()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>返回</div>
+      </div>
+    </div>
+
+    <div class="rep-body" id="repBody">
+      <div class="doc-meta">
+        <span>REPORT REF · ONT-DLV-20260530-017</span>
+        <span>ENGINE · ONTOLOGY DECISION v3.2</span>
+        <span>SCENE · 智算中心专线交付</span>
+        <span>SCALE · 256×昇腾910B</span>
+        <span>SLA · 99.999%</span>
+        <span>MODE · SECURE</span>
+      </div>
+      <div id="verdictMount"></div>
+      <div id="chaptersMount"></div>
+
+      <!-- ===== donor sections (diagrams reused at runtime, then removed) ===== -->
+      <!-- 1. 组网 -->
+      <div class="doc-sec" id="doc-network">
+        <div class="sec-title"><span class="idx">1</span>组网拓扑规划与无损网络验证<span class="st ok">VALIDATED</span></div>
+        <div class="sec-sub">Spine-Leaf 架构 · RoCEv2 无损以太 · 昇腾智算集群东西向互联</div>
+        <div class="sec-content">
+          <p>本体引擎依据项目业务意图，自动推导出面向 <b>256 卡昇腾 910B 训练集群</b> 的两层 <code>Spine-Leaf</code> 无阻塞 CLOS 组网，并完成跨省骨干网 OSPF/BGP 路由重分布演算。参数面采用 <code>RoCEv2</code> 无损以太承载，业务面 Active-Active 双归冗余，整网无逻辑环路与死锁，组网约束条件全部满足。</p>
+
+          <div class="diagram">
+            <svg viewBox="0 0 900 312" role="img" aria-label="智算中心 Spine-Leaf 组网拓扑">
+              <defs>
+                <linearGradient id="gSpine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3b82f6"/><stop offset="1" stop-color="#2563eb"/></linearGradient>
+                <linearGradient id="gLeaf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22b8d8"/><stop offset="1" stop-color="#0e9bbb"/></linearGradient>
+                <linearGradient id="gPod" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#eef4ff"/></linearGradient>
+              </defs>
+              <!-- 出口 -->
+              <rect x="372" y="8" width="156" height="30" rx="8" fill="#f1f5fb" stroke="#cbd8ea"/>
+              <text x="450" y="27" text-anchor="middle" font-size="12" font-weight="700" fill="#475569">省际骨干网 / WAN 出口</text>
+              <line x1="300" y1="62" x2="430" y2="38" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4 4"/>
+              <line x1="600" y1="62" x2="470" y2="38" stroke="#94a3b8" stroke-width="1.4" stroke-dasharray="4 4"/>
+
+              <!-- Spine -->
+              <g font-size="12" font-weight="700" fill="#fff" text-anchor="middle">
+                <rect x="225" y="62" width="150" height="40" rx="9" fill="url(#gSpine)"/>
+                <text x="300" y="80">Spine-01</text><text x="300" y="95" font-size="9.5" font-weight="500" fill="#dbeafe">CE16800 · 400GE</text>
+                <rect x="525" y="62" width="150" height="40" rx="9" fill="url(#gSpine)"/>
+                <text x="600" y="80">Spine-02</text><text x="600" y="95" font-size="9.5" font-weight="500" fill="#dbeafe">CE16800 · 400GE</text>
+              </g>
+
+              <!-- spine -> leaf full mesh -->
+              <g stroke="#2f7df6" stroke-width="1.5" opacity="0.55">
+                <line x1="300" y1="102" x2="150" y2="150"/><line x1="300" y1="102" x2="350" y2="150"/><line x1="300" y1="102" x2="550" y2="150"/><line x1="300" y1="102" x2="750" y2="150"/>
+                <line x1="600" y1="102" x2="150" y2="150"/><line x1="600" y1="102" x2="350" y2="150"/><line x1="600" y1="102" x2="550" y2="150"/><line x1="600" y1="102" x2="750" y2="150"/>
+              </g>
+              <text x="218" y="132" font-size="9.5" font-weight="700" fill="#2563eb">200GE ×8</text>
+
+              <!-- Leaf -->
+              <g font-size="11.5" font-weight="700" fill="#fff" text-anchor="middle">
+                <rect x="92" y="150" width="116" height="36" rx="8" fill="url(#gLeaf)"/><text x="150" y="167">Leaf-01</text><text x="150" y="180" font-size="9" font-weight="500" fill="#e0f7fc">CE8850</text>
+                <rect x="292" y="150" width="116" height="36" rx="8" fill="url(#gLeaf)"/><text x="350" y="167">Leaf-02</text><text x="350" y="180" font-size="9" font-weight="500" fill="#e0f7fc">CE8850</text>
+                <rect x="492" y="150" width="116" height="36" rx="8" fill="url(#gLeaf)"/><text x="550" y="167">Leaf-03</text><text x="550" y="180" font-size="9" font-weight="500" fill="#e0f7fc">CE8850</text>
+                <rect x="692" y="150" width="116" height="36" rx="8" fill="url(#gLeaf)"/><text x="750" y="167">Leaf-04</text><text x="750" y="180" font-size="9" font-weight="500" fill="#e0f7fc">CE8850</text>
+              </g>
+
+              <!-- leaf -> pod -->
+              <g stroke="#19b8d8" stroke-width="1.8" opacity="0.6">
+                <line x1="150" y1="186" x2="150" y2="234"/><line x1="350" y1="186" x2="350" y2="234"/><line x1="550" y1="186" x2="550" y2="234"/><line x1="750" y1="186" x2="750" y2="234"/>
+              </g>
+              <text x="160" y="214" font-size="9.5" font-weight="700" fill="#0e9bbb">100GE</text>
+
+              <!-- 昇腾智算 Pod -->
+              <g text-anchor="middle">
+                <g>
+                  <rect x="78" y="234" width="144" height="62" rx="10" fill="url(#gPod)" stroke="#c3d4ee"/>
+                  <rect x="78" y="234" width="144" height="18" rx="10" fill="#eef4ff"/>
+                  <text x="150" y="247" font-size="10.5" font-weight="800" fill="#1e3a8a">智算 Pod-A</text>
+                  <text x="150" y="270" font-size="10" font-weight="700" fill="#334155">Atlas 800 训练服务器</text>
+                  <text x="150" y="285" font-size="9" fill="#64748b">昇腾 910B ×64</text>
+                </g>
+                <g>
+                  <rect x="278" y="234" width="144" height="62" rx="10" fill="url(#gPod)" stroke="#c3d4ee"/>
+                  <rect x="278" y="234" width="144" height="18" rx="10" fill="#eef4ff"/>
+                  <text x="350" y="247" font-size="10.5" font-weight="800" fill="#1e3a8a">智算 Pod-B</text>
+                  <text x="350" y="270" font-size="10" font-weight="700" fill="#334155">Atlas 800 训练服务器</text>
+                  <text x="350" y="285" font-size="9" fill="#64748b">昇腾 910B ×64</text>
+                </g>
+                <g>
+                  <rect x="478" y="234" width="144" height="62" rx="10" fill="url(#gPod)" stroke="#c3d4ee"/>
+                  <rect x="478" y="234" width="144" height="18" rx="10" fill="#eef4ff"/>
+                  <text x="550" y="247" font-size="10.5" font-weight="800" fill="#1e3a8a">智算 Pod-C</text>
+                  <text x="550" y="270" font-size="10" font-weight="700" fill="#334155">Atlas 800 训练服务器</text>
+                  <text x="550" y="285" font-size="9" fill="#64748b">昇腾 910B ×64</text>
+                </g>
+                <g>
+                  <rect x="678" y="234" width="144" height="62" rx="10" fill="url(#gPod)" stroke="#c3d4ee"/>
+                  <rect x="678" y="234" width="144" height="18" rx="10" fill="#eef4ff"/>
+                  <text x="750" y="247" font-size="10.5" font-weight="800" fill="#1e3a8a">存储/管理 Pod</text>
+                  <text x="750" y="270" font-size="10" font-weight="700" fill="#334155">分布式存储 + 管理面</text>
+                  <text x="750" y="285" font-size="9" fill="#64748b">OceanStor · OM</text>
+                </g>
+              </g>
+            </svg>
+            <div class="dleg">
+              <span><i style="background:#2f7df6"></i>Spine↔Leaf 200GE 上行</span>
+              <span><i style="background:#19b8d8"></i>Leaf↔Pod 100GE 接入</span>
+              <span><i style="background:#94a3b8"></i>WAN 出口（OSPF/BGP）</span>
+            </div>
+            <div class="cap">图 1 · <b>智算中心两层 Spine-Leaf 无阻塞组网拓扑</b>（自动生成，已通过环路与带宽收敛校验）</div>
+          </div>
+
+          <div class="subh">关键组网参数</div>
+          <table class="ptable">
+            <tr><th>项目</th><th>规划值</th><th>校验结果</th></tr>
+            <tr><td>网络架构</td><td class="mono">两层 Spine-Leaf / CLOS</td><td><span class="pill ok">无阻塞</span></td></tr>
+            <tr><td>收敛比</td><td class="mono">1 : 1（无收敛）</td><td><span class="pill ok">达标</span></td></tr>
+            <tr><td>上行带宽</td><td class="mono">Spine↔Leaf 200GE ×8</td><td><span class="pill ok">满足</span></td></tr>
+            <tr><td>参数面协议</td><td class="mono">RoCEv2 + PFC + ECN</td><td><span class="pill ok">无损</span></td></tr>
+            <tr><td>路由协议</td><td class="mono">EBGP（Underlay）/ VXLAN（Overlay）</td><td><span class="pill ok">收敛正常</span></td></tr>
+            <tr><td>冗余方案</td><td class="mono">M-LAG Active-Active 双归</td><td><span class="pill ok">高可用</span></td></tr>
+          </table>
+          <p style="margin-top:6px">无损网络已完成 PFC 死锁预防与 ECN 门限演算，Headroom Buffer 满足 256 卡 All-Reduce 突发；整网逻辑校验未发现环路、黑洞路由或 MTU 不一致问题。</p>
+        </div>
+      </div>
+
+      <!-- 2. 设备 -->
+      <div class="doc-sec" id="doc-device">
+        <div class="sec-title"><span class="idx">2</span>设备层资源锁定与容量探测<span class="st" id="st-device"></span></div>
+        <div class="sec-sub">物理设备清单 · 端口/算力容量比对 · 库存预留锁态</div>
+        <div class="sec-content">
+          <p>引擎将组网方案下推为物理设备需求，并与资产/库存系统实时比对，对交换机端口、智算服务器算力与机柜电力/散热进行容量探测与预留锁定。</p>
+
+          <div class="diagram">
+            <svg viewBox="0 0 900 270" role="img" aria-label="机房机柜与设备分布">
+              <defs><linearGradient id="gRack" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7faff"/><stop offset="1" stop-color="#eaf1fb"/></linearGradient></defs>
+              <g font-family="monospace">
+                <!-- Rack A -->
+                <rect x="40" y="20" width="180" height="230" rx="10" fill="url(#gRack)" stroke="#c3d4ee"/>
+                <text x="130" y="38" text-anchor="middle" font-size="11" font-weight="800" fill="#1e3a8a">机柜 A · BJ-IDC-R12</text>
+                <rect x="56" y="50" width="148" height="26" rx="5" fill="#3b82f6"/><text x="130" y="67" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">Spine-01 CE16800</text>
+                <rect x="56" y="82" width="148" height="26" rx="5" fill="#22b8d8"/><text x="130" y="99" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">Leaf-01/02 CE8850</text>
+                <rect x="56" y="114" width="148" height="58" rx="5" fill="#ede9fe" stroke="#c4b5fd"/><text x="130" y="138" text-anchor="middle" font-size="10" font-weight="800" fill="#5b21b6">Atlas 800 ×4</text><text x="130" y="154" text-anchor="middle" font-size="9" fill="#7c3aed">昇腾910B · 256卡</text>
+                <rect x="56" y="178" width="148" height="26" rx="5" fill="#e2e8f0"/><text x="130" y="195" text-anchor="middle" font-size="9.5" font-weight="700" fill="#475569">存储/管理 2U</text>
+                <text x="130" y="222" text-anchor="middle" font-size="9" fill="#64748b">功率 12.4kW / 16kW · 液冷</text>
+                <text x="130" y="238" text-anchor="middle" font-size="9" fill="#16a34a" font-weight="700">容量充足</text>
+
+                <!-- Rack B (constrained) -->
+                <rect x="240" y="20" width="180" height="230" rx="10" fill="url(#gRack)" stroke="#fcd9a6"/>
+                <text x="330" y="38" text-anchor="middle" font-size="11" font-weight="800" fill="#92400e">机柜 B · BJ-IDC-R13</text>
+                <rect x="256" y="50" width="148" height="26" rx="5" fill="#f59e0b"/><text x="330" y="67" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">SW-Core-BJ-02 ⚠</text>
+                <rect x="256" y="82" width="148" height="26" rx="5" fill="#22b8d8"/><text x="330" y="99" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">Leaf-03/04 CE8850</text>
+                <rect x="256" y="114" width="148" height="58" rx="5" fill="#ede9fe" stroke="#c4b5fd"/><text x="330" y="138" text-anchor="middle" font-size="10" font-weight="800" fill="#5b21b6">Atlas 800 ×4</text><text x="330" y="154" text-anchor="middle" font-size="9" fill="#7c3aed">昇腾910B · 256卡</text>
+                <rect x="256" y="178" width="148" height="26" rx="5" fill="#e2e8f0"/><text x="330" y="195" text-anchor="middle" font-size="9.5" font-weight="700" fill="#475569">存储/管理 2U</text>
+                <text x="330" y="222" text-anchor="middle" font-size="9" fill="#64748b">功率 13.1kW / 16kW · 液冷</text>
+                <text x="330" y="238" text-anchor="middle" font-size="9" fill="#d97706" font-weight="700">100G 光口缺口</text>
+
+                <!-- side capacity panel -->
+                <rect x="452" y="28" width="408" height="214" rx="10" fill="#fbfdff" stroke="#e6edf6"/>
+                <text x="470" y="50" font-size="11" font-weight="800" fill="#1e293b" font-family="inherit">端口与算力容量比对</text>
+                <g font-family="inherit" font-size="9.5">
+                  <text x="470" y="78" fill="#475569" font-weight="700">SW-Core-BJ-02 · 100GE 光口</text>
+                  <rect x="470" y="84" width="300" height="9" rx="5" fill="#eef2f8"/><rect x="470" y="84" width="300" height="9" rx="5" fill="#f59e0b"/><rect x="710" y="84" width="60" height="9" rx="5" fill="#ef4444"/>
+                  <text x="790" y="92" fill="#d97706" font-weight="800">需8/余4</text>
+
+                  <text x="470" y="118" fill="#475569" font-weight="700">Leaf 集群 · 100GE 接入口</text>
+                  <rect x="470" y="124" width="300" height="9" rx="5" fill="#eef2f8"/><rect x="470" y="124" width="186" height="9" rx="5" fill="#10b981"/>
+                  <text x="790" y="132" fill="#059669" font-weight="800">62%</text>
+
+                  <text x="470" y="158" fill="#475569" font-weight="700">昇腾 910B 算力 (256卡)</text>
+                  <rect x="470" y="164" width="300" height="9" rx="5" fill="#eef2f8"/><rect x="470" y="164" width="300" height="9" rx="5" fill="#10b981"/>
+                  <text x="790" y="172" fill="#059669" font-weight="800">100%</text>
+
+                  <text x="470" y="198" fill="#475569" font-weight="700">机柜电力 / 散热预算</text>
+                  <rect x="470" y="204" width="300" height="9" rx="5" fill="#eef2f8"/><rect x="470" y="204" width="246" height="9" rx="5" fill="#10b981"/>
+                  <text x="790" y="212" fill="#059669" font-weight="800">82%</text>
+
+                  <text x="470" y="234" fill="#94a3b8">注：红色区段为本次组网策略产生的额外占用需求</text>
+                </g>
+              </g>
+            </svg>
+            <div class="cap">图 2 · <b>机柜设备分布与端口/算力容量比对</b>（橙色标注为待补充资源）</div>
+          </div>
+
+          <div class="subh">核心设备资源清单</div>
+          <table class="ptable">
+            <tr><th>设备</th><th>型号</th><th>关键资源</th><th>占用 / 容量</th><th>状态</th></tr>
+            <tr><td>核心交换</td><td class="mono">SW-Core-BJ-02</td><td>100GE 光口</td>
+              <td><div class="ubar"><span class="track"><span class="fill r" style="width:100%"></span></span><span class="uv">8 / 4</span></div></td>
+              <td><span class="pill warn" id="dev-port-pill">缺口</span></td></tr>
+            <tr><td>接入交换</td><td class="mono">Leaf-01~04 CE8850</td><td>100GE 接入口</td>
+              <td><div class="ubar"><span class="track"><span class="fill g" style="width:62%"></span></span><span class="uv">62%</span></div></td>
+              <td><span class="pill ok">充足</span></td></tr>
+            <tr><td>训练服务器</td><td class="mono">Atlas 800 ×8</td><td>昇腾 910B 算力卡</td>
+              <td><div class="ubar"><span class="track"><span class="fill b" style="width:100%"></span></span><span class="uv">256/256</span></div></td>
+              <td><span class="pill ok">已锁定</span></td></tr>
+            <tr><td>电力散热</td><td class="mono">机柜 R12/R13</td><td>液冷 16kW/柜</td>
+              <td><div class="ubar"><span class="track"><span class="fill g" style="width:82%"></span></span><span class="uv">82%</span></div></td>
+              <td><span class="pill ok">达标</span></td></tr>
+          </table>
+          <div id="content-device"></div>
+        </div>
+      </div>
+
+      <!-- 3. 服务 -->
+      <div class="doc-sec" id="doc-service">
+        <div class="sec-title"><span class="idx">3</span>业务服务编排与 QoS 策略<span class="st ok">GENERATED</span></div>
+        <div class="sec-sub">服务目录解析 · 能力开通 · DSCP/队列/限速参数生成</div>
+        <div class="sec-content">
+          <p>引擎将业务意图转换为可执行服务指令集，已自动匹配「金牌 QoS」策略模版，针对智算训练 RDMA 大象流与管理流进行差异化保障，配置项已就绪可一键开通。</p>
+
+          <div class="subh">服务目录与开通能力</div>
+          <table class="ptable">
+            <tr><th>服务</th><th>能力</th><th>参数</th><th>状态</th></tr>
+            <tr><td>RDMA 无损承载</td><td>RoCEv2 / PFC 优先级</td><td class="mono">CoS 3，无丢包</td><td><span class="pill ok">已生成</span></td></tr>
+            <tr><td>跨域专线</td><td>VXLAN EVPN 互联</td><td class="mono">VNI 100256，MTU 9000</td><td><span class="pill ok">已生成</span></td></tr>
+            <tr><td>管理面</td><td>带外管理 + 监控采集</td><td class="mono">Telemetry 1s 粒度</td><td><span class="pill ok">已生成</span></td></tr>
+            <tr><td>安全策略</td><td>微分段 ACL</td><td class="mono">东西向白名单</td><td><span class="pill ok">已生成</span></td></tr>
+          </table>
+
+          <div class="subh">QoS 队列与调度策略</div>
+          <table class="ptable">
+            <tr><th>流量类型</th><th>DSCP</th><th>队列</th><th>调度 / 限速</th></tr>
+            <tr><td>训练 RDMA（大象流）</td><td class="mono">EF / 46</td><td class="mono">Q6 无损</td><td>PFC + ECN，优先调度</td></tr>
+            <tr><td>参数同步 All-Reduce</td><td class="mono">AF41 / 34</td><td class="mono">Q5</td><td>WFQ 权重 40%</td></tr>
+            <tr><td>存储 IO</td><td class="mono">AF31 / 26</td><td class="mono">Q4</td><td>WFQ 权重 30%</td></tr>
+            <tr><td>管理 / 监控</td><td class="mono">CS6 / 48</td><td class="mono">Q7</td><td>限速 2Gbps</td></tr>
+          </table>
+          <p style="margin-top:6px">指令集已通过语法与策略冲突预检，<code>0</code> 条冲突；下发后预计 1 个变更窗口内完成全网能力开通。</p>
+        </div>
+      </div>
+
+      <!-- 4. 验收 -->
+      <div class="doc-sec" id="doc-acceptance">
+        <div class="sec-title"><span class="idx">4</span>自动化验收沙盘推演<span class="st" id="st-acceptance"></span></div>
+        <div class="sec-sub">验收规则提取 · 测试用例编排 · 交付质量卡点校验</div>
+        <div class="sec-content">
+          <p>引擎依据交付标准与本体验收规则库，自动编排端到端验收用例，并在数字孪生沙盘中预演，输出可交付质量卡点结论。</p>
+
+          <div class="subh">关键验收测试项</div>
+          <table class="ptable">
+            <tr><th>用例</th><th>类型</th><th>判据</th><th>结果</th></tr>
+            <tr><td>链路连通性 / MTU 一致性</td><td>组网</td><td class="mono">丢包 0，MTU 9000</td><td><span class="pill ok">通过</span></td></tr>
+            <tr><td>RoCE 无损（PFC/ECN）压测</td><td>性能</td><td class="mono">零丢包 @ 线速</td><td><span class="pill ok">通过</span></td></tr>
+            <tr><td>256 卡 All-Reduce 基准</td><td>智算</td><td class="mono">带宽 ≥ 标称 95%</td><td><span class="pill ok">通过</span></td></tr>
+            <tr><td>BGP 跨域秒级收敛</td><td>可靠性</td><td class="mono">收敛 &lt; 1s</td><td><span class="pill warn" id="acc-bgp-pill">脚本缺失</span></td></tr>
+            <tr><td>M-LAG 主备倒换</td><td>可靠性</td><td class="mono">业务无感知</td><td><span class="pill ok">通过</span></td></tr>
+          </table>
+          <div id="content-acceptance"></div>
+        </div>
+      </div>
+
+      <div class="dispatch" id="doc-risks">
+        <div class="dispatch-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg><span id="risksTitle">已识别风险清单</span></div>
+        <div id="risksMount"></div>
+      </div>
+
+      <div class="dispatch" id="doc-dispatch">
+        <div class="dispatch-h"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg><span id="dispatchTitle">处置任务工单</span></div>
+        <div id="dispatchMount"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="toast" id="toast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span id="toastText"></span></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* =========================================================
+     配置：决策结果（'risk' 识别到交付风险 / 'success' 项目可交付）
+     粒子云与文字颜色会随该结果动态绑定。
+     ========================================================= */
+  const DECISION = "risk";
+
+  const canvas = document.getElementById("field");
+  const ctx = canvas.getContext("2d");
+  let W = 0, H = 0, DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+  const centerEl  = document.getElementById("center");
+  const coreCard   = document.getElementById("coreCard");
+  const coreState = document.getElementById("coreState");
+  const progBar   = document.getElementById("progBar");
+  const pillText  = document.getElementById("pillText");
+  const logList   = document.getElementById("logList");
+  const resolvedEl= document.getElementById("resolved");
+
+  const wraps = {
+    center:     document.getElementById("wrap-center"),
+    network:    document.getElementById("wrap-network"),
+    device:     document.getElementById("wrap-device"),
+    service:    document.getElementById("wrap-service"),
+    acceptance: document.getElementById("wrap-acceptance")
+  };
+  const cards = {
+    network:    wraps.network.querySelector(".node-card"),
+    device:     wraps.device.querySelector(".node-card"),
+    service:    wraps.service.querySelector(".node-card"),
+    acceptance: wraps.acceptance.querySelector(".node-card")
+  };
+  const KEYS = ["network", "device", "service", "acceptance"];
+
+  /* ---------- spatial state ---------- */
+  const animState = {
+    cx: 0, cy: 0, scale: 1, spread: 1,
+    targetCx: 0, targetCy: 0, targetScale: 1, targetSpread: 1
+  };
+  let baseOffsets = {};
+  function computeOffsets() {
+    const ox = Math.min(W * 0.255, 520);
+    const oy = Math.min(H * 0.30, 340);
+    baseOffsets = {
+      network:    { x: -ox, y: -oy },
+      device:     { x:  ox, y: -oy },
+      service:    { x: -ox, y:  oy },
+      acceptance: { x:  ox, y:  oy }
+    };
+  }
+  function panelWidth() {
+    return Math.min(980, Math.max(700, W * 0.5));
+  }
+
+  function resize() {
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * DPR; canvas.height = H * DPR;
+    canvas.style.width = W + "px"; canvas.style.height = H + "px";
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    computeOffsets();
+    if (animState.cx === 0) { animState.cx = animState.targetCx = W / 2; animState.cy = animState.targetCy = H / 2; }
+    applyTargets();
+    buildBrain();
+    buildClouds();
+  }
+
+  function applyTargets() {
+    // 粒子大脑始终居中、满尺寸；报告打开时靠 CSS 淡出，关闭时如呼吸般舒展回全屏
+    animState.targetCx = W / 2;
+    animState.targetCy = H / 2;
+    // 自适应缩放：窄宽时整体缩小卡片，保证四象限方框互不遮挡、且不超出边界
+    (function () {
+      const cardW = 268, cardH = 150, margin = 16, gapX = 26, gapY = 20;
+      const ox = Math.min(W * 0.255, 520), oy = Math.min(H * 0.30, 340);
+      const sOverlapX = (2 * ox - gapX) / cardW;       // 左右两卡不重叠
+      const sFitX = (W / 2 - ox - margin) / (cardW / 2); // 卡片不超出左右边界
+      const sOverlapY = (2 * oy - gapY) / cardH;       // 上下与中心卡不重叠
+      const sFitY = (H / 2 - oy - margin) / (cardH / 2);
+      let s = Math.min(1, sOverlapX, sFitX, sOverlapY, sFitY);
+      if (!isFinite(s) || s <= 0) s = 0.42;
+      animState.targetScale = Math.max(0.42, Math.min(1, s));
+    })();
+    animState.targetSpread = 1;
+    if (isOpen) {
+      const tocW = W < 1280 ? 256 : 300;
+      const pw = W - tocW;
+      const tocEl = document.getElementById("toc");
+      if (tocEl) tocEl.style.setProperty("--toc-width", tocW + "px");
+      drawer.style.setProperty("--panel-width", pw + "px");
+    }
+  }
+
+  function brainOrigin() { return { x: animState.cx, y: animState.cy }; }
+  function nodeOrigin(k) { return { x: animState.cx + baseOffsets[k].x * animState.spread, y: animState.cy + baseOffsets[k].y * animState.spread }; }
+
+  const _lastTf = {};
+  function setTf(el, key, val) {
+    if (_lastTf[key] === val) return;     // 避免每帧重写 transform，防止 backdrop-filter 玻璃卡片闪烁
+    _lastTf[key] = val;
+    el.style.transform = val;
+  }
+  function updateDOMLayout() {
+    setTf(wraps.center, "center",
+      `translate(-50%,-50%) translate(${animState.cx.toFixed(2)}px,${animState.cy.toFixed(2)}px) scale(${animState.scale.toFixed(3)})`);
+    KEYS.forEach(k => {
+      const o = nodeOrigin(k);
+      setTf(wraps[k], k,
+        `translate(-50%,-50%) translate(${o.x.toFixed(2)}px,${o.y.toFixed(2)}px) scale(${animState.scale.toFixed(3)})`);
+    });
+  }
+
+  /* =========================================================
+     Particles
+     ========================================================= */
+  const TAU = Math.PI * 2;
+  const rand = (a, b) => a + Math.random() * (b - a);
+
+  const ACCENT = { normal: [47,125,246], success: [16,185,129], risk: [245,158,11] };
+  const PALETTE = {
+    normal:  [[47,125,246],[25,184,216],[123,108,240]],
+    success: [[16,185,129],[5,150,105],[52,211,153]],
+    risk:    [[245,158,11],[239,68,68],[217,119,6]]
+  };
+  let resultMode = "normal";              // 'normal' | 'success' | 'risk'
+  let brainPulse = 0;                      // 决策完成瞬间的能量脉冲（0→1 触发，逐帧衰减）
+  let generating = false;                  // 正在生成最终方案（处理态，粒子云强呼吸）
+  let planGenerated = false;               // 最终方案是否已生成
+  const accent = () => ACCENT[resultMode] || ACCENT.normal;
+  const palette = () => PALETTE[resultMode] || PALETTE.normal;
+
+  // ---- brain orbital nebula ----
+  // 统一的脑半径基准（放大、更有"超巨型智算大脑"科幻气场）
+  const brainBaseR = () => Math.min(W, H) * 0.275;
+  let brain = [];
+  function buildBrain() {
+    brain = [];
+    const count = W < 1200 ? 360 : 520;
+    const maxR = brainBaseR();
+    for (let i = 0; i < count; i++) {
+      brain.push({
+        idx: i,
+        angle: Math.random() * TAU,
+        speed: rand(0.0012, 0.0050) * (Math.random() < 0.5 ? 1 : -1),
+        // 分布更外扩、星云更饱满；少量粒子留在核心区
+        radius: Math.pow(Math.random(), 0.62) * maxR + rand(6, 18),
+        size: rand(0.6, 2.6),
+        alpha: rand(0.12, 0.62),
+        depth: Math.random(),
+        colIdx: (Math.random() * 3) | 0,
+        glow: Math.random() < 0.16,           // 约 16% 的"亮星"带柔光
+        twk: Math.random() * TAU,             // 闪烁相位
+        x: animState.cx, y: animState.cy
+      });
+    }
+  }
+
+  // ---- node clouds ----
+  let clouds = { network: [], device: [], service: [], acceptance: [] };
+  function buildClouds() {
+    KEYS.forEach(k => {
+      const arr = [];
+      for (let i = 0; i < 56; i++) {
+        const a = Math.random() * TAU;
+        const rad = Math.pow(Math.random(), 0.6) * 84;
+        const ta = Math.random() * TAU;
+        const trad = rand(20, 38);
+        arr.push({
+          ox: Math.cos(a) * rad, oy: Math.sin(a) * rad,
+          tx: Math.cos(ta) * trad, ty: Math.sin(ta) * trad,
+          x: animState.cx, y: animState.cy,
+          size: rand(0.7, 2.0), phase: Math.random() * TAU,
+          speed: rand(0.3, 1.0), amp: rand(6, 20), depth: Math.random()
+        });
+      }
+      clouds[k] = arr;
+    });
+  }
+
+  // ---- flow particles ----
+  let flows = [];
+  function spawnFlow(k) {
+    for (let i = 0; i < 5; i++) flows.push({ key: k, t: -i * 0.18, speed: rand(0.006, 0.011), size: rand(1.2, 2.6) });
+  }
+
+  /* =========================================================
+     State machine
+     ========================================================= */
+  const state = {
+    nodeState: { network: "particle", device: "particle", service: "particle", acceptance: "particle" },
+    nodeResult: { network: "success", device: "success", service: "success", acceptance: "success" },
+    formProgress: { network: 0, device: 0, service: 0, acceptance: 0 },
+    brainSolid: 0
+  };
+
+  const stateTexts = {
+    init: { s: "<b>AI 决策大脑启动中</b><br>正在读取本体规则与项目上下文" },
+    network: { s: "<b>正在解析组网配置</b><br>校验拓扑结构、链路资源与网络约束" },
+    device: { s: "<b>正在匹配设备配置</b><br>分析设备型号、端口能力与硬件资源" },
+    service: { s: "<b>正在生成服务配置</b><br>编排服务目录、开通能力与参数策略" },
+    acceptance: { s: "<b>正在构建验收策略</b><br>生成测试项、验收规则与交付标准" }
+  };
+  function setCore(key) {
+    const d = stateTexts[key]; if (!d) return;
+    coreState.style.opacity = 0;
+    setTimeout(() => { coreState.innerHTML = d.s; coreState.style.opacity = 1; }, 200);
+  }
+
+  const nowStr = () => { const d = new Date(), p = n => String(n).padStart(2, "0"); return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()); };
+  function addLog(text, warn) {
+    if (!logList) return;
+    if (logList.children.length >= 6) logList.removeChild(logList.firstChild);
+    const li = document.createElement("li");
+    if (warn) li.className = "warn";
+    const icon = warn
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    li.innerHTML = '<span class="tick">' + icon + '</span><span><span class="t">' + nowStr() + '</span> ' + text + '</span>';
+    logList.appendChild(li);
+    requestAnimationFrame(() => requestAnimationFrame(() => li.classList.add("show")));
+  }
+
+  const procLabel = { network: "PLANNING", device: "MATCHING", service: "ORCHESTRATE", acceptance: "BUILDING" };
+  const okLabel = {
+    network: "VALIDATED",
+    device:  DECISION === "risk" ? "RESOURCE GAP" : "MATCHED",
+    service: "GENERATED",
+    acceptance: DECISION === "risk" ? "SCRIPT MISSING" : "READY"
+  };
+  const okText = {
+    network: "校验通过", device: DECISION === "risk" ? "资源缺口" : "资源已匹配",
+    service: "策略已生成", acceptance: DECISION === "risk" ? "脚本缺失" : "规则已完成"
+  };
+
+  function setNodeDOM(k, st) {
+    const c = cards[k], txt = c.querySelector(".ststx"), badge = c.querySelector(".badge");
+    c.classList.remove("active", "completed", "warn");
+    if (st === "connecting" || st === "forming") {
+      c.classList.add("active"); txt.textContent = "决策中 · " + procLabel[k];
+    } else if (st === "completed") {
+      const warn = state.nodeResult[k] === "warning";
+      c.classList.add("completed"); if (warn) c.classList.add("warn");
+      txt.textContent = warn ? "需介入" : "已生成";
+      const ic = warn
+        ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>'
+        : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      badge.innerHTML = ic + okLabel[k];
+    } else { txt.textContent = "待决策"; }
+  }
+
+  /* =========================================================
+     Timeline
+     ========================================================= */
+  let timers = [];
+  const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+
+  function runProcess() {
+    // node results based on decision
+    if (DECISION === "risk") {
+      state.nodeResult = { network: "success", device: "warning", service: "success", acceptance: "warning" };
+    } else {
+      state.nodeResult = { network: "success", device: "success", service: "success", acceptance: "success" };
+    }
+
+    setCore("init");
+    later(() => addLog("已加载项目本体模型"), 1500);
+
+    const startDelay = 2200, stepDur = 2200;
+    KEYS.forEach((k, i) => {
+      const base = startDelay + i * stepDur;
+      later(() => {
+        state.nodeState[k] = "connecting"; setNodeDOM(k, "connecting"); setCore(k);
+        spawnFlow(k); pillText.textContent = "推理中 · " + cards[k].querySelector(".name").textContent;
+        progBar.style.width = (12 + i * 21) + "%";
+      }, base);
+      later(() => { state.nodeState[k] = "forming"; setNodeDOM(k, "forming"); }, base + 1000);
+      later(() => {
+        state.nodeState[k] = "completed"; setNodeDOM(k, "completed");
+        const warn = state.nodeResult[k] === "warning";
+        addLog((warn ? "⚠ " : "已") + nodeLogText(k, warn), warn);
+        progBar.style.width = (22 + i * 21) + "%";
+      }, base + stepDur - 320);
+    });
+
+    const finale = startDelay + 4 * stepDur + 200;
+    later(() => resolveDecision(), finale);
+  }
+
+  function nodeLogText(k, warn) {
+    if (k === "network") return "识别组网约束并校验拓扑";
+    if (k === "device")  return warn ? "设备端口资源缺口待补充" : "完成设备能力匹配";
+    if (k === "service") return "生成服务配置与 QoS 策略";
+    if (k === "acceptance") return warn ? "验收联调脚本缺失待补全" : "构建验收规则集";
+    return "";
+  }
+
+  function resolveDecision() {
+    resultMode = DECISION;                 // 粒子/连线颜色瞬间绑定结果
+    brainPulse = 1;                        // 触发"决策达成"能量脉冲冲击
+    state.targetSolid = 0.5;
+
+    if (DECISION === "risk") {
+      pillText.textContent = "决策完成 · 交付存在风险";
+      progBar.style.width = "100%";
+      addLog("已形成项目可交付性结论（存在风险）", true);
+    } else {
+      pillText.textContent = "决策完成 · 项目可交付";
+      progBar.style.width = "100%";
+      addLog("已形成项目可交付性结论");
+    }
+
+    // 报告构建放进 try，避免任何异常阻断中央卡片的呈现
+    try { buildReport(DECISION); } catch (e) { /* 报告构建失败不影响卡片显示 */ }
+
+    // 丝滑交叉淡出：思考态 → 结果卡片（参考图中央卡片）。用内联样式确保必定生效。
+    resolvedEl.innerHTML = getResolved(DECISION);
+    centerEl.classList.add(DECISION === "risk" ? "res-risk" : "res-success");
+    const reasoningEl = coreCard.querySelector(".reasoning");
+    reasoningEl.style.transition = "opacity .4s ease, transform .4s ease";
+    reasoningEl.style.opacity = "0";
+    reasoningEl.style.transform = "scale(0.94)";
+    setTimeout(() => {
+      reasoningEl.style.display = "none";
+      centerEl.classList.add("is-resolved");
+      resolvedEl.style.display = "flex";
+      resolvedEl.style.transition = "opacity .55s ease, transform .55s ease";
+      resolvedEl.style.opacity = "0";
+      resolvedEl.style.transform = "scale(0.96)";
+      setTimeout(() => {
+        resolvedEl.style.opacity = "1";
+        resolvedEl.style.transform = "scale(1)";
+      }, 60);
+      // 安全兜底：持续 ~2.5s 重申可见，彻底消除任何闪烁/被覆盖导致的"一闪而过"
+      let n = 0;
+      const keeper = setInterval(() => {
+        reasoningEl.style.display = "none";
+        resolvedEl.style.display = "flex";
+        if (++n >= 5) { resolvedEl.style.opacity = "1"; resolvedEl.style.transform = "scale(1)"; }
+        if (n > 25) clearInterval(keeper);
+      }, 100);
+    }, 420);
+
+    // 开放交互（点中心卡片生成/查阅总体方案；点子节点跳到其所属章节）
+    coreCard.onclick = () => generatePlan();
+    const navMap = { network: "doc-ch5", device: "doc-ch2", service: "doc-ch7", acceptance: "doc-ch9" };
+    KEYS.forEach(k => {
+      cards[k].classList.add("clickable");
+      cards[k].onclick = () => generatePlan(navMap[k]);
+    });
+  }
+
+  function getResolved(mode, generated) {
+    // generated=false：尚未生成，点击 → generatePlan()（先处理再呼出报告）
+    // generated=true ：已生成，点击 → 直接 openReport() 查阅
+    const ctaAct = generated ? "generatePlan(null,true)" : "generatePlan()";
+    const ctaIcon = generated
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>';
+    const cta = (label) => '<div class="r-cta" onclick="event.stopPropagation();' + ctaAct + '">'
+      + ctaIcon + label
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>';
+
+    const stat = (target, icClass, icSvg, n, label) => '<div class="r-stat" onclick="event.stopPropagation();' + (generated ? "openReport('" + target + "')" : "generatePlan('" + target + "')") + '">'
+      + '<div class="rs-ic ' + icClass + '">' + icSvg + '</div>'
+      + '<div class="rs-txt"><div class="rs-n">' + n + '</div><div class="rs-l">' + label
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></div></div></div>';
+
+    const warnSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    const taskSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>';
+    const okSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    const ctaLabel = generated ? '更新方案' : '点击生成最终方案';
+
+    if (mode === "risk") {
+      return '<div class="resolved-badge risk">' + warnSvg + 'DELIVERY BLOCKED</div>'
+        + '<div class="r-title risk">交付具较高风险</div>'
+        + '<p class="r-sub">四域决策已完成 · 检测到端口资源枯竭与验收脚本缺失</p>'
+        + cta(ctaLabel)
+        + '<div class="r-stats">'
+        + stat('doc-ch12', 'warn', warnSvg, '2', '已识别风险')
+        + stat('doc-ch12', 'task', taskSvg, '2', '已生成任务')
+        + '</div>';
+    }
+    return '<div class="resolved-badge success">' + okSvg + 'DELIVERABLE</div>'
+      + '<div class="r-title success">项目可交付</div>'
+      + '<p class="r-sub">四个子决策点全部通过校验 · 可生成最终方案</p>'
+      + cta(ctaLabel)
+      + '<div class="r-stats">'
+      + stat('doc-ch12', 'ok', okSvg, '0', '已识别风险')
+      + stat('doc-ch12', 'task', taskSvg, '2', '已生成任务')
+      + '</div>';
+  }
+
+  /* 处理态卡片内容：粒子云强呼吸 + 进度条 + 动态步骤文案 */
+  function genProcessingHTML() {
+    return '<div class="gen-wrap">'
+      + '<div class="gen-orbit"><i></i><i></i><i></i><span class="gen-core"></span></div>'
+      + '<div class="gen-title">正在生成最终交付方案</div>'
+      + '<div class="gen-step" id="genStep">正在向数据库获取客户需求…</div>'
+      + '<div class="gen-bar"><i id="genBar" style="width:6%"></i></div>'
+      + '<div class="gen-hint">融合四域决策 · 补全数据库内容 · 编排交付计划</div>'
+      + '</div>';
+  }
+
+  let _genTimer = null, _genPulse = null, _genDone = null;
+  // 点击中心卡片 → 进入"计算处理"态（粒子云整体强呼吸）→ 处理完毕呼出报告面板
+  window.generatePlan = function (targetId, forceRegen) {
+    if (!centerEl.classList.contains("is-resolved")) return;   // 决策尚未完成
+    if (generating) return;                                     // 处理中防重入
+    if (planGenerated && !forceRegen) { openReport(targetId || "doc-overall"); return; }  // 已生成 → 直接查阅，不重新生成
+
+    generating = true;
+    centerEl.classList.add("generating");
+    resolvedEl.innerHTML = genProcessingHTML();
+
+    const stepEl = document.getElementById("genStep");
+    const barEl = document.getElementById("genBar");
+    const steps = [
+      "正在向数据库获取客户需求与项目背景…",
+      "正在汇编组网 / 设备 / 服务 / 验收四域决策…",
+      "正在生成软件版本配套表与网络平面配置…",
+      "正在拉取责任矩阵与组织权责数据…",
+      "正在编排交付计划与关键里程碑甘特图…",
+      "正在校验风险并生成处置工单…",
+      "正在排版总体交付方案文档…"
+    ];
+    const tick = 560, total = steps.length * tick + 260;
+    let i = 0;
+    _genTimer = setInterval(() => {
+      i++;
+      if (stepEl && steps[i]) stepEl.textContent = steps[i];
+      if (barEl) barEl.style.width = Math.min(100, Math.round((i + 1) / steps.length * 100)) + "%";
+      if (i >= steps.length - 1 && _genTimer) { clearInterval(_genTimer); _genTimer = null; }
+    }, tick);
+    // 处理期间有节奏的能量涟漪
+    _genPulse = setInterval(() => { brainPulse = Math.max(brainPulse, 0.5); }, 600);
+
+    clearTimeout(_genDone);
+    _genDone = setTimeout(() => {
+      if (_genPulse) { clearInterval(_genPulse); _genPulse = null; }
+      if (_genTimer) { clearInterval(_genTimer); _genTimer = null; }
+      generating = false;
+      planGenerated = true;
+      centerEl.classList.remove("generating");
+      try { localStorage.setItem('aida:digiPlanGen', '1'); } catch (e) {}
+      resolvedEl.innerHTML = getResolved(DECISION, true);   // 还原为"更新"态卡片（关闭报告后可见）
+      brainPulse = 1;                                        // 生成完成脉冲
+      openReport(targetId || "doc-overall");
+    }, total);
+  };
+
+  /* =========================================================
+     Report content
+     ========================================================= */
+  function buildReport(mode) {
+    const risk = (mode === "risk");
+    const warnTri = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    const okChk = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    const stOk = t => '<span class="st ok">' + t + '</span>';
+    const stWarn = t => '<span class="st warn">' + t + '</span>';
+    const alertBox = (title, body) => '<div class="alert"><div class="at">' + warnTri + title + '</div><div class="ad">' + body + '</div></div>';
+    const icEdit = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+    const icImg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+    const icFile = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>';
+    const chapter = (i, title, srcCls, srcLabel, sub, badge, body) => {
+      const cid = 'doc-ch' + i;
+      return '<div class="doc-sec" id="' + cid + '">'
+        + '<div class="sec-tools" contenteditable="false">'
+        + '<button class="sec-tool" onclick="chEdit(\'' + cid + '\',this)" title="编辑本章内容">' + icEdit + '<span>编辑</span></button>'
+        + '<button class="sec-tool" onclick="chPick(\'' + cid + '\',\'image\')" title="插入图片">' + icImg + '<span>图片</span></button>'
+        + '<button class="sec-tool" onclick="chPick(\'' + cid + '\',\'file\')" title="上传附件">' + icFile + '<span>附件</span></button>'
+        + '</div>'
+        + '<div class="sec-title"><span class="idx">' + i + '</span>' + title
+        + '<span class="sec-src ' + srcCls + '">' + srcLabel + '</span>' + (badge || '') + '</div>'
+        + '<div class="sec-sub">' + sub + '</div>'
+        + '<div class="sec-content">' + body
+        + '<div class="sec-custom" id="custom-' + cid + '" contenteditable="false"></div></div></div>';
+    };
+
+    // 顶部 vtag + 左侧目录总判
+    const vtag = document.getElementById("repVtag");
+    vtag.className = "vtag " + (risk ? "risk" : "success");
+    vtag.textContent = risk ? "BLOCKED" : "DELIVERABLE";
+    const tv = document.getElementById("tocVerdict");
+    if (tv) {
+      tv.className = "toc-verdict " + (risk ? "risk" : "success");
+      tv.innerHTML = (risk ? warnTri + '总体判定：交付存在风险 · 2 项待处置'
+                           : okChk + '总体判定：项目可交付 · 四域校验通过');
+    }
+
+    // 顶部综合判定
+    document.getElementById("verdictMount").innerHTML = risk
+      ? '<div class="verdict risk"><div class="vhead">' + warnTri + '总体方案综合判定：交付存在风险</div>'
+        + '<div class="vbody">全域数字孪生模型匹配完成，当前计算结果为 <b class="r">交付具备较高风险 (Blocked)</b>。引擎检测到核心路径设备端口资源不足，且 QA 自动化测试资产库脱节。为保障 <b class="r">99.999% SLA</b>，已拦截直接下发指令。本方案由下列 <b>12 个章节</b>组合而成（客户需求·组网/设备/服务/验收四域决策·责任矩阵·交付计划·风险），请查阅并派发干预工单后再行交付。</div>'
+        + '<div class="kpis"><div class="kpi"><div class="kv">4/4</div><div class="kl">子决策完成</div></div><div class="kpi"><div class="kv g">10</div><div class="kl">通过章节</div></div><div class="kpi"><div class="kv r">2</div><div class="kl">风险项</div></div><div class="kpi"><div class="kv r">2</div><div class="kl">待派发工单</div></div></div></div>'
+      : '<div class="verdict success"><div class="vhead">' + okChk + '总体方案综合判定：项目可交付</div>'
+        + '<div class="vbody">全域数字孪生模型匹配完成，当前计算结果为 <b class="g">项目可交付 (Deliverable)</b>。组网、设备、服务与验收四个子决策点全部通过校验，资源与质量卡点满足 <b class="g">99.999% SLA</b> 要求。本方案由下列 <b>12 个章节</b>组合而成，可一键下发交付实施指令。</div>'
+        + '<div class="kpis"><div class="kpi"><div class="kv">4/4</div><div class="kl">子决策完成</div></div><div class="kpi"><div class="kv g">12</div><div class="kl">通过章节</div></div><div class="kpi"><div class="kv g">0</div><div class="kl">风险项</div></div><div class="kpi"><div class="kv g">99.999%</div><div class="kl">交付 SLA</div></div></div></div>';
+
+    // 复用既有 SVG 图（组网拓扑 / 机柜分布），随后移除捐赠节点
+    const topo = (document.querySelector('#doc-network .diagram') || {}).outerHTML || '';
+    const rack = (document.querySelector('#doc-device .diagram') || {}).outerHTML || '';
+
+    /* ---------- 1. 客户需求（数据库） ---------- */
+    const ch1 = '<p>本章信息由<b>客户主数据与合同管理系统</b>自动同步，作为本次交付方案的需求基线与范围依据。</p>'
+      + '<div class="subh">项目关键信息</div>'
+      + '<table class="ptable"><tr><th>项目</th><th>内容</th></tr>'
+      + '<tr><td>项目名称</td><td>某省智算中心二期 · 256 卡昇腾训练集群专网交付</td></tr>'
+      + '<tr><td>项目编号</td><td class="mono">PRJ-AI-BJ-2026-017</td></tr>'
+      + '<tr><td>最终客户</td><td>某省人工智能计算中心</td></tr>'
+      + '<tr><td>交付经理 (PD)</td><td>赵工 · 政企交付一部</td></tr>'
+      + '<tr><td>合同 SLA</td><td class="mono">99.999% 可用率</td></tr>'
+      + '<tr><td>期望上线</td><td class="mono">2026-08-15</td></tr></table>'
+      + '<div class="subh">建设目标与范围</div>'
+      + '<table class="ptable"><tr><th>维度</th><th>目标 / 范围</th><th>优先级</th></tr>'
+      + '<tr><td>算力</td><td>256 张昇腾 910B，支撑千亿参数大模型训练</td><td><span class="pill info">P0</span></td></tr>'
+      + '<tr><td>网络</td><td>RoCEv2 无损以太承载，整网零丢包</td><td><span class="pill info">P0</span></td></tr>'
+      + '<tr><td>可用性</td><td>核心链路双归冗余、故障秒级收敛</td><td><span class="pill info">P1</span></td></tr>'
+      + '<tr><td>范围边界</td><td>含园区内组网 / 设备 / 服务 / 验收，不含园区光缆土建</td><td><span class="pill ok">已确认</span></td></tr></table>'
+      + '<div class="subh">交付里程碑计划</div>'
+      + '<div class="mstone"><div class="ms done">需求冻结<b>05-20</b></div><div class="ms done">方案决策<b>05-30</b></div><div class="ms">设备到货<b>06-25</b></div><div class="ms">集成联调<b>07-20</b></div><div class="ms">验收割接<b>08-15</b></div></div>';
+
+    /* ---------- 2. 设备配置（设备决策） ---------- */
+    const portUbar = risk
+      ? '<div class="ubar"><span class="track"><span class="fill r" style="width:100%"></span></span><span class="uv">8 / 4</span></div>'
+      : '<div class="ubar"><span class="track"><span class="fill g" style="width:100%"></span></span><span class="uv">8 / 8</span></div>';
+    const ch2 = '<p>引擎将组网方案下推为物理设备需求，与资产 / 库存系统实时比对，对交换机端口、智算服务器算力与机柜电力 / 散热进行容量探测与预留锁定。</p>'
+      + rack
+      + '<div class="subh">核心设备资源清单</div>'
+      + '<table class="ptable"><tr><th>设备</th><th>型号</th><th>关键资源</th><th>占用 / 容量</th><th>状态</th></tr>'
+      + '<tr><td>核心交换</td><td class="mono">SW-Core-BJ-02</td><td>100GE 光口</td><td>' + portUbar + '</td><td>' + (risk ? '<span class="pill warn">缺口</span>' : '<span class="pill ok">已锁定</span>') + '</td></tr>'
+      + '<tr><td>接入交换</td><td class="mono">Leaf-01~04 CE8850</td><td>100GE 接入口</td><td><div class="ubar"><span class="track"><span class="fill g" style="width:62%"></span></span><span class="uv">62%</span></div></td><td><span class="pill ok">充足</span></td></tr>'
+      + '<tr><td>训练服务器</td><td class="mono">Atlas 800 ×8</td><td>昇腾 910B 算力卡</td><td><div class="ubar"><span class="track"><span class="fill b" style="width:100%"></span></span><span class="uv">256/256</span></div></td><td><span class="pill ok">已锁定</span></td></tr>'
+      + '<tr><td>电力散热</td><td class="mono">机柜 R12/R13</td><td>液冷 16kW/柜</td><td><div class="ubar"><span class="track"><span class="fill g" style="width:82%"></span></span><span class="uv">82%</span></div></td><td><span class="pill ok">达标</span></td></tr></table>'
+      + (risk
+        ? alertBox('端口物理容量枯竭', '北京二区核心网元 <code>SW-Core-BJ-02</code> 可用 100G 光口仅余 4 个，而当前组网策略拟占用 8 个，硬件预留动作失败（<code>ERR_CAPACITY_LIMIT</code>），已阻断本设备域自动锁定。建议补充端口或重规划链路绕行（见第 12 章风险工单）。')
+        : '<p>【匹配通过】硬件库与存量库实时比对一致，核心网元 100G 光口已完成 8 端口预留锁定，昇腾算力、机柜电力与散热预算均满足组网策略需求。</p>');
+
+    /* ---------- 3. 部件配置（设备决策） ---------- */
+    const opticRow = risk
+      ? '<tr><td>光模块</td><td class="mono">100G QSFP28 SR4</td><td class="mono">64 / 56</td><td><span class="pill warn">缺口 8</span></td></tr>'
+      : '<tr><td>光模块</td><td class="mono">100G QSFP28 SR4</td><td class="mono">64 / 64</td><td><span class="pill ok">齐套</span></td></tr>';
+    const ch3 = '<p>依据设备清单进一步展开<b>部件级 BOM</b>，含光模块、高速线缆、加速卡与电源 / 风扇模块，并校验现场齐套率。</p>'
+      + '<div class="subh">关键部件 BOM 与齐套校验</div>'
+      + '<table class="ptable"><tr><th>部件</th><th>规格</th><th>需求 / 库存</th><th>齐套</th></tr>'
+      + opticRow
+      + '<tr><td>AOC 高速线缆</td><td class="mono">100G QSFP28 · 3m</td><td class="mono">192 / 200</td><td><span class="pill ok">齐套</span></td></tr>'
+      + '<tr><td>智算加速卡</td><td class="mono">昇腾 910B</td><td class="mono">256 / 256</td><td><span class="pill ok">已锁定</span></td></tr>'
+      + '<tr><td>电源模块</td><td class="mono">3000W 铂金 · 双冗余</td><td class="mono">64 / 72</td><td><span class="pill ok">齐套</span></td></tr>'
+      + '<tr><td>风扇模块</td><td class="mono">前后风道 · N+1</td><td class="mono">48 / 56</td><td><span class="pill ok">齐套</span></td></tr></table>'
+      + '<div class="subh">部件齐套率</div>'
+      + '<div class="ubar"><span class="track"><span class="fill ' + (risk ? 'g' : 'g') + '" style="width:' + (risk ? '94' : '100') + '%"></span></span><span class="uv">' + (risk ? '94%' : '100%') + '</span></div>'
+      + (risk ? alertBox('光模块部件缺口', '100G QSFP28 SR4 光模块需 64 只、库存仅 56 只，缺口 8 只，与核心交换端口缺口联动。建议同步采购补齐（见第 12 章风险工单）。') : '<p style="margin-top:6px">全部部件齐套率 100%，已生成部件清单与上架贴标方案。</p>');
+
+    /* ---------- 4. 软件配置 / 版本配套表（组网决策） ---------- */
+    const ch4 = '<p>依据组网与设备选型，引擎生成全栈<b>软件版本配套表</b>，并通过兼容性矩阵校验，确保跨网元 / 服务器 / 智算栈版本互锁一致。</p>'
+      + '<div class="subh">软件版本配套表</div>'
+      + '<table class="ptable"><tr><th>组件</th><th>软件 / 固件</th><th>版本</th><th>兼容校验</th></tr>'
+      + '<tr><td>核心 / 接入交换</td><td class="mono">VRP</td><td class="mono">V200R022C00</td><td><span class="pill ok">兼容</span></td></tr>'
+      + '<tr><td>网络管理</td><td class="mono">iMaster NCE-Fabric</td><td class="mono">V100R023C10</td><td><span class="pill ok">兼容</span></td></tr>'
+      + '<tr><td>智算服务器 BMC</td><td class="mono">iBMC</td><td class="mono">V561</td><td><span class="pill ok">兼容</span></td></tr>'
+      + '<tr><td>昇腾异构计算</td><td class="mono">CANN</td><td class="mono">7.0.RC1</td><td><span class="pill ok">兼容</span></td></tr>'
+      + '<tr><td>NPU 驱动 / 固件</td><td class="mono">Ascend HDK</td><td class="mono">23.0.RC3</td><td><span class="pill ok">兼容</span></td></tr>'
+      + '<tr><td>操作系统</td><td class="mono">openEuler</td><td class="mono">22.03 LTS SP3</td><td><span class="pill ok">兼容</span></td></tr></table>'
+      + '<p>版本互锁矩阵校验 <code>0</code> 冲突；已生成离线软件包清单与升级顺序编排（先网络、后存储、最后算力栈）。</p>';
+
+    /* ---------- 5. 网络平面配置（组网决策） ---------- */
+    const ch5 = '<p>本体引擎依据业务意图，自动推导出面向 <b>256 卡昇腾 910B 训练集群</b> 的两层 <code>Spine-Leaf</code> 无阻塞 CLOS 组网，参数面采用 <code>RoCEv2</code> 无损以太承载，业务面 Active-Active 双归冗余，整网无逻辑环路与死锁。</p>'
+      + topo
+      + '<div class="subh">关键组网参数</div>'
+      + '<table class="ptable"><tr><th>项目</th><th>规划值</th><th>校验结果</th></tr>'
+      + '<tr><td>网络架构</td><td class="mono">两层 Spine-Leaf / CLOS</td><td><span class="pill ok">无阻塞</span></td></tr>'
+      + '<tr><td>收敛比</td><td class="mono">1 : 1（无收敛）</td><td><span class="pill ok">达标</span></td></tr>'
+      + '<tr><td>参数面协议</td><td class="mono">RoCEv2 + PFC + ECN</td><td><span class="pill ok">无损</span></td></tr>'
+      + '<tr><td>路由协议</td><td class="mono">EBGP (Underlay) / VXLAN (Overlay)</td><td><span class="pill ok">收敛正常</span></td></tr>'
+      + '<tr><td>冗余方案</td><td class="mono">M-LAG Active-Active 双归</td><td><span class="pill ok">高可用</span></td></tr></table>'
+      + '<div class="subh">网络平面划分</div>'
+      + '<table class="ptable"><tr><th>平面</th><th>用途</th><th>VLAN</th><th>网段</th></tr>'
+      + '<tr><td>参数面 (RDMA)</td><td>训练 All-Reduce</td><td class="mono">VLAN 100</td><td class="mono">10.0.0.0/22</td></tr>'
+      + '<tr><td>业务面</td><td>推理 / 数据接入</td><td class="mono">VLAN 200</td><td class="mono">10.10.0.0/22</td></tr>'
+      + '<tr><td>存储面</td><td>分布式存储 IO</td><td class="mono">VLAN 300</td><td class="mono">10.20.0.0/23</td></tr>'
+      + '<tr><td>管理面</td><td>设备纳管 / 监控</td><td class="mono">VLAN 400</td><td class="mono">10.30.0.0/24</td></tr>'
+      + '<tr><td>带外 (BMC)</td><td>iBMC 远程管理</td><td class="mono">VLAN 999</td><td class="mono">10.99.0.0/24</td></tr></table>';
+
+    /* ---------- 6. 预集成预验证需求（组网决策） ---------- */
+    const ch6 = '<p>为缩短现场交付窗口，引擎输出<b>工厂预集成</b>与<b>到货前预验证</b>需求清单，设备到货前完成预配置与质检，现场仅需上电联调。</p>'
+      + '<div class="subh">工厂预集成需求</div>'
+      + '<table class="ptable"><tr><th>预集成项</th><th>内容</th><th>状态</th></tr>'
+      + '<tr><td>软件预装</td><td>版本基线刷写、补丁预置</td><td><span class="pill ok">已规划</span></td></tr>'
+      + '<tr><td>配置预灌</td><td>组网 / 路由 / QoS 脚本预导入</td><td><span class="pill ok">已生成</span></td></tr>'
+      + '<tr><td>线缆预制</td><td>光纤 / AOC 预制与端口标签</td><td><span class="pill ok">已规划</span></td></tr>'
+      + '<tr><td>机柜预装配</td><td>设备上架、走线、供电预接</td><td><span class="pill ok">已规划</span></td></tr></table>'
+      + '<div class="subh">到货前预验证测试项</div>'
+      + '<table class="ptable"><tr><th>用例</th><th>判据</th><th>结果</th></tr>'
+      + '<tr><td>加电自检 POST</td><td class="mono">0 告警</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>单板 / 光口健康</td><td class="mono">100% 在位</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>链路 Link-up</td><td class="mono">全端口 UP</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>配置回灌核对</td><td class="mono">Diff = 0</td><td><span class="pill ok">通过</span></td></tr></table>'
+      + '<p style="margin-top:6px">预集成完成后预计节省现场工时 <b>~40%</b>，并将现场割接风险降至最低。</p>';
+
+    /* ---------- 7. 交付场景与范围（服务决策） ---------- */
+    const ch7 = '<p>引擎将业务意图转换为可执行服务指令集，明确<b>交付场景</b>与<b>服务范围边界</b>，并完成 QoS 策略编排。</p>'
+      + '<div class="subh">交付场景</div>'
+      + '<table class="ptable"><tr><th>场景</th><th>描述</th><th>承载平面</th></tr>'
+      + '<tr><td>大模型训练</td><td>256 卡分布式训练 All-Reduce</td><td>参数面 RDMA 无损</td></tr>'
+      + '<tr><td>在线推理</td><td>模型服务化对外提供能力</td><td>业务面 + QoS</td></tr>'
+      + '<tr><td>数据存储</td><td>训练数据 / Checkpoint 读写</td><td>存储面</td></tr></table>'
+      + '<div class="subh">服务目录与开通能力</div>'
+      + '<table class="ptable"><tr><th>服务</th><th>能力</th><th>参数</th><th>状态</th></tr>'
+      + '<tr><td>RDMA 无损承载</td><td>RoCEv2 / PFC 优先级</td><td class="mono">CoS 3，无丢包</td><td><span class="pill ok">已生成</span></td></tr>'
+      + '<tr><td>跨域专线</td><td>VXLAN EVPN 互联</td><td class="mono">VNI 100256，MTU 9000</td><td><span class="pill ok">已生成</span></td></tr>'
+      + '<tr><td>QoS 队列调度</td><td>训练 / 存储 / 管理分级</td><td class="mono">EF/AF41/AF31/CS6</td><td><span class="pill ok">已生成</span></td></tr>'
+      + '<tr><td>安全策略</td><td>微分段 ACL</td><td class="mono">东西向白名单</td><td><span class="pill ok">已生成</span></td></tr></table>'
+      + '<div class="subh">服务范围边界</div>'
+      + '<table class="ptable"><tr><th>事项</th><th>是否含</th><th>备注</th></tr>'
+      + '<tr><td>组网实施</td><td><span class="pill ok">含</span></td><td>整网配置下发与联调</td></tr>'
+      + '<tr><td>设备上架</td><td><span class="pill ok">含</span></td><td>含部件安装与加电</td></tr>'
+      + '<tr><td>服务开通</td><td><span class="pill ok">含</span></td><td>业务参数与 QoS 开通</td></tr>'
+      + '<tr><td>应用迁移</td><td><span class="pill info">不含</span></td><td>客户侧业务自行迁移</td></tr></table>';
+
+    /* ---------- 8. 维保策略（服务决策） ---------- */
+    const ch8 = '<p>依据合同 SLA 与服务等级，引擎生成<b>金牌维保</b>策略，覆盖响应时限、备件、巡检与远程监控。</p>'
+      + '<div class="subh">服务级别与响应 SLA</div>'
+      + '<table class="ptable"><tr><th>级别</th><th>定义</th><th>响应时限</th><th>恢复时限</th></tr>'
+      + '<tr><td><span class="pill warn">P1 致命</span></td><td>业务中断</td><td class="mono">15 min</td><td class="mono">4 h</td></tr>'
+      + '<tr><td><span class="pill info">P2 严重</span></td><td>性能劣化</td><td class="mono">30 min</td><td class="mono">8 h</td></tr>'
+      + '<tr><td><span class="pill ok">P3 一般</span></td><td>单点告警</td><td class="mono">2 h</td><td class="mono">次工作日</td></tr></table>'
+      + '<div class="subh">维保资源策略</div>'
+      + '<table class="ptable"><tr><th>项目</th><th>策略</th></tr>'
+      + '<tr><td>备件库</td><td>省中心 4h 可达，关键板卡本地化备件</td></tr>'
+      + '<tr><td>巡检</td><td>季度现场巡检 + 月度远程健康检查</td></tr>'
+      + '<tr><td>远程监控</td><td>7×24 NOC + Telemetry 1s 粒度采集</td></tr>'
+      + '<tr><td>保修</td><td>3 年原厂保修 + 5×8 软件升级</td></tr></table>';
+
+    /* ---------- 9. 验收策略（验收决策） ---------- */
+    const ch9 = '<p>引擎依据交付标准与本体验收规则库，自动编排端到端验收用例，并在数字孪生沙盘中预演，输出可交付质量卡点结论。</p>'
+      + '<div class="subh">验收流程与卡点</div>'
+      + '<table class="ptable"><tr><th>阶段</th><th>内容</th><th>卡点</th></tr>'
+      + '<tr><td>上电验收</td><td>设备加电、单板自检</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>功能验收</td><td>连通性 / 路由 / QoS</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>性能验收</td><td>无损压测 / All-Reduce</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>可靠性验收</td><td>倒换 / 收敛 / 容灾</td><td>' + (risk ? '<span class="pill warn">阻断</span>' : '<span class="pill ok">通过</span>') + '</td></tr></table>'
+      + '<div class="subh">关键验收测试项</div>'
+      + '<table class="ptable"><tr><th>用例</th><th>类型</th><th>判据</th><th>结果</th></tr>'
+      + '<tr><td>链路连通性 / MTU 一致性</td><td>组网</td><td class="mono">丢包 0，MTU 9000</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>RoCE 无损 (PFC/ECN) 压测</td><td>性能</td><td class="mono">零丢包 @ 线速</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>256 卡 All-Reduce 基准</td><td>智算</td><td class="mono">带宽 ≥ 标称 95%</td><td><span class="pill ok">通过</span></td></tr>'
+      + '<tr><td>BGP 跨域秒级收敛</td><td>可靠性</td><td class="mono">收敛 &lt; 1s</td><td>' + (risk ? '<span class="pill warn">脚本缺失</span>' : '<span class="pill ok">通过</span>') + '</td></tr>'
+      + '<tr><td>M-LAG 主备倒换</td><td>可靠性</td><td class="mono">业务无感知</td><td><span class="pill ok">通过</span></td></tr></table>'
+      + (risk
+        ? alertBox('核心脚本依赖缺失', '「BGP 跨域秒级收敛」高阶特性在测试资产库中缺少映射的自动化联调脚本（ID: <code>BGP_CVG_042</code>），验收闭环未能形成，需补全脚本后重跑沙盘推演（见第 12 章风险工单）。')
+        : '<p>【推演通过】交付质量卡点校验完整，全部高阶特性自动化联调脚本均已命中并通过沙盘推演，验收闭环可正常形成。</p>');
+
+    /* ---------- 10. 责任矩阵（数据库） ---------- */
+    const R = '<span class="rci R">R</span>', A = '<span class="rci A">A</span>', C = '<span class="rci C">C</span>', I = '<span class="rci I">I</span>';
+    const ch10 = '<p>交付责任矩阵由<b>项目组织主数据</b>生成，明确各关键任务的 R/A/C/I 归属，确保权责清晰、协同高效。</p>'
+      + '<div class="subh">RACI 责任矩阵</div>'
+      + '<table class="ptable"><tr><th>任务</th><th>客户</th><th>交付 PM</th><th>网络组</th><th>智算组</th><th>测试组</th></tr>'
+      + '<tr><td>需求确认</td><td>' + A + '</td><td>' + R + '</td><td>' + C + '</td><td>' + C + '</td><td>' + I + '</td></tr>'
+      + '<tr><td>组网实施</td><td>' + I + '</td><td>' + A + '</td><td>' + R + '</td><td>' + C + '</td><td>' + I + '</td></tr>'
+      + '<tr><td>设备上架</td><td>' + I + '</td><td>' + A + '</td><td>' + C + '</td><td>' + R + '</td><td>' + I + '</td></tr>'
+      + '<tr><td>服务开通</td><td>' + I + '</td><td>' + A + '</td><td>' + R + '</td><td>' + C + '</td><td>' + C + '</td></tr>'
+      + '<tr><td>交付验收</td><td>' + C + '</td><td>' + A + '</td><td>' + C + '</td><td>' + C + '</td><td>' + R + '</td></tr>'
+      + '<tr><td>割接上线</td><td>' + A + '</td><td>' + R + '</td><td>' + C + '</td><td>' + C + '</td><td>' + C + '</td></tr></table>'
+      + '<p style="margin-top:6px"><span class="rci R">R</span> 负责执行 · <span class="rci A">A</span> 批准问责 · <span class="rci C">C</span> 事前咨询 · <span class="rci I">I</span> 事后知会</p>';
+
+    /* ---------- 11. 交付计划（综合编排） ---------- */
+    // 12 周实施甘特图：left/width 以周为单位（每周 ≈ 8.33%）
+    const gRow = (name, owner, leftPct, widthPct, cls, label) =>
+      '<div class="gantt-row"><span class="gl">' + name + '<em>' + owner + '</em></span>'
+      + '<div class="gtrack"><span class="gbar ' + cls + '" style="left:' + leftPct + '%;width:' + widthPct + '%">' + label + '</span></div></div>';
+    const gHeadWeeks = (() => { let s = ''; for (let w = 1; w <= 12; w++) s += '<i>W' + w + '</i>'; return s; })();
+    const procureCls = risk ? 'risk' : 'done';
+    const acceptCls = risk ? 'risk' : 'plan';
+    const ch11 = '<p>引擎融合<b>客户里程碑</b>与组网 / 设备 / 服务 / 验收四域决策，自动编排出端到端<b>项目实施计划</b>，输出关键里程碑活动甘特图、阶段责任与关键路径，作为现场作业排程基线。</p>'
+      + '<div class="subh">关键里程碑甘特图（12 周实施周计划）</div>'
+      + '<div class="gantt">'
+      + '<div class="gantt-head"><span class="gl">活动 / 周次</span><div class="gtrack gweeks">' + gHeadWeeks + '</div></div>'
+      + gRow('需求冻结与方案决策', '交付 PM', 0, 16.6, 'done', '2w')
+      + gRow('设备采购与到货', '供应链', 16.6, 33.3, procureCls, '4w')
+      + gRow('工厂预集成与预验证', '集成组', 33.3, 25, 'done', '3w')
+      + gRow('现场上架与综合布线', '智算组', 50, 16.6, 'active', '2w')
+      + gRow('组网配置与联调', '网络组', 58.3, 25, 'plan', '3w')
+      + gRow('服务开通与 QoS 编排', '服务组', 75, 16.6, 'plan', '2w')
+      + gRow('验收测试与沙盘推演', '测试组', 83.3, 16.6, acceptCls, '2w')
+      + gRow('割接上线与交付', '交付 PM', 91.6, 8.3, 'plan', '1w')
+      + '</div>'
+      + '<div class="glegend"><span><i class="lg done"></i>已完成</span><span><i class="lg active"></i>进行中</span><span><i class="lg plan"></i>计划中</span>' + (risk ? '<span><i class="lg risk"></i>受风险阻塞</span>' : '') + '</div>'
+      + '<div class="subh">阶段计划与责任</div>'
+      + '<table class="ptable"><tr><th>阶段</th><th>计划窗口</th><th>责任组</th><th>关键交付物</th><th>状态</th></tr>'
+      + '<tr><td>规划决策</td><td class="mono">W1–W2</td><td>交付 PM</td><td>交付方案基线</td><td><span class="pill ok">完成</span></td></tr>'
+      + '<tr><td>供货到货</td><td class="mono">W3–W6</td><td>供应链</td><td>设备 / 部件齐套</td><td>' + (risk ? '<span class="pill warn">受阻</span>' : '<span class="pill ok">在途</span>') + '</td></tr>'
+      + '<tr><td>预集成</td><td class="mono">W5–W7</td><td>集成组</td><td>预配置 / 预验证</td><td><span class="pill ok">完成</span></td></tr>'
+      + '<tr><td>现场实施</td><td class="mono">W7–W11</td><td>网络 / 智算组</td><td>整网联调可用</td><td><span class="pill info">进行中</span></td></tr>'
+      + '<tr><td>验收割接</td><td class="mono">W11–W12</td><td>测试 / PM</td><td>验收报告 / 上线</td><td>' + (risk ? '<span class="pill warn">待解阻</span>' : '<span class="pill info">计划中</span>') + '</td></tr></table>'
+      + '<div class="subh">关键路径与资源负载</div>'
+      + '<table class="ptable"><tr><th>关键路径</th><th>识别结论</th></tr>'
+      + '<tr><td class="mono">设备到货 → 现场上架 → 组网联调 → 验收割接</td><td>' + (risk ? '<span class="pill warn">端口/光模块缺口位于关键路径，预计影响工期 1–2 周</span>' : '<span class="pill ok">关键路径无阻塞，按期可达成 08-15 上线</span>') + '</td></tr></table>'
+      + (risk
+        ? alertBox('计划风险联动', '关键路径活动「设备采购与到货」受第 12 章风险 R-01 / R-02 阻塞，若 1 周内未解阻，验收割接里程碑（W12）将顺延。建议优先派发硬件扩容与脚本补充工单。')
+        : '<p style="margin-top:6px">资源负载均衡，各责任组峰值占用 < 85%，无超载冲突，计划可平稳执行。</p>');
+
+    /* ---------- 12. 风险（决策识别结果） ---------- */
+    const risksBlock = risk
+      ? riskCard("R-01", "high", "李", "核心交换端口物理容量枯竭", "设备域 · 组网",
+          "北京二区核心网元 SW-Core-BJ-02 可用 100G 光口仅余 4 个，当前组网策略需占用 8 个，硬件预留失败（ERR_CAPACITY_LIMIT），将阻断交付。", "李工 · 网络架构组")
+        + riskCard("R-02", "mid", "王", "验收联调脚本依赖缺失", "验收域 · 质量",
+          "「BGP 跨域秒级收敛」高阶特性在测试资产库中缺少映射的自动化联调脚本（ID: BGP_CVG_042），强行交付将导致验收闭环断裂。", "王工 · 测试开发组")
+      : '<div class="empty-risk">' + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'
+        + '未识别到阻断性交付风险，四域校验全部通过，可直接进入交付实施。</div>';
+    const dispatchBlock = risk
+      ? actCard("risk", "李", "硬件扩容 / 路径重规划工单", "RISK ACTION", "对 SW-Core-BJ-02 紧急补充 4 个 100G 端口与 8 只光模块，或重定向链路绕行该拥塞节点（关联风险 R-01）。", "李工 · 网络架构组", true)
+        + actCard("risk", "王", "联调脚本紧急补充开发", "RISK ACTION", "编写跨域 BGP 路由收敛验证脚本并录入 CI/CD 验收测试库（关联风险 R-02）。", "王工 · 测试开发组", true)
+        + actCard("hold", "AI", "流程轮询挂起（等待人工修复）", "SYSTEM HOOK", "已自动将本次全局下发指令置为 Hold 状态，监听上述风险工单的解决回调事件。", "决策引擎 · 自动管控", false)
+      : actCard("task", "张", "下发交付实施指令", "DELIVER", "向下游编排系统下发组网 / 设备 / 服务 / 验收四域配置，启动自动化交付流水线。", "张工 · 交付实施组", true)
+        + actCard("task", "陈", "交付方案归档与基线锁定", "ARCHIVE", "将本次可交付方案文档归档并锁定为交付基线版本，供后续审计追溯。", "陈工 · 交付管理组", true);
+    const ch12 = '<div class="subh">已识别风险清单 · ' + (risk ? '2 项（可下发责任人）' : '0 项') + '</div>' + risksBlock
+      + '<div class="subh">处置任务工单 · ' + (risk ? '3' : '2') + ' 项 (Action Items)</div>' + dispatchBlock;
+
+    /* ---------- 组装 ---------- */
+    const mount = document.getElementById("chaptersMount");
+    mount.innerHTML =
+        chapter(1, "客户需求", "src-db", "数据库", "项目背景 · 建设目标 · 范围 · 里程碑计划", stOk("DB SYNCED"), ch1)
+      + chapter(2, "设备配置", "src-dev", "设备决策", "物理设备清单 · 端口/算力容量比对 · 库存预留锁态", risk ? stWarn("RESOURCE GAP") : stOk("MATCHED"), ch2)
+      + chapter(3, "部件配置", "src-dev", "设备决策", "部件级 BOM · 光模块/线缆/加速卡 · 齐套率校验", risk ? stWarn("PART GAP") : stOk("READY"), ch3)
+      + chapter(4, "软件配置（版本配套表）", "src-net", "组网决策", "全栈软件版本 · 兼容性矩阵 · 升级编排", stOk("VALIDATED"), ch4)
+      + chapter(5, "网络平面配置", "src-net", "组网决策", "Spine-Leaf 拓扑 · RoCEv2 无损 · 平面/VLAN 划分", stOk("VALIDATED"), ch5)
+      + chapter(6, "预集成预验证需求", "src-net", "组网决策", "工厂预集成清单 · 到货前预验证测试项", stOk("READY"), ch6)
+      + chapter(7, "交付场景与范围", "src-svc", "服务决策", "交付场景 · 服务目录 · 范围边界 · QoS", stOk("GENERATED"), ch7)
+      + chapter(8, "维保策略", "src-svc", "服务决策", "金牌维保 · 响应 SLA · 备件/巡检/监控", stOk("GENERATED"), ch8)
+      + chapter(9, "验收策略", "src-acc", "验收决策", "验收流程卡点 · 测试用例 · 沙盘推演", risk ? stWarn("SCRIPT MISSING") : stOk("READY"), ch9)
+      + chapter(10, "责任矩阵", "src-db", "数据库", "RACI 权责归属 · 协同分工", stOk("DB SYNCED"), ch10)
+      + chapter(11, "交付计划", "src-plan", "综合编排", "实施甘特图 · 阶段责任 · 关键路径", risk ? stWarn("AT RISK") : stOk("SCHEDULED"), ch11)
+      + chapter(12, "风险", "src-risk", "决策识别", "决策识别风险项 · 处置任务工单", risk ? stWarn("2 RISKS") : stOk("0 RISK"), ch12);
+
+    // 移除捐赠节点，保持正文与导出整洁
+    ["doc-network", "doc-device", "doc-service", "doc-acceptance", "doc-risks", "doc-dispatch"].forEach(id => {
+      const e = document.getElementById(id); if (e) e.remove();
+    });
+  }
+
+  function riskCard(rid, sev, av, title, domain, desc, owner) {
+    const sevLabel = sev === "high" ? "高危" : (sev === "mid" ? "中危" : "低危");
+    return '<div class="act-card risk">'
+      + '<div class="avatar risk">' + av + '</div>'
+      + '<div class="act-main"><div class="act-head"><div class="act-title">' + rid + ' · ' + title + '</div>'
+      + '<span class="sev ' + sev + '">' + sevLabel + '</span><span class="act-tag risk">' + domain + '</span></div>'
+      + '<div class="act-desc">' + desc + '</div>'
+      + '<div class="act-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>处置责任人：' + owner + '</div></div>'
+      + '<button class="btn-dispatch go" onclick="dispatchTask(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>下发处理</button></div>';
+  }
+
+  function actCard(type, av, title, tag, desc, owner, canGo) {
+    const avCls = type === "risk" ? "risk" : "task";
+    const cardCls = type === "hold" ? "task" : type;
+    const tagCls = type === "risk" ? "risk" : "task";
+    let btn;
+    if (type === "hold") btn = '<button class="btn-dispatch lock">系统管控</button>';
+    else btn = '<button class="btn-dispatch go" onclick="dispatchTask(this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>一键派发</button>';
+    return '<div class="act-card ' + cardCls + '">'
+      + '<div class="avatar ' + avCls + '">' + av + '</div>'
+      + '<div class="act-main"><div class="act-head"><div class="act-title">' + title + '</div><span class="act-tag ' + tagCls + '">' + tag + '</span></div>'
+      + '<div class="act-desc">' + desc + '</div>'
+      + '<div class="act-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>责任人：' + owner + '</div></div>'
+      + btn + '</div>';
+  }
+
+  /* =========================================================
+     Drawer interactions
+     ========================================================= */
+  let isOpen = false;
+  const drawer = document.getElementById("drawer");
+  const repBody = document.getElementById("repBody");
+
+  const chapterIds = ["doc-ch1","doc-ch2","doc-ch3","doc-ch4","doc-ch5","doc-ch6","doc-ch7","doc-ch8","doc-ch9","doc-ch10","doc-ch11","doc-ch12"];
+  // 以视口测量换算到 repBody 内的滚动位置，避免 offsetParent 差异导致的定位偏移
+  const relTop = el => el.getBoundingClientRect().top - repBody.getBoundingClientRect().top + repBody.scrollTop;
+  function setTocActive(id) {
+    document.querySelectorAll(".toc-item").forEach(it => it.classList.toggle("active", it.getAttribute("data-target") === id));
+  }
+  let spyRAF = null;
+  function onRepScroll() {
+    if (spyRAF) return;
+    spyRAF = requestAnimationFrame(() => {
+      spyRAF = null;
+      const top = repBody.scrollTop + 90;
+      let cur = chapterIds[0];
+      for (const id of chapterIds) {
+        const el = document.getElementById(id);
+        if (el && relTop(el) <= top) cur = id; else if (el) break;
+      }
+      setTocActive(cur);
+    });
+  }
+  repBody.addEventListener("scroll", onRepScroll, { passive: true });
+
+  window.openReport = function (sectionId) {
+    if (!centerEl.classList.contains("is-resolved")) return;
+    const wasOpen = isOpen;
+    if (!isOpen) {
+      isOpen = true;
+      document.body.classList.add("report-open");
+      applyTargets();
+    }
+    const isChapter = sectionId && sectionId !== "doc-overall";
+    setTocActive(isChapter ? sectionId : "doc-ch1");
+    setTimeout(() => {
+      document.querySelectorAll(".doc-sec").forEach(el => el.classList.remove("highlight"));
+      const target = isChapter ? document.getElementById(sectionId) : null;
+      if (target) {
+        repBody.scrollTo({ top: Math.max(0, relTop(target) - 8), behavior: "smooth" });
+        target.classList.add("highlight");
+      } else {
+        repBody.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }, wasOpen ? 340 : 640);
+  };
+
+  window.closeReport = function () {
+    isOpen = false;
+    document.body.classList.remove("report-open");
+    document.querySelectorAll(".doc-sec").forEach(el => el.classList.remove("highlight"));
+    applyTargets();
+  };
+
+  window.dispatchTask = function (btn) {
+    if (btn.classList.contains("done")) return;
+    btn.innerHTML = '派发中…';
+    btn.style.pointerEvents = "none";
+    setTimeout(() => {
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>已派发';
+      btn.classList.remove("go"); btn.classList.add("done");
+      toast("工单已派发至下游责任人");
+    }, 1200);
+  };
+
+  let toastTimer = null;
+  window.toast = function (text) {
+    const t = document.getElementById("toast");
+    document.getElementById("toastText").textContent = text;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  };
+
+  /* ---------- 章节编辑 / 图片 / 附件（每章节支持手工修改与自定义上传） ---------- */
+  let _pickCid = null, _pickKind = null;
+  const _picker = document.createElement("input");
+  _picker.type = "file"; _picker.multiple = true; _picker.style.display = "none"; _picker.id = "chFilePicker";
+  document.body.appendChild(_picker);
+
+  const _fmtSize = b => b < 1024 ? b + " B" : (b < 1048576 ? (b / 1024).toFixed(1) + " KB" : (b / 1048576).toFixed(1) + " MB");
+  const _esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const _docIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+
+  // 切换某章节进入/退出文字编辑模式
+  window.chEdit = function (cid, btn) {
+    const sec = document.getElementById(cid); if (!sec) return;
+    const content = sec.querySelector(".sec-content");
+    const on = sec.classList.toggle("editing");
+    content.contentEditable = on ? "true" : "false";
+    btn.classList.toggle("on", on);
+    const lbl = btn.querySelector("span"); if (lbl) lbl.textContent = on ? "完成" : "编辑";
+    if (on) { content.focus(); toast("已进入编辑模式，可直接修改本章文字内容"); }
+    else { toast("本章修改已保存"); }
+  };
+
+  // 拉起文件选择器（图片或任意附件）
+  window.chPick = function (cid, kind) {
+    _pickCid = cid; _pickKind = kind;
+    _picker.accept = kind === "image" ? "image/*" : "";
+    _picker.value = "";
+    _picker.click();
+  };
+
+  _picker.addEventListener("change", function () {
+    const host = document.getElementById("custom-" + _pickCid);
+    const files = Array.from(_picker.files || []);
+    if (!host || !files.length) return;
+    files.forEach(f => {
+      if (_pickKind === "image" && /^image\//.test(f.type)) {
+        const rd = new FileReader();
+        rd.onload = e => {
+          host.insertAdjacentHTML("beforeend",
+            '<figure class="usr-fig" contenteditable="false"><img src="' + e.target.result + '" alt="">'
+            + '<figcaption contenteditable="true">' + _esc(f.name) + '（点击编辑图注）</figcaption>'
+            + '<button class="usr-del" title="移除" onclick="this.closest(\'.usr-fig\').remove()">×</button></figure>');
+        };
+        rd.readAsDataURL(f);
+      } else {
+        host.insertAdjacentHTML("beforeend",
+          '<div class="usr-file" contenteditable="false"><span class="uf-ic">' + _docIcon + '</span>'
+          + '<span class="uf-meta"><b>' + _esc(f.name) + '</b><i>' + _fmtSize(f.size) + (f.type ? " · " + _esc(f.type) : "") + '</i></span>'
+          + '<button class="usr-del" title="移除" onclick="this.closest(\'.usr-file\').remove()">×</button></div>');
+      }
+    });
+    toast((_pickKind === "image" ? "已插入 " : "已上传 ") + files.length + (_pickKind === "image" ? " 张图片" : " 个附件"));
+  });
+
+  /* ---------- 报告一键导出（Word / PDF） ---------- */
+  function buildExportHTML() {
+    const verdictTxt = DECISION === "risk" ? "交付存在风险（Blocked）" : "项目可交付（Deliverable）";
+    const css = '<style>'
+      + 'body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif;color:#1f2a40;line-height:1.7;margin:0;padding:36px 48px;font-size:13px;}'
+      + 'svg{width:15px;height:15px;vertical-align:-2px;} h1 svg{width:20px;height:20px;}'
+      + '.vhead svg,.dispatch-h svg,.sec-title svg,.rep-title svg{width:18px;height:18px;} .alert .at svg{width:14px;height:14px;} .avatar svg{display:none;}'
+      + '.diagram svg{width:100%!important;height:auto!important;}'
+      + 'h1{font-size:22px;margin:0 0 4px;color:#0f2a52;} .sub{color:#64748b;font-size:12px;margin-bottom:6px;}'
+      + '.meta{font-family:monospace;font-size:11px;color:#64748b;border-bottom:1px dashed #cbd8e8;padding-bottom:12px;margin-bottom:18px;}'
+      + '.verdict{padding:14px 18px;border-radius:10px;margin-bottom:20px;border:1px solid;} .verdict.risk{background:#fff8ee;border-color:#fde3a7;} .verdict.success{background:#f0fdf8;border-color:#b8ebd4;}'
+      + '.vhead{font-size:15px;font-weight:800;margin-bottom:6px;} .verdict.risk .vhead{color:#b45309;} .verdict.success .vhead{color:#059669;}'
+      + '.kpis{margin-top:10px;} .kpi{display:inline-block;border:1px solid #e2e8f0;border-radius:8px;padding:6px 12px;margin:4px 8px 0 0;} .kpi .kv{font-weight:800;font-size:15px;} .kpi .kl{font-size:10px;color:#64748b;}'
+      + '.doc-sec,.dispatch{border:1px solid #e6edf6;border-radius:10px;padding:16px 20px;margin-bottom:16px;page-break-inside:avoid;}'
+      + '.sec-title,.dispatch-h{font-size:15px;font-weight:800;color:#0f2a52;margin-bottom:8px;} .sec-title .idx{display:inline-block;background:#e3ecff;color:#2563eb;border-radius:6px;padding:1px 8px;margin-right:8px;font-family:monospace;} .sec-sub{color:#64748b;font-size:11px;margin-bottom:10px;}'
+      + '.st,.vtag{font-family:monospace;font-size:11px;font-weight:800;padding:2px 8px;border-radius:5px;border:1px solid;} .st.ok,.vtag.success{color:#059669;border-color:#b8ebd4;background:#ecfdf3;} .st.warn,.vtag.risk{color:#b45309;border-color:#fde3a7;background:#fff8ee;}'
+      + 'table.ptable{width:100%;border-collapse:collapse;font-size:12px;margin:6px 0;} .ptable th,.ptable td{border:1px solid #e6edf6;padding:6px 9px;text-align:left;} .ptable th{background:#f5f9ff;color:#475569;font-size:11px;}'
+      + '.pill{font-family:monospace;font-size:11px;font-weight:800;padding:1px 7px;border-radius:99px;} .pill.ok{background:#ecfdf3;color:#059669;} .pill.warn{background:#fff7e6;color:#b45309;} .pill.info{background:#eff6ff;color:#2563eb;}'
+      + '.subh{font-weight:800;font-size:13px;margin:14px 0 6px;color:#0f2a52;}'
+      + '.alert{background:#fffbeb;border:1px solid #fde68a;border-left:3px solid #f59e0b;padding:10px 14px;border-radius:8px;margin-top:10px;} .alert .at{font-weight:800;color:#92400e;margin-bottom:4px;} .alert .ad{color:#b45309;font-size:12px;}'
+      + '.act-card{border:1px solid #e6edf6;border-left:3px solid #2563eb;border-radius:9px;padding:12px 14px;margin-bottom:10px;} .act-card.risk{border-left-color:#f59e0b;} .act-title{font-weight:800;} .act-desc{font-size:12px;color:#475569;margin:4px 0;} .act-meta{font-size:11px;color:#64748b;} .sev{font-family:monospace;font-size:10px;font-weight:800;padding:1px 7px;border-radius:5px;margin-left:6px;} .sev.high{background:#fee2e2;color:#b42318;} .sev.mid{background:#fef3c7;color:#d97706;}'
+      + '.ubar .track{display:none;} .ubar .uv{font-family:monospace;font-weight:700;} .empty-risk{background:#f0fdf8;border:1px solid #b8ebd4;color:#059669;padding:12px 16px;border-radius:9px;font-weight:600;}'
+      + '.btn-dispatch,.energy,.sec-tools,.usr-del{display:none!important;} .diagram{border:1px solid #e6edf6;border-radius:10px;padding:10px;margin:8px 0;page-break-inside:avoid;} .diagram svg{width:100%;height:auto;} .cap{font-size:11px;color:#64748b;margin-top:4px;} .dleg{font-size:11px;color:#475569;margin-top:4px;} .dleg i{display:none;}'
+      + '.sec-src{font-family:monospace;font-size:10px;font-weight:800;padding:2px 7px;border-radius:5px;margin-left:8px;background:#eef1f6;color:#475569;}'
+      + '.rci{font-family:monospace;font-weight:800;font-size:11px;padding:1px 6px;border-radius:4px;} .rci.R{background:#e7efff;color:#2563eb;} .rci.A{background:#fee2e2;color:#b42318;} .rci.C{background:#fef3c7;color:#b45309;} .rci.I{background:#eef1f6;color:#64748b;}'
+      + '.mstone{display:flex;gap:14px;margin:8px 0;} .mstone .ms{font-size:11px;color:#475569;} .mstone .ms b{display:block;font-weight:800;color:#0f2a52;}'
+      + '.gantt{border:1px solid #e6edf6;border-radius:8px;overflow:hidden;margin:6px 0;page-break-inside:avoid;} .gantt-head,.gantt-row{display:flex;align-items:center;border-bottom:1px solid #eef2f8;min-height:26px;} .gantt-head{background:#f5f9ff;} .gantt .gl{flex:none;width:160px;padding:0 10px;font-size:11px;font-weight:700;color:#0f2a52;display:flex;flex-direction:column;} .gantt .gl em{font-style:normal;font-size:10px;font-weight:600;color:#64748b;} .gantt .gtrack{position:relative;flex:1;height:26px;} .gantt .gweeks{display:flex;} .gantt .gweeks i{flex:1;font-style:normal;font-size:9px;color:#64748b;display:grid;place-items:center;}'
+      + '.gbar{position:absolute;top:5px;height:16px;border-radius:4px;color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;} .gbar.done{background:#10b981;} .gbar.active{background:#2f7df6;} .gbar.plan{background:#93a8cf;color:#2a4a7a;} .gbar.risk{background:#f59e0b;} .glegend{font-size:10px;color:#64748b;margin:6px 0;} .glegend span{margin-right:14px;} .glegend .lg{display:inline-block;width:11px;height:8px;border-radius:2px;margin-right:4px;} .glegend .lg.done{background:#10b981;} .glegend .lg.active{background:#2f7df6;} .glegend .lg.plan{background:#93a8cf;} .glegend .lg.risk{background:#f59e0b;}'
+      + '.sec-custom{margin-top:12px;padding-top:10px;border-top:1px dashed #d6e2f3;display:flex;flex-wrap:wrap;gap:10px;} .sec-custom:empty{display:none;} .usr-fig{width:200px;margin:0;border:1px solid #e6edf6;border-radius:8px;overflow:hidden;page-break-inside:avoid;} .usr-fig img{width:100%;height:auto;display:block;} .usr-fig figcaption{font-size:10px;color:#64748b;padding:5px 8px;} .usr-file{display:inline-flex;align-items:center;gap:8px;border:1px solid #e6edf6;border-radius:8px;padding:8px 12px;} .usr-file .uf-ic svg{width:15px;height:15px;} .usr-file .uf-meta b{font-size:11px;} .usr-file .uf-meta i{font-style:normal;font-size:9px;color:#94a3b8;display:block;}'
+      + '</style>';
+    // 用当前报告正文（克隆并剥离编辑工具/删除按钮等交互控件）
+    const clone = document.getElementById("repBody").cloneNode(true);
+    clone.querySelectorAll(".sec-tools, .usr-del").forEach(el => el.remove());
+    clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute("contenteditable"));
+    const body = clone.innerHTML;
+    return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>本体决策系统 · 总体交付方案与分析报告</title>' + css + '</head><body>'
+      + '<h1>本体决策系统 · 总体交付方案与分析报告</h1>'
+      + '<div class="sub">Ontology Decision System · 总体结论：' + verdictTxt + '</div>'
+      + body + '</body></html>';
+  }
+
+  window.exportReport = function (type) {
+    const html = buildExportHTML();
+    if (type === "word") {
+      const blob = new Blob(['\ufeff', html], { type: "application/msword;charset=utf-8" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "交付方案报告_ONT-DLV-20260530.doc";
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast("已导出 Word 文档");
+    } else {
+      const w = window.open("", "_blank");
+      if (!w) { toast("请允许弹出窗口以导出 PDF"); return; }
+      w.document.open(); w.document.write(html); w.document.close();
+      w.onload = () => { w.focus(); w.print(); };
+      setTimeout(() => { try { w.focus(); w.print(); } catch (e) {} }, 600);
+      toast("已打开 PDF 打印预览（请选择“另存为 PDF”）");
+    }
+  };
+
+  /* =========================================================
+     Render loop
+     ========================================================= */
+  let last = performance.now();
+  function frame(now) {
+    last = now;
+    const time = now / 1000;
+
+    animState.cx += (animState.targetCx - animState.cx) * 0.08;
+    animState.cy += (animState.targetCy - animState.cy) * 0.08;
+    animState.scale += (animState.targetScale - animState.scale) * 0.08;
+    animState.spread += (animState.targetSpread - animState.spread) * 0.08;
+    if (brainPulse > 0.0005) brainPulse *= 0.972; else brainPulse = 0;   // 脉冲缓慢衰减（约 2-3s）
+    updateDOMLayout();
+
+    const completed = KEYS.filter(k => state.nodeState[k] === "completed").length;
+    const targetSolid = state.targetSolid != null ? state.targetSolid : completed / 4 * 0.45;
+    state.brainSolid += (targetSolid - state.brainSolid) * 0.04;
+    KEYS.forEach(k => {
+      const st = state.nodeState[k];
+      const tgt = (st === "forming" || st === "completed") ? 1 : 0;
+      state.formProgress[k] += (tgt - state.formProgress[k]) * 0.06;
+    });
+
+    ctx.clearRect(0, 0, W, H);
+    drawConnections(time);
+    drawBrain(time);
+    KEYS.forEach(k => drawCloud(k, time));
+    drawFlows();
+    requestAnimationFrame(frame);
+  }
+
+  const rgba = (c, a) => "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")";
+
+  function drawConnections(time) {
+    const o0 = brainOrigin();
+    KEYS.forEach(k => {
+      const n = nodeOrigin(k), st = state.nodeState[k];
+      let alpha = 0.10;
+      if (st === "connecting") alpha = 0.30; else if (st === "forming") alpha = 0.38; else if (st === "completed") alpha = 0.46;
+      const warn = state.nodeState[k] === "completed" && state.nodeResult[k] === "warning";
+      const col = warn ? ACCENT.risk : (st === "completed" ? ACCENT.success : ACCENT.normal);
+      const mx = (o0.x + n.x) / 2 + (o0.y - n.y) * 0.06;
+      const my = (o0.y + n.y) / 2 + (n.x - o0.x) * 0.06;
+      ctx.strokeStyle = rgba(col, alpha);
+      ctx.lineWidth = st === "completed" ? 1.6 : 1.1;
+      ctx.beginPath(); ctx.moveTo(o0.x, o0.y); ctx.quadraticCurveTo(mx, my, n.x, n.y); ctx.stroke();
+      if (st === "connecting" || st === "forming") {
+        ctx.save(); ctx.setLineDash([3, 9]); ctx.lineDashOffset = -time * 30;
+        ctx.strokeStyle = rgba([25, 184, 216], 0.35); ctx.lineWidth = 0.9;
+        ctx.beginPath(); ctx.moveTo(o0.x, o0.y); ctx.quadraticCurveTo(mx, my, n.x, n.y); ctx.stroke(); ctx.restore();
+      }
+    });
+  }
+
+  function qpoint(p0x, p0y, p1x, p1y, p2x, p2y, t) {
+    const mt = 1 - t;
+    return [mt * mt * p0x + 2 * mt * t * p1x + t * t * p2x, mt * mt * p0y + 2 * mt * t * p1y + t * t * p2y];
+  }
+  function drawFlows() {
+    const o0 = brainOrigin();
+    for (let i = flows.length - 1; i >= 0; i--) {
+      const f = flows[i]; f.t += f.speed; const st = state.nodeState[f.key];
+      if (f.t > 1.05) { if (st === "connecting" || st === "forming") f.t = -0.05; else { flows.splice(i, 1); continue; } }
+      if (f.t < 0) continue;
+      const n = nodeOrigin(f.key);
+      const mx = (o0.x + n.x) / 2 + (o0.y - n.y) * 0.06, my = (o0.y + n.y) / 2 + (n.x - o0.x) * 0.06;
+      const p = qpoint(o0.x, o0.y, mx, my, n.x, n.y, f.t);
+      const col = [25, 184, 216];
+      const g = ctx.createRadialGradient(p[0], p[1], 0, p[0], p[1], f.size * 3);
+      g.addColorStop(0, rgba(col, 0.9)); g.addColorStop(1, rgba(col, 0));
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p[0], p[1], f.size * 3, 0, TAU); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.95)"; ctx.beginPath(); ctx.arc(p[0], p[1], f.size * 0.7, 0, TAU); ctx.fill();
+    }
+  }
+
+  function drawBrain(time) {
+    const o = brainOrigin();
+    const solid = state.brainSolid;
+    const sp = animState.spread;
+    const maxR = brainBaseR() * sp;
+    const breath = Math.sin(time * (generating ? 0.95 : 0.62)) * (44 * (1 - solid) + 8) * sp * (generating ? 1.55 : 1);   // 大幅、缓慢的星云呼吸（处理态更强）
+    const corePulse = Math.sin(time * (generating ? 1.6 : 0.6)) * 0.5 + 0.5;                    // 0..1 核心明暗呼吸
+    const pal = palette(), acc = accent();
+
+    // ---------- 多层呼吸光晕（梦幻景深 + 托底中央文字）----------
+    const haloR = maxR * (2.05 - solid * 0.40) + breath * 1.2;
+    const h1 = ctx.createRadialGradient(o.x, o.y, maxR * 0.10, o.x, o.y, haloR);
+    h1.addColorStop(0, rgba(acc, 0.12 + solid * 0.10));
+    h1.addColorStop(0.42, rgba(acc, 0.045));
+    h1.addColorStop(1, rgba(acc, 0));
+    ctx.fillStyle = h1; ctx.beginPath(); ctx.arc(o.x, o.y, haloR, 0, TAU); ctx.fill();
+
+    const h2r = maxR * (0.72 + corePulse * 0.05);
+    const h2 = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, h2r);
+    h2.addColorStop(0, "rgba(255,255,255," + (0.34 + solid * 0.22) + ")");
+    h2.addColorStop(0.5, "rgba(244,249,255," + (0.14 + solid * 0.10) + ")");
+    h2.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = h2; ctx.beginPath(); ctx.arc(o.x, o.y, h2r, 0, TAU); ctx.fill();
+
+    // ---------- 白热能量核（粒子在其上层流转，形成"发光的心脏"）----------
+    const coreR = maxR * (0.50 + solid * 0.18) * (0.95 + corePulse * 0.05);
+    const cg = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, coreR);
+    cg.addColorStop(0, "rgba(255,255,255," + (0.30 + solid * 0.50 + brainPulse * 0.25) + ")");
+    cg.addColorStop(0.38, rgba(acc, 0.14 + solid * 0.30 + brainPulse * 0.15));
+    cg.addColorStop(1, rgba(acc, 0));
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(o.x, o.y, coreR, 0, TAU); ctx.fill();
+
+    // ---------- 轨道更新 ----------
+    for (const p of brain) {
+      p.angle += p.speed;
+      let r = (p.radius * sp) + breath * (0.5 + p.depth * 0.7);
+      if (solid > 0.01) r = r * (1 - solid * 0.46) + (p.radius * sp * 0.34) * solid;
+      const tx = o.x + Math.cos(p.angle) * r, ty = o.y + Math.sin(p.angle) * r;
+      p.x += (tx - p.x) * 0.045; p.y += (ty - p.y) * 0.045;
+    }
+
+    // ---------- 神经网络连线（空间网格近邻 + alpha 分档批绘，茂密且高性能）----------
+    const linkDist = (47 + solid * 12) * sp;
+    const linkDistSq = linkDist * linkDist;
+    const cell = Math.max(linkDist, 1);
+    const grid = new Map();
+    for (const p of brain) {
+      const key = Math.floor(p.x / cell) + ":" + Math.floor(p.y / cell);
+      let bucket = grid.get(key); if (!bucket) { bucket = []; grid.set(key, bucket); }
+      bucket.push(p);
+    }
+    const linkBase = 0.13 + solid * 0.16 + brainPulse * 0.30;
+    const NB = 6, segs = [];
+    for (let i = 0; i < NB; i++) segs.push([]);
+    const dirs = [[0, 0], [1, 0], [-1, 1], [0, 1], [1, 1]];   // 半邻域去重
+    grid.forEach((bucket, key) => {
+      const parts = key.split(":"), gx = +parts[0], gy = +parts[1];
+      for (const a of bucket) {
+        for (const d of dirs) {
+          const nb = grid.get((gx + d[0]) + ":" + (gy + d[1]));
+          if (!nb) continue;
+          for (const b of nb) {
+            if (d[0] === 0 && d[1] === 0 && b.idx <= a.idx) continue;
+            const dx = a.x - b.x, dy = a.y - b.y, d2 = dx * dx + dy * dy;
+            if (d2 < linkDistSq) {
+              const lvl = Math.min(NB - 1, ((1 - d2 / linkDistSq) * NB) | 0);
+              segs[lvl].push(a.x, a.y, b.x, b.y);
+            }
+          }
+        }
+      }
+    });
+    ctx.lineWidth = 0.62;
+    for (let l = 0; l < NB; l++) {
+      const s = segs[l]; if (!s.length) continue;
+      ctx.strokeStyle = rgba(acc, linkBase * ((l + 0.6) / NB));
+      ctx.beginPath();
+      for (let i = 0; i < s.length; i += 4) { ctx.moveTo(s[i], s[i + 1]); ctx.lineTo(s[i + 2], s[i + 3]); }
+      ctx.stroke();
+    }
+
+    // ---------- 粒子（景深 + 闪烁 + 亮星柔光）----------
+    for (const p of brain) {
+      const c = pal[p.colIdx];
+      const tw = 0.78 + Math.sin(time * 1.7 + p.twk) * 0.22;
+      const r = p.size * (0.5 + p.depth * 1.05) * (1 + solid * 0.28);
+      const a = p.alpha * (0.64 + solid * 0.36) * tw;
+      if (p.glow) {
+        const gr = r * 3.8;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, gr);
+        g.addColorStop(0, rgba(c, a * 0.55)); g.addColorStop(1, rgba(c, 0));
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, gr, 0, TAU); ctx.fill();
+      }
+      ctx.fillStyle = rgba(c, a); ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
+      if (p.glow) { ctx.fillStyle = "rgba(255,255,255," + (a * 0.85) + ")"; ctx.beginPath(); ctx.arc(p.x, p.y, r * 0.45, 0, TAU); ctx.fill(); }
+    }
+
+    // ---------- 决策达成脉冲环（向外扩散的能量冲击）----------
+    if (brainPulse > 0.01) {
+      const ease = 1 - brainPulse;
+      ctx.lineWidth = 1 + brainPulse * 4;
+      ctx.strokeStyle = rgba(acc, brainPulse * 0.55);
+      ctx.beginPath(); ctx.arc(o.x, o.y, maxR * (0.45 + ease * 1.55), 0, TAU); ctx.stroke();
+      ctx.lineWidth = 1 + brainPulse * 2;
+      ctx.strokeStyle = "rgba(255,255,255," + (brainPulse * 0.42) + ")";
+      ctx.beginPath(); ctx.arc(o.x, o.y, maxR * (0.45 + ease * 1.05), 0, TAU); ctx.stroke();
+    }
+  }
+
+  function drawCloud(k, time) {
+    const o = nodeOrigin(k), arr = clouds[k];
+    const form = state.formProgress[k], st = state.nodeState[k];
+    const active = (st === "connecting" || st === "forming");
+    const warn = state.nodeResult[k] === "warning";
+    const done = st === "completed";
+
+    const haloA = (0.05 + (active ? 0.10 : 0) + form * 0.05);
+    const hr = (70 - form * 26) * animState.spread;
+    const accCol = done ? (warn ? ACCENT.risk : ACCENT.success) : [120, 180, 255];
+    const halo = ctx.createRadialGradient(o.x, o.y, 0, o.x, o.y, Math.max(hr, 1));
+    halo.addColorStop(0, rgba(accCol, haloA)); halo.addColorStop(1, rgba(accCol, 0));
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(o.x, o.y, Math.max(hr, 1), 0, TAU); ctx.fill();
+
+    for (const p of arr) {
+      const fx = p.ox + Math.cos(time * p.speed + p.phase) * p.amp;
+      const fy = p.oy + Math.sin(time * p.speed * 0.8 + p.phase) * p.amp;
+      const x = o.x + (fx * (1 - form) + p.tx * form) * animState.spread;
+      const y = o.y + (fy * (1 - form) + p.ty * form) * animState.spread;
+      const d = p.depth;
+      const baseAlpha = done ? (0.10 + d * 0.2) : (0.25 + d * 0.45);
+      const alpha = baseAlpha * (1 - form * 0.55);
+      const r = p.size * (0.6 + d * 0.8) * animState.spread;
+      let col;
+      if (warn && (active || done)) col = ACCENT.risk;
+      else if (active) col = [40, 150 + ((d * 60) | 0), 215];
+      else if (done) col = ACCENT.success;
+      else col = [110, 135, 175];
+      ctx.fillStyle = rgba(col, alpha); ctx.beginPath(); ctx.arc(x, y, Math.max(r, 0.3), 0, TAU); ctx.fill();
+    }
+  }
+
+  /* =========================================================
+     Init
+     ========================================================= */
+  window.addEventListener("resize", () => { clearTimeout(window.__rt); window.__rt = setTimeout(resize, 150); });
+  resize();
+  requestAnimationFrame(frame);
+  if (new URLSearchParams(location.search).get("chrome") === "0") {
+    const _st = document.createElement("style");
+    _st.textContent = ".topbar,.logs,.legend{display:none!important}";
+    document.head.appendChild(_st);
+  }
+  if (new URLSearchParams(location.search).get("instant") === "1") {
+    state.nodeResult = DECISION === "risk"
+      ? { network: "success", device: "warning", service: "success", acceptance: "warning" }
+      : { network: "success", device: "success", service: "success", acceptance: "success" };
+    KEYS.forEach(k => { state.nodeState[k] = "completed"; setNodeDOM(k, "completed"); state.formProgress[k] = 1; });
+    resultMode = DECISION;
+    state.brainSolid = 0.5; state.targetSolid = 0.5;
+    try { buildReport(DECISION); } catch (e) {}
+    var _planSaved = false; try { _planSaved = localStorage.getItem('aida:digiPlanGen') === '1'; } catch (e) {}
+    if (_planSaved) planGenerated = true;
+    resolvedEl.innerHTML = getResolved(DECISION, _planSaved);
+    centerEl.classList.add(DECISION === "risk" ? "res-risk" : "res-success");
+    const _r = coreCard.querySelector(".reasoning");
+    if (_r) _r.style.display = "none";
+    centerEl.classList.add("is-resolved");
+    coreCard.style.opacity = "1";
+    resolvedEl.style.display = "flex";
+    resolvedEl.style.opacity = "1";
+    resolvedEl.style.transform = "scale(1)";
+    pillText.textContent = DECISION === "risk" ? "决策完成 · 交付存在风险" : "决策完成 · 项目可交付";
+    progBar.style.width = "100%";
+    coreCard.onclick = () => generatePlan();
+    const _nav = { network: "doc-ch5", device: "doc-ch2", service: "doc-ch7", acceptance: "doc-ch9" };
+    KEYS.forEach(k => { cards[k].classList.add("clickable"); cards[k].onclick = () => generatePlan(_nav[k]); });
+  } else {
+    runProcess();
+  }
+})();
+</script>
+<!-- 交付进度孪生 toggle 与圆环动画脚本已迁出 → /cockpit/progress-twin.html -->
+</body>
+</html>

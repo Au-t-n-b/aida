@@ -1,0 +1,369 @@
+{
+  "_meta": {
+    "note": "AIDA 团队协作门户 · 单一真相源。改这里 → 跑 python agent/scripts/gen_team_portal.py 重生成 docs/site/portal.html → lint_team_portal.py 守新鲜度。HTML 是派生制品，勿手改。",
+    "schema": "project{name,tagline,elevator,links[]} + glossary[]{term,plain} + doors[]{id,icon,title,subtitle,intro,accent,steps[]{title,goal,read[]{label,path|href},prompt[],commands[],done,note,next}}"
+  },
+  "project": {
+    "name": "AIDA 交付作业平台",
+    "tagline": "数据中心交付作业的 AI 编排平台",
+    "elevator": "让交付，自己跑起来。",
+    "links": [
+      { "label": "📚 全部文档（图书馆）", "href": "index.html" },
+      { "label": "开发者地图", "path": "docs/00_开发者地图.md" },
+      { "label": "提交红线 AGENTS.md", "path": "AGENTS.md" }
+    ]
+  },
+  "glossary": [
+    { "term": "业务场景 Skill / Skill", "plain": "把交付里的一个环节（工勘、建模、系统设计…）做成一个能自己跑的 AI 流水线，是本平台的基本单位。" },
+    { "term": "A+B 双层", "plain": "A 层是一个 SKILL.md（写触发词和端点，给 Claude Code / Cursor 读）；B 层是 Python 代码（skill.py + 各步骤），真正干活。" },
+    { "term": "HITL（人在环中）", "plain": "流程跑到一半需要你补文件或点确认时会「软中断」停下等你，补完自动接着跑。" },
+    { "term": "SDUI（服务端驱动界面）", "plain": "后端吐一棵「界面树」、前端照着渲染；新模块不写前端就自动有作业界面。" },
+    { "term": "守门（lint）", "plain": "一组提交前必跑的检查脚本，自动拦住违反规范的代码——没有守门的规范会退化成 PPT。" },
+    { "term": "Claw · 四层", "plain": "模块跑在「前端 / Manager / 数据中心 / Claw 执行引擎」四层里；Claw 是真正执行你 Skill 的那一层。" }
+  ],
+  "doors": [
+    {
+      "id": "newcomer",
+      "icon": "🆕",
+      "title": "我是新人",
+      "subtitle": "搞清这是什么项目、团队怎么协作、怎么把它跑起来",
+      "intro": "目标：半天内建立全局认知 + 本地跑通样板。这条路只需「读 + 跑」，不要求写代码。读完想自己做模块，去「模块开发者」门。",
+      "accent": "green",
+      "steps": [
+        {
+          "title": "这是什么项目（零基础 · 5 分钟）",
+          "goal": "不用懂任何术语：看懂 AIDA 在做什么、四层架构、业务场景 Skill = Skill。看不懂的词翻首页「术语表」。",
+          "read": [
+            { "label": "开发者地图（总入口）", "path": "docs/00_开发者地图.md" },
+            { "label": "01 系统架构（为什么这么设计）", "path": "docs/20_架构与范式/01_AI智能化系统架构梳理.md" }
+          ],
+          "prompt": [
+            "@docs/00_开发者地图.md @docs/20_架构与范式/01_AI智能化系统架构梳理.md",
+            "用 5 分钟给我讲清楚三件事：",
+            "1) AIDA 是做什么的、解决什么交付痛点？",
+            "2) 「前端 / Manager / 数据中心 / Claw」四层各自负责什么？",
+            "3) 我作为新人，该按哪个角色入手（新人 / 架构师 / 模块开发者）？"
+          ],
+          "done": "能用一句话说清 AIDA、能说出四层、知道 zhgk 是样板模块。"
+        },
+        {
+          "title": "团队红线（六铁律）",
+          "goal": "记住「禁裸 LLM / 走统一入口 / 新能力=新 Skill / 状态走 SkillState / 外发统一出口」，以及提交前要守门。",
+          "read": [
+            { "label": "AGENTS.md（提交红线 · 权威）", "path": "AGENTS.md" },
+            { "label": "03 团队 Agent 开发范式", "path": "docs/20_架构与范式/03_团队Agent开发范式.md" }
+          ],
+          "prompt": [
+            "@AGENTS.md",
+            "把这个项目的「必守」红线提炼成一份 checklist，每条告诉我：",
+            "- 它禁止/要求什么；",
+            "- 为什么这么定；",
+            "- 违反会被哪个 lint 脚本拦下来。"
+          ],
+          "done": "能复述六铁律的大意，知道提交前必须跑哪几个 lint。"
+        },
+        {
+          "title": "把它跑起来",
+          "goal": "本地起后端 + 前端，curl 看到 skills 列表，浏览器打开作业界面。",
+          "read": [
+            { "label": "AGENT_QUICKSTART §0（环境就绪）", "path": "docs/10_快速开始/AGENT_QUICKSTART.md" }
+          ],
+          "prompt": [
+            "@docs/10_快速开始/AGENT_QUICKSTART.md",
+            "按 §0 帮我在本地把后端和前端跑起来：逐条给出命令并说明每条验证了什么。",
+            "特别提醒我那个坑：没在 agent/.venv 下跑时，契约类 lint 会显示 SKIP 而不是真校验，别把 SKIP 误判成「绿了」。"
+          ],
+          "commands": [
+            "uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload",
+            "cd frontend && npm run dev   # http://localhost:5173",
+            "curl http://127.0.0.1:7401/agent/skills   # 看到 zhgk/guihua/xtsj = 成功"
+          ],
+          "done": "前端能打开、curl 能列出已注册的 skill。"
+        },
+        {
+          "title": "你的第一课：读懂样板 zhgk",
+          "goal": "通读智慧工勘样板盘点，跑一次它的全流程，看到产物落盘。",
+          "read": [
+            { "label": "样板盘点 · 智慧工勘 zhgk", "path": "docs/30_skill开发/样板盘点_智慧工勘zhgk.md" },
+            { "label": "zhgk 源码（skill.py + steps/）", "path": "agent/skills/zhgk" }
+          ],
+          "prompt": [
+            "@docs/30_skill开发/样板盘点_智慧工勘zhgk.md",
+            "带我读懂 zhgk 这个样板：它有几个 step？哪个 step 用了真 LLM？文件型 HITL（缺料软中断）在哪触发？产物落在哪个目录？",
+            "最后告诉我怎么在本地跑一次它的全流程，并指给我看产物文件。"
+          ],
+          "done": "本地跑通一次 zhgk run，在 ProjectData/Output 看到产物。",
+          "next": "想自己造一个模块？→ 去「模块开发者」门，照样板复制。"
+        }
+      ]
+    },
+    {
+      "id": "architect",
+      "icon": "🏗️",
+      "title": "我是架构师",
+      "subtitle": "守两张地图、把需求拆成有护栏的 TASK、用 lint 守一致性",
+      "intro": "铁律：架构师不写业务 step 代码——只维护地图、生成 TASK、审 RFC、跑审查。四条工作流：A 需求→TASK · B 一致性审查 · C 基线重置 · RFC 审批。",
+      "accent": "blue",
+      "steps": [
+        {
+          "title": "守两张地图",
+          "goal": "掌握 01 系统架构 + 02 模块边界：模块清单、依赖矩阵、§4 高冲突文件、§5 红线区。",
+          "read": [
+            { "label": "治理骨架 README", "path": "docs/20_架构与范式/architecture/README.md" },
+            { "label": "01 系统架构（活层）", "path": "docs/20_架构与范式/architecture/01_system_architecture.md" },
+            { "label": "02 模块边界图 ⭐", "path": "docs/20_架构与范式/architecture/02_module_boundaries.md" },
+            { "label": "业务数据规范 · 模块握手矩阵 / 跨模块写白名单", "path": "docs/50_数据与接口/业务数据规范.md" }
+          ],
+          "prompt": [
+            "@docs/20_架构与范式/architecture/01_system_architecture.md @docs/20_架构与范式/architecture/02_module_boundaries.md",
+            "我是架构师。把这两张地图的现状梳理成一页速览：",
+            "- 当前注册了哪些业务场景 Skill、各自边界与公共接口；",
+            "- §4 高冲突文件是哪几个（注册表 / module.tsx / modules-data.ts）；",
+            "- §5 红线区是哪些（碰它们要走 RFC）。"
+          ],
+          "done": "能口述当前模块全集 + 高冲突文件 + 红线区。"
+        },
+        {
+          "title": "Workflow A · 需求 → TASK",
+          "goal": "把一句需求拆成带护栏的 TASK：影响速查四问 → 更新地图 → WBS（每子任务只动一个模块）→ 客观可验 AC。",
+          "read": [
+            { "label": "架构师 SOP · Workflow A", "path": "docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md" }
+          ],
+          "prompt": [
+            "@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md @docs/20_架构与范式/architecture/02_module_boundaries.md",
+            "需求：<在这里写一句话需求>。照 Workflow A 产出 tasks/TASK_<名>.md：",
+            "1) 先做影响速查四问（涉及哪些模块/层、是否动 §4 高冲突文件、是否碰 §5 红线区、是否需要新接口走 RFC）；",
+            "2) WBS 拆解，每个子任务只动一个模块的文件集，高冲突文件给行级范围；",
+            "3) 写客观可验的 AC（lint 全绿 + eval 阈值 + 端到端 run 到 done），禁止「质量好」这类不可测表述。",
+            "直接用 SOP 里的 TASK 模板。"
+          ],
+          "done": "产出一份 TASK_<名>.md，高冲突文件标了行级范围，AC 客观可验。"
+        },
+        {
+          "title": "Workflow B · 一致性审查",
+          "goal": "AIDA 的审查是可执行的：主审查 = 跑全套守门 lint，lint 盖不到的语义才人工抽查。",
+          "read": [
+            { "label": "架构师 SOP · Workflow B", "path": "docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md" }
+          ],
+          "prompt": [
+            "@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md",
+            "开发者提了 PR。照 Workflow B 帮我审查：",
+            "1) 给我那套全量守门命令（在 agent/.venv 下跑）；",
+            "2) 列出 lint 盖不到、必须人工抽查的语义点（如 check_inputs 路径 == run 真读路径、diff 是否越界、高冲突文件是否只改分配行）；",
+            "3) 按 ✅ 完全合规 / ⚠️ 存在漂移 / ❌ 存在违规 给我结论模板。"
+          ],
+          "commands": [
+            "agent/.venv/Scripts/python agent/scripts/lint_no_naked_llm.py",
+            "agent/.venv/Scripts/python agent/scripts/lint_skill_contract.py",
+            "agent/.venv/Scripts/python agent/scripts/lint_module_boundaries.py",
+            "agent/.venv/Scripts/python agent/evals/eval_zhgk.py --fixture"
+          ],
+          "done": "守门全绿 + 语义抽查完成 + 出 ✅/⚠️/❌ 结论。"
+        },
+        {
+          "title": "守门体系（lint 全集）",
+          "goal": "理解每个 lint 守什么：契约类（skill/tool/sdui/runtime）+ 派生制品新鲜度类（gallery/docs-site）+ 红线类（裸 LLM/裸外发/边界）。",
+          "read": [
+            { "label": "AGENTS.md · 提交前守门清单", "path": "AGENTS.md" },
+            { "label": "03 团队范式（六铁律 + §0 守门）", "path": "docs/20_架构与范式/03_团队Agent开发范式.md" }
+          ],
+          "prompt": [
+            "@AGENTS.md",
+            "把「提交前守门」那一串 lint 逐条解释：",
+            "- 每个 lint 守的是什么契约或不变量？",
+            "- 哪些属于派生制品新鲜度守门（改了源没重生成就会红）？",
+            "- 为什么说「没有守门的规范会退化成 PPT」？"
+          ],
+          "done": "能说清每个 lint 的职责，知道哪些是新鲜度守门。"
+        },
+        {
+          "title": "Workflow C · 基线重置 + RFC 审批",
+          "goal": "代码与文档脱节时，以代码为准刷新地图；审 RFC，若改了红线底座必落一条 ADR。",
+          "read": [
+            { "label": "架构师 SOP · Workflow C + RFC", "path": "docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md" },
+            { "label": "ADR 决策库", "path": "docs/90_决策ADR/README.md" }
+          ],
+          "prompt": [
+            "@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md",
+            "文档和代码脱节了，照 Workflow C 以代码为准刷新两张地图：",
+            "1) 扫 agent/skills/__init__.py 的 registry.register 得到当前模块全集；",
+            "2) 逐模块核对 SKILL.md「后端节点」↔ agent/skills/<id>/steps/ 的 step.key；",
+            "3) 扫前端 MODULE_TO_SKILL ↔ MODULE_SCHEMAS 键的漂移，不一致登记到 02 §8；",
+            "4) 跑 Workflow B 全套 lint 验证刷新后「文档 ≡ 代码」。"
+          ],
+          "done": "两张地图对齐代码现状，漂移已登记 02 §8，lint 全绿。"
+        }
+      ]
+    },
+    {
+      "id": "developer",
+      "icon": "🤖",
+      "title": "我是模块开发者",
+      "subtitle": "照 zhgk 样板，一步步搭出一个能端到端 run 的业务场景 Skill",
+      "intro": "你要写的是执行层的一个业务场景 Skill（A 层 SKILL.md + B 层 skill.py/steps）。运行时已泛化：注册一行即得 /agent/<name>/{start,stream,resume,...} 全套端点 + SDUI 界面，main.py/graph.py/前端通用件零改。每一步都给了可直接复制喂给 Claude Code / Cursor 的提示词。",
+      "accent": "cyan",
+      "steps": [
+        {
+          "title": "① 认知全局（你在哪一层）",
+          "goal": "搞清 A+B 双层、preflight→step→END 的 DAG、「注册即得端点」、哪些文件零改白拿。",
+          "read": [
+            { "label": "START_HERE 起手式 §0–1", "path": "docs/10_快速开始/START_HERE.md" },
+            { "label": "开发者地图", "path": "docs/00_开发者地图.md" }
+          ],
+          "prompt": [
+            "@docs/10_快速开始/START_HERE.md",
+            "我要新建一个业务场景 Skill。先帮我建立全局认知：",
+            "1) 我的代码落在四层架构的哪一层、运行时和谁交互？",
+            "2) A 层（SKILL.md）和 B 层（skill.py + steps/）各负责什么？",
+            "3) 「注册即得端点」具体是什么意思、哪些文件是零改白拿（不许我改）？"
+          ],
+          "done": "能画出 preflight → step1 → step2 → END 的链，并说清 A/B 分层。"
+        },
+        {
+          "title": "② 看样板 zhgk（定选型）",
+          "goal": "读懂样板，决定抄 zhgk（文件型 HITL）还是 guihua（确认型 HITL），设计自己的 2–3 个 step。",
+          "read": [
+            { "label": "样板盘点 zhgk（复制基线）", "path": "docs/30_skill开发/样板盘点_智慧工勘zhgk.md" },
+            { "label": "zhgk skill.py", "path": "agent/skills/zhgk/skill.py" },
+            { "label": "脚手架 _template/", "path": "agent/skills/_template" }
+          ],
+          "prompt": [
+            "@docs/30_skill开发/样板盘点_智慧工勘zhgk.md @agent/skills/zhgk/skill.py",
+            "带我读懂 zhgk：steps 链是什么？哪个 step 用真 LLM？文件型 HITL 怎么触发与续跑？",
+            "然后帮我判断：我的业务 <一句话描述> 更像 zhgk（文件型 HITL）还是 guihua（确认型 HITL）？给选型建议，并帮我把业务拆成最简的 2–3 个 step（先验证范式，不求业务完整）。"
+          ],
+          "done": "选定样板，画好自己的 step 链与每步职责。"
+        },
+        {
+          "title": "③ 认识两条造 skill 的路线（手搓 vs 流水线）",
+          "goal": "搞清你有两条路：本门教的「手搓」（亲手写 skill.py/steps，理解骨架，样板 zhgk 走这条）；以及 skill2langgraph「流水线」（业务专家写 Raw Skill → AI 编译成 LangGraph → 真实 AIDA 容器三类验证 → 交付）。流水线是目标形态，手搓帮你看懂它的产出。",
+          "read": [
+            { "label": "skill2langgraph 流水线 · 文档库条目（入口）", "path": "docs/30_skill开发/39_编译路线_skill2langgraph/README.md" },
+            { "label": "工作流执行指南（Session A–G 编译管线）", "path": "docs/30_skill开发/39_编译路线_skill2langgraph/工作流执行指南.md" },
+            { "label": "可编译业务 Skill 编写规范（Raw Skill 契约）", "path": "docs/30_skill开发/39_编译路线_skill2langgraph/可编译业务Skill编写规范.md" }
+          ],
+          "prompt": [
+            "@docs/30_skill开发/39_编译路线_skill2langgraph/README.md",
+            "我在学手搓业务场景 Skill（本门 zhgk 样板这条线）。请对照 skill2langgraph 流水线帮我讲清三件事：",
+            "1) 两条路线的边界：手搓 vs「Raw Skill → SkillIR → Graph → 测试底座验证」流水线，各自何时用？",
+            "2) 唯一接缝是什么（SKILL.md + assumptions.json）、为什么「零静默决策」（每处模糊→确定都进假设清单、经作者确认）？",
+            "3) 不论哪条路线，产出都是同一种标准 AIDA skill 模块（BaseSkill + steps + sdui 投影器），都要过同一套守门 lint 与 AIDA-RUNTIME-CONTRACT —— 帮我把这套「共同契约」列出来。"
+          ],
+          "done": "能说清两条路线的边界、唯一接缝（SKILL.md + assumptions.json）、以及两者产出同构于标准 AIDA skill 模块。",
+          "note": "skill-as-tool（run_survey / zhgk_bridge）是历史妥协，不是流水线的最终形态；先看懂骨架，未来用流水线产线化产 skill。"
+        },
+        {
+          "title": "④ 让 AI 进入范式护栏（标准起手式）",
+          "goal": "用 @ 引用把两张地图 + TASK 喂给 AI，关进护栏；之后每轮重新 @TASK 防止多轮越界。",
+          "read": [
+            { "label": "开发者 SOP · D1 标准起手式", "path": "docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md" },
+            { "label": "AGENTS.md 红线", "path": "AGENTS.md" },
+            { "label": ".cursorrules 红线速记", "path": ".cursorrules" }
+          ],
+          "prompt": [
+            "先读以下三份了解全局与边界：",
+            "- @docs/20_架构与范式/architecture/01_system_architecture.md",
+            "- @docs/20_架构与范式/architecture/02_module_boundaries.md",
+            "- @docs/20_架构与范式/architecture/tasks/TASK_<名>.md",
+            "",
+            "据 TASK 子任务 [3.x] 实现 <功能>。严格限制：",
+            "- 只新建/修改 TASK §1 列出的文件；高冲突文件（注册表 / module.tsx / modules-data.ts）只在分配行追加；",
+            "- 不碰 02 §5 红线区（main.py / graph.py / base.py / 前端通用件）；需要碰就停下告诉我走 RFC；",
+            "- LLM 走 ctx.invoke_llm，工具走 ctx.call_tool，外发走 mailer/notifier（不裸调）；",
+            "- 不 import 其它业务场景 Skill（zhgk / guihua / xtsj）。"
+          ],
+          "done": "AI 已加载红线，承诺不裸调 LLM、不跨模块 import、不碰红线区。",
+          "note": "多轮对话里 AI 会逐渐突破边界。发现越界立刻用开发者 SOP 的「制止话术」打断，例如：「停下。你改了 <文件>，它不在 TASK §1 范围内，撤回。」"
+        },
+        {
+          "title": "⑤ 照清单搭骨架（复制模板）",
+          "goal": "复制 _template → <name>/，替换占位符，对照「碰这些文件」9 项逐一改；SKILL.md 要部署两处。",
+          "read": [
+            { "label": "AGENT_QUICKSTART 照抄细则", "path": "docs/10_快速开始/AGENT_QUICKSTART.md" },
+            { "label": "AGENT_QUICKSTART §1 碰这些文件", "path": "docs/10_快速开始/AGENT_QUICKSTART.md" }
+          ],
+          "prompt": [
+            "@docs/10_快速开始/AGENT_QUICKSTART.md",
+            "帮我把 agent/skills/_template/ 复制成 agent/skills/<name>/，全局替换 xxx→<name>、Xxx→类名前缀。",
+            "然后照「碰这些文件」表逐项列出我要改的 9 个点，标明哪些必改、哪些可选。",
+            "重点提醒：① SKILL.md「后端节点」表的 key 必须和 step.key 逐一对应（lint_skill_contract 双向校验）；② SKILL.md 要部署两处（skills/<name>/ 和 ~/.claude/skills/<name>/）；③ 在 agent/skills/__init__.py 加一行 registry.register。"
+          ],
+          "commands": [
+            "curl http://127.0.0.1:7401/agent/skills   # 看到 <name> = 注册成功",
+            "curl -X POST http://127.0.0.1:7401/agent/<name>/start -d '{}'"
+          ],
+          "done": "骨架能 import、curl /agent/skills 能看到 <name> 元数据。"
+        },
+        {
+          "title": "⑥ 定数据落点与接口契约（数据规范 + API 规范）",
+          "goal": "写 run() 读写文件前先定契约：数据放哪一层（输入/解析/输出三层 IPO）、跨模块只读上游「输出结果」、命名带版本不静默覆盖；且一切读写经数据中心 API，不直接碰磁盘/数据库。",
+          "read": [
+            { "label": "业务数据规范（落点/IPO/握手/命名/RBAC/自检）", "path": "docs/50_数据与接口/业务数据规范.md" },
+            { "label": "数据中心 API 调用规范（定位→上传→下载→血缘）", "path": "docs/50_数据与接口/数据中心API调用规范.md" }
+          ],
+          "prompt": [
+            "@docs/50_数据与接口/业务数据规范.md @docs/50_数据与接口/数据中心API调用规范.md",
+            "我的模块是 <一句话描述>。照这两份规范帮我把数据契约定下来：",
+            "1) 从哪些上游「输出结果」读输入、写到本模块哪一层（解析结果=中间态 / 输出结果=对外成品）、是否涉及 §4.3 跨模块写白名单？",
+            "2) 产物怎么命名（带版本 / Rx、不静默覆盖）、要不要登记血缘 derived_from？",
+            "3) 给我标准调用序列：先 GET 目录树 / 文件列表拿 nodeId / fileId，再 upload / download；提醒我别直接读写磁盘或连数据库。",
+            "最后对照「开发数据自检清单」给我一份本模块的勾选项。"
+          ],
+          "commands": [
+            "curl \"$BASE/api/v1/projects/$UUID/tree\"   # $BASE=数据中心服务地址；拿目标目录 nodeId",
+            "curl \"$BASE/api/v1/files?moduleCode=<上游模块>&fileStage=输出结果\"   # 定位上游输出，拿 fileId"
+          ],
+          "done": "能说清本模块输入来源（上游输出结果）、输出落点（哪一层）、命名规则，且读写只经数据中心 API。",
+          "note": "数据本体在文件、数据库只存元数据与目录索引；绕过 API 直接动磁盘会造成「磁盘有文件但目录树查不到」的不一致（数据规范 §6.3）。"
+        },
+        {
+          "title": "⑦ 填业务 + 接界面（steps + SDUI）",
+          "goal": "每个 step 写 check_inputs（决定 HITL）+ run（LLM/工具/产物）；sdui.py 的 project(state) 把 metrics 投影成 UI 树，前端零改。",
+          "read": [
+            { "label": "SKILL-DEVELOPMENT（A+B / BaseStep / HITL）", "path": "docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md" },
+            { "label": "SDUI（投影器模式）", "path": "docs/30_skill开发/31_手写规范/SDUI.md" }
+          ],
+          "prompt": [
+            "@docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md @docs/30_skill开发/31_手写规范/SDUI.md",
+            "照 step 骨架帮我实现 step <stepkey>：",
+            "- check_inputs 返回缺料清单（missing 非空即触发 HITL 软中断）；",
+            "- run 里用 ctx.invoke_llm 抽取、用 ctx.call_tool 读写文件、产物写到 ctx.output_dir、把要展示的业务指标写进 metrics；",
+            "- 再写 sdui.py 的 project(state) 把 metrics 投影成 UI 树。",
+            "关键提醒我：check_inputs 声明的必填路径必须 == run 里真正读的路径，否则 HITL 清单漂移；投影器只能读 step 真写进 metrics/state 的键。"
+          ],
+          "commands": [
+            "python -c \"from agent.skills.<name>.sdui import project; print(project({}))\"",
+            "# 前端 /module/<moduleKey> 自动渲染 SDUI（IdleScreen → 启动 → SduiNodeView）"
+          ],
+          "done": "POST /agent/<name>/start 跑到 done，前端 /module/<key> 渲染出 SDUI。"
+        },
+        {
+          "title": "⑧ 守门验收（全绿才提交）",
+          "goal": "本地跑全套守门 lint + eval + typecheck，确认 diff 不越界，走一遍 PR 自查清单。",
+          "read": [
+            { "label": "AGENTS.md 命令速查", "path": "AGENTS.md" },
+            { "label": "开发者 SOP · D4 提交 PR", "path": "docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md" }
+          ],
+          "prompt": [
+            "@AGENTS.md @docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md",
+            "我要提交了。照 D4 帮我把关：",
+            "1) 在 agent/.venv 下跑全套守门 lint（提醒哪些不在 venv 下会显 SKIP 假绿）；",
+            "2) 跑 eval 回归闸；碰了前端再跑 npm run typecheck；",
+            "3) git diff --name-only 确认只动了 TASK §1 范围内的文件、高冲突文件只改了分配行；",
+            "4) 走一遍 PR 自查清单（无裸 LLM / 无裸外发 / 无 console.log / 无残留 TODO[Wait for RFC]）。"
+          ],
+          "commands": [
+            "agent/.venv/Scripts/python agent/scripts/lint_no_naked_llm.py",
+            "agent/.venv/Scripts/python agent/scripts/lint_no_naked_send.py",
+            "agent/.venv/Scripts/python agent/scripts/lint_skill_contract.py",
+            "agent/.venv/Scripts/python agent/scripts/lint_sdui_contract.py",
+            "npm run eval   # 四维评测回归闸",
+            "cd frontend && npm run typecheck   # 碰了前端才跑"
+          ],
+          "done": "全套 lint + eval + typecheck 全绿，端到端 run 到 done，产物落 Output/。",
+          "note": "缺一个别的模块/底座没提供的接口？别伪造——用 Mock 占位 + 写 RFC（开发者 SOP D2），继续干本模块其余部分，不要空等。"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "schema_version": "1.0",
+  "skill_name": "zhgk",
+  "created_at": "2026-06-03T09:20:58.604233",
+  "run_id": "run-demo-0001",
+  "project_info": {
+    "项目名称": "智算 Q3 · 客户甲一期",
+    "项目编号": "K1903"
+  },
+  "execution": {
+    "steps": [
+      {
+        "id": 1,
+        "name": "scene_filter",
+        "display": "场景选择",
+        "status": "completed",
+        "completed_at": "2026-06-03T09:20:58.604249"
+      },
+      {
+        "id": 2,
+        "name": "survey_build",
+        "display": "勘测汇总",
+        "status": "completed",
+        "completed_at": "2026-06-03T09:20:59.159452"
+      },
+      {
+        "id": 3,
+        "name": "report_gen",
+        "display": "评估报告",
+        "status": "completed",
+        "completed_at": "2026-06-03T09:21:30.000000"
+      },
+      {
+        "id": 4,
+        "name": "distribute",
+        "display": "审批分发",
+        "status": "completed",
+        "completed_at": "2026-06-03T09:21:35.000000"
+      }
+    ]
+  },
+  "scene_filter": {
+    "cooling_tag": "液冷_A3_下接管",
+    "scenario": "新址新建",
+    "filter_summary": {
+      "定制工勘表.xlsx": 128,
+      "勘测问题底表_过滤.xlsx": 128,
+      "评估项底表_过滤.xlsx": 89,
+      "工勘常见高风险库_过滤.xlsx": 35
+    }
+  },
+  "survey": {
+    "total_items": 128,
+    "filled_items": 69,
+    "completion_rate": 53.9,
+    "mandatory_total": 46,
+    "mandatory_filled": 23,
+    "reshoot_items": [],
+    "empty_by_type": {
+      "待客户确认": 3,
+      "待拍摄图片": 28,
+      "待补充勘测": 28
+    }
+  },
+  "assessment": {
+    "total": 89,
+    "satisfied": 60,
+    "unsatisfied": 15,
+    "unrecognized": 8,
+    "not_applicable": 6,
+    "satisfaction_rate": 72.3,
+    "by_category": {},
+    "unsatisfied_items": [],
+    "unrecognized_items": []
+  },
+  "risk": {
+    "total": 12,
+    "by_type": {},
+    "items": []
+  },
+  "remaining_issues": {
+    "rectification": 23,
+    "unassessed": 0,
+    "total": 23
+  },
+  "report": {
+    "generated": true,
+    "chapter_stats": {}
+  },
+  "distribute": {
+    "status": "completed",
+    "recipients": [
+      {"role": "PD", "name": "张三", "email": "zhangsan@example.com"},
+      {"role": "TD", "name": "李四", "email": "lisi@example.com"},
+      {"role": "DC L1工勘专家", "name": "王五", "email": "wangwu@example.com"}
+    ],
+    "distributed_at": "2026-06-03T09:21:35.000000"
+  },
+  "artifacts": [
+    {"name": "工勘报告.docx", "path": "Output/工勘报告.docx", "size": 20480, "ready": true},
+    {"name": "机房满足度评估表.xlsx", "path": "Output/机房满足度评估表.xlsx", "size": 15360, "ready": true},
+    {"name": "风险识别结果表.xlsx", "path": "Output/风险识别结果表.xlsx", "size": 10240, "ready": true},
+    {"name": "全量勘测结果表.xlsx", "path": "Output/全量勘测结果表.xlsx", "size": 30720, "ready": true}
+  ]
+}

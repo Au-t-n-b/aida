@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDUI 组件目录 · AIDA</title>
+<style>:root{--bg:#0b0d13;--surface:#151822;--surface2:#1e2230;--border:#2e3344;
+--text:#e1e4ed;--dim:#9aa0b8;--cyan:#22d3ee;--blue:#4f8ff7;--green:#34d399;--orange:#fb923c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);line-height:1.6;
+font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif}
+code,pre{font-family:'SF Mono',Consolas,'Cascadia Code',monospace}
+header{padding:28px 6%;border-bottom:1px solid var(--border);background:var(--surface)}
+header h1{margin:0 0 6px;font-size:26px;background:linear-gradient(135deg,#fff,var(--cyan),var(--blue));
+-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.banner{color:var(--orange);font-size:13px;margin-top:8px}
+.meta{color:var(--dim);font-size:13px}
+.wrap{display:grid;grid-template-columns:230px 1fr;gap:0;align-items:start}
+nav{position:sticky;top:0;align-self:start;max-height:100vh;overflow:auto;
+padding:20px 16px;border-right:1px solid var(--border);font-size:13px}
+nav h4{color:var(--cyan);margin:14px 0 6px;font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+nav a{display:block;color:var(--dim);text-decoration:none;padding:2px 0}
+nav a:hover{color:var(--text)}
+main{padding:24px 6% 80px;min-width:0}
+h2.cat{margin:34px 0 10px;color:#fff;font-size:19px;border-left:4px solid var(--cyan);padding-left:10px}
+section{background:var(--surface);border:1px solid var(--border);border-radius:12px;
+padding:18px 20px;margin:14px 0}
+section:target{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(34,211,238,.2)}
+section h3{margin:0 0 4px;font-size:17px}
+section h3 code{color:var(--green);font-size:14px}
+.tag{float:right;font-size:11px;color:var(--dim);border:1px solid var(--border);
+border-radius:999px;padding:2px 10px}
+.desc{color:var(--dim);font-size:14px;margin:4px 0 12px}
+table{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0 12px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+th{color:var(--dim);font-weight:600;font-size:12px}
+td .req,td code{font-size:12px}
+td code{background:var(--surface2);padding:1px 5px;border-radius:4px;color:var(--cyan)}
+.req{text-align:center;color:var(--green)}
+pre{background:#0e1017;border:1px solid var(--border);border-radius:8px;
+padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
+.lbl{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin:0 0 4px}
+footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
+footer code{color:var(--cyan)}</style></head><body>
+<header><h1>SDUI 组件目录</h1>
+<div class="meta">schemaVersion 1 · 58 个节点类型 · 29 个嵌套子类型</div>
+<div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
+<div class="wrap"><nav><h4>布局 Layout</h4>
+<a href="#Stack">Stack</a>
+<a href="#Card">Card</a>
+<a href="#Row">Row</a>
+<a href="#Divider">Divider</a>
+<a href="#Skeleton">Skeleton</a>
+<h4>步骤 Stepper</h4>
+<a href="#Stepper">Stepper</a>
+<h4>文本 Text</h4>
+<a href="#Text">Text</a>
+<a href="#Markdown">Markdown</a>
+<h4>数据展示 Data</h4>
+<a href="#Badge">Badge</a>
+<a href="#Statistic">Statistic</a>
+<a href="#StatisticRow">StatisticRow</a>
+<a href="#KeyValueList">KeyValueList</a>
+<a href="#Table">Table</a>
+<a href="#GoldenMetrics">GoldenMetrics</a>
+<h4>图表 Chart</h4>
+<a href="#DonutChart">DonutChart</a>
+<a href="#BarChart">BarChart</a>
+<h4>动作 Action</h4>
+<a href="#Button">Button</a>
+<a href="#Link">Link</a>
+<h4>产物 Artifact</h4>
+<a href="#ArtifactGrid">ArtifactGrid</a>
+<h4>展示 v1.1</h4>
+<a href="#Alert">Alert</a>
+<a href="#Timeline">Timeline</a>
+<a href="#NumberCard">NumberCard</a>
+<a href="#PlaneMatrix">PlaneMatrix</a>
+<h4>人在回路 HITL</h4>
+<a href="#FilePicker">FilePicker</a>
+<a href="#ChoiceCard">ChoiceCard</a>
+<a href="#HitlTextInput">HitlTextInput</a>
+<h4>Other</h4>
+<a href="#RiskList">RiskList</a>
+<a href="#EmptyState">EmptyState</a>
+<a href="#Spinner">Spinner</a>
+<a href="#ProgressBar">ProgressBar</a>
+<a href="#Banner">Banner</a>
+<a href="#CodeBlock">CodeBlock</a>
+<a href="#LogStream">LogStream</a>
+<a href="#Checklist">Checklist</a>
+<a href="#FileTree">FileTree</a>
+<a href="#Tabs">Tabs</a>
+<a href="#Accordion">Accordion</a>
+<a href="#DataTable">DataTable</a>
+<a href="#TabbedTable">TabbedTable</a>
+<a href="#MultiSelect">MultiSelect</a>
+<a href="#Slider">Slider</a>
+<a href="#ConfirmDialog">ConfirmDialog</a>
+<a href="#FormGroup">FormGroup</a>
+<a href="#StatusBanner">StatusBanner</a>
+<a href="#SegmentedControl">SegmentedControl</a>
+<a href="#VerticalStepper">VerticalStepper</a>
+<a href="#AssessmentBar">AssessmentBar</a>
+<a href="#RecipientList">RecipientList</a>
+<a href="#DiffView">DiffView</a>
+<a href="#InlinePreview">InlinePreview</a>
+<a href="#ImageGrid">ImageGrid</a>
+<a href="#Sparkline">Sparkline</a>
+<a href="#DashboardLayout">DashboardLayout</a>
+<a href="#Drawer">Drawer</a>
+<a href="#TabGroup">TabGroup</a>
+<a href="#InputSlotList">InputSlotList</a>
+<a href="#TaskTimelineStrip">TaskTimelineStrip</a>
+<a href="#MacroStepRail">MacroStepRail</a>
+<h4>嵌套子类型</h4>
+<a href="#SduiStepperStep">StepperStep</a>
+<a href="#SduiStatisticRowItem">StatisticRowItem</a>
+<a href="#KeyValueItem">KeyValueItem</a>
+<a href="#SduiPostUserMessage">PostUserMessage</a>
+<a href="#SduiOpenPreview">OpenPreview</a>
+<a href="#SduiDonutSegment">DonutSegment</a>
+<a href="#SduiBarDatum">BarDatum</a>
+<a href="#SduiArtifactItem">ArtifactItem</a>
+<a href="#SduiTimelineEvent">TimelineEvent</a>
+<a href="#SduiPlaneCell">PlaneCell</a>
+<a href="#SduiRiskItem">RiskItem</a>
+<a href="#SduiLogLine">LogLine</a>
+<a href="#SduiChecklistItem">ChecklistItem</a>
+<a href="#SduiFileTreeItem">FileTreeItem</a>
+<a href="#SduiTabItem">TabItem</a>
+<a href="#SduiAccordionItem">AccordionItem</a>
+<a href="#SduiTabbedTableTab">TabbedTableTab</a>
+<a href="#SduiMultiSelectOption">MultiSelectOption</a>
+<a href="#SduiFormField">FormField</a>
+<a href="#SduiStatusItem">StatusItem</a>
+<a href="#SduiVStepItem">VStepItem</a>
+<a href="#SduiAssessSegment">AssessSegment</a>
+<a href="#SduiRecipient">Recipient</a>
+<a href="#SduiDiffRow">DiffRow</a>
+<a href="#SduiImageItem">ImageItem</a>
+<a href="#SduiTabPanel">TabPanel</a>
+<a href="#SduiInputSlot">InputSlot</a>
+<a href="#SduiMacroStep">MacroStep</a>
+<a href="#SduiChoiceOption">ChoiceOption</a></nav>
+<main><h2 class="cat">布局 Layout</h2>
+<section id="Stack"><h3><code>Stack</code> SduiStackNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Stack</code></td><td class='req'>—</td><td><code>Stack</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>gap</b></td><td><code>enum: none | xs | sm | md | lg | xl</code></td><td class='req'>—</td><td><code>none</code> | <code>xs</code> | <code>sm</code> | <code>md</code> | <code>lg</code> | <code>xl</code></td></tr>
+<tr><td><b>justify</b></td><td><code>enum: start | center | end | between</code></td><td class='req'>—</td><td><code>start</code> | <code>center</code> | <code>end</code> | <code>between</code></td></tr>
+<tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Stack&quot;,
+  &quot;children&quot;: [
+    {
+      &quot;type&quot;: &quot;Text&quot;,
+      &quot;content&quot;: &quot;示例内容&quot;
+    }
+  ]
+}</pre></section>
+<section id="Card"><h3><code>Card</code> SduiCardNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Card</code></td><td class='req'>—</td><td><code>Card</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>density</b></td><td><code>enum: default | compact</code></td><td class='req'>—</td><td><code>default</code> | <code>compact</code></td></tr>
+<tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: default | warning | danger | info | success</code></td><td class='req'>—</td><td><code>default</code> | <code>warning</code> | <code>danger</code> | <code>info</code> | <code>success</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Card&quot;,
+  &quot;children&quot;: [
+    {
+      &quot;type&quot;: &quot;Text&quot;,
+      &quot;content&quot;: &quot;示例内容&quot;
+    }
+  ]
+}</pre></section>
+<section id="Row"><h3><code>Row</code> SduiRowNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Row</code></td><td class='req'>—</td><td><code>Row</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>gap</b></td><td><code>enum: none | xs | sm | md | lg | xl</code></td><td class='req'>—</td><td><code>none</code> | <code>xs</code> | <code>sm</code> | <code>md</code> | <code>lg</code> | <code>xl</code></td></tr>
+<tr><td><b>align</b></td><td><code>enum: start | center | end | stretch | baseline</code></td><td class='req'>—</td><td><code>start</code> | <code>center</code> | <code>end</code> | <code>stretch</code> | <code>baseline</code></td></tr>
+<tr><td><b>justify</b></td><td><code>enum: start | end | center | between | around</code></td><td class='req'>—</td><td><code>start</code> | <code>end</code> | <code>center</code> | <code>between</code> | <code>around</code></td></tr>
+<tr><td><b>wrap</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Row&quot;,
+  &quot;children&quot;: [
+    {
+      &quot;type&quot;: &quot;Text&quot;,
+      &quot;content&quot;: &quot;示例内容&quot;
+    }
+  ]
+}</pre></section>
+<section id="Divider"><h3><code>Divider</code> SduiDividerNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Divider</code></td><td class='req'>—</td><td><code>Divider</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Divider&quot;
+}</pre></section>
+<section id="Skeleton"><h3><code>Skeleton</code> SduiSkeletonNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Skeleton</code></td><td class='req'>—</td><td><code>Skeleton</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>variant</b></td><td><code>enum: text | rect | card | row</code></td><td class='req'>—</td><td><code>text</code> | <code>rect</code> | <code>card</code> | <code>row</code></td></tr>
+<tr><td><b>lines</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Skeleton&quot;
+}</pre></section>
+<h2 class="cat">步骤 Stepper</h2>
+<section id="Stepper"><h3><code>Stepper</code> SduiStepperNode<span class="tag">步骤 Stepper</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Stepper</code></td><td class='req'>—</td><td><code>Stepper</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>steps</b></td><td><code>StepperStep[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>orientation</b></td><td><code>enum: horizontal | vertical</code></td><td class='req'>—</td><td><code>horizontal</code> | <code>vertical</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Stepper&quot;,
+  &quot;steps&quot;: [
+    {
+      &quot;id&quot;: &quot;示例&quot;,
+      &quot;title&quot;: &quot;示例&quot;,
+      &quot;status&quot;: &quot;waiting&quot;
+    }
+  ]
+}</pre></section>
+<h2 class="cat">文本 Text</h2>
+<section id="Text"><h3><code>Text</code> SduiTextNode<span class="tag">文本 Text</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Text</code></td><td class='req'>—</td><td><code>Text</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>content</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>variant</b></td><td><code>enum: caption | body | heading | mono</code></td><td class='req'>—</td><td><code>caption</code> | <code>body</code> | <code>heading</code> | <code>mono</code></td></tr>
+<tr><td><b>color</b></td><td><code>enum: success | warning | error | accent | subtle</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>error</code> | <code>accent</code> | <code>subtle</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Text&quot;,
+  &quot;content&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="Markdown"><h3><code>Markdown</code> SduiMarkdownNode<span class="tag">文本 Text</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Markdown</code></td><td class='req'>—</td><td><code>Markdown</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>content</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Markdown&quot;,
+  &quot;content&quot;: &quot;示例&quot;
+}</pre></section>
+<h2 class="cat">数据展示 Data</h2>
+<section id="Badge"><h3><code>Badge</code> SduiBadgeNode<span class="tag">数据展示 Data</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Badge</code></td><td class='req'>—</td><td><code>Badge</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: default | success | warning | danger</code></td><td class='req'>—</td><td><code>default</code> | <code>success</code> | <code>warning</code> | <code>danger</code></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Badge&quot;,
+  &quot;text&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="Statistic"><h3><code>Statistic</code> SduiStatisticNode<span class="tag">数据展示 Data</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Statistic</code></td><td class='req'>—</td><td><code>Statistic</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string | int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>color</b></td><td><code>enum: success | warning | error | accent | subtle</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>error</code> | <code>accent</code> | <code>subtle</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Statistic&quot;,
+  &quot;title&quot;: &quot;示例&quot;,
+  &quot;value&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="StatisticRow"><h3><code>StatisticRow</code> SduiStatisticRowNode<span class="tag">数据展示 Data</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: StatisticRow</code></td><td class='req'>—</td><td><code>StatisticRow</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>StatisticRowItem[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;StatisticRow&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;title&quot;: &quot;示例&quot;,
+      &quot;value&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="KeyValueList"><h3><code>KeyValueList</code> SduiKeyValueListNode<span class="tag">数据展示 Data</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: KeyValueList</code></td><td class='req'>—</td><td><code>KeyValueList</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>KeyValueItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;KeyValueList&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;key&quot;: &quot;示例&quot;,
+      &quot;value&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="Table"><h3><code>Table</code> SduiTableNode<span class="tag">数据展示 Data</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Table</code></td><td class='req'>—</td><td><code>Table</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>headers</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>string[][]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Table&quot;,
+  &quot;rows&quot;: [
+    [
+      &quot;示例&quot;
+    ]
+  ]
+}</pre></section>
+<section id="GoldenMetrics"><h3><code>GoldenMetrics</code> SduiGoldenMetricsNode<span class="tag">数据展示 Data</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: GoldenMetrics</code></td><td class='req'>—</td><td><code>GoldenMetrics</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>metrics</b></td><td><code>object[]</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;GoldenMetrics&quot;
+}</pre></section>
+<h2 class="cat">图表 Chart</h2>
+<section id="DonutChart"><h3><code>DonutChart</code> SduiDonutChartNode<span class="tag">图表 Chart</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DonutChart</code></td><td class='req'>—</td><td><code>DonutChart</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>segments</b></td><td><code>DonutSegment[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>centerLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>centerValue</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;DonutChart&quot;,
+  &quot;segments&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;value&quot;: 1.0
+    }
+  ]
+}</pre></section>
+<section id="BarChart"><h3><code>BarChart</code> SduiBarChartNode<span class="tag">图表 Chart</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: BarChart</code></td><td class='req'>—</td><td><code>BarChart</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>data</b></td><td><code>BarDatum[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>valueUnit</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;BarChart&quot;,
+  &quot;data&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;value&quot;: 1.0
+    }
+  ]
+}</pre></section>
+<h2 class="cat">动作 Action</h2>
+<section id="Button"><h3><code>Button</code> SduiButtonNode<span class="tag">动作 Action</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Button</code></td><td class='req'>—</td><td><code>Button</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>variant</b></td><td><code>enum: primary | secondary | ghost | outline</code></td><td class='req'>—</td><td><code>primary</code> | <code>secondary</code> | <code>ghost</code> | <code>outline</code></td></tr>
+<tr><td><b>action</b></td><td><code>PostUserMessage | OpenPreview</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Button&quot;,
+  &quot;label&quot;: &quot;示例&quot;,
+  &quot;action&quot;: {
+    &quot;text&quot;: &quot;示例&quot;
+  }
+}</pre></section>
+<section id="Link"><h3><code>Link</code> SduiLinkNode<span class="tag">动作 Action</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Link</code></td><td class='req'>—</td><td><code>Link</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>href</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>action</b></td><td><code>PostUserMessage | OpenPreview</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Link&quot;,
+  &quot;label&quot;: &quot;示例&quot;
+}</pre></section>
+<h2 class="cat">产物 Artifact</h2>
+<section id="ArtifactGrid"><h3><code>ArtifactGrid</code> SduiArtifactGridNode<span class="tag">产物 Artifact</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ArtifactGrid</code></td><td class='req'>—</td><td><code>ArtifactGrid</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>artifacts</b></td><td><code>ArtifactItem[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>mode</b></td><td><code>enum: input | output</code></td><td class='req'>—</td><td><code>input</code> | <code>output</code></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ArtifactGrid&quot;,
+  &quot;artifacts&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;path&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<h2 class="cat">展示 v1.1</h2>
+<section id="Alert"><h3><code>Alert</code> SduiAlertNode<span class="tag">展示 v1.1</span></h3><p class="desc">横幅通知。tone: info / success / warning / error</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Alert</code></td><td class='req'>—</td><td><code>Alert</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: info | success | warning | error</code></td><td class='req'>—</td><td><code>info</code> | <code>success</code> | <code>warning</code> | <code>error</code></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>message</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Alert&quot;,
+  &quot;message&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="Timeline"><h3><code>Timeline</code> SduiTimelineNode<span class="tag">展示 v1.1</span></h3><p class="desc">竖向时间轴，适合步骤日志、事件流。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Timeline</code></td><td class='req'>—</td><td><code>Timeline</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>events</b></td><td><code>TimelineEvent[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Timeline&quot;,
+  &quot;events&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="NumberCard"><h3><code>NumberCard</code> SduiNumberCardNode<span class="tag">展示 v1.1</span></h3><p class="desc">突出单个 KPI 大数字，可附趋势方向。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: NumberCard</code></td><td class='req'>—</td><td><code>NumberCard</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string | int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>delta</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>deltaDir</b></td><td><code>enum: up | down | neutral</code></td><td class='req'>—</td><td><code>up</code> | <code>down</code> | <code>neutral</code></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: success | warning | error | accent | subtle</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>error</code> | <code>accent</code> | <code>subtle</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;NumberCard&quot;,
+  &quot;value&quot;: &quot;示例&quot;,
+  &quot;label&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="PlaneMatrix"><h3><code>PlaneMatrix</code> SduiPlaneMatrixNode<span class="tag">展示 v1.1</span></h3><p class="desc">平面矩阵 · a3 系统设计大盘核心节点：N 个网络平面 × 规划状态的网格。     每格 = 一个平面（计算/存储各面），status 反映该平面是否已出规划产物。     用于「地址规划」类编排器型 skill 展示跨命令累积进度。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: PlaneMatrix</code></td><td class='req'>—</td><td><code>PlaneMatrix</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>cells</b></td><td><code>PlaneCell[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>columns</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;PlaneMatrix&quot;,
+  &quot;cells&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<h2 class="cat">人在回路 HITL</h2>
+<section id="FilePicker"><h3><code>FilePicker</code> SduiFilePickerNode<span class="tag">人在回路 HITL</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: FilePicker</code></td><td class='req'>—</td><td><code>FilePicker</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>purpose</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>helpText</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>accept</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>multiple</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>hitlRequestId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;FilePicker&quot;,
+  &quot;purpose&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="ChoiceCard"><h3><code>ChoiceCard</code> SduiChoiceCardNode<span class="tag">人在回路 HITL</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ChoiceCard</code></td><td class='req'>—</td><td><code>ChoiceCard</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>options</b></td><td><code>ChoiceOption[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>hitlRequestId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ChoiceCard&quot;,
+  &quot;title&quot;: &quot;示例&quot;,
+  &quot;options&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="HitlTextInput"><h3><code>HitlTextInput</code> SduiHitlTextInputNode<span class="tag">人在回路 HITL</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: HitlTextInput</code></td><td class='req'>—</td><td><code>HitlTextInput</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>purpose</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>defaultValue</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>submitLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>helpText</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>hitlRequestId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;HitlTextInput&quot;
+}</pre></section>
+<h2 class="cat">Other</h2>
+<section id="RiskList"><h3><code>RiskList</code> SduiRiskListNode<span class="tag">Other</span></h3><p class="desc">风险清单 · 按等级（高/中/低）色带展示。zhgk 风险识别、评估类 skill 通用。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: RiskList</code></td><td class='req'>—</td><td><code>RiskList</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>RiskItem[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;RiskList&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;title&quot;: &quot;示例&quot;,
+      &quot;level&quot;: &quot;high&quot;
+    }
+  ]
+}</pre></section>
+<section id="EmptyState"><h3><code>EmptyState</code> SduiEmptyStateNode<span class="tag">Other</span></h3><p class="desc">空状态 · 无数据 / 待启动时的占位（图标 + 标题 + 副标题）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: EmptyState</code></td><td class='req'>—</td><td><code>EmptyState</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>subtitle</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>icon</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;EmptyState&quot;,
+  &quot;title&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="Spinner"><h3><code>Spinner</code> SduiSpinnerNode<span class="tag">Other</span></h3><p class="desc">加载 / 执行中转圈（可附说明文字）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Spinner</code></td><td class='req'>—</td><td><code>Spinner</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: default | brand</code></td><td class='req'>—</td><td><code>default</code> | <code>brand</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Spinner&quot;
+}</pre></section>
+<section id="ProgressBar"><h3><code>ProgressBar</code> SduiProgressBarNode<span class="tag">Other</span></h3><p class="desc">进度条 · value 0–100，tone 决定填充色。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ProgressBar</code></td><td class='req'>—</td><td><code>ProgressBar</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: success | warning | danger</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>danger</code></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ProgressBar&quot;,
+  &quot;value&quot;: 1.0
+}</pre></section>
+<section id="Banner"><h3><code>Banner</code> SduiBannerNode<span class="tag">Other</span></h3><p class="desc">通栏横幅 · 比 Alert 更轻量的单行提示。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Banner</code></td><td class='req'>—</td><td><code>Banner</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>message</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: brand | warning</code></td><td class='req'>—</td><td><code>brand</code> | <code>warning</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Banner&quot;,
+  &quot;message&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="CodeBlock"><h3><code>CodeBlock</code> SduiCodeBlockNode<span class="tag">Other</span></h3><p class="desc">代码 / 命令块（可附文件名）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: CodeBlock</code></td><td class='req'>—</td><td><code>CodeBlock</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>code</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>filename</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>language</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;CodeBlock&quot;,
+  &quot;code&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="LogStream"><h3><code>LogStream</code> SduiLogStreamNode<span class="tag">Other</span></h3><p class="desc">执行日志流 · 语义色日志行（时间 + 文本 + 级别）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: LogStream</code></td><td class='req'>—</td><td><code>LogStream</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>lines</b></td><td><code>LogLine[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;LogStream&quot;,
+  &quot;lines&quot;: [
+    {
+      &quot;text&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="Checklist"><h3><code>Checklist</code> SduiChecklistNode<span class="tag">Other</span></h3><p class="desc">勾选清单 · 完成项打勾 + 删除线。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Checklist</code></td><td class='req'>—</td><td><code>Checklist</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>ChecklistItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Checklist&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="FileTree"><h3><code>FileTree</code> SduiFileTreeNode<span class="tag">Other</span></h3><p class="desc">文件树 · 目录/文件层级（depth 缩进，dir 加粗）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: FileTree</code></td><td class='req'>—</td><td><code>FileTree</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>FileTreeItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;FileTree&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;name&quot;: &quot;示例&quot;,
+      &quot;type&quot;: &quot;SduiFileTreeItem&quot;
+    }
+  ]
+}</pre></section>
+<section id="Tabs"><h3><code>Tabs</code> SduiTabsNode<span class="tag">Other</span></h3><p class="desc">页签 · 多视图切换（content 为文本/markdown）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Tabs</code></td><td class='req'>—</td><td><code>Tabs</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tabs</b></td><td><code>TabItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Tabs&quot;,
+  &quot;tabs&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="Accordion"><h3><code>Accordion</code> SduiAccordionNode<span class="tag">Other</span></h3><p class="desc">手风琴 · 可展开/折叠的分节内容。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Accordion</code></td><td class='req'>—</td><td><code>Accordion</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>AccordionItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Accordion&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;title&quot;: &quot;示例&quot;,
+      &quot;body&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="DataTable"><h3><code>DataTable</code> SduiDataTableNode<span class="tag">Other</span></h3><p class="desc">数据表格 · 列 + 行（带标题 / 计数栏）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DataTable</code></td><td class='req'>—</td><td><code>DataTable</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>columns</b></td><td><code>string[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>string | int | number[][]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;DataTable&quot;,
+  &quot;columns&quot;: [
+    &quot;示例&quot;
+  ],
+  &quot;rows&quot;: [
+    [
+      &quot;示例&quot;
+    ]
+  ]
+}</pre></section>
+<section id="TabbedTable"><h3><code>TabbedTable</code> SduiTabbedTableNode<span class="tag">Other</span></h3><p class="desc">页签表格 · 多组表格按页签切换（device_install ESN 表）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabbedTable</code></td><td class='req'>—</td><td><code>TabbedTable</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tabs</b></td><td><code>TabbedTableTab[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;TabbedTable&quot;,
+  &quot;tabs&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;rows&quot;: [
+        [
+          &quot;示例&quot;
+        ]
+      ]
+    }
+  ]
+}</pre></section>
+<section id="MultiSelect"><h3><code>MultiSelect</code> SduiMultiSelectNode<span class="tag">Other</span></h3><p class="desc">多选 · pill 形式可多选（本地状态展示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MultiSelect</code></td><td class='req'>—</td><td><code>MultiSelect</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>options</b></td><td><code>MultiSelectOption[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;MultiSelect&quot;,
+  &quot;options&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="Slider"><h3><code>Slider</code> SduiSliderNode<span class="tag">Other</span></h3><p class="desc">滑块 · value + min/max（本地状态展示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Slider</code></td><td class='req'>—</td><td><code>Slider</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>min</b></td><td><code>number | int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>max</b></td><td><code>number | int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>unit</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Slider&quot;,
+  &quot;value&quot;: 1.0
+}</pre></section>
+<section id="ConfirmDialog"><h3><code>ConfirmDialog</code> SduiConfirmDialogNode<span class="tag">Other</span></h3><p class="desc">确认对话 · 标题 + 消息 + 确认/取消按钮。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ConfirmDialog</code></td><td class='req'>—</td><td><code>ConfirmDialog</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>message</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>confirmLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>cancelLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ConfirmDialog&quot;,
+  &quot;title&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="FormGroup"><h3><code>FormGroup</code> SduiFormGroupNode<span class="tag">Other</span></h3><p class="desc">表单组 · 多个 label + 输入框。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: FormGroup</code></td><td class='req'>—</td><td><code>FormGroup</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>fields</b></td><td><code>FormField[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;FormGroup&quot;,
+  &quot;fields&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="StatusBanner"><h3><code>StatusBanner</code> SduiStatusBannerNode<span class="tag">Other</span></h3><p class="desc">运行态通栏 · 状态点 + 文本（执行中/待补充/失败）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: StatusBanner</code></td><td class='req'>—</td><td><code>StatusBanner</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>StatusItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;StatusBanner&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;status&quot;: &quot;run&quot;,
+      &quot;text&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="SegmentedControl"><h3><code>SegmentedControl</code> SduiSegmentedControlNode<span class="tag">Other</span></h3><p class="desc">轻量视图切换（本地状态）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: SegmentedControl</code></td><td class='req'>—</td><td><code>SegmentedControl</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>segments</b></td><td><code>string[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>caption</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;SegmentedControl&quot;,
+  &quot;segments&quot;: [
+    &quot;示例&quot;
+  ]
+}</pre></section>
+<section id="VerticalStepper"><h3><code>VerticalStepper</code> SduiVerticalStepperNode<span class="tag">Other</span></h3><p class="desc">竖向步骤条 · 轻量（纯标签，无日志）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: VerticalStepper</code></td><td class='req'>—</td><td><code>VerticalStepper</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>VStepItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;VerticalStepper&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="AssessmentBar"><h3><code>AssessmentBar</code> SduiAssessmentBarNode<span class="tag">Other</span></h3><p class="desc">五值评估堆叠条 · 满足/不满足/不涉及/无法识别。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: AssessmentBar</code></td><td class='req'>—</td><td><code>AssessmentBar</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>segments</b></td><td><code>AssessSegment[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;AssessmentBar&quot;,
+  &quot;segments&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;value&quot;: 1.0
+    }
+  ]
+}</pre></section>
+<section id="RecipientList"><h3><code>RecipientList</code> SduiRecipientListNode<span class="tag">Other</span></h3><p class="desc">分发对象 / 审批链 · 头像 + 姓名 + 角色 + 状态。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: RecipientList</code></td><td class='req'>—</td><td><code>RecipientList</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>Recipient[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;RecipientList&quot;,
+  &quot;items&quot;: [
+    {
+      &quot;name&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="DiffView"><h3><code>DiffView</code> SduiDiffViewNode<span class="tag">Other</span></h3><p class="desc">左右对比 · BOQ vs HLD（增/删/改色标）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DiffView</code></td><td class='req'>—</td><td><code>DiffView</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>DiffRow[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>leftTitle</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rightTitle</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;DiffView&quot;,
+  &quot;rows&quot;: [
+    {
+      &quot;left&quot;: &quot;示例&quot;,
+      &quot;right&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="InlinePreview"><h3><code>InlinePreview</code> SduiInlinePreviewNode<span class="tag">Other</span></h3><p class="desc">内嵌产物预览 · 文件名 + 预览占位。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: InlinePreview</code></td><td class='req'>—</td><td><code>InlinePreview</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>filename</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;InlinePreview&quot;,
+  &quot;filename&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="ImageGrid"><h3><code>ImageGrid</code> SduiImageGridNode<span class="tag">Other</span></h3><p class="desc">现场照片网格 · 缩略图 + 文件名。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ImageGrid</code></td><td class='req'>—</td><td><code>ImageGrid</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>images</b></td><td><code>ImageItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ImageGrid&quot;,
+  &quot;images&quot;: [
+    {
+      &quot;caption&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="Sparkline"><h3><code>Sparkline</code> SduiSparklineNode<span class="tag">Other</span></h3><p class="desc">指标迷你趋势 · 折线 + 当前值 + 变化。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Sparkline</code></td><td class='req'>—</td><td><code>Sparkline</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>points</b></td><td><code>number | int[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string | int | number</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>delta</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Sparkline&quot;,
+  &quot;points&quot;: [
+    1.0
+  ]
+}</pre></section>
+<section id="DashboardLayout"><h3><code>DashboardLayout</code> SduiDashboardLayoutNode<span class="tag">Other</span></h3><p class="desc">双栏仪表盘 · 主区 + 右侧栏（递归子节点）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DashboardLayout</code></td><td class='req'>—</td><td><code>DashboardLayout</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>main</b></td><td><code>SduiNode[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>side</b></td><td><code>SduiNode[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;DashboardLayout&quot;,
+  &quot;main&quot;: [
+    &quot;...&quot;
+  ],
+  &quot;side&quot;: [
+    &quot;...&quot;
+  ]
+}</pre></section>
+<section id="Drawer"><h3><code>Drawer</code> SduiDrawerNode<span class="tag">Other</span></h3><p class="desc">侧滑详情面板 · 标题 + 递归子节点（此处内嵌展示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Drawer</code></td><td class='req'>—</td><td><code>Drawer</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;Drawer&quot;,
+  &quot;title&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导     （如执行中切「进度」页）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tabs</b></td><td><code>TabPanel[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>activeTab</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;TabGroup&quot;,
+  &quot;tabs&quot;: [
+    {
+      &quot;id&quot;: &quot;示例&quot;,
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="InputSlotList"><h3><code>InputSlotList</code> SduiInputSlotListNode<span class="tag">Other</span></h3><p class="desc">输入件槽位清单 · 每行一个输入件，区分必需/可选 × 自动/手动 × 就绪/缺失。     缺件行高亮并给行内上传 CTA，就绪行可预览，自动件未就绪显示「检查中」标签。     （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: InputSlotList</code></td><td class='req'>—</td><td><code>InputSlotList</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>slots</b></td><td><code>InputSlot[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;InputSlotList&quot;,
+  &quot;slots&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;source&quot;: &quot;auto&quot;
+    }
+  ]
+}</pre></section>
+<section id="TaskTimelineStrip"><h3><code>TaskTimelineStrip</code> SduiTaskTimelineStripNode<span class="tag">Other</span></h3><p class="desc">任务时间规划条 / 迷你甘特 · 计划 vs 实际双轨 + 剩余天数 + 进度填充。     plannedStart/End 必填；actualStart/End 可选；remainingDays 逾期为负；progressPct 0–100。     （Timeline 是事件流、KeyValueList 只能列日期，均无双轨甘特 + 剩余天数提醒。）</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TaskTimelineStrip</code></td><td class='req'>—</td><td><code>TaskTimelineStrip</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>plannedStart</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>plannedEnd</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>actualStart</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>actualEnd</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>remainingDays</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>progressPct</b></td><td><code>number | int</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;TaskTimelineStrip&quot;,
+  &quot;plannedStart&quot;: &quot;示例&quot;,
+  &quot;plannedEnd&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="MacroStepRail"><h3><code>MacroStepRail</code> SduiMacroStepRailNode<span class="tag">Other</span></h3><p class="desc">宏观交付蓝图条 · 顶层阶段（如六步 s1–s6），区别于 micro 的 Stepper 步骤日志。     optional 阶段灰显并标「可选」，hint 给每步副提示，currentId 高亮当前阶段。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MacroStepRail</code></td><td class='req'>—</td><td><code>MacroStepRail</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>steps</b></td><td><code>MacroStep[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>currentId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;MacroStepRail&quot;,
+  &quot;steps&quot;: [
+    {
+      &quot;id&quot;: &quot;示例&quot;,
+      &quot;title&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<h2 class="cat">嵌套子类型（被上面节点引用）</h2>
+<section id="SduiStepperStep"><h3><code>StepperStep</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>enum: waiting | running | done | error</code></td><td class='req'>✓</td><td><code>waiting</code> | <code>running</code> | <code>done</code> | <code>error</code></td></tr>
+<tr><td><b>detail</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiStatisticRowItem"><h3><code>StatisticRowItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string | int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>color</b></td><td><code>enum: success | warning | error | accent | subtle</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>error</code> | <code>accent</code> | <code>subtle</code></td></tr></table></section>
+<section id="KeyValueItem"><h3><code>KeyValueItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiPostUserMessage"><h3><code>PostUserMessage</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: post_user_message</code></td><td class='req'>—</td><td><code>post_user_message</code></td></tr>
+<tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiOpenPreview"><h3><code>OpenPreview</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: open_preview</code></td><td class='req'>—</td><td><code>open_preview</code></td></tr>
+<tr><td><b>path</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiDonutSegment"><h3><code>DonutSegment</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>color</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiBarDatum"><h3><code>BarDatum</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>color</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiArtifactItem"><h3><code>ArtifactItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>path</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>kind</b></td><td><code>enum: docx | xlsx | pdf | html | json | md | png | other</code></td><td class='req'>—</td><td><code>docx</code> | <code>xlsx</code> | <code>pdf</code> | <code>html</code> | <code>json</code> | <code>md</code> | <code>png</code> | <code>other</code></td></tr>
+<tr><td><b>status</b></td><td><code>enum: ready | generating | error</code></td><td class='req'>—</td><td><code>ready</code> | <code>generating</code> | <code>error</code></td></tr></table></section>
+<section id="SduiTimelineEvent"><h3><code>TimelineEvent</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>time</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: default | success | warning | error</code></td><td class='req'>—</td><td><code>default</code> | <code>success</code> | <code>warning</code> | <code>error</code></td></tr></table></section>
+<section id="SduiPlaneCell"><h3><code>PlaneCell</code></h3><p class="desc">PlaneMatrix 的单元格：一个网络平面 + 其规划状态。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>enum: done | running | pending | error</code></td><td class='req'>—</td><td><code>done</code> | <code>running</code> | <code>pending</code> | <code>error</code></td></tr>
+<tr><td><b>group</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>note</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiRiskItem"><h3><code>RiskItem</code></h3><p class="desc">RiskList 的一条风险：标题 + 等级 + 可选明细（场景 / 建议 / 编号）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>level</b></td><td><code>enum: high | mid | low</code></td><td class='req'>✓</td><td><code>high</code> | <code>mid</code> | <code>low</code></td></tr>
+<tr><td><b>detail</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiLogLine"><h3><code>LogLine</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>time</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>level</b></td><td><code>enum: ok | warn | error | info</code></td><td class='req'>—</td><td><code>ok</code> | <code>warn</code> | <code>error</code> | <code>info</code></td></tr></table></section>
+<section id="SduiChecklistItem"><h3><code>ChecklistItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>done</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiFileTreeItem"><h3><code>FileTreeItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>name</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>type</b></td><td><code>enum: file | dir</code></td><td class='req'>—</td><td><code>SduiFileTreeItem</code></td></tr>
+<tr><td><b>depth</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>tag</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiTabItem"><h3><code>TabItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>content</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiAccordionItem"><h3><code>AccordionItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>body</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiTabbedTableTab"><h3><code>TabbedTableTab</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>headers</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>string[][]</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiMultiSelectOption"><h3><code>MultiSelectOption</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiFormField"><h3><code>FormField</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiStatusItem"><h3><code>StatusItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>status</b></td><td><code>enum: run | pause | fail | done</code></td><td class='req'>✓</td><td><code>run</code> | <code>pause</code> | <code>fail</code> | <code>done</code></td></tr>
+<tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiVStepItem"><h3><code>VStepItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>enum: done | running | pending</code></td><td class='req'>—</td><td><code>done</code> | <code>running</code> | <code>pending</code></td></tr></table></section>
+<section id="SduiAssessSegment"><h3><code>AssessSegment</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>color</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiRecipient"><h3><code>Recipient</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>name</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>role</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiDiffRow"><h3><code>DiffRow</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>left</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>right</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>change</b></td><td><code>enum: add | del | chg</code></td><td class='req'>—</td><td><code>add</code> | <code>del</code> | <code>chg</code></td></tr></table></section>
+<section id="SduiImageItem"><h3><code>ImageItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>caption</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiTabPanel"><h3><code>TabPanel</code></h3><p class="desc">TabGroup 的一个页签：id + label + 可选 badge 角标 + 递归子节点。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>badge</b></td><td><code>string | int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiInputSlot"><h3><code>InputSlot</code></h3><p class="desc">InputSlotList 的一行输入件槽位。source=auto 仿真产出 / manual 人工上传；     ready 表就绪（有文件）；缺失的 manual 件给上传 CTA，缺失的 auto 件显示「检查中」。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>source</b></td><td><code>enum: auto | manual</code></td><td class='req'>✓</td><td><code>auto</code> | <code>manual</code></td></tr>
+<tr><td><b>required</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>ready</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>fileName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>previewPath</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiMacroStep"><h3><code>MacroStep</code></h3><p class="desc">MacroStepRail 的一个宏观阶段：id + 标题 + 可选 hint + optional 标记 + 状态。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>hint</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>optional</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>enum: done | running | pending</code></td><td class='req'>—</td><td><code>done</code> | <code>running</code> | <code>pending</code></td></tr></table></section>
+<section id="SduiChoiceOption"><h3><code>ChoiceOption</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>description</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section></main></div>
+<footer>真相源：<code>agent/sdui/builder.py</code> ↔ <code>frontend/src/lib/sdui.ts</code> ↔ <code>SduiNodeView.tsx</code>（三方由 <code>lint_sdui_contract</code> 焊住）· 本目录由 <code>gen_sdui_gallery.py</code> 派生 · 新鲜度由 <code>lint_sdui_gallery.py</code> 守门 · 细则见 <code>docs/30_skill开发/31_手写规范/SDUI.md</code></footer>
+</body></html>

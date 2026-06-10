@@ -1,0 +1,35 @@
+# AIDA Agent 后端依赖
+#
+# 安装（在仓库根 aida/ 执行，不要 cd 进 agent/）：
+#   python -m venv agent/.venv
+#   Windows:  agent\.venv\Scripts\activate
+#   Mac/Linux: source agent/.venv/bin/activate
+#   pip install -r agent/requirements.txt
+
+# === LangGraph 工作流编排 ===
+langgraph>=0.2.40
+langgraph-checkpoint-sqlite>=2.0.0   # SqliteSaver / AsyncSqliteSaver（checkpointer，graph.py 必需）
+aiosqlite>=0.20.0                    # AsyncSqliteSaver 的异步驱动（FastAPI astream 必需）
+langchain-core>=0.3.0
+langchain-openai>=0.2.0     # 智谱 BigModel 走 OpenAI 兼容协议
+
+# === LLM SDK + 配置 ===
+openai>=1.50.0
+python-dotenv>=1.0.0
+
+# === 可观测 / 评测（Langfuse trace + score；evals 读取成本/延迟）===
+langfuse>=3.0.0
+
+# === Web 框架 ===
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.12   # 文件上传
+sse-starlette>=2.1.0       # Server-Sent Events
+pydantic>=2.9.0
+
+# === 透传 zhgk skill 依赖（用于 subprocess 调用现有脚本） ===
+openpyxl>=3.1.0
+python-docx>=1.1.0
+Pillow>=10.0.0
+requests>=2.31.0
+pywin32>=306; sys_platform == "win32"   # Windows Outlook COM 发信（mailer.py）

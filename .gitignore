@@ -1,0 +1,51 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.env
+*.env
+*.env.*
+!*.env.example
+
+# Agent 运行时（checkpoint DB / 评测结果不入库）
+agent/runtime/
+agent/evals/results/
+agent/evals/results/session_logs/
+# 保留 fixtures（golden 断言）和 METRICS 等文档
+!agent/evals/fixtures/
+!agent/evals/*.md
+
+# ── Node ──
+node_modules/
+dist/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor ──
+.vscode/settings.json
+*.swp
+*.swo
+.idea/
+
+# ── 日志 / 临时 ──
+*.log
+dev.log
+typecheck*.log
+
+# ── 工勘孪生 SOG 大文件（本地部署，不入库）──
+data/sog-assets/**/scene.sog
+# data/sog-assets/ 目录骨架（hotspots.json / meta.json）入库，scene.sog 不入库
+
+# ── 文档站派生资产：mermaid 运行时 3.3MB 不入库（gen_docs_site 优雅降级为源码块）──
+# 要本地看真图，拉一次即可：
+#   curl -sL -o docs/site/assets/mermaid.min.js https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js
+docs/site/assets/mermaid.min.js

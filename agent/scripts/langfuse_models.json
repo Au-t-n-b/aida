@@ -1,0 +1,78 @@
+{
+  "_note": "智谱 GLM 系列定价（CNY / 1M tokens · token 单位由 Langfuse 自动按 prompt_tokens / completion_tokens 区分）。请定期到 https://bigmodel.cn/pricing 核对最新价。token unit 用 TOKENS 即可。",
+  "_currency": "CNY",
+  "models": [
+    {
+      "model_name": "glm-4-flash",
+      "match_pattern": "(?i)^(glm-4-flash)$",
+      "input_price_per_1k": 0.0,
+      "output_price_per_1k": 0.0,
+      "note": "智谱免费档（限速）"
+    },
+    {
+      "model_name": "glm-4-flashx",
+      "match_pattern": "(?i)^(glm-4-flashx)$",
+      "input_price_per_1k": 0.0001,
+      "output_price_per_1k": 0.0001
+    },
+    {
+      "model_name": "glm-4-air",
+      "match_pattern": "(?i)^(glm-4-air)$",
+      "input_price_per_1k": 0.0005,
+      "output_price_per_1k": 0.0005
+    },
+    {
+      "model_name": "glm-4-airx",
+      "match_pattern": "(?i)^(glm-4-airx)$",
+      "input_price_per_1k": 0.01,
+      "output_price_per_1k": 0.01
+    },
+    {
+      "model_name": "glm-4-long",
+      "match_pattern": "(?i)^(glm-4-long)$",
+      "input_price_per_1k": 0.001,
+      "output_price_per_1k": 0.001
+    },
+    {
+      "model_name": "glm-4-plus",
+      "match_pattern": "(?i)^(glm-4-plus)$",
+      "input_price_per_1k": 0.05,
+      "output_price_per_1k": 0.05
+    },
+    {
+      "model_name": "glm-4.5-air",
+      "match_pattern": "(?i)^(glm-4\\.5-air)$",
+      "input_price_per_1k": 0.0008,
+      "output_price_per_1k": 0.002,
+      "note": "GLM-4.5 系列经济版 · 推理模型"
+    },
+    {
+      "model_name": "glm-4.5",
+      "match_pattern": "(?i)^(glm-4\\.5)$",
+      "input_price_per_1k": 0.002,
+      "output_price_per_1k": 0.008,
+      "note": "GLM-4.5 旗舰推理模型"
+    },
+    {
+      "model_name": "glm-5.1-flash",
+      "match_pattern": "(?i)^(glm-5\\.1-flash)$",
+      "input_price_per_1k": 0.0,
+      "output_price_per_1k": 0.0,
+      "note": "GLM-5 系列经济档（待核实智谱实际定价）"
+    },
+    {
+      "model_name": "glm-5.1-air",
+      "match_pattern": "(?i)^(glm-5\\.1-air)$",
+      "input_price_per_1k": 0.001,
+      "output_price_per_1k": 0.003,
+      "note": "GLM-5 系列经济推理（待核实）"
+    },
+    {
+      "model_name": "glm-5.1",
+      "match_pattern": "(?i)^(glm-5\\.1)$",
+      "input_price_per_1k": 0.004,
+      "output_price_per_1k": 0.012,
+      "note": "GLM-5.1 旗舰推理（reasoning model，含 reasoning_tokens；定价为占位值，请到 bigmodel.cn 核实后重跑 langfuse_load_prices.py）"
+    }
+  ]
+}

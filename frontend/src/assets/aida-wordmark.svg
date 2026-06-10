@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AIDA: A from letter-a.svg; height 83.426; stroke 12; gap 35.502 -->
+<svg viewBox="0 0 410.524 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AIDA">
+  <!-- A: letter-a mapped, baseline 120 -->
+  <polygon fill="#FFFFFF" points="0,120 42.658,36.574 57.342,36.574 100,120 86.522,120 50,48.574 13.478,120" />
+  <!-- I: width = stroke 12 -->
+  <rect x="135.502" y="36.574" width="12" height="83.426" fill="#FFFFFF" />
+  <!-- D: height & stroke match A; w_mm = 230.202 -->
+  <g transform="translate(183.004, 36.574) scale(0.05212822)">
+    <path
+      fill="#FFFFFF"
+      fill-rule="evenodd"
+      d="M 0 0 H 1262.4 A 800.2 800.2 0 0 1 1262.4 1600.4 H 0 Z M 230.202 230.202 V 1370.198 H 1262.4 A 569.998 569.998 0 0 0 1262.4 230.202 H 230.202 Z"
+    />
+  </g>
+  <!-- A -->
+  <polygon fill="#FFFFFF" transform="translate(310.524, 0)" points="0,120 42.658,36.574 57.342,36.574 100,120 86.522,120 50,48.574 13.478,120" />
+</svg>

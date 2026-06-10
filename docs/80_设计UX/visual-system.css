@@ -1,0 +1,250 @@
+/* ============================================================================
+   交付排期 · 视觉系统 (Visual System)
+   Drop-in CSS for reusing the visual style on other pages.
+   --------------------------------------------------------------------------
+   What this contains:
+     · 设计 tokens (color / typography / spacing / radii / shadows)
+     · 通用组件 (button / tag / risk-pill / card / kpi / seg / input / table / popover)
+     · 滚动条与基础排版
+   What this does NOT contain:
+     · 主应用的布局 (app shell / sidebar / topbar / gantt 等专用组件)
+     · 业务页面骨架
+   ========================================================================== */
+
+/* ---------- tokens ---------- */
+:root {
+  /* 中性色阶 (slate) */
+  --c-bg: #f6f8fb;
+  --c-bg-soft: #eef2f7;
+  --c-surface: #ffffff;
+  --c-surface-2: #fafbfc;
+  --c-border: #e3e8ef;
+  --c-border-strong: #cbd5e1;
+  --c-divider: #eef2f7;
+
+  --c-text: #0f172a;
+  --c-text-2: #334155;
+  --c-text-muted: #64748b;
+  --c-text-faint: #94a3b8;
+
+  /* 品牌色 (默认 indigo, 可在运行时改写) */
+  --c-brand: #3551d8;
+  --c-brand-hover: #2a44c2;
+  --c-brand-soft: #eef1fc;
+  --c-brand-text: #1e34a8;
+
+  /* 状态色 */
+  --c-success: #0f9d58;
+  --c-success-soft: #e6f6ee;
+  --c-success-text: #0a7d46;
+  --c-warning: #d97706;
+  --c-warning-soft: #fdf2dd;
+  --c-warning-text: #9a5b08;
+  --c-danger: #dc2626;
+  --c-danger-soft: #fde8e8;
+  --c-danger-text: #a31919;
+  --c-info: #2563eb;
+  --c-info-soft: #e6efff;
+  --c-info-text: #1747b8;
+
+  /* 风险等级 */
+  --c-risk-high: #d92e2e;   --c-risk-high-bg: #fde6e6;
+  --c-risk-mid:  #d98014;   --c-risk-mid-bg:  #fdeed6;
+  --c-risk-low:  #b58a0c;   --c-risk-low-bg:  #fbf3d3;
+
+  /* 字号 */
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px;
+  --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-24: 24px; --fs-32: 32px;
+
+  /* 圆角 */
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px; --r-pill: 999px;
+
+  /* 阴影 */
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 1px rgba(15,23,42,.03);
+  --shadow-md: 0 4px 14px rgba(15,23,42,.06), 0 1px 4px rgba(15,23,42,.04);
+  --shadow-lg: 0 12px 28px rgba(15,23,42,.10), 0 2px 6px rgba(15,23,42,.05);
+
+  /* 间距 (8pt 制) */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+
+  /* 字体 */
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei",
+               "Helvetica Neue", "Source Han Sans SC", "Noto Sans CJK SC",
+               Arial, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+/* ---------- reset & base ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--fs-14);
+  color: var(--c-text);
+  background: var(--c-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+button { font-family: inherit; cursor: pointer; }
+input, select, textarea { font-family: inherit; font-size: inherit; color: inherit; }
+.num, td.num, .date, time, .vs-mono { font-variant-numeric: tabular-nums; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d6dde6; border-radius: 8px; border: 2px solid var(--c-bg); }
+::-webkit-scrollbar-thumb:hover { background: #b8c2cf; }
+
+/* ---------- typography utility ---------- */
+.vs-h1 { font-size: 24px; font-weight: 600; letter-spacing: -.01em; color: var(--c-text); }
+.vs-h2 { font-size: 18px; font-weight: 600; color: var(--c-text); }
+.vs-h3 { font-size: 14px; font-weight: 600; color: var(--c-text); }
+.vs-body  { font-size: 14px; line-height: 1.7; color: var(--c-text-2); }
+.vs-meta  { font-size: 12px; color: var(--c-text-muted); }
+.vs-mono  { font-family: var(--font-mono); }
+
+/* ---------- button ---------- */
+.btn {
+  display:inline-flex; align-items:center; gap: 6px;
+  padding: 7px 12px; border-radius: var(--r-md);
+  border: 1px solid var(--c-border);
+  background: var(--c-surface); color: var(--c-text-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+.btn:hover { border-color: var(--c-border-strong); background: var(--c-surface-2); }
+.btn.primary { background: var(--c-brand); border-color: var(--c-brand); color: #fff; }
+.btn.primary:hover { background: var(--c-brand-hover); border-color: var(--c-brand-hover); }
+.btn.ghost   { background: transparent; border-color: transparent; color: var(--c-text-2); }
+.btn.ghost:hover { background: var(--c-bg); }
+.btn.sm      { padding: 4px 9px; font-size: 12px; border-radius: 5px; }
+.btn .kbd    { font-family: var(--font-mono); font-size: 11px; padding: 1px 4px; background: var(--c-bg); border-radius: 3px; color: var(--c-text-muted); border: 1px solid var(--c-border); }
+
+/* ---------- tag ---------- */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; padding: 2px 7px; border-radius: var(--r-sm);
+  background: var(--c-bg); color: var(--c-text-2);
+  border: 1px solid var(--c-border);
+  white-space: nowrap;
+}
+.tag.solid-brand { background: var(--c-brand-soft);   border-color: transparent; color: var(--c-brand-text); }
+.tag.solid-info  { background: var(--c-info-soft);    border-color: transparent; color: var(--c-info-text); }
+.tag.solid-green { background: var(--c-success-soft); border-color: transparent; color: var(--c-success-text); }
+.tag.solid-amber { background: var(--c-warning-soft); border-color: transparent; color: var(--c-warning-text); }
+.tag.solid-red   { background: var(--c-danger-soft);  border-color: transparent; color: var(--c-danger-text); }
+
+/* ---------- risk pill ---------- */
+/* Solid: 用在彩色背景上 (如活动条内). Ghost: 用在浅色背景上 (列表/标签) */
+.risk-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  height: 16px; padding: 0 5px; border-radius: 3px;
+  font-size: 10px; font-weight: 600; line-height: 1; letter-spacing: .02em;
+}
+.risk-pill.high       { background: var(--c-risk-high); color: #fff; }
+.risk-pill.mid        { background: var(--c-risk-mid);  color: #fff; }
+.risk-pill.low        { background: var(--c-risk-low);  color: #fff; }
+.risk-pill.ghost-high { background: var(--c-risk-high-bg); color: var(--c-risk-high); }
+.risk-pill.ghost-mid  { background: var(--c-risk-mid-bg);  color: var(--c-risk-mid); }
+.risk-pill.ghost-low  { background: var(--c-risk-low-bg);  color: var(--c-risk-low); }
+
+/* ---------- segmented control ---------- */
+.seg {
+  display: inline-flex; padding: 2px;
+  background: var(--c-bg); border-radius: var(--r-md); border: 1px solid var(--c-border);
+}
+.seg button {
+  border: 0; background: transparent;
+  padding: 4px 10px; font-size: 12px; color: var(--c-text-2);
+  border-radius: 4px;
+}
+.seg button.active { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-sm); }
+
+/* ---------- pill (filter chip) ---------- */
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: var(--r-pill);
+  background: var(--c-bg); border: 1px solid var(--c-border); color: var(--c-text-2);
+  font-size: 12px; cursor: pointer;
+}
+.pill.active { background: var(--c-brand-soft); border-color: var(--c-brand); color: var(--c-brand-text); }
+
+/* ---------- input / select ---------- */
+.field-label { display: block; font-size: 12px; color: var(--c-text-2); font-weight: 500; margin-bottom: 6px; }
+.input, .select {
+  width: 100%; padding: 7px 10px;
+  border: 1px solid var(--c-border); border-radius: var(--r-md);
+  background: var(--c-surface); font-size: 13px;
+}
+.input:focus, .select:focus { outline: 2px solid var(--c-brand-soft); border-color: var(--c-brand); }
+.field-hint { font-size: 11px; color: var(--c-text-muted); margin-top: 4px; }
+
+/* ---------- card ---------- */
+.card {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+}
+.card-head { padding: 12px 16px; border-bottom: 1px solid var(--c-divider); display: flex; align-items: center; justify-content: space-between; }
+.card-title { font-size: 13px; font-weight: 600; color: var(--c-text); }
+.card-body { padding: 14px 16px; }
+
+/* ---------- KPI ---------- */
+.kpi {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  padding: 12px 14px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-label { font-size: 11px; color: var(--c-text-muted); letter-spacing: .04em; text-transform: uppercase; }
+.kpi-value { font-size: 22px; font-weight: 600; margin-top: 4px; letter-spacing: -.01em; color: var(--c-text); font-variant-numeric: tabular-nums; }
+.kpi-value .unit { font-size: 12px; color: var(--c-text-muted); font-weight: 500; margin-left: 4px; }
+.kpi-delta { font-size: 11px; margin-top: 4px; color: var(--c-text-muted); }
+.kpi-delta.up   { color: var(--c-success-text); }
+.kpi-delta.down { color: var(--c-danger-text); }
+.kpi.warn { background: linear-gradient(180deg, #fffaf1 0%, #fff 60%); border-color: #f4dca8; }
+.kpi.risk { background: linear-gradient(180deg, #fef4f4 0%, #fff 60%); border-color: #f0bdbd; }
+
+/* ---------- table ---------- */
+.vs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vs-table th, .vs-table td { padding: 8px 10px; border-bottom: 1px solid var(--c-divider); text-align: left; vertical-align: top; }
+.vs-table th { color: var(--c-text-muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; background: var(--c-bg); }
+.vs-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.vs-table tr:hover td { background: var(--c-bg); }
+
+/* ---------- popover / hover-card ---------- */
+.popover {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  width: 340px;
+  font-size: 13px;
+}
+.popover .pv-head { padding: 12px 14px 8px; border-bottom: 1px solid var(--c-divider); }
+.popover .pv-title { font-weight: 600; color: var(--c-text); display: flex; align-items: center; gap: 8px; }
+.popover .pv-sub { font-size: 11px; color: var(--c-text-muted); margin-top: 2px; }
+.popover .pv-body { padding: 10px 14px 12px; }
+.popover .pv-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 12px; }
+.popover .pv-row .k { color: var(--c-text-muted); }
+.popover .pv-row .v { color: var(--c-text); font-variant-numeric: tabular-nums; }
+.popover .pv-risk { margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: var(--c-warning-soft); border-left: 3px solid var(--c-warning); }
+.popover .pv-risk.high { background: var(--c-danger-soft); border-left-color: var(--c-danger); }
+.popover .pv-risk-title { font-size: 12px; font-weight: 600; color: var(--c-text); }
+.popover .pv-risk-body { font-size: 12px; color: var(--c-text-2); margin-top: 4px; line-height: 1.5; }
+
+/* ---------- callout (用于报告 / 提示条) ---------- */
+.callout {
+  padding: 14px 16px; border-radius: 6px;
+  font-size: 13px; line-height: 1.6;
+  display: flex; gap: 10px;
+  background: var(--c-warning-soft); color: var(--c-warning-text);
+  border-left: 3px solid var(--c-warning);
+}
+.callout.red   { background: var(--c-danger-soft);  color: var(--c-danger-text);  border-left-color: var(--c-danger); }
+.callout.green { background: var(--c-success-soft); color: var(--c-success-text); border-left-color: var(--c-success); }
+.callout.info  { background: var(--c-info-soft);    color: var(--c-info-text);    border-left-color: var(--c-info); }

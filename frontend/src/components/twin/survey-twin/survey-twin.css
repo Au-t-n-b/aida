@@ -1,0 +1,326 @@
+.st-root {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  color: #eef2f8;
+  background: #101418;
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
+}
+
+.st-root *,
+.st-root *::before,
+.st-root *::after {
+  box-sizing: border-box;
+}
+
+.st-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  min-height: 72px;
+  padding: 12px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: #171c22;
+}
+
+.st-titleBlock {
+  min-width: 0;
+}
+
+.st-titleBlock h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.st-titleBlock p {
+  margin: 5px 0 0;
+  overflow: hidden;
+  color: #b9c2cf;
+  font-size: 13px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.st-button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: #eef2f8;
+  background: #252c35;
+  font: inherit;
+  font-size: 14px;
+  line-height: 38px;
+  cursor: pointer;
+}
+
+.st-button:hover {
+  background: #303946;
+}
+
+.st-button.st-active {
+  border-color: #89d6ff;
+  background: #1d526b;
+}
+
+.st-viewerShell {
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #050607;
+}
+
+.st-viewerShell iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.st-pickLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  cursor: crosshair;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.st-pickHint {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  color: #eef2f8;
+  background: rgba(23, 28, 34, 0.86);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.st-hotspotPanel {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 3;
+  width: min(340px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(23, 28, 34, 0.9);
+  backdrop-filter: blur(14px);
+}
+
+.st-panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.st-panelHeader h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.st-panelHeader span {
+  color: #b9c2cf;
+  font-size: 13px;
+}
+
+.st-panelIconButton,
+.st-expandHotspotPanel {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  color: #eef2f8;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.st-expandHotspotPanel {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  z-index: 3;
+  background: rgba(23, 28, 34, 0.9);
+}
+
+.st-hotspotList {
+  display: grid;
+  gap: 8px;
+  max-height: min(420px, calc(100vh - 220px));
+  overflow: auto;
+  padding: 10px;
+}
+
+.st-hotspotItem {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.st-hotspotItemText {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.st-hotspotItemText strong,
+.st-hotspotItemText span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-hotspotItemText span,
+.st-emptyText {
+  color: #b9c2cf;
+  font-size: 13px;
+}
+
+.st-hotspotStatus {
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.st-hotspotStatus.st-normal {
+  color: #f8fafc;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.st-hotspotStatus.st-abnormal {
+  border-color: rgba(255, 77, 77, 0.55);
+  color: #ffdada;
+  background: rgba(165, 32, 32, 0.48);
+}
+
+.st-emptyText {
+  margin: 0;
+  padding: 10px;
+  white-space: normal;
+}
+
+.st-hotspotItemActions {
+  display: grid;
+  gap: 6px;
+}
+
+.st-editHotspotButton,
+.st-deleteHotspotButton {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.st-editHotspotButton {
+  border: 1px solid rgba(137, 214, 255, 0.45);
+  color: #d7f1ff;
+  background: rgba(29, 82, 107, 0.78);
+}
+
+.st-deleteHotspotButton {
+  border: 1px solid rgba(255, 120, 120, 0.45);
+  color: #ffd7d7;
+  background: rgba(120, 34, 34, 0.7);
+}
+
+.st-hotspotDialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #eef2f8;
+  background: #171c22;
+}
+
+.st-hotspotDialog::backdrop {
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.st-hotspotDialog form {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+}
+
+.st-hotspotDialog h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.st-hotspotDialog label {
+  display: grid;
+  gap: 7px;
+  color: #cbd5e1;
+  font-size: 14px;
+}
+
+.st-statusFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.st-hotspotDialog input,
+.st-hotspotDialog textarea,
+.st-hotspotDialog select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 6px;
+  padding: 10px 11px;
+  color: #eef2f8;
+  background: #101418;
+  font: inherit;
+  resize: vertical;
+}
+
+.st-dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .st-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .st-statusFields {
+    grid-template-columns: 1fr;
+  }
+}

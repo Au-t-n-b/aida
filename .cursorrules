@@ -1,0 +1,61 @@
+# Claw / AIDA Agent — Cursor 红线规则（编码时实时约束）
+
+> 本文件是「红线速记」：把 prebuild lint 前移到你写代码的那一刻，让违规根本不产生。
+> **完整规范（权威）见 [AGENTS.md](AGENTS.md)**；新模块起手见 [agent/docs/START_HERE.md](agent/docs/START_HERE.md)；条文见团队范式 03。
+> 本文件**不是第二份真相** —— 冲突时以 AGENTS.md / 03 为准。只记**不漂的原则**（禁裸调 / 走统一入口）；**易变细节**（函数签名、工具清单）以 `base.py` / AGENTS 为准，不在此复述（避免本文件漂移）。
+
+适用范围：`agent/**`（Python 后端 Skill / 工具）。前端 TypeScript 规范见 AGENTS.md。
+
+## 🔴 三条硬红线（prebuild lint 会阻断 —— 别让它发生）
+
+**1. 禁裸调 LLM**（`lint_no_naked_llm`）
+- ❌ `import openai` / `from openai import` / `import anthropic` / `import litellm`
+- ❌ `from langchain_openai import`（唯一例外：`agent/llm.py`）
+- ❌ `requests` / `httpx` 直打 `chat/completions` 或 `open.bigmodel.cn`
+- ✅ step 内：`ctx.invoke_llm(messages, step_key=self.key)`（完整签名以 `base.py` / AGENTS 为准）
+- ✅ handler 内：`from agent.llm import chat_once, chat_stream`
+
+**2. 禁裸外发**（`lint_no_naked_send`）
+- ❌ `import smtplib` / `win32com` / 用 `httpx.post` 直发邮件 · IM
+- ✅ `agent/mailer.py`（邮件，默认 dry-run）/ `agent/notifier.py` / `send_welink` 工具
+- 会话里发信前先调 `present_choices` 让用户确认
+
+**3. SKILL 契约一致**（`lint_skill_contract`）
+- SKILL.md「后端节点」列的每个节点 ⇄ 必须有同名 `step.key`（双向一致）
+- 加 step → 同时补 SKILL.md 节点表；改 key → 同步改两处
+
+## 🟢 必走的唯一入口（统一 = 可观测 + 可治理）
+
+| 你想做 | 只能走 | 不要 |
+|--------|--------|------|
+| 调 LLM | `ctx.invoke_llm` / `chat_once` / `chat_stream` | 裸 import 任何 LLM SDK |
+| 调工具 | `ctx.call_tool(name, params)`（进 trace） | 绕过 registry 直接调函数 |
+| 发邮件 / IM | `mailer.py` / `notifier.py` / `send_welink` | `smtplib` / `httpx.post` |
+| 跨 step 传数据 | `SkillState`（`state[...]`）+ 磁盘产物 | 全局变量 / 大文件塞 state |
+
+## 🟡 结构约定（新增能力时）
+
+- **新能力 = 新 Skill**，不写散落函数：A 层 `~/.claude/skills/<name>/SKILL.md` + B 层 `agent/skills/<name>/`（`BaseSkill`: `name` + `steps[]`）。
+- **每个 step** 继承 `BaseStep`，实现 `check_inputs()`（决定 HITL 软中断）+ `run(ctx, state, emit)`。
+- **HITL = 软中断**：`check_inputs` 失败 → 框架写 `hitl`（文件型 `need_files` / 确认型 `need_inputs`）→ 路由 END；补料走 `/upload` + `/resume`，**别假设断点续跑**。
+- **新工具** = 继承 `Tool` + 注册 `Registry` + 完整 JSON Schema `parameters`；`description` 写清「何时用 / 不用」（召回质量 = description 质量）。失败要可被 `is_tool_error` 识别（str 工具用 `ToolError`，dict 工具置 `ok=False`）。
+- **skill-as-tool**：长流程**不在** `Tool.execute` 里跑 LangGraph；`execute` 只返回 `{action: "launch_<skill>", ...}`，由 `chat_engine` yield、前端订阅 SSE。
+- **编排分级**：① 确定性图（`BaseSkill` 串 step）② 受控 ReAct（白名单 + 迭代上限 + 进 trace）③ 单点 `chat_once`；❌ 不用全自主 loop。
+
+## 可观测（默认就有，别破坏）
+
+- LLM 走 `ctx.invoke_llm` → 自动带 `metadata{skill,step,run_id}` + `tags[skill:*, step:*]` → Langfuse。
+- 工具走 `ctx.call_tool` → `execute_traced`（`kind=tool` / `scope` / `run_id`）。
+- 新 Skill 的图执行配 `callbacks=get_langfuse_callbacks()`，`metadata` 带 `run_id`。
+
+## 写完自检（提交前 · 与 AGENTS / CI 同款）
+
+```bash
+python agent/scripts/lint_no_naked_llm.py
+python agent/scripts/lint_no_naked_send.py
+python agent/scripts/lint_skill_contract.py    # 需 venv
+python agent/scripts/lint_tools.py             # 需 venv
+python agent/scripts/lint_sdui_contract.py     # 需 venv
+python agent/scripts/lint_runtime_contract.py  # 需 venv · 契约≡代码（给三种工具 + 工厂对齐）
+python agent/evals/eval_zhgk.py --fixture      # 评测回归
+```
