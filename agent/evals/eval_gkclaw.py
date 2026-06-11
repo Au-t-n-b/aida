@@ -767,6 +767,220 @@ def dispatch_send_failure_marks_failed():
     assert "connection refused" in tasks[0]["last_error"]
 
 
+# ─── ingest ───
+
+def _dispatched_env():
+    """构造已下发环境：返回 (root, reg, task_id, task_payload, survey_table_path, input_dir)。"""
+    from agent.skills.zhgk.services.gkclaw import dispatch
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    root = tmpdir()
+    (root / "Input").mkdir()
+    table = _make_survey_xlsx(root / "Output")
+    r = dispatch.dispatch_task(runtime_dir=root / "RunTime", survey_table_path=table,
+                               project=_project(), assignees=_ASSIGNEES, dry_run=True)
+    reg = TaskRegistry(root / "RunTime")
+    return root, reg, r["task_id"], reg.task_payload(r["task_id"]), table, root / "Input"
+
+
+def _ack_zip(task_payload, out, *, assignees=None, package_id=None):
+    from agent.skills.zhgk.services.gkclaw import package
+    ack = {"status": "accepted", "task_id": task_payload["task_id"],
+           "task_name": task_payload["task_name"], "project": task_payload["project"],
+           "assignees": assignees if assignees is not None else task_payload["assignees"],
+           "web_access_url": "https://front-agent.example.com/tasks/web/wa_7b4f",
+           "accepted_at": "2026-06-11T03:01:00.000Z"}
+    return package.build_package(package_type="task.import_ack", task_id=task_payload["task_id"],
+                                 project=task_payload["project"], payload=ack, out_dir=out,
+                                 source="front-agent", target="back-agent", package_id=package_id)
+
+
+def _result_zip(task_payload, out, *, status, items=None, submitted_code="S001",
+                package_id=None, notes=False, evidence=False):
+    from agent.skills.zhgk.services.gkclaw import package
+    r_items = items if items is not None else [
+        {"问题序号": "1", "勘测项": "检查机房接地线规格是否达标", "勘测结果": "满足",
+         "to_back_备注": "[规则自动处理: r1] 语义等价不涉及" if notes else ""},
+        {"问题序号": "3", "勘测项": "检查排水管走向与坡度", "勘测结果": "不满足"},
+    ]
+    res = {"task_id": task_payload["task_id"], "task_name": task_payload["task_name"],
+           "project": task_payload["project"], "assignees": task_payload["assignees"],
+           "submitted_by": {"surveyor_name": "张三", "surveyor_code": submitted_code},
+           "session": {"task_id": task_payload["task_id"], "status": status},
+           "items": r_items, "evidence": [], "updates": [], "observations": [],
+           "exported_at": "2026-06-11T03:31:00.000Z"}
+    assets = {"evidence/p1.jpg": b"img1"} if evidence else None
+    return package.build_package(package_type="task.result", task_id=task_payload["task_id"],
+                                 project=task_payload["project"], payload=res, out_dir=out,
+                                 assets=assets, source="front-agent", target="back-agent",
+                                 package_id=package_id)
+
+
+@test
+def ingest_ack_updates_state_and_mismatch_quarantines():
+    from agent.skills.zhgk.services.gkclaw import ingest
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    out = ingest.ingest_zip(_ack_zip(tp, tmpdir()), runtime_dir=root / "RunTime",
+                            input_dir=input_dir, survey_table_path=table)
+    assert out["disposition"] == "processed", out
+    task = reg.get(tid)
+    assert task["state"] == "accepted"
+    assert task["web_access_url"].startswith("https://front-agent")
+    # 人员不一致的 ACK → 隔离，状态不动
+    bad = _ack_zip(tp, tmpdir(), assignees=[{"surveyor_name": "李四", "surveyor_code": "S099"}])
+    out2 = ingest.ingest_zip(bad, runtime_dir=root / "RunTime",
+                             input_dir=input_dir, survey_table_path=table)
+    assert out2["disposition"] == "quarantine" and "不一致" in out2["note"]
+    assert reg.get(tid)["state"] == "accepted"
+
+
+@test
+def ingest_staged_records_final_writes_filled_table():
+    import openpyxl
+    from agent.skills.zhgk.services.gkclaw import ingest
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    ingest.ingest_zip(_ack_zip(tp, tmpdir()), runtime_dir=root / "RunTime",
+                      input_dir=input_dir, survey_table_path=table)
+    # staged：记录版本，不落 Input，不推进到 completed
+    out = ingest.ingest_zip(_result_zip(tp, tmpdir(), status="active"),
+                            runtime_dir=root / "RunTime", input_dir=input_dir,
+                            survey_table_path=table)
+    assert out["disposition"] == "processed"
+    task = reg.get(tid)
+    assert task["state"] == "staged_returned" and task["result_versions"] == 1
+    assert not (input_dir / "已填写_全量勘测结果表.xlsx").exists()
+    # final：转写已填写表落 Input + completed + 备注留档 + evidence 解出
+    out = ingest.ingest_zip(_result_zip(tp, tmpdir(), status="completed",
+                                        notes=True, evidence=True),
+                            runtime_dir=root / "RunTime", input_dir=input_dir,
+                            survey_table_path=table)
+    assert out["disposition"] == "processed" and out["merged"] is True
+    task = reg.get(tid)
+    assert task["state"] == "completed" and task["final_result"]
+    filled = input_dir / "已填写_全量勘测结果表.xlsx"
+    assert filled.exists()
+    ws = openpyxl.load_workbook(filled, data_only=True).active
+    headers = [c.value for c in ws[1]]
+    col = headers.index("最新检查结果") + 1
+    assert ws.cell(2, col).value == "满足"      # 序号1
+    assert ws.cell(4, col).value == "不满足"    # 序号3
+    assert reg.read_result_notes(tid)[0]["问题序号"] == "1"
+    assert (reg.root / tid / "evidence" / "p1.jpg").read_bytes() == b"img1"
+
+
+@test
+def ingest_idempotency_and_conflicts():
+    from agent.skills.zhgk.services.gkclaw import ingest
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    kw = dict(runtime_dir=root / "RunTime", input_dir=input_dir, survey_table_path=table)
+    final1 = _result_zip(tp, tmpdir(), status="completed", package_id="pkg-final-1")
+    assert ingest.ingest_zip(final1, **kw)["disposition"] == "processed"
+    # 同一 ZIP 原包重放（同 package_id 同 checksum）→ duplicate（幂等成功）
+    # 注意不能重新 build：created_at 变化会导致 zip checksum 不同 → 会判 conflict（符合契约）
+    assert ingest.ingest_zip(final1, **kw)["disposition"] == "duplicate"
+    # final 后异内容 final（新 package_id）→ conflict + 隔离落盘
+    final2 = _result_zip(tp, tmpdir(), status="completed",
+                         items=[{"问题序号": "1", "勘测结果": "不涉及"}])
+    out = ingest.ingest_zip(final2, **kw)
+    assert out["disposition"] == "conflict"
+    assert any(reg.quarantine_dir().iterdir())
+    # final 后 staged → quarantine
+    staged = _result_zip(tp, tmpdir(), status="active")
+    assert ingest.ingest_zip(staged, **kw)["disposition"] == "quarantine"
+    assert reg.get(tid)["state"] == "completed"  # 状态不被污染
+
+
+@test
+def ingest_submitted_by_guard():
+    from agent.skills.zhgk.services.gkclaw import ingest
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    bad = _result_zip(tp, tmpdir(), status="completed", submitted_code="S999")
+    out = ingest.ingest_zip(bad, runtime_dir=root / "RunTime",
+                            input_dir=input_dir, survey_table_path=table)
+    assert out["disposition"] == "quarantine" and "submitted_by" in out["note"]
+    assert reg.get(tid)["state"] == "dispatched"
+
+
+@test
+def ingest_dual_source_and_fingerprint_guard():
+    from agent.skills.zhgk.services.gkclaw import ingest
+    # 双源冲突：Input 已有待合并表 → 邮件结果暂存 pending_results，不覆盖
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    (input_dir / "已填写_全量勘测结果表.xlsx").write_bytes(b"manual upload")
+    out = ingest.ingest_zip(_result_zip(tp, tmpdir(), status="completed"),
+                            runtime_dir=root / "RunTime", input_dir=input_dir,
+                            survey_table_path=table)
+    assert out["disposition"] == "processed" and out["merged"] is False
+    assert "先到先得" in out["note"]
+    assert any((reg.root / tid / "pending_results").iterdir())
+    assert (input_dir / "已填写_全量勘测结果表.xlsx").read_bytes() == b"manual upload"
+    # 表指纹漂移：下发后表被改 → final 不合并
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    import openpyxl
+    wb = openpyxl.load_workbook(table); wb.active.cell(2, 5, "被改过的检查内容"); wb.save(table)
+    out = ingest.ingest_zip(_result_zip(tp, tmpdir(), status="completed"),
+                            runtime_dir=root / "RunTime", input_dir=input_dir,
+                            survey_table_path=table)
+    assert out["merged"] is False and "指纹" in out["note"]
+    assert not (input_dir / "已填写_全量勘测结果表.xlsx").exists()
+    assert reg.get(tid)["state"] == "completed"  # 任务仍完成，仅合并阻塞
+
+
+@test
+def ingest_unknown_task_and_broken_zip():
+    from agent.skills.zhgk.services.gkclaw import ingest
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    root = tmpdir(); (root / "Input").mkdir()
+    reg = TaskRegistry(root / "RunTime")
+    # 未知 task_id：合法包但本地无任务 → 隔离留档，不创建任务
+    fake_tp = _valid_task()
+    out = ingest.ingest_zip(_ack_zip(fake_tp, tmpdir()), runtime_dir=root / "RunTime",
+                            input_dir=root / "Input", survey_table_path=None)
+    assert out["disposition"] == "quarantine"
+    assert reg.get(fake_tp["task_id"]) is None
+    # 坏 ZIP → 隔离不抛
+    bad = root / "bad.zip"; bad.write_bytes(b"\xff\xfe not a zip")
+    out = ingest.ingest_zip(bad, runtime_dir=root / "RunTime",
+                            input_dir=root / "Input", survey_table_path=None)
+    assert out["disposition"] == "quarantine"
+
+
+@test
+def poll_and_ingest_with_fake_mailbox():
+    import shutil
+    from agent.skills.zhgk.services.gkclaw import ingest
+    root, reg, tid, tp, table, input_dir = _dispatched_env()
+    ack_zip = _ack_zip(tp, tmpdir())
+
+    class FakeMailbox:
+        @staticmethod
+        def is_configured(): return True
+        @staticmethod
+        def list_inbox(refresh=True, limit=50, unread_only=False):
+            return {"new_count": 2, "mails": [
+                {"mail_id": 1, "subject": "[GKCLAW][TASK_IMPORT_ACK] K1903/x",
+                 "has_attachments": True},
+                {"mail_id": 2, "subject": "普通邮件", "has_attachments": False},
+            ]}
+        @staticmethod
+        def save_attachment(mail_id, index, save_dir):
+            if mail_id == 1 and index == 0:
+                dest = Path(save_dir) / ack_zip.name
+                Path(save_dir).mkdir(parents=True, exist_ok=True)
+                shutil.copy(ack_zip, dest)
+                return str(dest)
+            raise ingest.MailboxExhausted("404")
+
+    summary = ingest.poll_and_ingest(runtime_dir=root / "RunTime", input_dir=input_dir,
+                                     survey_table_path=table, mailbox_mod=FakeMailbox)
+    assert summary["checked"] == 2 and summary["processed"] == 1
+    assert reg.get(tid)["state"] == "accepted"
+    assert reg.scanned_mail_ids() == {1, 2}
+    # 第二次轮询：账本生效，全部跳过
+    summary2 = ingest.poll_and_ingest(runtime_dir=root / "RunTime", input_dir=input_dir,
+                                      survey_table_path=table, mailbox_mod=FakeMailbox)
+    assert summary2["checked"] == 0
+
+
 # ─── main ───
 
 def main() -> int:
