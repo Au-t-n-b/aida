@@ -357,14 +357,14 @@ function extractProgressFromSdui(doc: SduiDocument): {
   phase?: 'running' | 'hitl' | 'done' | 'error';
   progress?: number;
   currentStepName?: string;
-  hitlType?: 'file' | 'choice' | null;
+  hitlType?: 'file' | 'choice' | 'edit' | null;
   errorMsg?: string;
 } {
   const r: {
     phase?: 'running' | 'hitl' | 'done' | 'error';
     progress?: number;
     currentStepName?: string;
-    hitlType?: 'file' | 'choice' | null;
+    hitlType?: 'file' | 'choice' | 'edit' | null;
     errorMsg?: string;
   } = {};
 
@@ -394,6 +394,11 @@ function extractProgressFromSdui(doc: SduiDocument): {
     // HITL 节点优先级最高（覆盖 Stepper 的阶段判断）
     if (node.type === 'ChoiceCard') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     if (node.type === 'FilePicker') { r.phase = 'hitl'; r.hitlType = 'file';   }
+    // 可编辑表格 HITL（计划下发勾选 / ESN 在线填写）：留在右侧大盘，不路由到左侧，
+    // 但左侧进度卡需据此从 running 切到 hitl，否则会一直转圈不提示「该你操作了」。
+    if (node.type === 'DataTable' && node.editable && node.submitMode === 'resume') {
+      r.phase = 'hitl'; r.hitlType = 'edit';
+    }
   });
 
   return r;

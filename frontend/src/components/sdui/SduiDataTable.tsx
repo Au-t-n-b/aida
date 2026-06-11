@@ -85,6 +85,9 @@ function TypedTable({ node }: { node: SduiDataTableNode }) {
   const rowKey = node.rowKey ?? 'id';
   const editable = !!node.editable;
   const isRunPatch = node.submitMode === 'run-patch';
+  const hasFill = !!(editable && node.fillLabel && node.fillRows && !isRunPatch);
+  // 勾选型表（如计划下发）的「一键全选」放到表头右上角；非勾选的填值型仍留在底部工具条。
+  const selectAllInHeader = hasFill && !!node.checkKey;
 
   const setCell = (rk: unknown, key: string, val: unknown) => {
     setRows(prev => prev.map(r => (r[rowKey] === rk ? { ...r, [key]: val } : r)));
@@ -145,10 +148,13 @@ function TypedTable({ node }: { node: SduiDataTableNode }) {
 
   return (
     <div className={editable ? undefined : 'sdui-tbl'} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--surface)', boxShadow: 'var(--shadow-xs)' }}>
-      {node.title && (
+      {(node.title || selectAllInHeader) && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--c-bg-soft, #eef2f7)', borderRadius: 999, padding: '1px 8px', fontVariantNumeric: 'tabular-nums' }}>{rows.length}</span>
+          {node.title && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</span>}
+          {node.title && <span style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--c-bg-soft, #eef2f7)', borderRadius: 999, padding: '1px 8px', fontVariantNumeric: 'tabular-nums' }}>{rows.length}</span>}
+          {selectAllInHeader && (
+            <button onClick={handleFill} disabled={submitted} style={{ ...pagerBtn(submitted), marginLeft: 'auto' }}>{node.fillLabel}</button>
+          )}
         </div>
       )}
       <div style={{ overflowX: 'auto' }}>
@@ -201,7 +207,7 @@ function TypedTable({ node }: { node: SduiDataTableNode }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderTop: '1px solid var(--border)' }}>
           {err && <span style={{ fontSize: 12, color: 'var(--red-600, #dc2626)', marginRight: 'auto' }}>{err}</span>}
           {!err && <span style={{ marginRight: 'auto' }} />}
-          {node.fillLabel && node.fillRows && !isRunPatch && (
+          {hasFill && !selectAllInHeader && (
             <button onClick={handleFill} disabled={submitted} style={pagerBtn(submitted)}>{node.fillLabel}</button>
           )}
           {isRunPatch ? (
