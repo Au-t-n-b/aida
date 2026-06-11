@@ -26,6 +26,7 @@ from .steps import (
     MethodSplitStep,
     DataAppendStep,
     ConfirmTableStep,
+    TaskDispatchStep,
     WaitSurveyStep,
     AssessStep,
     IssueListStep,
@@ -53,6 +54,7 @@ class ZhgkSkill(BaseSkill):
         MethodSplitStep(),      # 现场/数据分流
         DataAppendStep(),       # 数据类条目追加
         ConfirmTableStep(),     # 勘测表确认（HITL）
+        TaskDispatchStep(),     # GKCLAW 任务下发（HITL·survey_work 专属）
         WaitSurveyStep(),       # 等待现场上传（HITL）
         AssessStep(),           # AI 五值评估
         IssueListStep(),        # 问题清单生成
@@ -64,7 +66,7 @@ class ZhgkSkill(BaseSkill):
     # SDUI 投影器
     sdui_projector = staticmethod(_sdui_project)
     # assess / report_distribute 支持单步重试（不重跑前序 LLM 步骤）
-    step_retry_keys = ["assess", "report_distribute"]
+    step_retry_keys = ["assess", "report_distribute", "task_dispatch"]
     # 文件补齐 HITL 处理器
     file_handler = _zhgk_files
 
@@ -88,6 +90,7 @@ class ZhgkSkill(BaseSkill):
           determine_gen   → project["generation_cooling"] = choice（用户手动指定时）
           data_append     → project["data_append_choice"] = choice（追加/跳过）
           confirm_table   → project["table_confirmed"] = True / redo 仅清 table_confirmed
+          task_dispatch   → project["dispatch_decision"] = choice（下发/跳过）
           wait_survey     → 文件型 HITL；若 resurvey_pending 则清 resurvey_decision
           resurvey_gate   → project["resurvey_decision"] = choice
           supplement_run  → project["supplement_choice"] = choice（追加/跳过）
@@ -111,6 +114,9 @@ class ZhgkSkill(BaseSkill):
         elif hitl_step == "supplement_run" and choice:
             project["supplement_choice"] = choice
 
+        elif hitl_step == "task_dispatch" and choice:
+            project["dispatch_decision"] = choice
+
         elif hitl_step == "confirm_table":
             if choice == "confirm":
                 project["table_confirmed"] = True
@@ -118,6 +124,7 @@ class ZhgkSkill(BaseSkill):
                 # 仅清确认标记，保留代际制冷（从 project_info.json 缓存恢复）
                 project.pop("table_confirmed", None)
                 project.pop("data_append_choice", None)  # 重建表需重新选择数据追加
+                project.pop("dispatch_decision", None)   # 重建表后须重新决策是否下发
 
         elif hitl_step == "wait_survey":
             # 文件型 HITL；若是复勘轮次上传，清 resurvey_decision 以回归正常流

@@ -981,6 +981,79 @@ def poll_and_ingest_with_fake_mailbox():
     assert summary2["checked"] == 0
 
 
+# ─── task_dispatch step ───
+
+def _step_ctx(intent="survey_work", extra_project=None):
+    """构造 step 级测试环境：work_root + 全量表 + project_info.json。"""
+    import json as _json
+    from agent.skills.base import SkillContext
+    root = tmpdir()
+    project = {"intent": intent, "project_code": "K1903",
+               "project_name": "智算 Q3 · 客户甲一期", "room_name": "A 机房",
+               "activity_id": "ACT001"}
+    project.update(extra_project or {})
+    ctx = SkillContext(skill_id="zhgk", work_root=root, run_id="r1", project=project)
+    ctx.ensure_dirs()
+    table = _make_survey_xlsx(ctx.output_dir)
+    (ctx.runtime_dir / "project_info.json").write_text(
+        _json.dumps({"survey_table_path": table}, ensure_ascii=False), encoding="utf-8")
+    return ctx
+
+
+@test
+def step_guard_hitl_and_skip():
+    from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
+    from agent.skills.zhgk.steps._intent_guard import should_skip
+    # 仅 survey_work：supplement 守卫直接跳过（用户拍板）
+    assert should_skip("task_dispatch", {"intent": "supplement"})
+    assert should_skip("task_dispatch", {"intent": "report_gen"})
+    assert not should_skip("task_dispatch", {"intent": "survey_work"})
+    step = TaskDispatchStep()
+    # 无决策 → ChoiceCard HITL（下发/跳过）
+    ctx = _step_ctx()
+    check = step.check_inputs(ctx)
+    assert not check["ok"]
+    values = [o["value"] for o in check["need_inputs"][0]["options"]]
+    assert values == ["dispatch", "skip"]
+    # 决策=skip → 放行，run 记录跳过
+    ctx = _step_ctx(extra_project={"dispatch_decision": "skip"})
+    assert step.check_inputs(ctx)["ok"]
+    result = step.run(ctx, {}, lambda m: None)
+    assert result["metrics"]["gkclaw_skipped"] is True
+
+
+@test
+def step_dispatch_dry_run_idempotent():
+    import json as _json, os
+    from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    os.environ.pop("AIDA_SEND_EMAIL", None)   # 默认 dry-run
+    step = TaskDispatchStep()
+    ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch", "assignees": _ASSIGNEES})
+    assert step.check_inputs(ctx)["ok"]
+    logs = []
+    result = step.run(ctx, {}, logs.append)
+    m = result["metrics"]
+    assert m["gkclaw_task_id"].startswith("task-") and m["gkclaw_dry_run"] is True
+    assert m["gkclaw_state"] == "dispatched" and m["gkclaw_items"] == 2
+    info = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))
+    assert info["gkclaw_task_id"] == m["gkclaw_task_id"]
+    # 再跑（resume 重放）→ 不重复下发，仍报同一任务状态
+    result2 = step.run(ctx, {}, logs.append)
+    assert result2["metrics"]["gkclaw_task_id"] == m["gkclaw_task_id"]
+    assert len(TaskRegistry(ctx.runtime_dir).list_tasks()) == 1
+
+
+@test
+def step_missing_assignees_blocks():
+    from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
+    step = TaskDispatchStep()
+    ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch"})  # 无 assignees
+    check = step.check_inputs(ctx)
+    assert not check["ok"]
+    assert any("assignees.json" in x for x in check["missing"])
+
+
 # ─── main ───
 
 def main() -> int:

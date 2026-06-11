@@ -28,6 +28,7 @@ STEP_INTENTS: dict[str, frozenset[str]] = {
     "method_split":      frozenset({"survey_work"}),
     "data_append":       frozenset({"survey_work"}),
     "confirm_table":     frozenset({"survey_work"}),
+    "task_dispatch":     frozenset({"survey_work"}),
     "wait_survey":       frozenset({"survey_work"}),
     "resurvey_gate":     frozenset({"survey_work"}),
     # ─── survey_work + report_gen ───

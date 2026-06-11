@@ -1,4 +1,4 @@
-"""zhgk skill v4 — 14 个 step 实现（意图驱动单流水线）"""
+"""zhgk skill v4 — 15 个业务 step + preflight（意图驱动单流水线）"""
 
 # ── 公共步骤（所有意图） ──────────────────────────────────────────────────────
 from .preflight import PreflightStep
@@ -15,6 +15,7 @@ from .filter_build import FilterBuildStep
 from .method_split import MethodSplitStep
 from .data_append import DataAppendStep
 from .confirm_table import ConfirmTableStep
+from .task_dispatch import TaskDispatchStep
 from .wait_survey import WaitSurveyStep
 
 # ── survey_work + report_gen 共有 ───────────────────────────────────────────
@@ -40,6 +41,7 @@ __all__ = [
     "MethodSplitStep",
     "DataAppendStep",
     "ConfirmTableStep",
+    "TaskDispatchStep",
     "WaitSurveyStep",
     "AssessStep",
     "IssueListStep",
