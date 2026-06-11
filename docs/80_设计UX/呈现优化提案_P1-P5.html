@@ -1,0 +1,617 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>工勘 / 规划设计 · 呈现优化提案 P1–P5</title>
+<style>
+/* ───────────────────────────────────────────────────────────────
+   Token 忠实镜像 —— 直接复制自 frontend/src/styles/globals.css :root
+   （只用 var(--c-*) / var(--fs-*) / var(--r-*) / var(--sp-*) / var(--shadow-*)）
+   ─────────────────────────────────────────────────────────────── */
+:root {
+  --c-bg: #f6f8fb; --c-bg-soft: #eef2f7; --c-surface: #ffffff; --c-surface-2: #fafbfc;
+  --c-border: #e3e8ef; --c-border-strong: #cbd5e1; --c-divider: #eef2f7;
+  --c-text: #0f172a; --c-text-2: #334155; --c-text-muted: #64748b; --c-text-faint: #94a3b8;
+  --c-brand: #3551d8; --c-brand-hover: #2a44c2; --c-brand-active: #2640a8;
+  --c-brand-soft: #eef1fc; --c-brand-softer: #f5f7fe; --c-brand-text: #1e34a8; --c-brand-line: #c7d0f5;
+  --c-success: #0f9d58; --c-success-soft: #e6f6ee; --c-success-text: #0a7d46;
+  --c-warning: #d97706; --c-warning-soft: #fdf2dd; --c-warning-text: #9a5b08;
+  --c-danger: #dc2626; --c-danger-soft: #fde8e8; --c-danger-text: #a31919;
+  --c-info: #2563eb; --c-info-soft: #e6efff; --c-info-text: #1747b8;
+  --c-risk-high: #d92e2e; --c-risk-high-bg: #fde6e6;
+  --c-risk-mid: #d98014; --c-risk-mid-bg: #fdeed6;
+  --c-risk-low: #b58a0c; --c-risk-low-bg: #fbf3d3;
+  --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  --fs-10: 10px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px;
+  --fs-15: 15px; --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-22: 22px;
+  --fs-24: 24px; --fs-26: 26px; --fs-30: 30px; --fs-32: 32px;
+  --r-xs: 4px; --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px; --r-pill: 999px;
+  --shadow-xs: 0 1px 2px rgba(15,23,42,.04);
+  --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 1px rgba(15,23,42,.03);
+  --shadow-md: 0 4px 14px rgba(15,23,42,.06), 0 1px 4px rgba(15,23,42,.04);
+  --shadow-lg: 0 12px 28px rgba(15,23,42,.10), 0 2px 6px rgba(15,23,42,.05);
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  font-family: var(--font-sans); font-size: var(--fs-14); color: var(--c-text);
+  background: var(--c-bg);
+  /* 极克制的画布纹理：slate 网格点，几乎不可见，仅给"控制台"质感 —— 不是装饰 */
+  background-image: radial-gradient(var(--c-border) 0.5px, transparent 0.5px);
+  background-size: 22px 22px;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.55;
+}
+.num { font-variant-numeric: tabular-nums; }
+.eyebrow {
+  font-size: var(--fs-11); font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--c-text-muted);
+}
+
+/* P-badge：标注每个区域对应第几条建议 */
+.pbadge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 16px; padding: 0 5px; margin-left: var(--sp-2);
+  font-size: var(--fs-10); font-weight: 700; letter-spacing: .02em;
+  font-family: var(--font-mono);
+  color: var(--c-brand-text); background: var(--c-brand-soft);
+  border: 1px solid var(--c-brand-line); border-radius: var(--r-pill);
+  vertical-align: middle;
+}
+
+/* ── 外壳 ── */
+.shell { max-width: 1120px; margin: 0 auto; padding: var(--sp-6) var(--sp-6) var(--sp-12); }
+.intro { margin: 0 0 var(--sp-5); }
+.intro h1 { font-size: var(--fs-22); font-weight: 600; letter-spacing: -.01em; margin: 0 0 var(--sp-1); }
+.intro p { font-size: var(--fs-13); color: var(--c-text-muted); margin: 0; max-width: 640px; }
+
+/* ── 控制条（演示用，非产品 UI）── */
+.demo-ctrl {
+  display: flex; gap: var(--sp-2); align-items: center; flex-wrap: wrap;
+  margin: var(--sp-4) 0 var(--sp-5); padding: var(--sp-3) var(--sp-4);
+  background: var(--c-surface); border: 1px dashed var(--c-border-strong); border-radius: var(--r-lg);
+}
+.demo-ctrl .lbl { font-size: var(--fs-11); color: var(--c-text-faint); margin-right: var(--sp-1); }
+.seg { display: inline-flex; background: var(--c-bg-soft); border-radius: var(--r-md); padding: 2px; gap: 2px; }
+.seg button {
+  font: inherit; font-size: var(--fs-12); font-weight: 500;
+  border: none; background: transparent; color: var(--c-text-muted);
+  padding: 5px 12px; border-radius: var(--r-sm); cursor: pointer; transition: all .15s;
+}
+.seg button.on { background: var(--c-surface); color: var(--c-text); box-shadow: var(--shadow-xs); font-weight: 600; }
+
+/* ── 作业面板容器（仿右侧 SkillAgentScreen） ── */
+.cockpit {
+  display: flex; flex-direction: column; gap: var(--sp-4);
+  background: var(--c-bg); border: 1px solid var(--c-border); border-radius: var(--r-xl);
+  padding: var(--sp-5); box-shadow: var(--shadow-sm); position: relative;
+}
+
+/* ── Header（最轻的标识带 · P1）── */
+.hdr { display: flex; align-items: center; gap: var(--sp-4); }
+.hdr-emblem {
+  width: 38px; height: 38px; border-radius: var(--r-lg); flex-shrink: 0;
+  display: grid; place-items: center; color: var(--c-brand);
+  background: var(--c-surface); border: 1px solid var(--c-border); box-shadow: var(--shadow-xs);
+}
+.hdr-title { font-size: var(--fs-16); font-weight: 600; letter-spacing: -.01em; }
+.hdr-sub { font-size: var(--fs-12); color: var(--c-text-muted); margin-top: 1px; }
+.hdr-spacer { flex: 1; }
+.badge {
+  font-size: var(--fs-11); font-weight: 600; padding: 3px 9px; border-radius: var(--r-sm);
+  border: 1px solid transparent;
+}
+.badge-amber { background: var(--c-warning-soft); color: var(--c-warning-text); }
+.badge-green { background: var(--c-success-soft); color: var(--c-success-text); }
+
+/* ── Macro-rail（主进度导航 · P2）── */
+.macro { display: flex; align-items: stretch; }
+.mphase { flex: 1; display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; }
+.mphase-bar { display: flex; align-items: center; }
+.mdot {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: grid; place-items: center; font-size: var(--fs-11); font-weight: 700;
+  background: var(--c-surface); border: 1.5px solid var(--c-border-strong); color: var(--c-text-faint);
+  z-index: 1;
+}
+.mline { flex: 1; height: 2px; background: var(--c-border); }
+.mline.fill { background: var(--c-success); }
+.mphase.done .mdot { background: var(--c-success); border-color: var(--c-success); color: #fff; }
+/* 进行中 = 琥珀（amber=running 语义，indigo 只留给可交互/选中）*/
+.mphase.run .mdot {
+  background: var(--c-warning); border-color: var(--c-warning); color: #fff;
+  box-shadow: 0 0 0 4px var(--c-warning-soft);
+}
+.mlabel { font-size: var(--fs-13); font-weight: 600; color: var(--c-text-2); padding-left: 2px; }
+.mphase.pending .mlabel { color: var(--c-text-faint); font-weight: 500; }
+.mhint { font-size: var(--fs-11); color: var(--c-text-muted); padding-left: 2px; }
+.mphase.pending .mhint { color: var(--c-text-faint); }
+
+/* ── KPI 扫读带（数据焦点 · P3）── */
+.kpiband {
+  display: flex; align-items: stretch; gap: var(--sp-5);
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg);
+  padding: var(--sp-4) var(--sp-5); box-shadow: var(--shadow-sm);
+}
+.donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
+.donut {
+  width: 96px; height: 96px; border-radius: 50%;
+  background: conic-gradient(var(--c-brand) 0% var(--p,68%), var(--c-bg-soft) var(--p,68%) 100%);
+  display: grid; place-items: center; position: relative;
+}
+.donut::after {
+  content: ""; position: absolute; inset: 11px; border-radius: 50%;
+  background: var(--c-surface); box-shadow: inset 0 0 0 1px var(--c-divider);
+}
+.donut-val { position: relative; z-index: 1; font-size: var(--fs-22); font-weight: 600; letter-spacing: -.01em; }
+.donut-lbl { font-size: var(--fs-11); color: var(--c-text-muted); letter-spacing: .04em; }
+.kpis { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: var(--sp-3); }
+.kpi {
+  position: relative; padding: 10px 12px 10px 18px; overflow: hidden;
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-md);
+  box-shadow: var(--shadow-xs);
+}
+.kpi::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+  border-radius: 0 var(--r-pill) var(--r-pill) 0; background: var(--bar, var(--c-text-faint));
+}
+.kpi .k { font-size: var(--fs-11); color: var(--c-text-muted); text-transform: uppercase; letter-spacing: .05em; }
+.kpi .v { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.01em; margin-top: 3px; line-height: 1.1; }
+.kpi.accent::before { background: var(--c-brand); }
+.kpi.ok::before { background: var(--c-success); }
+.kpi.warn::before { background: var(--c-warning); }
+.kpi.warn .v { color: var(--c-warning-text); }
+
+/* ── 主区栅格（中主 + 右栏）── */
+.grid { display: grid; grid-template-columns: 1fr 296px; gap: var(--sp-4); align-items: start; }
+@media (max-width: 880px){ .grid { grid-template-columns: 1fr; } }
+
+/* 分节眉题（P3 分组）：眉题 + 延伸细线 */
+.group { display: flex; flex-direction: column; gap: var(--sp-3); }
+.group + .group { margin-top: var(--sp-5); }
+.ghead { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: 1px; }
+.ghead .line { flex: 1; height: 1px; background: var(--c-divider); }
+
+.card {
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-xs);
+}
+.card-head {
+  display: flex; align-items: center; gap: var(--sp-2);
+  padding: 11px var(--sp-4); border-bottom: 1px solid var(--c-divider);
+}
+.card-title { font-size: var(--fs-13); font-weight: 600; }
+.card-body { padding: var(--sp-4); }
+
+/* 五值评估：堆叠条 + 图例 */
+.assess-bar { display: flex; height: 12px; border-radius: var(--r-pill); overflow: hidden; background: var(--c-bg-soft); }
+.assess-bar > i { display: block; height: 100%; }
+.assess-legend { display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-4); margin-top: var(--sp-3); }
+.lg { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-12); color: var(--c-text-2); }
+.lg .sw { width: 9px; height: 9px; border-radius: 2px; }
+.lg .n { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* 问题清单表 */
+table { width: 100%; border-collapse: collapse; font-size: var(--fs-13); }
+thead th {
+  text-align: left; font-size: var(--fs-11); font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--c-text-muted); padding: 8px var(--sp-4); border-bottom: 1px solid var(--c-divider);
+}
+tbody td { padding: 9px var(--sp-4); border-bottom: 1px solid var(--c-divider); color: var(--c-text-2); }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: var(--c-surface-2); }
+td.idx { font-family: var(--font-mono); color: var(--c-text-faint); }
+.chip { display: inline-block; font-size: var(--fs-11); font-weight: 600; padding: 2px 7px; border-radius: var(--r-sm); }
+.chip-red { background: var(--c-danger-soft); color: var(--c-danger-text); }
+.chip-amber { background: var(--c-warning-soft); color: var(--c-warning-text); }
+
+/* 风险告警 RiskList（左色带）*/
+.risk { display: flex; align-items: flex-start; gap: var(--sp-3); padding: 10px var(--sp-4); border-bottom: 1px solid var(--c-divider); position: relative; }
+.risk:last-child { border-bottom: none; }
+.risk::before { content: ""; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 var(--r-pill) var(--r-pill) 0; }
+.risk.high::before { background: var(--c-risk-high); } .risk.mid::before { background: var(--c-risk-mid); }
+.risk .rt { font-size: var(--fs-13); font-weight: 500; }
+.risk .rd { font-size: var(--fs-12); color: var(--c-text-muted); margin-top: 2px; }
+.risk .lv { margin-left: auto; font-size: var(--fs-11); font-weight: 700; padding: 1px 7px; border-radius: var(--r-sm); flex-shrink: 0; }
+.risk.high .lv { background: var(--c-risk-high-bg); color: var(--c-risk-high); }
+.risk.mid .lv { background: var(--c-risk-mid-bg); color: var(--c-risk-mid); }
+
+/* 产物双栏 */
+.arts { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+.art { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 10px; border: 1px solid var(--c-border); border-radius: var(--r-md); background: var(--c-surface-2); }
+.art .ext { font-family: var(--font-mono); font-size: var(--fs-10); font-weight: 700; padding: 1px 5px; border-radius: var(--r-sm); }
+.ext.xlsx { background: var(--c-success-soft); color: var(--c-success-text); }
+.ext.docx { background: var(--c-info-soft); color: var(--c-info-text); }
+.art .nm { font-family: var(--font-mono); font-size: var(--fs-12); color: var(--c-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary { font-size: var(--fs-13); color: var(--c-text-2); line-height: 1.7; }
+.summary li { margin: 2px 0; }
+
+/* ── 右栏：折叠的执行明细（P2 降级）+ 执行动态 ── */
+.rail { display: flex; flex-direction: column; gap: var(--sp-4); position: sticky; top: var(--sp-4); }
+.collapse summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: var(--sp-2);
+  padding: 11px var(--sp-4); font-size: var(--fs-13); font-weight: 600;
+}
+.collapse summary::-webkit-details-marker { display: none; }
+.collapse .caret { margin-left: auto; color: var(--c-text-faint); transition: transform .2s; font-size: var(--fs-12); }
+.collapse[open] .caret { transform: rotate(90deg); }
+.collapse summary .pill-count { font-size: var(--fs-11); font-weight: 600; color: var(--c-text-muted); background: var(--c-bg-soft); border-radius: var(--r-pill); padding: 1px 8px; }
+.microstep { display: flex; align-items: center; gap: var(--sp-2); padding: 6px var(--sp-4); font-size: var(--fs-12); color: var(--c-text-muted); }
+.microstep .d { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--c-border-strong); }
+.microstep.done .d { background: var(--c-success); } .microstep.done { color: var(--c-text-2); }
+.microstep.run .d { background: var(--c-warning); box-shadow: 0 0 0 3px var(--c-warning-soft); } .microstep.run { color: var(--c-text); font-weight: 600; }
+
+.tl { padding: var(--sp-2) 0; }
+.tlrow { display: grid; grid-template-columns: 12px 1fr; gap: var(--sp-3); padding: 7px var(--sp-4); }
+.tlrow .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; }
+.tlrow .tx { font-size: var(--fs-12); color: var(--c-text-2); line-height: 1.5; }
+.tlrow .tx time { font-family: var(--font-mono); font-size: var(--fs-10); color: var(--c-text-faint); display: block; }
+
+/* ── P5：nVisual iframe 空状态兜底 ── */
+.iframe-ph {
+  border: 1px dashed var(--c-border-strong); border-radius: var(--r-lg);
+  background: var(--c-bg-soft); min-height: 280px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3);
+  padding: var(--sp-6); text-align: center; position: relative; overflow: hidden;
+}
+.iframe-ph .ic { width: 44px; height: 44px; color: var(--c-text-faint); }
+.iframe-ph .t { font-size: var(--fs-14); font-weight: 600; color: var(--c-text-2); }
+.iframe-ph .s { font-size: var(--fs-12); color: var(--c-text-muted); max-width: 320px; }
+/* 骨架占位条 */
+.ph-skeleton { position: absolute; inset: 0; opacity: .5; pointer-events: none;
+  background:
+    linear-gradient(var(--c-border) 0 0) 8% 30%/ 30% 8px no-repeat,
+    linear-gradient(var(--c-border) 0 0) 8% 46%/ 52% 8px no-repeat,
+    linear-gradient(var(--c-border) 0 0) 8% 62%/ 22% 8px no-repeat,
+    linear-gradient(var(--c-border) 0 0) 62% 30%/ 28% 70% no-repeat;
+  -webkit-mask: linear-gradient(#000,transparent); mask: linear-gradient(#000,transparent);
+}
+.ph-btn { font: inherit; font-size: var(--fs-12); font-weight: 600; cursor: pointer; margin-top: 2px;
+  background: var(--c-surface); color: var(--c-text-2); border: 1px solid var(--c-border-strong); border-radius: var(--r-md); padding: 6px 14px; }
+.ph-btn:hover { border-color: var(--c-brand); color: var(--c-brand); }
+
+/* 适配表预览（guihua 设备数据页）*/
+.compat td.mono { font-family: var(--font-mono); font-size: var(--fs-12); }
+
+/* ── P4：你的回合（HITL 接管态）── */
+.takeover { display: none; }
+.cockpit.is-hitl .telemetry { filter: saturate(.35) opacity(.5); pointer-events: none; transition: filter .35s; }
+.cockpit.is-hitl .takeover { display: block; }
+.takeover-card {
+  border: 1px solid var(--c-warning); border-radius: var(--r-lg);
+  background: linear-gradient(180deg, var(--c-warning-soft) 0%, var(--c-surface) 64%);
+  box-shadow: var(--shadow-md); overflow: hidden;
+  animation: rise .3s cubic-bezier(.2,.65,.4,1) both;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.to-head { display: flex; align-items: center; gap: var(--sp-2); padding: 12px var(--sp-5); }
+.to-pulse { width: 9px; height: 9px; border-radius: 50%; background: var(--c-warning); box-shadow: 0 0 0 0 var(--c-warning); animation: pulse 1.8s infinite; }
+@keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(217,119,6,.4);} 70%{box-shadow:0 0 0 8px rgba(217,119,6,0);} 100%{box-shadow:0 0 0 0 rgba(217,119,6,0);} }
+.to-eyebrow { font-size: var(--fs-11); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--c-warning-text); }
+.to-body { padding: 0 var(--sp-5) var(--sp-5); }
+.to-q { font-size: var(--fs-16); font-weight: 600; letter-spacing: -.01em; margin: 4px 0 6px; }
+.to-d { font-size: var(--fs-13); color: var(--c-text-muted); margin-bottom: var(--sp-4); }
+.to-actions { display: flex; gap: var(--sp-2); }
+.btn { font: inherit; font-size: var(--fs-13); font-weight: 600; cursor: pointer; border-radius: var(--r-md); padding: 8px 16px; border: 1px solid transparent; }
+.btn-primary { background: var(--c-brand); color: #fff; box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--c-brand-hover); }
+.btn-ghost { background: var(--c-surface); color: var(--c-text-2); border-color: var(--c-border-strong); }
+.btn-ghost:hover { border-color: var(--c-brand); color: var(--c-brand); }
+.to-context { margin-top: var(--sp-4); font-size: var(--fs-12); color: var(--c-text-muted); }
+.to-context b { color: var(--c-text-2); font-weight: 600; }
+
+/* 模块切换：显隐 */
+.mod-guihua .only-zhgk { display: none; }
+.mod-zhgk .only-guihua { display: none; }
+
+/* 图例 */
+.legend { margin-top: var(--sp-6); padding: var(--sp-4) var(--sp-5); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-lg); box-shadow: var(--shadow-xs); }
+.legend h3 { font-size: var(--fs-13); margin: 0 0 var(--sp-3); }
+.legend dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px var(--sp-3); font-size: var(--fs-12); }
+.legend dt { font-family: var(--font-mono); font-weight: 700; color: var(--c-brand-text); }
+.legend dd { margin: 0; color: var(--c-text-2); }
+</style>
+</head>
+<body class="mod-zhgk">
+<div class="shell">
+
+  <div class="intro">
+    <h1>工勘 / 规划设计 · 呈现优化提案 <span class="eyebrow" style="letter-spacing:.04em">P1 – P5</span></h1>
+    <p>这是一张 token 忠实的「after」对照稿，全部颜色 / 字号 / 圆角 / 间距 / 阴影取自 <code>globals.css</code>。下方两个开关可演示「模块统一骨架（P1）/ nVisual 兜底（P5）」与「你的回合 HITL 接管态（P4）」。区域右上的 <span class="pbadge">P3</span> 标注对应第几条建议。</p>
+  </div>
+
+  <div class="demo-ctrl">
+    <span class="lbl">模块</span>
+    <div class="seg" id="modSwitch">
+      <button class="on" data-mod="zhgk">智慧工勘</button>
+      <button data-mod="guihua">规划设计</button>
+    </div>
+    <span class="lbl" style="margin-left:var(--sp-4)">状态</span>
+    <div class="seg" id="stateSwitch">
+      <button class="on" data-state="run">运行中</button>
+      <button data-state="hitl">你的回合（HITL）</button>
+    </div>
+  </div>
+
+  <!-- ════════════ 作业面板 ════════════ -->
+  <div class="cockpit" id="cockpit">
+
+    <!-- Header · P1（最轻标识带，跨模块同一骨架）-->
+    <header class="hdr">
+      <span class="hdr-emblem">
+        <svg width="22" height="22" viewBox="0 0 34 34" fill="none">
+          <rect x="6" y="4" width="16" height="20" rx="2" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M10 10h8M10 14h8M10 18h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M27.5 27.5L30 30" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <div>
+        <div class="hdr-title">华东数据中心二期 · A3 液冷机房</div>
+        <div class="hdr-sub only-zhgk">智慧工勘 · 全流程工勘</div>
+        <div class="hdr-sub only-guihua">规划设计 · 建模仿真</div>
+      </div>
+      <div class="hdr-spacer"></div>
+      <span class="badge badge-amber">进行中</span>
+      <span class="pbadge">P1</span>
+    </header>
+
+    <!-- Macro-rail · P2（主进度导航，4 大阶段；进行中=琥珀）-->
+    <nav class="macro telemetry">
+      <div class="mphase done">
+        <div class="mphase-bar"><div class="mdot">✓</div><div class="mline fill"></div></div>
+        <div class="mlabel">环境准备</div><div class="mhint only-zhgk">预检 · 选意图</div><div class="mhint only-guihua">预检 · 适配</div>
+      </div>
+      <div class="mphase done">
+        <div class="mphase-bar"><div class="mline fill"></div><div class="mdot">✓</div><div class="mline fill"></div></div>
+        <div class="mlabel only-zhgk">方案识别</div><div class="mlabel only-guihua">数据确认</div>
+        <div class="mhint only-zhgk">代际制冷 · 建表</div><div class="mhint only-guihua">核对适配表</div>
+      </div>
+      <div class="mphase run">
+        <div class="mphase-bar"><div class="mline fill"></div><div class="mdot">3</div><div class="mline"></div></div>
+        <div class="mlabel only-zhgk">勘测评估</div><div class="mlabel only-guihua">创建落位</div>
+        <div class="mhint only-zhgk">汇总 · AI 评估 · 复勘</div><div class="mhint only-guihua">超节点 · 162 柜落位</div>
+      </div>
+      <div class="mphase pending">
+        <div class="mphase-bar"><div class="mline"></div><div class="mdot">4</div></div>
+        <div class="mlabel only-zhgk">报告分发</div><div class="mlabel only-guihua">移交安装</div>
+        <div class="mhint only-zhgk">出报告 · 审批</div><div class="mhint only-guihua">移交设备安装</div>
+      </div>
+    </nav>
+
+    <!-- KPI 扫读带 · P3（数据焦点，紧贴 macro-rail，通栏）-->
+    <section class="kpiband telemetry">
+      <div class="donut-wrap">
+        <div class="donut"><span class="donut-val num">68%</span></div>
+        <span class="donut-lbl">整体进度</span>
+      </div>
+      <div class="kpis only-zhgk">
+        <div class="kpi accent"><div class="k">意图</div><div class="v" style="font-size:var(--fs-16);font-weight:600">全流程工勘</div></div>
+        <div class="kpi"><div class="k">代际制冷</div><div class="v" style="font-size:var(--fs-16)">A3 · 液冷</div></div>
+        <div class="kpi"><div class="k">勘测条目</div><div class="v num">128 <span style="font-size:var(--fs-13);color:var(--c-text-muted)">条</span></div></div>
+        <div class="kpi accent"><div class="k">评估满足率</div><div class="v num">86%</div></div>
+        <div class="kpi warn"><div class="k">风险命中</div><div class="v num">5 <span style="font-size:var(--fs-13);color:var(--c-warning-text)">条</span></div></div>
+        <div class="kpi"><div class="k">勘测轮次</div><div class="v num">第 2 轮</div></div>
+      </div>
+      <div class="kpis only-guihua">
+        <div class="kpi accent"><div class="k">超节点组合</div><div class="v" style="font-size:var(--fs-16)">灵衢-A3</div></div>
+        <div class="kpi"><div class="k">适配设备</div><div class="v num">54 <span style="font-size:var(--fs-13);color:var(--c-text-muted)">项</span></div></div>
+        <div class="kpi accent"><div class="k">创建超节点</div><div class="v num">5 <span style="font-size:var(--fs-13);color:var(--c-text-muted)">组</span></div></div>
+        <div class="kpi"><div class="k">机柜落位</div><div class="v num">108/162</div></div>
+        <div class="kpi ok"><div class="k">仿真接口</div><div class="v" style="font-size:var(--fs-16)">LIVE</div></div>
+      </div>
+      <span class="pbadge" style="align-self:flex-start">P3</span>
+    </section>
+
+    <!-- P4：你的回合 接管卡（仅 HITL 态显示，置于 KPI 带与主区之间）-->
+    <section class="takeover">
+      <div class="takeover-card">
+        <div class="to-head">
+          <span class="to-pulse"></span>
+          <span class="to-eyebrow">你的回合 · 需要确认</span>
+          <span class="hdr-spacer"></span>
+          <span class="pbadge">P4</span>
+        </div>
+        <div class="to-body">
+          <div class="to-q only-zhgk">请核对勘测结果表无误，确认后进入 AI 五值评估</div>
+          <div class="to-q only-guihua">请核对设备适配信息表无误，确认后开始创建超节点</div>
+          <div class="to-d only-zhgk">第 2 轮共填写 128 / 128 条，填写率 100%。下方遥测已暂时退后，专注本次确认。</div>
+          <div class="to-d only-guihua">已匹配 54 项设备型号 / 板卡，组合「灵衢-A3」。确认后将平铺创建 5 组超节点。</div>
+          <div class="to-actions">
+            <button class="btn btn-primary">确认无误，继续</button>
+            <button class="btn btn-ghost">查看明细表</button>
+            <button class="btn btn-ghost only-zhgk">驳回 · 发起补勘</button>
+          </div>
+          <div class="to-context">提示：交互卡片同时出现在左侧会话框，<b>在任意一侧完成即自动继续</b>。</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 主区栅格 -->
+    <div class="grid telemetry">
+
+      <!-- ───── 中主区 ───── -->
+      <main>
+        <!-- 工勘内容 -->
+        <div class="only-zhgk">
+          <!-- 分组：评估结果（P3）-->
+          <div class="group">
+            <div class="ghead"><span class="eyebrow">评估结果</span><span class="line"></span><span class="pbadge">P3</span></div>
+
+            <div class="card">
+              <div class="card-head"><span class="card-title">AI 五值评估</span></div>
+              <div class="card-body">
+                <div class="assess-bar">
+                  <i style="width:68%;background:var(--c-success)"></i>
+                  <i style="width:12%;background:var(--c-danger)"></i>
+                  <i style="width:8%;background:var(--c-text-faint)"></i>
+                  <i style="width:7%;background:var(--c-warning)"></i>
+                  <i style="width:5%;background:var(--c-warning-text)"></i>
+                </div>
+                <div class="assess-legend">
+                  <span class="lg"><span class="sw" style="background:var(--c-success)"></span>满足 <span class="n num">87</span></span>
+                  <span class="lg"><span class="sw" style="background:var(--c-danger)"></span>不满足 <span class="n num">15</span></span>
+                  <span class="lg"><span class="sw" style="background:var(--c-text-faint)"></span>不涉及 <span class="n num">10</span></span>
+                  <span class="lg"><span class="sw" style="background:var(--c-warning)"></span>未勘测 <span class="n num">9</span></span>
+                  <span class="lg"><span class="sw" style="background:var(--c-warning-text)"></span>无法识别 <span class="n num">7</span></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><span class="card-title">问题清单</span><span class="chip chip-amber" style="margin-left:6px">15 项</span></div>
+              <table>
+                <thead><tr><th style="width:48px">序号</th><th>问题描述</th><th style="width:88px">状态</th><th>整改建议</th></tr></thead>
+                <tbody>
+                  <tr><td class="idx">01</td><td>主机房层高 4.2m，低于 A3 液冷净高要求</td><td><span class="chip chip-red">不满足</span></td><td>核算 CDU 上走线净空，提报结构复核</td></tr>
+                  <tr><td class="idx">02</td><td>冷冻水供回水温差未提供</td><td><span class="chip chip-amber">未勘测</span></td><td>补充水力平衡数据后重跑评估</td></tr>
+                  <tr><td class="idx">03</td><td>承重图纸缺失，无法识别楼板荷载</td><td><span class="chip chip-amber">无法识别</span></td><td>安排复勘 · 调取土建结构图</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="card">
+              <div class="card-head"><span class="card-title">风险与告警</span><span class="chip chip-red" style="margin-left:6px">2 高 · 3 中</span></div>
+              <div class="risk high"><div><div class="rt">液冷 CDU 上水净高不足</div><div class="rd">触发：层高 4.2m &lt; 设计基线 4.5m</div></div><span class="lv">高</span></div>
+              <div class="risk mid"><div><div class="rt">市电引入容量待复核</div><div class="rd">触发：BOQ 标称 2×2000kVA，现场未见高压柜</div></div><span class="lv">中</span></div>
+            </div>
+          </div>
+
+          <!-- 分组：产出与摘要（P3）-->
+          <div class="group">
+            <div class="ghead"><span class="eyebrow">产出与摘要</span><span class="line"></span></div>
+            <div class="card">
+              <div class="card-head"><span class="card-title">作业产物</span></div>
+              <div class="card-body">
+                <div class="arts">
+                  <div class="art"><span class="ext xlsx">XLSX</span><span class="nm">勘测结果表_R2.xlsx</span></div>
+                  <div class="art"><span class="ext xlsx">XLSX</span><span class="nm">问题清单.xlsx</span></div>
+                  <div class="art"><span class="ext docx">DOCX</span><span class="nm">工勘报告_draft.docx</span></div>
+                  <div class="art"><span class="ext xlsx">XLSX</span><span class="nm">入场评估标准_回填.xlsx</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card-title">阶段摘要</span></div>
+              <div class="card-body summary">
+                <ul style="margin:0;padding-left:18px">
+                  <li>代际制冷 A3 · 液冷（源自 BOQ 设备型号匹配）</li>
+                  <li>底表过滤 128 条（液冷 · 主机房/电力/弱电）</li>
+                  <li>评估 128 项：满足 87 · 不满足 15 · 未勘测 9</li>
+                  <li>识别风险 5 条，其中高风险 2 条待优先处理</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 规划设计内容（P1 同骨架 + P5 iframe 兜底）-->
+        <div class="only-guihua">
+          <div class="group">
+            <div class="ghead"><span class="eyebrow">仿真软件 · nVisual</span><span class="line"></span><span class="pbadge">P5</span></div>
+            <div class="card"><div class="card-body" style="padding:var(--sp-3)">
+              <div class="iframe-ph">
+                <div class="ph-skeleton"></div>
+                <svg class="ic" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M3 8h18M8 21h8M12 18v3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+                <div class="t">仿真软件 (nVisual) 暂未加载</div>
+                <div class="s">当前为离线 / 内网不可达环境。到内网后将自动嵌入实时机房拓扑；落位坐标已就绪，可先核对设备数据页。</div>
+                <button class="ph-btn">在新页打开 · 100.102.191.17:9090</button>
+              </div>
+            </div></div>
+          </div>
+
+          <div class="group">
+            <div class="ghead"><span class="eyebrow">设备数据 · 适配信息表</span><span class="line"></span></div>
+            <div class="card">
+              <table class="compat">
+                <thead><tr><th>设备型号</th><th>板卡</th><th>POD</th><th style="width:88px">适配</th></tr></thead>
+                <tbody>
+                  <tr><td class="mono">Atlas-9000-A3</td><td class="mono">NPU×8 / NIC×2</td><td class="mono">POD-01</td><td><span class="chip" style="background:var(--c-success-soft);color:var(--c-success-text)">已匹配</span></td></tr>
+                  <tr><td class="mono">CDU-Liquid-200</td><td class="mono">—</td><td class="mono">POD-01</td><td><span class="chip" style="background:var(--c-success-soft);color:var(--c-success-text)">已匹配</span></td></tr>
+                  <tr><td class="mono">Switch-CE-128</td><td class="mono">Line×4</td><td class="mono">POD-02</td><td><span class="chip chip-amber">待核对</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <!-- ───── 右栏：执行明细（折叠·P2 降级）+ 执行动态 ───── -->
+      <aside class="rail">
+        <details class="collapse card">
+          <summary>
+            执行明细
+            <span class="pbadge" style="margin-left:0">P2</span>
+            <span class="pill-count only-zhgk">9 / 15</span>
+            <span class="pill-count only-guihua">3 / 5</span>
+            <span class="caret">▸</span>
+          </summary>
+          <div style="padding-bottom:var(--sp-2)">
+            <!-- 工勘 15 micro step（仅当前阶段展开示意，默认折叠）-->
+            <div class="only-zhgk">
+              <div class="microstep done"><span class="d"></span>数据条目追加</div>
+              <div class="microstep done"><span class="d"></span>勘测表确认</div>
+              <div class="microstep done"><span class="d"></span>等待现场上传</div>
+              <div class="microstep run"><span class="d"></span>AI 五值评估</div>
+              <div class="microstep"><span class="d"></span>问题清单生成</div>
+              <div class="microstep"><span class="d"></span>复勘检查门控</div>
+            </div>
+            <div class="only-guihua">
+              <div class="microstep done"><span class="d"></span>设备适配</div>
+              <div class="microstep done"><span class="d"></span>数据确认</div>
+              <div class="microstep run"><span class="d"></span>创建超节点</div>
+              <div class="microstep"><span class="d"></span>机柜落位</div>
+              <div class="microstep"><span class="d"></span>移交设备安装</div>
+            </div>
+          </div>
+        </details>
+
+        <div class="card">
+          <div class="card-head"><span class="card-title">执行动态</span></div>
+          <div class="tl">
+            <div class="tlrow"><span class="dot" style="background:var(--c-warning)"></span><span class="tx">正在执行 · AI 五值评估（87/128）<time>14:22:08</time></span></div>
+            <div class="tlrow"><span class="dot" style="background:var(--c-success)"></span><span class="tx">勘测结果表已汇总，填写率 100%<time>14:20:41</time></span></div>
+            <div class="tlrow"><span class="dot" style="background:var(--c-success)"></span><span class="tx">第 2 轮现场上传完成<time>14:18:55</time></span></div>
+            <div class="tlrow"><span class="dot" style="background:var(--c-text-faint)"></span><span class="tx">代际识别 A3 · 液冷<time>14:05:12</time></span></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- 图例 -->
+  <div class="legend">
+    <h3>这张稿子演示的 5 条建议</h3>
+    <dl>
+      <dt>P1</dt><dd>统一空间范式 —— 工勘 / 规划设计 共用「header → macro-rail → KPI 带 → 主区」骨架（切「模块」开关对比，骨架不变、只换内容）。</dd>
+      <dt>P2</dt><dd>进度收敛为两层 —— macro-rail（4 大阶段）+ donut 量化为主；15 步明细降级为右栏可折叠 <code>执行明细</code>，不再四套进度争注意力。</dd>
+      <dt>P3</dt><dd>KPI 上提成通栏扫读带（紧贴 macro-rail）；中主区按「评估结果 / 产出与摘要」分节加眉题，告别平铺卡墙。</dd>
+      <dt>P4</dt><dd>你的回合（HITL 接管态）—— 切「状态」开关：遥测整体退后降饱和，确认卡升为主角（amber=门控语义）。</dd>
+      <dt>P5</dt><dd>nVisual iframe 空状态兜底 —— 离线时给骨架占位 + 说明 + 新页打开，不再是空白 iframe（切到「规划设计」查看）。</dd>
+    </dl>
+  </div>
+
+</div>
+
+<script>
+  const body = document.body;
+  const cockpit = document.getElementById('cockpit');
+  document.getElementById('modSwitch').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+    body.classList.toggle('mod-zhgk', b.dataset.mod === 'zhgk');
+    body.classList.toggle('mod-guihua', b.dataset.mod === 'guihua');
+  });
+  document.getElementById('stateSwitch').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+    cockpit.classList.toggle('is-hitl', b.dataset.state === 'hitl');
+  });
+</script>
+</body>
+</html>

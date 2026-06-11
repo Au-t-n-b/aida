@@ -62,6 +62,29 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
     return ""
 
 
+def _already_appended(ctx: SkillContext) -> bool:
+    """幂等标记：本 run 是否已追加过数据条目（防 full_restart 重放重复追加）。"""
+    info_path = ctx.runtime_dir / "project_info.json"
+    if info_path.exists():
+        try:
+            return bool(json.loads(info_path.read_text(encoding="utf-8")).get("data_append_done"))
+        except Exception:
+            pass
+    return False
+
+
+def _mark_appended(ctx: SkillContext, count: int) -> None:
+    info_path = ctx.runtime_dir / "project_info.json"
+    try:
+        existing = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
+    except Exception:
+        existing = {}
+    existing["data_append_done"] = True
+    existing["data_append_count"] = count
+    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+    info_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 class DataAppendStep(BaseStep):
     key = "data_append"
     name = "数据条目追加"
@@ -91,6 +114,11 @@ class DataAppendStep(BaseStep):
         if choice == "skip":
             emit("[data_append] 跳过数据条目追加")
             return {"metrics": {"data_append_skipped": True, "data_append_count": 0}}
+
+        # 幂等：full_restart 重放本步时若已追加过则跳过，否则数据行会累积翻倍
+        if _already_appended(ctx):
+            emit("[data_append] ✓ 数据条目已追加过（幂等跳过，避免重复行）")
+            return {"metrics": {"data_append_idempotent_skip": True}}
 
         # choice == "append_all"
         survey_table_path = _get_survey_table(ctx)
@@ -139,6 +167,7 @@ class DataAppendStep(BaseStep):
 
         total_rows = append_data_items(survey_table_path, data_items)
         count = len(data_items)
+        _mark_appended(ctx, count)
         emit(f"[data_append] ✓ 追加 {count} 条数据类条目（表格总行数: {total_rows}）")
 
         return {

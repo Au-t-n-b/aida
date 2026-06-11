@@ -5,6 +5,7 @@ import { router } from './router';
 import { AidaSessionProvider } from './lib/aida-session';
 import { AidaChatBridge } from './lib/aida-chat-bridge';
 import './styles/globals.css';
+import './styles/claw-rail.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

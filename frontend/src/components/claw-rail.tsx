@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { usePathname } from '@/compat/navigation';
+import { usePathname, useNavPath } from '@/compat/navigation';
 import {
   getSeedForPath,
   getSuggestsForPath,
-  getModuleLabel,
 } from '../data/claw-seeds';
+import { getNavLabel } from '../data/left-nav-items';
 import { refreshEvals } from '@/lib/eval-refresh';
 import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunStore';
 import { useSkillHitlStore } from '@/lib/skillHitlStore';
@@ -87,41 +87,36 @@ const IcChevron = () => (
   </svg>
 );
 const IcSwap = () => (
-  <svg width={13} height={13} viewBox="0 0 16 16" fill="none">
+  <svg width={15} height={15} viewBox="0 0 16 16" fill="none" aria-hidden>
     <path d="M3 5.5 H12.5 M10 3 L12.5 5.5 L10 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     <path d="M13 10.5 H3.5 M6 8 L3.5 10.5 L6 13" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
   </svg>
 );
 const IcMaximize = () => (
-  <svg width={12} height={12} viewBox="0 0 12 12" fill="none">
+  <svg width={14} height={14} viewBox="0 0 12 12" fill="none" aria-hidden>
     <path d="M2 4 L2 2 L4 2 M8 2 L10 2 L10 4 M2 8 L2 10 L4 10 M8 10 L10 10 L10 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" fill="none" />
   </svg>
 );
 const IcMinimize = () => (
-  <svg width={12} height={12} viewBox="0 0 12 12" fill="none">
+  <svg width={14} height={14} viewBox="0 0 12 12" fill="none" aria-hidden>
     <path d="M4 2 L4 4 L2 4 M8 4 L10 4 L10 2 M4 10 L4 8 L2 8 M10 8 L8 8 L8 10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" fill="none" />
   </svg>
 );
-const IcAttach = () => (
-  <svg width={13} height={13} viewBox="0 0 14 14" fill="none">
-    <path d="M9.5 4 L4.5 9 C3.5 10 3.5 11.5 4.5 12.5 C5.5 13.5 7 13.5 8 12.5 L13 7.5" stroke="currentColor" strokeWidth="1.1" fill="none" strokeLinecap="square" />
+const TOOL_ICON = 15;
+
+const IcPlus = () => (
+  <svg width={TOOL_ICON} height={TOOL_ICON} viewBox="0 0 14 14" fill="none" aria-hidden>
+    <path d="M7 3 V11 M3 7 H11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
   </svg>
 );
 const IcFilter = () => (
-  <svg width={12} height={12} viewBox="0 0 12 12" fill="none">
-    <path d="M1 2 L11 2 L7 6 L7 10 L5 11 L5 6 Z" stroke="currentColor" strokeWidth="1" fill="none" />
+  <svg width={TOOL_ICON} height={TOOL_ICON} viewBox="0 0 14 14" fill="none" aria-hidden>
+    <path d="M2 3.5 H12 L8.25 7.75 V11 L5.75 12.25 V7.75 Z" stroke="currentColor" strokeWidth="1.1" fill="none" strokeLinejoin="round" />
   </svg>
 );
 const IcSend = () => (
   <svg width={10} height={10} viewBox="0 0 12 12" fill="none">
     <path d="M1 11 L11 6 L1 1 L2.5 6 Z" fill="currentColor" />
-  </svg>
-);
-const IcDashboard = () => (
-  <svg width={10} height={10} viewBox="0 0 16 16" fill="none">
-    <rect x="2" y="2" width="5.5" height="7" stroke="currentColor" strokeWidth="1" fill="none" />
-    <rect x="8.5" y="2" width="5.5" height="4" stroke="currentColor" strokeWidth="1" fill="none" />
-    <rect x="8.5" y="7" width="5.5" height="7" stroke="currentColor" strokeWidth="1" fill="none" />
   </svg>
 );
 const IcEye = () => (
@@ -205,8 +200,8 @@ function ProposalUploadPanel() {
   return (
     <div className="claw-module-ctl">
       <div style={{ padding: '10px 14px 4px', display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a1a1aa' }}>文件上传</span>
-        <span style={{ fontSize: 11, color: missingRequired.length === 0 ? '#10b981' : '#a1a1aa' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a1a1aa' }}>文件上传</span>
+        <span style={{ fontSize: 12, color: missingRequired.length === 0 ? '#10b981' : '#a1a1aa' }}>
           {uploadedCount}/{PROPOSAL_DOCS.length}
           {missingRequired.length === 0 ? ' ✓' : ''}
         </span>
@@ -243,7 +238,7 @@ function ProposalUploadPanel() {
       </div>
 
       {missingRequired.length > 0 && (
-        <div style={{ margin: '4px 14px 8px', padding: '7px 10px', background: 'rgba(251,191,36,0.08)', borderRadius: 6, fontSize: 11, color: '#92400e' }}>
+        <div style={{ margin: '4px 14px 8px', padding: '7px 10px', background: 'rgba(251,191,36,0.08)', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
           还缺 {missingRequired.length} 项：{missingRequired.map(d => d.label).join(' / ')}
         </div>
       )}
@@ -412,9 +407,29 @@ function ModuleControlPanel({ pathname }: { pathname: string }) {
 
 // ── SSE helpers ─────────────────────────────────────────────────────────────
 
+function formatChatTs(d: Date = new Date()): string {
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${y}-${mo}-${da} ${h}:${m}`;
+}
+
 function nowTs() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return formatChatTs();
+}
+
+/** 展示用：新消息已是完整格式；种子数据里的 HH:mm 补上当天日期 */
+function displayMsgTs(ts: string): string {
+  if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}/.test(ts)) return ts;
+  const hm = ts.match(/^(\d{1,2}):(\d{2})$/);
+  if (hm) {
+    const d = new Date();
+    d.setHours(Number(hm[1]), Number(hm[2]), 0, 0);
+    return formatChatTs(d);
+  }
+  return ts;
 }
 
 function genConvId(): string {
@@ -491,7 +506,7 @@ function SkillRunBanner({
 
   const badgeText =
     phase === 'starting'  ? '启动中…'
-    : phase === 'hitl'    ? (hitlType === 'choice' ? '⏸ 待选择' : '⏸ 待文件')
+    : phase === 'hitl'    ? (hitlType === 'choice' ? '⏸ 待选择' : hitlType === 'edit' ? '⏸ 待填表' : '⏸ 待文件')
     : phase === 'running' ? `执行中 ${progress}%`
     : phase === 'done'    ? '已完成 ✓'
     : phase === 'error'   ? '出错'
@@ -542,6 +557,8 @@ function SkillRunBanner({
               onAction: () => {},
               onUpload: myHitl.onUpload,
               onChoiceSubmit: myHitl.onChoiceSubmit,
+              // 在线编辑表默认留在右侧大盘（route_hitl_edit 契约），左栏不承接表格提交
+              onRowsSubmit: () => {},
             }}
           >
             <SduiNodeView node={myHitl.node} />
@@ -557,13 +574,13 @@ function SkillRunBanner({
           background: 'rgba(251,191,36,.06)',
           border: '1px solid rgba(217,119,6,.2)',
           borderRadius: 6,
-          fontSize: '11px',
+          fontSize: '12px',
           color: '#92400e',
-          lineHeight: 1.5,
+          lineHeight: 1.55,
         }}>
-          <strong>{hitlType === 'choice' ? '⏸ 需要确认选项' : '⏸ 需要上传文件'}</strong>
+          <strong>{hitlType === 'choice' ? '⏸ 需要确认选项' : hitlType === 'edit' ? '⏸ 需要在线填表' : '⏸ 需要上传文件'}</strong>
           <br />
-          请在右侧操作面板{hitlType === 'choice' ? '完成选择' : '上传所需文件'}后继续。
+          请在右侧操作面板{hitlType === 'choice' ? '完成选择' : hitlType === 'edit' ? '完成表格填写并提交' : '上传所需文件'}后继续。
         </div>
       )}
 
@@ -663,6 +680,7 @@ export default function ClawRail({
   const [savedWidth, setSavedWidth] = useState<number | null>(null);
 
   const pathname = usePathname() ?? '';
+  const navPath = useNavPath();
 
   // Real chat messages (user ↔ AI turns)
   const [chatMsgs, setChatMsgs] = useState<Msg[]>([]);
@@ -695,7 +713,7 @@ export default function ClawRail({
 
   const seedForPath = getSeedForPath(pathname) as Msg[];
   const suggestsForPath = getSuggestsForPath(pathname) as string[];
-  const moduleLabel = getModuleLabel(pathname) as string;
+  const navLabel = getNavLabel(navPath);
 
   // External async events from other parts of the app (BOQ parse progress, etc.)
   const [appendMsgs, setAppendMsgs] = useState<Msg[]>([]);
@@ -986,7 +1004,7 @@ export default function ClawRail({
   };
 
   const handleKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void sendMessage();
     }
@@ -1025,18 +1043,9 @@ export default function ClawRail({
       <div className="claw-head" onClick={onToggle} title={collapsed ? '展开 AIDA 助手' : '折叠 AIDA 助手'}>
         <div className="ch-icon"><IcSparkle /></div>
         <div style={{ flex: 1 }}>
-          <div className="ch-name">AIDA 助手 · <span style={{ color: 'var(--c-text-muted)', fontWeight: 400 }}>{moduleLabel}</span></div>
+          <div className="ch-name">AIDA助手 · <span style={{ color: 'var(--c-text-muted)', fontWeight: 400 }}>{navLabel}</span></div>
         </div>
         <span className="ch-collapse"><IcChevron /></span>
-      </div>
-
-      {/* context chips */}
-      <div className="claw-context">
-        <span style={{ color: 'var(--c-text-faint)', letterSpacing: '0.4px' }}>CONTEXT</span>
-        <span className="ctx-pill"><IcDashboard />交付态势 · 智算 Q2</span>
-        <span className="ctx-pill" style={{ background: 'transparent', color: 'var(--c-text-muted)', borderColor: 'var(--c-border)' }}>
-          36 PoD · 14 机房
-        </span>
       </div>
 
       <ModuleControlPanel pathname={pathname} />
@@ -1046,7 +1055,7 @@ export default function ClawRail({
         {allMsgs.map((m, i) => (
           <div key={i} className={`cmsg ${m.role}`}>
             <div className="meta">
-              {m.role === 'ai' ? 'AIDA · ' : '何博 · '}{m.ts}
+              {m.role === 'ai' ? 'AIDA · ' : '何博 · '}{displayMsgTs(m.ts)}
             </div>
             <div className="body">
               {m.chips ? (
@@ -1171,8 +1180,8 @@ export default function ClawRail({
           />
           <div className="ci-foot">
             <div className="ci-tools">
-              <button className="tool-btn" title="附文档"><IcAttach /></button>
-              <button className="tool-btn" title="引用页面对象">@</button>
+              <button className="tool-btn" title="附文件"><IcPlus /></button>
+              <button className="tool-btn" title="引用页面对象"><span className="tool-btn-glyph">@</span></button>
               <button className="tool-btn" title="筛选范围"><IcFilter /></button>
             </div>
             <button
@@ -1180,7 +1189,7 @@ export default function ClawRail({
               onClick={() => { void sendMessage(); }}
               disabled={isStreaming || !draft.trim()}
             >
-              <IcSend />{isStreaming ? '…' : '发送'} <span className="kbd">⌘↵</span>
+              <IcSend />{isStreaming ? '…' : '发送'}
             </button>
           </div>
         </div>

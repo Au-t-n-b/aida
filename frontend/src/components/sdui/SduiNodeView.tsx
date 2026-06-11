@@ -17,6 +17,7 @@ import { SduiDonutChart } from './SduiDonutChart';
 import { SduiArtifactGrid } from './SduiArtifactGrid';
 import { SduiFilePicker } from './SduiFilePicker';
 import { SduiChoiceCard } from './SduiChoiceCard';
+import { SduiDataTable } from './SduiDataTable';
 import { useSduiRuntime } from './SduiContext';
 
 // ── Sub-components (must be real components for hook rules) ────────────────────
@@ -48,8 +49,8 @@ function StatRow({ items }: { items: SduiStatisticRowItem[] }) {
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(96px, 1fr))',
-      gap: '9px',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))',
+      gap: '10px',
       flex: 1,
     }}>
       {items.map((item, i) => {
@@ -59,29 +60,73 @@ function StatRow({ items }: { items: SduiStatisticRowItem[] }) {
         return (
           <div key={i} style={{
             position: 'relative',
-            background: 'var(--surface)',
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '11px 12px 11px 14px',
+            background: 'var(--c-surface)',
+            border: '1px solid var(--c-border)',
+            borderRadius: 'var(--r-md)',
+            boxShadow: 'var(--shadow-xs)',
+            padding: '12px 16px 12px 20px',
             overflow: 'hidden',
             animation: `sdui-node-in .22s cubic-bezier(.2,.65,.4,1) ${staggerDelay} both`,
           }}>
-            {/* Left 3px accent bar — sole color outlet */}
-            <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: accent }} />
+            {/* Left 3px accent bar — sole color outlet (inset + rounded, v4 .d-stat) */}
+            <div style={{ position: 'absolute', left: 0, top: 11, bottom: 11, width: 3, borderRadius: '0 999px 999px 0', background: accent }} />
             <div style={{
-              fontSize: '10px', color: 'var(--text-tertiary)',
+              fontSize: 'var(--fs-11)', color: 'var(--c-text-muted)',
               textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 500,
               lineHeight: 1.2, minHeight: 24, display: 'flex', alignItems: 'flex-start',
             }}>
               {item.title}
             </div>
             <div style={{
-              fontFamily: 'var(--font-mono)', fontSize: '18px', fontWeight: 700,
-              color: 'var(--text-primary)',  // always zinc-900 regardless of intent
-              marginTop: 5, letterSpacing: '-.02em',
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-24)', fontWeight: 600,
+              color: 'var(--c-text)',
+              marginTop: 5, letterSpacing: '-.01em', lineHeight: 1.1,
+              fontVariantNumeric: 'tabular-nums',
               display: 'flex', alignItems: 'baseline', gap: 3,
             }}>
               {String(item.value)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** GoldenMetrics — 黄金指标卡（v4 .d-gm）：顶部 2px 状态色边 + 状态色数值 + 星标 eyebrow。
+ *  区别于 StatRow（中性 KPI），黄金指标用状态色强调「健康度」。 */
+const GM_STATUS: Record<string, { top: string; val: string }> = {
+  success: { top: 'var(--c-success)', val: 'var(--c-success-text)' },
+  warning: { top: 'var(--c-warning)', val: 'var(--c-warning-text)' },
+  danger:  { top: 'var(--c-danger)',  val: 'var(--c-danger-text)' },
+  error:   { top: 'var(--c-danger)',  val: 'var(--c-danger-text)' },
+  accent:  { top: 'var(--c-brand)',   val: 'var(--c-text)' },
+  brand:   { top: 'var(--c-brand)',   val: 'var(--c-text)' },
+};
+function GoldenMetricsCards({ items }: { items: SduiStatisticRowItem[] }) {
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 'var(--sp-2)' }}>
+      {items.map((m, i) => {
+        const st = m.color ? (GM_STATUS[m.color] ?? { top: 'var(--c-border-strong)', val: 'var(--c-text)' })
+                           : { top: 'var(--c-border-strong)', val: 'var(--c-text)' };
+        return (
+          <div key={i} style={{
+            background: 'var(--c-surface)', border: '1px solid var(--c-border)',
+            borderTop: `2px solid ${st.top}`, borderRadius: 'var(--r-md)',
+            padding: '13px var(--sp-3)', boxShadow: 'var(--shadow-xs)',
+            animation: `sdui-node-in .22s cubic-bezier(.2,.65,.4,1) ${Math.min(i, 6) * 0.05}s both`,
+          }}>
+            <div style={{
+              fontSize: 'var(--fs-11)', textTransform: 'uppercase', letterSpacing: '.05em',
+              color: 'var(--c-text-muted)', display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              <span style={{ color: 'var(--c-brand)', fontSize: 10 }}>★</span>{m.title}
+            </div>
+            <div style={{
+              fontSize: 'var(--fs-24)', fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.1,
+              color: st.val, marginTop: 8, fontVariantNumeric: 'tabular-nums',
+            }}>
+              {String(m.value)}
             </div>
           </div>
         );
@@ -97,36 +142,52 @@ const RISK_DOT: Record<string, string> = {
   '低': '#10b981',  // success
 };
 
+// 数字单元格判定：纯数字 / 百分比 / 带单位数字 → 右对齐 + tabular-nums
+const NUMERIC_CELL = /^[¥$]?\s*-?[\d,]+(\.\d+)?\s*(%|台|个|条|组|柜|项|kW|W|GB|TB)?$/;
+
 function SduiTable({ headers, rows }: { headers?: string[]; rows: string[][] }) {
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+    <div className="sdui-tbl" style={{
+      border: '1px solid var(--c-border)', borderRadius: 'var(--r-md)',
+      overflow: 'hidden', background: 'var(--c-surface)', boxShadow: 'var(--shadow-xs)',
+    }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 'var(--fs-13)' }}>
         {headers && (
           <thead>
             <tr>
-              {headers.map((h, i) => (
-                <th key={i} style={{
-                  padding: '9px 12px', textAlign: 'left',
-                  fontSize: '10px', fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase',
-                  color: 'var(--text-tertiary)', background: 'var(--c-surface-2)',
-                  borderBottom: '1px solid var(--border)',
-                }}>
-                  {h}
-                </th>
-              ))}
+              {headers.map((h, i) => {
+                const numeric = rows.length > 0 && rows.every(r => r[i] === undefined || r[i] === '' || NUMERIC_CELL.test(r[i]));
+                return (
+                  <th key={i} style={{
+                    padding: '10px 12px', textAlign: numeric && i > 0 ? 'right' : 'left',
+                    fontSize: 'var(--fs-11)', fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase',
+                    color: 'var(--c-text-muted)', background: 'var(--c-surface-2)', whiteSpace: 'nowrap',
+                    borderBottom: '1px solid var(--c-divider)',
+                  }}>
+                    {h}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
         )}
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} style={{ borderBottom: ri < rows.length - 1 ? '1px solid var(--border)' : 'none' }}>
+            <tr key={ri} style={{ borderBottom: ri < rows.length - 1 ? '1px solid var(--c-divider)' : 'none' }}>
               {row.map((cell, ci) => {
                 const dotColor = ci === 0 ? RISK_DOT[cell] : undefined;
+                const numeric = ci > 0 && NUMERIC_CELL.test(cell ?? '');
                 return (
-                  <td key={ci} style={{ padding: '10px 12px', color: 'var(--text-secondary)', verticalAlign: 'top' }}>
+                  <td key={ci} style={{
+                    padding: '10px 12px', verticalAlign: 'top',
+                    color: numeric ? 'var(--c-text)' : 'var(--c-text-2)',
+                    textAlign: numeric ? 'right' : 'left',
+                    fontWeight: numeric ? 600 : 400,
+                    fontVariantNumeric: numeric ? 'tabular-nums' : undefined,
+                  }}>
                     {dotColor ? (
                       /* Risk level: colored dot + text, no pill badge */
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600, color: 'var(--c-text)' }}>
                         <i style={{ width: 7, height: 7, borderRadius: 2, background: dotColor, display: 'block', flexShrink: 0 }} />
                         {cell}
                       </span>
@@ -139,7 +200,7 @@ function SduiTable({ headers, rows }: { headers?: string[]; rows: string[][] }) 
         </tbody>
       </table>
       {rows.length === 0 && (
-        <div style={{ padding: '14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '12px' }}>暂无数据</div>
+        <div style={{ padding: '14px', textAlign: 'center', color: 'var(--c-text-muted)', fontSize: 'var(--fs-12)' }}>暂无数据</div>
       )}
     </div>
   );
@@ -553,6 +614,37 @@ function SduiAccordion({ items }: { items: Array<{ title: string; body: string }
   );
 }
 
+/** 可折叠卡（Card.collapsible）：卡头变可点击折叠开关，把次要明细（如 micro-step Stepper）收起。
+ *  样式与 Panel 一致（白面板 + border + shadow-sm），单独成组件以便用 useState。 */
+function CollapsibleCard({ title, defaultCollapsed, children }: {
+  title: string; defaultCollapsed?: boolean; children: React.ReactNode;
+}) {
+  const [collapsed, setCollapsed] = useState(!!defaultCollapsed);
+  return (
+    <div style={{
+      background: 'var(--c-surface)', border: '1px solid var(--c-border)',
+      borderRadius: 'var(--r-lg)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden',
+      animation: 'sdui-node-in .28s cubic-bezier(.2,.65,.4,1) both',
+    }}>
+      <div
+        onClick={() => setCollapsed(c => !c)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', userSelect: 'none',
+          padding: 'var(--sp-3) var(--pad-panel)',
+          borderBottom: collapsed ? 'none' : '1px solid var(--c-divider)',
+        }}
+      >
+        <span style={{ fontWeight: 600, fontSize: 'var(--fs-13)', color: 'var(--c-text)' }}>{title}</span>
+        <span style={{
+          marginLeft: 'auto', color: 'var(--c-text-faint)', fontSize: 'var(--fs-12)',
+          transform: collapsed ? 'none' : 'rotate(90deg)', transition: 'transform .2s',
+        }}>▸</span>
+      </div>
+      {!collapsed && <div style={{ padding: 'var(--pad-panel)' }}>{children}</div>}
+    </div>
+  );
+}
+
 type HitlTextProps = {
   node: Extract<SduiNode, { type: 'HitlTextInput' }>;
   onSubmit: (value: string, stepId?: string) => void;
@@ -692,9 +784,29 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       // Card 是最主要的 section 容器：入场淡入 + 上移。
       // 依赖 React key 机制：id 稳定的 Card（header/stepper/golden-metrics）不会 remount，
       // 不会重复动画；新出现的 Card（risk-top-alert/hitl-card）会 remount → 触发动画。
+      const headerAction = (node as { headerAction?: { label: string; variant?: string; action: import('@/lib/sdui').SduiAction } }).headerAction;
+      // 可折叠卡：把次要明细（如 micro-step Stepper）收起，减轻信息墙（需 title）。
+      if (node.collapsible && node.title) {
+        return (
+          <CollapsibleCard title={node.title} defaultCollapsed={node.defaultCollapsed}>
+            {renderChildren(node.children)}
+          </CollapsibleCard>
+        );
+      }
       return (
         <Panel title={node.title ?? undefined} tone={panelTone}
                style={{ animation: 'sdui-node-in .28s cubic-bezier(.2,.65,.4,1) both' }}>
+          {headerAction && (
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+              <button
+                onClick={() => onAction(headerAction.action)}
+                style={{ padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 4, cursor: 'pointer',
+                  border: headerAction.variant === 'primary' ? '1px solid #3551d8' : '1px solid var(--border)',
+                  background: headerAction.variant === 'primary' ? '#3551d8' : 'var(--surface)',
+                  color: headerAction.variant === 'primary' ? '#fff' : 'var(--text-secondary)' }}
+              >{headerAction.label}</button>
+            </div>
+          )}
           {renderChildren(node.children)}
         </Panel>
       );
@@ -725,6 +837,18 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     }
 
     case 'Divider':
+      // 带 label = 分节眉题（eyebrow 大写小字 + 延伸细线），用于把同区多张卡分组。
+      if (node.label) {
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', margin: 'var(--sp-1) 0 0' }}>
+            <span style={{
+              fontSize: 'var(--fs-11)', fontWeight: 600, letterSpacing: '.06em',
+              textTransform: 'uppercase', color: 'var(--c-text-muted)', whiteSpace: 'nowrap',
+            }}>{node.label}</span>
+            <span style={{ flex: 1, height: 1, background: 'var(--c-divider)' }} />
+          </div>
+        );
+      }
       return (
         <div style={
           node.orientation === 'vertical'
@@ -782,9 +906,13 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     case 'Statistic':
       return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{node.title}</div>
-          <div style={{ fontSize: 'var(--text-xl)', fontWeight: 700, fontFamily: 'var(--font-mono)', color: node.color ? (COLOR_MAP[node.color] ?? 'var(--text-primary)') : 'var(--text-primary)' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 'var(--fs-11)', color: 'var(--c-text-muted)', textTransform: 'uppercase', letterSpacing: '.05em' }}>{node.title}</div>
+          <div style={{
+            fontSize: 'var(--fs-24)', fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.1,
+            fontVariantNumeric: 'tabular-nums',
+            color: node.color ? (COLOR_MAP[node.color] ?? 'var(--c-text)') : 'var(--c-text)',
+          }}>
             {String(node.value)}
           </div>
         </div>
@@ -840,7 +968,7 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
         value: String(m.value ?? ''),
         color: m.color as SduiStatisticRowItem['color'],
       }));
-      return <StatRow items={items} />;
+      return <GoldenMetricsCards items={items} />;
     }
 
     // ── v1.1 display nodes ──
@@ -849,10 +977,10 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       // Tone-specific semantic colors; line SVG icons replace emoji
       type AlertStyle = { bg: string; border: string; titleColor: string; textColor: string; iconColor: string };
       const ALERT_STYLE: Record<string, AlertStyle> = {
-        info:    { bg: '#e6efff', border: '#c2d6fb', titleColor: '#1e40af', textColor: '#3056b0', iconColor: '#3551d8' },
-        success: { bg: '#e6f6ee', border: '#bfe9d3', titleColor: '#065f46', textColor: '#0a7350', iconColor: '#0a7350' },
-        warning: { bg: '#fdf2dd', border: '#f5e0b0', titleColor: '#92400e', textColor: '#b45309', iconColor: '#d97706' },
-        error:   { bg: '#fde8e8', border: '#f6c6c6', titleColor: '#991b1b', textColor: '#c0322f', iconColor: '#c0322f' },
+        info:    { bg: 'var(--c-info-soft)',    border: 'var(--c-brand-line)', titleColor: 'var(--c-info-text)',    textColor: 'var(--c-info-text)',    iconColor: 'var(--c-brand)' },
+        success: { bg: 'var(--c-success-soft)', border: '#bfe9d3',             titleColor: 'var(--c-success-text)', textColor: 'var(--c-success-text)', iconColor: 'var(--c-success)' },
+        warning: { bg: 'var(--c-warning-soft)', border: '#f1d79a',             titleColor: 'var(--c-warning-text)', textColor: 'var(--c-warning-text)', iconColor: 'var(--c-warning)' },
+        error:   { bg: 'var(--c-danger-soft)',  border: '#f6c6c6',             titleColor: 'var(--c-danger-text)',  textColor: 'var(--c-danger-text)',  iconColor: 'var(--c-danger)' },
       };
       // SVG path content per tone (stroke icon, currentColor)
       const ALERT_SVG: Record<string, ReactNode> = {
@@ -863,7 +991,7 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       };
       const tone = (node.tone ?? 'info') as string;
       const _alertStyle = ALERT_STYLE[tone] ?? ALERT_STYLE['info'];
-      const s: AlertStyle = _alertStyle ?? { bg: '#e6efff', border: '#c2d6fb', titleColor: '#1e40af', textColor: '#3056b0', iconColor: '#3551d8' };
+      const s: AlertStyle = _alertStyle ?? { bg: 'var(--c-info-soft)', border: 'var(--c-brand-line)', titleColor: 'var(--c-info-text)', textColor: 'var(--c-info-text)', iconColor: 'var(--c-brand)' };
       return (
         <div style={{
           display: 'flex', gap: 10, alignItems: 'flex-start',
@@ -883,11 +1011,11 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
           </span>
           <div>
             {node.title && (
-              <div style={{ fontWeight: 600, fontSize: '12px', color: s.titleColor, lineHeight: 1.4, marginBottom: 2 }}>
+              <div style={{ fontWeight: 600, fontSize: 'var(--fs-13)', color: s.titleColor, lineHeight: 1.4, marginBottom: 2 }}>
                 {node.title}
               </div>
             )}
-            <div style={{ fontSize: '11px', color: s.textColor, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 'var(--fs-12)', color: s.textColor, lineHeight: 1.55 }}>
               {node.message}
             </div>
           </div>
@@ -898,10 +1026,10 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'Timeline': {
       // Double-ring dot: inner fill + outer ring via box-shadow
       const TL_DOT_COLOR: Record<string, string> = {
-        default: '#94a3b8', success: '#10b981', warning: '#d97706', error: '#dc2626',
+        default: 'var(--c-text-faint)', success: 'var(--c-success)', warning: 'var(--c-warning)', error: 'var(--c-danger)',
       };
       const TL_RING_COLOR: Record<string, string> = {
-        default: '#cbd5e1', success: '#c9f0dd', warning: '#f3e0bd', error: '#f6cccc',
+        default: 'var(--c-border-strong)', success: 'var(--c-success-soft)', warning: 'var(--c-warning-soft)', error: 'var(--c-danger-soft)',
       };
       const evts = node.events ?? [];
       return (
@@ -951,17 +1079,15 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'NumberCard': {
       // KPI 大数字弹入：轻弹簧感（scale 0.88 → 1.015 → 1）
       // Top 3px semantic gradient bar by tone; hero number always zinc-900
-      const NC_GRADIENT: Record<string, string> = {
-        accent:  'linear-gradient(90deg,#3551d8,#7d92f2)',
-        brand:   'linear-gradient(90deg,#3551d8,#7d92f2)',
-        success: 'linear-gradient(90deg,#10b981,#34d399)',
-        warning: 'linear-gradient(90deg,#d97706,#fbbf24)',
-        error:   'linear-gradient(90deg,#dc2626,#f87171)',
-        danger:  'linear-gradient(90deg,#dc2626,#f87171)',
-        subtle:  'linear-gradient(90deg,#94a3b8,#cbd5e1)',
+      // 顶部 3px 语义色条（v4 克制：实色 token，不再用渐变）
+      const NC_BAR: Record<string, string> = {
+        accent:  'var(--c-brand)', brand: 'var(--c-brand)',
+        success: 'var(--c-success)', warning: 'var(--c-warning)',
+        error:   'var(--c-danger)', danger: 'var(--c-danger)',
+        subtle:  'var(--c-border-strong)',
       };
       const DELTA_COLOR: Record<string, string> = {
-        up: '#10b981', down: '#dc2626', neutral: '#94a3b8',
+        up: 'var(--c-success-text)', down: 'var(--c-danger-text)', neutral: 'var(--c-text-muted)',
       };
       // SVG chevron paths for delta direction
       const DELTA_SVG: Record<string, ReactNode> = {
@@ -970,28 +1096,28 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
         neutral: (<path d="M5 12h14"/>),
       };
       const dir = (node.deltaDir ?? 'neutral') as string;
-      const gradient = NC_GRADIENT[(node.tone ?? 'subtle') as string] ?? NC_GRADIENT.subtle;
+      const barColor = NC_BAR[(node.tone ?? 'subtle') as string] ?? NC_BAR.subtle;
       return (
         <div style={{
           position: 'relative',
           padding: '15px 14px 13px',
-          borderRadius: 'var(--radius-lg)',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          boxShadow: '0 1px 2px rgba(15,23,42,.04)',
+          borderRadius: 'var(--r-md)',
+          background: 'var(--c-surface)',
+          border: '1px solid var(--c-border)',
+          boxShadow: 'var(--shadow-xs)',
           overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
           animation: 'sdui-pop .32s cubic-bezier(.2,.65,.4,1) both',
         }}>
-          {/* Top 3px gradient bar — sole color outlet */}
-          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 3, background: gradient }} />
-          <div style={{ fontSize: '10px', fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-tertiary)' }}>
+          {/* Top 3px semantic bar — sole color outlet */}
+          <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 3, background: barColor }} />
+          <div style={{ fontSize: 'var(--fs-11)', fontWeight: 500, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--c-text-muted)' }}>
             {node.label}
           </div>
-          {/* Hero value: always zinc-900, 27px mono */}
+          {/* Hero value: sans + tabular-nums（与 StatRow/GoldenMetrics 一致） */}
           <div style={{
-            fontFamily: 'var(--font-mono)', fontSize: '27px', fontWeight: 700,
-            letterSpacing: '-.02em', color: 'var(--text-primary)',
+            fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-30)', fontWeight: 600,
+            letterSpacing: '-.01em', color: 'var(--c-text)', fontVariantNumeric: 'tabular-nums',
             margin: '8px 0 7px', lineHeight: 1,
             display: 'flex', alignItems: 'baseline', gap: 3,
           }}>
@@ -1017,11 +1143,11 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'PlaneMatrix': {
       // 平面矩阵：N 个网络平面 × 规划状态。按 group 聚拢，每格 = 状态点 + 平面名 + 角标。
       const PM_DOT: Record<string, string> = {
-        done: '#10b981', running: '#3551d8', pending: '#cbd5e1', error: '#dc2626',
+        done: 'var(--c-success)', running: 'var(--c-warning)', pending: 'var(--c-border-strong)', error: 'var(--c-danger)',
       };
       const PM_LABEL: Record<string, string> = {
-        done: 'var(--text-primary)', running: 'var(--text-primary)',
-        pending: 'var(--text-tertiary)', error: '#dc2626',
+        done: 'var(--c-text)', running: 'var(--c-warning-text)',
+        pending: 'var(--c-text-muted)', error: 'var(--c-danger)',
       };
       const cells = node.cells ?? [];
       // 按首次出现顺序分组
@@ -1115,12 +1241,13 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
 
     case 'Spinner': {
-      const spinColor = node.tone === 'brand' ? '#3551d8' : '#d97706';
+      // v4：默认 = 琥珀（进行中语义）；brand 变体 = 品牌蓝（仅当语义确为「AI 动作」时）
+      const spinColor = node.tone === 'brand' ? 'var(--c-brand)' : 'var(--c-warning)';
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 13, color: 'var(--text-secondary)' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 9, fontSize: 'var(--fs-13)', color: 'var(--c-text-2)' }}>
           <i style={{
             width: 18, height: 18, borderRadius: '50%', display: 'block',
-            border: '2.5px solid var(--zinc-100)', borderTopColor: spinColor,
+            border: '2.5px solid var(--c-bg-soft)', borderTopColor: spinColor,
             animation: 'spin .8s linear infinite',
           }} />
           {node.label}
@@ -1129,17 +1256,23 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     }
 
     case 'ProgressBar': {
-      const PB_FILL: Record<string, string> = { success: '#0f9d58', warning: '#d97706', danger: '#dc2626' };
+      const PB_FILL: Record<string, string> = {
+        success: 'var(--c-success)', warning: 'var(--c-warning)', danger: 'var(--c-danger)',
+      };
+      const PB_TONE: Record<string, string> = {
+        success: 'var(--c-success-text)', warning: 'var(--c-warning-text)', danger: 'var(--c-danger-text)',
+      };
       const v = Math.max(0, Math.min(100, node.value));
-      const fill = node.tone ? (PB_FILL[node.tone] ?? '#3551d8') : '#3551d8';
+      const fill = node.tone ? (PB_FILL[node.tone] ?? 'var(--c-brand)') : 'var(--c-brand)';
+      const pctColor = node.tone ? (PB_TONE[node.tone] ?? 'var(--c-text)') : 'var(--c-text)';
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontSize: 12 }}>
-            <span style={{ color: 'var(--text-secondary)' }}>{node.label}</span>
-            <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--text-primary)' }}>{v}%</span>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', fontSize: 'var(--fs-12)' }}>
+            <span style={{ color: 'var(--c-text-2)' }}>{node.label}</span>
+            <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: pctColor }}>{v}%</span>
           </div>
-          <div style={{ height: 8, borderRadius: 999, background: 'var(--zinc-100)', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${v}%`, background: fill, borderRadius: 999, transition: 'width .5s' }} />
+          <div style={{ height: 8, borderRadius: 'var(--r-pill)', background: 'var(--c-bg-soft)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${v}%`, background: fill, borderRadius: 'inherit', transition: 'width .5s, background-color .25s' }} />
           </div>
         </div>
       );
@@ -1226,30 +1359,8 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'Accordion':
       return <SduiAccordion items={node.items} />;
 
-    case 'DataTable': {
-      const cols = node.columns ?? [];
-      const rows = node.rows ?? [];
-      return (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--surface)' }}>
-          {node.title && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--c-bg-soft, #eef2f7)', borderRadius: 999, padding: '1px 8px', fontVariantNumeric: 'tabular-nums' }}>{rows.length}</span>
-            </div>
-          )}
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr>{cols.map((c, i) => (
-              <th key={i} style={{ padding: '9px 12px', textAlign: 'left', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-tertiary)', background: 'var(--c-surface-2)', borderBottom: '1px solid var(--border)' }}>{c}</th>
-            ))}</tr></thead>
-            <tbody>{rows.map((r, ri) => (
-              <tr key={ri} style={{ borderBottom: ri < rows.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                {r.map((cell, ci) => <td key={ci} style={{ padding: '9px 12px', color: 'var(--text-secondary)' }}>{String(cell)}</td>)}
-              </tr>
-            ))}</tbody>
-          </table>
-        </div>
-      );
-    }
+    case 'DataTable':
+      return <SduiDataTable node={node} />;
 
     case 'TabbedTable':
       return <SduiTabbedTable tabs={node.tabs} />;
@@ -1398,6 +1509,60 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
           <div style={{ padding: '28px 12px', textAlign: 'center', fontSize: 12, color: 'var(--text-tertiary)' }}>{node.placeholder ?? '预览区'}</div>
         </div>
       );
+
+    case 'EmbeddedWeb': {
+      // iframe 承载外部 Web UI（如 nVisual 仿真软件访问页）。内网不可达时显示 note + 新页打开兜底。
+      const h = node.height ?? 520;
+      return (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--c-surface-2)' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{node.title ?? '内嵌网页'}</span>
+            {node.openInNewTab !== false && (
+              <a href={node.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--c-brand-text, #1e34a8)' }}>新页打开 ↗</a>
+            )}
+          </div>
+          {node.note && (
+            <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border)' }}>{node.note}</div>
+          )}
+          {node.offline ? (
+            // 内网不可达：不渲染空白 iframe，给骨架占位 + 说明 + 「新页打开」兜底（见页眉链接）。
+            <div style={{
+              minHeight: Math.min(h, 300), display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-3)',
+              padding: 'var(--sp-6)', textAlign: 'center',
+              background: 'var(--c-bg-soft)', borderTop: '1px dashed var(--c-border-strong)',
+            }}>
+              <svg width={40} height={40} viewBox="0 0 24 24" fill="none" style={{ color: 'var(--c-text-faint)' }}>
+                <rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M3 8h18M8 21h8M12 18v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--c-text-2)' }}>
+                {node.title ?? '仿真软件'} 暂未加载
+              </div>
+              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-text-muted)', maxWidth: 340, lineHeight: 1.6 }}>
+                当前为离线 / 内网不可达环境，落位坐标与设备数据已就绪。到内网后将自动嵌入实时拓扑，
+                或点右上「新页打开」直接访问。
+              </div>
+              <a
+                href={node.url} target="_blank" rel="noopener noreferrer"
+                style={{
+                  marginTop: 2, fontSize: 'var(--fs-12)', fontWeight: 600, textDecoration: 'none',
+                  color: 'var(--c-text-2)', background: 'var(--c-surface)',
+                  border: '1px solid var(--c-border-strong)', borderRadius: 'var(--r-md)', padding: '6px 14px',
+                }}
+              >在新页打开 ↗</a>
+            </div>
+          ) : (
+            <iframe
+              src={node.url}
+              title={node.title ?? 'embedded-web'}
+              style={{ width: '100%', height: h, border: 'none', display: 'block', background: '#fff' }}
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            />
+          )}
+        </div>
+      );
+    }
 
     case 'ImageGrid':
       // 对齐 SDUI v4 设计稿 .d-imgs：3 列 · aspect-ratio 4/3 · 文件名浮层于底部

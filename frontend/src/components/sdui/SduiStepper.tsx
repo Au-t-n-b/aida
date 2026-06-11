@@ -1,8 +1,9 @@
 /**
- * SduiStepper — 执行步骤条（横向 / 纵向）
+ * SduiStepper — 执行步骤条（横向 / 纵向）· v4 语义
  *
- * 竖向模式：done=品牌蓝 ✓（最后一步 done=绿），running=品牌蓝脉冲+「执行中…」，连接线随步骤完成变品牌蓝。
- * 横向模式：紧凑头部，同竖向色规则。
+ * 颜色语义（对齐 SDUI 组件库 v4）：
+ *   done=绿（success）· running=琥珀转圈环（warning，spin）· pending=灰 · error=红。
+ *   品牌蓝（indigo）专留给「可交互/选中」，不再表达运行态——避免语义过载。
  */
 import type { SduiStepperStep } from '@/lib/sdui';
 
@@ -11,33 +12,56 @@ type Props = {
   orientation?: 'horizontal' | 'vertical';
 };
 
-// Brand blue (#3551d8) for done & running; green only for the last-step success dot
-function dotBg(status: string, isLast = false): string {
-  if (status === 'done')    return isLast ? '#10b981' : '#3551d8';
-  if (status === 'running') return '#3551d8';
-  if (status === 'error')   return 'var(--red-600)';
-  return 'var(--zinc-200)';
-}
-function dotFg(status: string): string {
-  return status === 'waiting' ? 'var(--zinc-400)' : '#fff';
-}
 function labelColor(status: string): string {
-  if (status === 'running') return 'var(--text-primary)';
-  if (status === 'done')    return 'var(--text-secondary)';
-  if (status === 'error')   return 'var(--red-600)';
-  return 'var(--text-tertiary)';
+  if (status === 'running') return 'var(--c-warning-text)';
+  if (status === 'done')    return 'var(--c-text-2)';
+  if (status === 'error')   return 'var(--c-danger)';
+  return 'var(--c-text-muted)';
 }
-// Connector uses brand blue for done state (not green)
-function connectorColor(status: string, _nextStatus?: string): string {
-  if (status === 'done')    return '#3551d8';
-  if (status === 'running') return 'rgba(53,81,216,.25)';
-  return 'var(--zinc-200)';
+// 连接线：done=绿 · running=绿→琥珀渐变 · 其余=灰
+function connectorColor(status: string): string {
+  if (status === 'done')    return 'var(--c-success)';
+  if (status === 'running') return 'linear-gradient(180deg, var(--c-success), var(--c-warning))';
+  return 'var(--c-border-strong)';
 }
 function dotIcon(status: string, index: number): string {
   if (status === 'done')  return '✓';
   if (status === 'error') return '✗';
+  if (status === 'running') return '';
   return String(index + 1);
 }
+
+/** 圆点样式（按状态）：running 为琥珀转圈环，其余为实心/描边点。size = 直径。 */
+function dotStyle(status: string, size: number): React.CSSProperties {
+  const base: React.CSSProperties = {
+    width: size, height: size, borderRadius: '50%', flexShrink: 0,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontSize: size <= 22 ? 10 : 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+    transition: 'background .3s, border-color .3s, box-shadow .3s',
+  };
+  if (status === 'running') {
+    return {
+      ...base,
+      background: 'var(--c-surface)',
+      border: '2.5px solid var(--c-warning-soft)', borderTopColor: 'var(--c-warning)',
+      color: 'transparent', animation: 'spin .8s linear infinite',
+    };
+  }
+  if (status === 'done') {
+    return { ...base, background: 'var(--c-success)', border: '1.5px solid var(--c-success)', color: '#fff',
+             boxShadow: '0 0 0 4px var(--c-success-soft)' };
+  }
+  if (status === 'error') {
+    return { ...base, background: 'var(--c-danger)', border: '1.5px solid var(--c-danger)', color: '#fff' };
+  }
+  return { ...base, background: 'var(--c-surface)', border: '1.5px solid var(--c-border-strong)', color: 'var(--c-text-muted)' };
+}
+
+const STATUS_BADGE: Record<string, { text: string; bg: string; fg: string }> = {
+  running: { text: '执行中', bg: 'var(--c-warning-soft)', fg: 'var(--c-warning-text)' },
+  done:    { text: '完成',   bg: 'var(--c-success-soft)', fg: 'var(--c-success-text)' },
+  error:   { text: '失败',   bg: 'var(--c-danger-soft)', fg: 'var(--c-danger-text)' },
+};
 
 export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
 
@@ -47,13 +71,13 @@ export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {steps.map((s, i) => {
           const isLast = i === steps.length - 1;
-          const nextStatus = !isLast ? steps[i + 1]?.status : undefined;
           // running 步骤显示最近3行日志，done/其他只显示最后1行（折叠）
           const detailLines = s.status === 'running'
             ? (s.detail ?? []).slice(-3)
             : s.status === 'done'
               ? (s.detail ?? []).slice(-1)
               : [];
+          const badge = STATUS_BADGE[s.status];
           return (
             <div key={s.id} style={{ display: 'flex', alignItems: 'stretch' }}>
 
@@ -62,32 +86,12 @@ export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 width: 26, flexShrink: 0, marginRight: 12,
               }}>
-                {/* 圆点 */}
-                <div style={{
-                  width: 26, height: 26, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '11px', fontWeight: 700,
-                  background: dotBg(s.status, isLast), color: dotFg(s.status),
-                  boxShadow: s.status === 'running'
-                    ? '0 0 0 4px rgba(53,81,216,.14)'
-                    : s.status === 'done'
-                      ? (isLast ? '0 0 0 4px rgba(16,185,129,.14)' : '0 0 0 4px rgba(53,81,216,.14)')
-                      : 'none',
-                  animation: s.status === 'running'
-                    ? 'clawStepperPulse 1.4s ease-in-out infinite'
-                    : 'none',
-                  transition: 'background .3s, box-shadow .3s',
-                }}>
-                  {dotIcon(s.status, i)}
-                </div>
-
-                {/* 连接线 */}
+                <div style={dotStyle(s.status, 26)}>{dotIcon(s.status, i)}</div>
                 {!isLast && (
                   <div style={{
                     width: 2, flex: 1, minHeight: 12,
-                    background: connectorColor(s.status, nextStatus),
-                    borderRadius: 1,
-                    transition: 'background .4s ease',
+                    background: connectorColor(s.status),
+                    borderRadius: 1, transition: 'background .4s ease',
                   }} />
                 )}
               </div>
@@ -96,46 +100,27 @@ export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
               <div style={{ flex: 1, paddingTop: 4, paddingBottom: isLast ? 0 : 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{
-                    fontSize: 'var(--text-xs)',
+                    fontSize: 'var(--fs-13)',
                     fontWeight: s.status === 'running' ? 600 : 400,
                     color: labelColor(s.status),
                   }}>
                     {s.title}
                   </span>
 
-                  {/* 状态徽标 — brand blue for done, brand for running */}
-                  {s.status === 'running' && (
-                    // 三点依次亮起（每点 350ms 延迟），替代静态省略号
+                  {badge && (
                     <span style={{
-                      fontSize: '10px', color: '#3551d8', fontWeight: 500,
-                      background: '#eef1fc', borderRadius: 4, padding: '1px 6px',
-                      display: 'inline-flex', alignItems: 'center', gap: 0,
+                      fontSize: 'var(--fs-10)', color: badge.fg, fontWeight: 600,
+                      background: badge.bg, borderRadius: 'var(--r-sm)', padding: '1px 6px',
+                      display: 'inline-flex', alignItems: 'center',
                     }}>
-                      执行中
-                      {(['0s', '.35s', '.7s'] as const).map((delay, di) => (
+                      {badge.text}
+                      {s.status === 'running' && (['0s', '.35s', '.7s'] as const).map((delay, di) => (
                         <span key={di} style={{
-                          display: 'inline-block', width: 3, height: 3,
-                          borderRadius: '50%', background: '#3551d8',
-                          marginLeft: di === 0 ? 3 : 2,
+                          display: 'inline-block', width: 3, height: 3, borderRadius: '50%',
+                          background: 'var(--c-warning)', marginLeft: di === 0 ? 3 : 2,
                           animation: `sdui-dot-blink 1.05s step-start ${delay} infinite`,
                         }} />
                       ))}
-                    </span>
-                  )}
-                  {s.status === 'done' && (
-                    <span style={{
-                      fontSize: '10px', color: '#3551d8', fontWeight: 500,
-                      background: '#eef1fc', borderRadius: 4, padding: '1px 5px',
-                    }}>
-                      完成
-                    </span>
-                  )}
-                  {s.status === 'error' && (
-                    <span style={{
-                      fontSize: '10px', color: 'var(--red-700)', fontWeight: 500,
-                      background: 'var(--red-50)', borderRadius: 4, padding: '1px 5px',
-                    }}>
-                      失败
                     </span>
                   )}
                 </div>
@@ -144,10 +129,9 @@ export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
                 {detailLines.length > 0 && (
                   <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
                     {detailLines.map((line, li) => (
-                      // key=line 而非 li：当日志数组滑窗时，新出现的行触发 remount + 动画
                       <div key={line} style={{
-                        fontSize: '10px', lineHeight: 1.45,
-                        color: s.status === 'running' ? 'var(--text-secondary)' : 'var(--text-tertiary)',
+                        fontSize: 'var(--fs-10)', lineHeight: 1.45,
+                        color: s.status === 'running' ? 'var(--c-text-2)' : 'var(--c-text-muted)',
                         whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
                         animation: `sdui-stagger .18s ease-out ${li * 0.04}s both`,
                       }}>
@@ -179,20 +163,9 @@ export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
               style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
               title={s.detail?.join(' · ')}
             >
-              <div style={{
-                width: 20, height: 20, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: '10px', fontWeight: 700, lineHeight: 1,
-                background: dotBg(s.status, last), color: dotFg(s.status),
-                animation: s.status === 'running'
-                  ? 'clawStepperPulse 1.4s ease-in-out infinite'
-                  : 'none',
-                transition: 'background .3s',
-              }}>
-                {dotIcon(s.status, i)}
-              </div>
+              <div style={dotStyle(s.status, 20)}>{dotIcon(s.status, i)}</div>
               <span style={{
-                fontSize: 'var(--text-xs)',
+                fontSize: 'var(--fs-12)',
                 fontWeight: s.status === 'running' ? 600 : 400,
                 color: labelColor(s.status),
                 whiteSpace: 'nowrap',

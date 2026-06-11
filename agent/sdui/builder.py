@@ -29,10 +29,24 @@ class SduiOpenPreview(BaseModel):
     path: str
 
 
+class SduiResetSession(BaseModel):
+    """重置会话动作：前端清空当前 run 状态、回到 idle（卡片头部「重置会话」按钮触发）。"""
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["reset_session"] = "reset_session"
+
+
 SduiAction = Annotated[
-    Union[SduiPostUserMessage, SduiOpenPreview],
+    Union[SduiPostUserMessage, SduiOpenPreview, SduiResetSession],
     Field(discriminator="kind"),
 ]
+
+
+class SduiCardHeaderAction(BaseModel):
+    """卡片头部动作按钮（label + variant + action）。"""
+    model_config = ConfigDict(extra="ignore")
+    label: str
+    variant: Literal["primary", "secondary", "ghost", "danger"] | None = None
+    action: SduiAction
 
 SpacingToken = Literal["none", "xs", "sm", "md", "lg", "xl"]
 
@@ -50,6 +64,9 @@ class SduiDividerNode(BaseModel):
     model_config = ConfigDict(extra="ignore")
     type: Literal["Divider"] = "Divider"
     id: str | None = None
+    # label：给分隔线挂一个 eyebrow 小标题（大写小字 + 延伸细线），用作分节眉题，
+    # 把同区多张卡分组（如「评估结果」「产出与摘要」），告别平铺卡墙。
+    label: str | None = None
 
 
 class SduiSkeletonNode(BaseModel):
@@ -78,6 +95,11 @@ class SduiCardNode(BaseModel):
     density: Literal["default", "compact"] | None = None
     children: list["SduiNode"] | None = None
     tone: Literal["default", "warning", "danger", "info", "success"] | None = None
+    headerAction: SduiCardHeaderAction | None = None
+    # collapsible=True：卡片头变可点击折叠开关（需 title）；defaultCollapsed 决定初始折叠态。
+    # 用于把次要明细（如 micro-step Stepper）收起，减轻信息墙。
+    collapsible: bool | None = None
+    defaultCollapsed: bool | None = None
 
 
 class SduiRowNode(BaseModel):
@@ -466,15 +488,47 @@ class SduiAccordionNode(BaseModel):
     items: list[SduiAccordionItem]
 
 
+class SduiDataTableColumn(BaseModel):
+    """类型化列：key 取行 dict 字段，type 决定单元格渲染（文本 / 状态徽标 / 进度条）。
+
+    editable=True 的列在可编辑表里渲染为输入框（如 ESN 列）；其余列只读。"""
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+    type: Literal["text", "status", "progress"] = "text"
+    width: int | None = None
+    editable: bool = False
+    placeholder: str | None = None
+
+
 class SduiDataTableNode(BaseModel):
-    """数据表格 · 列 + 行（带标题 / 计数栏）。"""
+    """数据表格 · 列 + 行（带标题 / 计数栏）。
+
+    两种形态向后兼容：
+      ① 旧只读位置型：columns=list[str]、rows=list[list]（zhgk 等沿用）；
+      ② 新类型化 / 可编辑：columns=list[SduiDataTableColumn]、rows=list[dict]，
+         editable=True 时前端按列 type 渲染输入框 + 底部「填充 / 提交」按钮。
+    """
     model_config = ConfigDict(extra="ignore")
     type: Literal["DataTable"] = "DataTable"
     id: str | None = None
-    columns: list[str]
-    rows: list[list[str | int | float]]
+    columns: list[str] | list[SduiDataTableColumn]
+    rows: list[list[str | int | float]] | list[dict[str, Any]]
     title: str | None = None
+    subtitle: str | None = None
     flex: float | None = None
+    # ── 可编辑 / 提交（新形态）──
+    editable: bool = False
+    submitMode: Literal["resume", "run-patch"] | None = None
+    submitLabel: str | None = None
+    stepId: str | None = None
+    rowKey: str | None = None
+    checkKey: str | None = None          # 勾选列字段名（task_dispatch）
+    fillLabel: str | None = None         # 「一键填充」按钮文案
+    fillRows: list[dict[str, Any]] | None = None  # 一键填充后的整组行
+    groupKey: str | None = None          # 分组列（esn 按设备大类）
+    pageSize: int | None = None
+    requiredKeys: list[str] | None = None  # 提交前必填校验
 
 
 class SduiTabbedTableTab(BaseModel):
@@ -776,6 +830,23 @@ class SduiMacroStepRailNode(BaseModel):
     currentId: str | None = None
 
 
+class SduiEmbeddedWebNode(BaseModel):
+    """内嵌网页 · iframe 承载外部 Web UI（如 nVisual 仿真软件访问页）。
+
+    url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认前端给 520）。
+    openInNewTab=True 时页眉给「新页打开」链接（内网 iframe 不可达时的兜底）。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["EmbeddedWeb"] = "EmbeddedWeb"
+    id: str | None = None
+    url: str
+    title: str | None = None
+    note: str | None = None
+    height: int | None = None
+    openInNewTab: bool | None = None
+    # offline=True：内网不可达时不渲染空白 iframe，改用骨架占位 + 说明 + 「新页打开」兜底。
+    offline: bool | None = None
+
+
 # ── HITL nodes ────────────────────────────────────────────────────────────────
 
 class SduiFilePickerNode(BaseModel):
@@ -890,6 +961,7 @@ SduiNode = Annotated[
         SduiInputSlotListNode,
         SduiTaskTimelineStripNode,
         SduiMacroStepRailNode,
+        SduiEmbeddedWebNode,
         # HITL
         SduiFilePickerNode,
         SduiChoiceCardNode,

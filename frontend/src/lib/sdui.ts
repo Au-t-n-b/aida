@@ -15,7 +15,23 @@ export type SduiArtifactKind = 'docx' | 'xlsx' | 'pdf' | 'html' | 'json' | 'md' 
 
 export type SduiAction =
   | { kind: 'post_user_message'; text: string }
-  | { kind: 'open_preview'; path: string };
+  | { kind: 'open_preview'; path: string }
+  | { kind: 'reset_session' };
+
+export interface SduiDataTableColumn {
+  key: string;
+  label: string;
+  type?: 'text' | 'status' | 'progress';
+  width?: number;
+  editable?: boolean;
+  placeholder?: string;
+}
+
+export interface SduiCardHeaderAction {
+  label: string;
+  variant?: 'primary' | 'secondary' | 'ghost' | 'danger';
+  action: SduiAction;
+}
 
 export type SduiDocument = {
   schemaVersion: number;
@@ -50,9 +66,9 @@ export type SduiArtifactItem = {
 type OptId = { id?: string; flex?: number };
 
 export type SduiStackNode    = OptId & { type: 'Stack';    gap?: SpacingToken; justify?: string; children?: SduiNode[] };
-export type SduiCardNode     = OptId & { type: 'Card';     title?: string; density?: 'default' | 'compact'; children?: SduiNode[]; tone?: 'default' | 'warning' | 'danger' | 'info' | 'success' };
+export type SduiCardNode     = OptId & { type: 'Card';     title?: string; density?: 'default' | 'compact'; children?: SduiNode[]; tone?: 'default' | 'warning' | 'danger' | 'info' | 'success'; headerAction?: SduiCardHeaderAction; collapsible?: boolean; defaultCollapsed?: boolean };
 export type SduiRowNode      = OptId & { type: 'Row';      gap?: SpacingToken; align?: string; justify?: string; wrap?: boolean; children?: SduiNode[] };
-export type SduiDividerNode  = OptId & { type: 'Divider'; orientation?: 'horizontal' | 'vertical' };
+export type SduiDividerNode  = OptId & { type: 'Divider'; orientation?: 'horizontal' | 'vertical'; label?: string };
 export type SduiSkeletonNode = OptId & { type: 'Skeleton'; variant?: 'text' | 'rect' | 'card' | 'row'; lines?: number };
 
 export type SduiTextNode     = OptId & { type: 'Text';     content: string; variant?: 'caption' | 'body' | 'heading' | 'mono'; color?: SduiSemanticColor; align?: string };
@@ -198,8 +214,26 @@ export type SduiTabsNode = OptId & { type: 'Tabs'; tabs: SduiTabItem[] };
 export type SduiAccordionItem = { title: string; body: string };
 export type SduiAccordionNode = OptId & { type: 'Accordion'; items: SduiAccordionItem[] };
 
-/** DataTable — 数据表格，列 + 行（带标题/计数栏）。*/
-export type SduiDataTableNode = OptId & { type: 'DataTable'; columns: string[]; rows: (string | number)[][]; title?: string };
+/** DataTable — 数据表格。两种形态：① 旧只读位置型（columns=string[]、rows=矩阵）；
+ *  ② 新类型化/可编辑（columns=SduiDataTableColumn[]、rows=dict[]，editable 时按列 type 渲染 + 提交）。*/
+export type SduiDataTableNode = OptId & {
+  type: 'DataTable';
+  columns: string[] | SduiDataTableColumn[];
+  rows: (string | number)[][] | Record<string, unknown>[];
+  title?: string;
+  subtitle?: string;
+  editable?: boolean;
+  submitMode?: 'resume' | 'run-patch';
+  submitLabel?: string;
+  stepId?: string;
+  rowKey?: string;
+  checkKey?: string;
+  fillLabel?: string;
+  fillRows?: Record<string, unknown>[];
+  groupKey?: string;
+  pageSize?: number;
+  requiredKeys?: string[];
+};
 
 /** TabbedTable — 页签表格，多组表格按页签切换。*/
 export type SduiTabbedTableTab = { label: string; headers?: string[]; rows: string[][] };
@@ -284,6 +318,10 @@ export type SduiMacroStep = { id: string; title: string; hint?: string; optional
 /** MacroStepRail — 宏观交付蓝图条（如六步 s1–s6），区别于 micro 的 Stepper：optional 阶段灰显，hint 给副提示，currentId 高亮当前。*/
 export type SduiMacroStepRailNode = OptId & { type: 'MacroStepRail'; steps: SduiMacroStep[]; currentId?: string };
 
+/** EmbeddedWeb — 内嵌网页（iframe 承载外部 Web UI，如 nVisual 仿真软件访问页）。
+ *  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认 520）；openInNewTab 给「新页打开」兜底链接。*/
+export type SduiEmbeddedWebNode = OptId & { type: 'EmbeddedWeb'; url: string; title?: string; note?: string; height?: number; openInNewTab?: boolean; offline?: boolean };
+
 // ── HITL nodes ────────────────────────────────────────────────────────────────
 
 export type SduiFilePickerNode = OptId & {
@@ -346,6 +384,7 @@ export type SduiNode =
   | SduiDashboardLayoutNode | SduiDrawerNode
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
+  | SduiEmbeddedWebNode
   | SduiFilePickerNode | SduiChoiceCardNode | SduiHitlTextInputNode;
 
 // ── Parsing ───────────────────────────────────────────────────────────────────

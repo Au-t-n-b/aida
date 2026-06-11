@@ -14,7 +14,7 @@ from typing import Any
 
 from fastapi import UploadFile
 
-_BUNDLE_EXTS = {".xlsx", ".xls", ".csv", ".zip", ".pdf", ".doc", ".docx",
+_BUNDLE_EXTS = {".xlsx", ".xls", ".csv", ".zip", ".pdf", ".doc", ".docx", ".md",
                 ".stp", ".step", ".iges", ".stl", ".json", ".png", ".jpg", ".jpeg"}
 
 
@@ -56,9 +56,9 @@ def check_project_files(root: Path) -> dict[str, Any]:
         "total": 1,
         "items": [{
             "id": "bundle",
-            "label": "建模仿真资料包（含 BOQ .xlsx）",
+            "label": "建模仿真资料包（设备信息表.md / 机房机柜信息表.xlsx）",
             "path": "ProjectData/Input/*",
-            "hint": "放到 Input/，至少一个表格/资料文件",
+            "hint": "放到 Input/；无上传则用内置样本离线生成适配表",
             "found": ok,
             "matched": str(files[0].relative_to(root)) if ok else None,
         }],

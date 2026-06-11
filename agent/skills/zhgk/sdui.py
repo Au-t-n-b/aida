@@ -18,11 +18,12 @@ Metrics 键约定（由各 step 写入）：
 """
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from agent.sdui.builder import (
     SduiDocument, SduiNode, SduiStackNode, SduiCardNode,
-    SduiRowNode,
+    SduiRowNode, SduiDividerNode,
     SduiStatisticRowNode, SduiStatisticRowItem,
     SduiAlertNode, SduiMarkdownNode,
     SduiTimelineNode, SduiTimelineEvent,
@@ -104,6 +105,38 @@ def _meaningful_logs(state: dict[str, Any]) -> list[str]:
         l for l in (state.get("logs") or [])
         if l and not l.startswith("[start]") and not l.startswith("[resume]")
     ]
+
+
+# 隐藏文件前缀：Excel 锁文件(~$)、点文件、归档/暂存目录
+_SKIP_FILE_PREFIX = ("~$", ".")
+
+
+def _scan_workspace_files(state: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """扫 ProjectData/Input 与 Output 顶层文件 → (已上传, 作业结果)。
+
+    ⚠️ 本函数**读磁盘**（projector_base 纯函数约定的唯一例外，刻意局限在此 skill 层）：
+    工勘的文件真相在工作区目录，逐 step 登记 artifact 易漏（wait_survey 上传件、
+    既有 Input 文件都不会进 metrics）。直接扫盘最全最稳。
+    路径返回 work_root 相对形式（如 ProjectData/Output/xxx.xlsx），与既有 artifact
+    路径及 /agent/zhgk/artifact?path= 端点一致，前端可直接预览。
+    """
+    root = state.get("work_root") or ""
+
+    def _scan(subdir: str) -> list[str]:
+        if not root:
+            return []
+        d = os.path.join(root, subdir)
+        if not os.path.isdir(d):
+            return []
+        out: list[str] = []
+        for name in sorted(os.listdir(d)):
+            if name.startswith(_SKIP_FILE_PREFIX):
+                continue
+            if os.path.isfile(os.path.join(d, name)):
+                out.append(f"{subdir}/{name}")
+        return out
+
+    return _scan("ProjectData/Input"), _scan("ProjectData/Output")
 
 
 # ── zhgk 自有业务段 ──
@@ -378,6 +411,9 @@ def _build_assessment_panel(state: dict[str, Any]) -> SduiCardNode | None:
         rate_label="满足率",
         rate_key="assess_满足",
         alert_keys=[
+            ("assess_未勘测", "warning",
+             "{count} 项无检查结果、已自动判为「未勘测」——多因上传表未填或序号未对齐，"
+             "请补填「最新检查结果」列后重新上传并重跑评估。"),
             ("assess_无法识别", "error",
              "存在 {count} 项结论无法识别（数据缺失或图片不清晰），建议安排复勘后重新评估。"),
             ("assess_不满足", "warning",
@@ -666,7 +702,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if is_idle:
         nodes.append(_build_idle_intro())
         doc = SduiDocument(
-            root=SduiStackNode(id="zhgk-root", gap="sm", children=nodes),
+            root=SduiStackNode(id="zhgk-root", gap="md", children=nodes),
             meta={"skill": "zhgk", "run_id": state.get("run_id", "")},
         )
         return dump_sdui_json(doc)
@@ -678,6 +714,11 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if macro_rail:
         nodes.append(macro_rail)
 
+    # P3：KPI 黄金指标上提为通栏扫读带（紧贴 macro-rail，数据焦点；原埋在中列第 2 张卡）
+    metrics_band = _build_metrics_card(state)
+    if metrics_band:
+        nodes.append(metrics_band)
+
     # 醒目状态条：HITL 等待 / 失败时强提示（运行/完成态不显示，避免泛滥）
     status_banner = _build_status_banner(state)
     if status_banner:
@@ -688,12 +729,13 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if hitl_card:
         nodes.append(hitl_card)
 
-    # 中间主区：业务数据卡（各段自行判断有无数据，None 跳过）
-    #   运行中实时卡置顶 → 填补「正在跑但中间空白」的信息真空
-    center_children: list[SduiNode] = [
+    # 文件双栏：扫工作区 Input/Output 真实落盘（含上传件、既有件、所有生成物）
+    _scan_in, _scan_out = _scan_workspace_files(state)
+
+    # 中间主区：按「评估结果 / 产出与摘要」分节（P3 分组眉题），告别平铺卡墙。
+    #   运行中实时卡置顶 → 填补「正在跑但中间空白」的信息真空；KPI 已上提，不再在中列重复。
+    eval_group: list[SduiNode] = [
         n for n in (
-            _build_running_card(state),
-            _build_metrics_card(state),
             _build_filter_preview(state),
             _build_assessment_panel(state),
             _build_issue_table(state),
@@ -701,12 +743,27 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             _build_gkclaw_card(state),
             _build_alerts(state),
             _build_approval_card(state),
-            build_artifacts(state, input_file_keys=("boq_xlsx", "presets_docx")),
+        ) if n
+    ]
+    output_group: list[SduiNode] = [
+        n for n in (
+            build_artifacts(state, input_paths=_scan_in, output_paths=_scan_out),
             _build_summary(state),
         ) if n
     ]
+    center_children: list[SduiNode] = []
+    running_card = _build_running_card(state)
+    if running_card:
+        center_children.append(running_card)
+    if eval_group:
+        center_children.append(SduiDividerNode(id="grp-eval", label="评估结果"))
+        center_children.extend(eval_group)
+    if output_group:
+        center_children.append(SduiDividerNode(id="grp-output", label="产出与摘要"))
+        center_children.extend(output_group)
 
-    # 右侧数据面板：意图感知 Stepper（竖向）+ 执行动态时间轴
+    # 右侧数据面板：意图感知 Stepper（竖向 · P2 可折叠默认收起，macro-rail/donut 已承载概览）
+    #   + 执行动态时间轴
     from .steps._intent_guard import STEP_INTENTS
     intent = (state.get("project") or {}).get("intent", "")
     right_children: list[SduiNode] = [
@@ -717,6 +774,8 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             intent_step_map=STEP_INTENTS,
             always_show={"preflight", "intent_select"},
             orientation="vertical",
+            collapsible=True,
+            default_collapsed=True,
         ),
     ]
     activity = _build_activity_timeline(state)
@@ -733,7 +792,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     ))
 
     doc = SduiDocument(
-        root=SduiStackNode(id="zhgk-root", gap="sm", children=nodes),
+        root=SduiStackNode(id="zhgk-root", gap="md", children=nodes),
         meta={"skill": "zhgk", "run_id": state.get("run_id", "")},
     )
     return dump_sdui_json(doc)

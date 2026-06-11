@@ -3,18 +3,25 @@
  */
 import { useState } from 'react';
 import { useSduiRuntime } from './SduiContext';
+import { hitlKey, getHitlOptimistic, setHitlOptimistic } from './hitlOptimistic';
 import type { SduiChoiceCardNode } from '@/lib/sdui';
 
 type Props = Omit<SduiChoiceCardNode, 'type' | 'id' | 'flex'>;
 
 export function SduiChoiceCard({ title, options, stepId }: Props) {
-  const { onChoiceSubmit } = useSduiRuntime();
-  const [selected, setSelected] = useState<string | null>(null);
-  const [submitted, setSubmitted] = useState(false);
+  const { onChoiceSubmit, runId } = useSduiRuntime();
+  // 跨重挂载回读确认态（冻结重放期间组件会重挂，避免闪回「未选」）
+  const key = hitlKey(runId, stepId);
+  const restored = getHitlOptimistic(key);
+  const restoredSel = restored?.kind === 'choice' ? restored.selected : null;
+  const [selected, setSelected] = useState<string | null>(restoredSel);
+  const [submitted, setSubmitted] = useState(restoredSel != null);
 
   const handleSubmit = () => {
     if (!selected) return;
     setSubmitted(true);
+    setHitlOptimistic(key, { kind: 'choice', selected });
+    // parent 在 onChoiceSubmit 内会先 hold 再 resume，保证确认态可见一段时间
     onChoiceSubmit(selected, stepId);
   };
 

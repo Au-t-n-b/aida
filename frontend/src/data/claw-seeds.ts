@@ -299,12 +299,7 @@ export const CLAW_SUGGESTS_BY_ROUTE = {
     '只看工勘类作业',
     '搜索 K1903 相关文件',
   ],
-  '/module': [
-    '当前模块的输入是什么？',
-    '上一步的输出在哪？',
-    '同步到主任务',
-    '退回工作台',
-  ],
+  '/module': [],
 };
 
 /* ───────────── 工具函数 ───────────── */
@@ -340,6 +335,6 @@ export function getModuleLabel(pathname: string) {
   if (pathname.includes('/design'))   return 'LLD 设计';
   if (pathname.includes('/admin'))    return '管理';
   if (pathname.includes('/assets'))   return '交付作业';
-  if (pathname.includes('/module'))   return '作业模块';
+  if (pathname.includes('/module'))   return '交付作业';
   return '交付态势';
 }
