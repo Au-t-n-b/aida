@@ -612,6 +612,63 @@ def mailer_mailgw_requires_token():
     assert not r["ok"] and "MAILGW_TOKEN" in r["error"]
 
 
+# ─── mailbox ───
+
+@test
+def mailbox_list_inbox_request_shape():
+    import os
+    import agent.mailbox as mailbox
+    os.environ["MAILGW_BASE"] = "http://127.0.0.1:8025"
+    os.environ["MAILGW_TOKEN"] = "tok-aida"
+    assert mailbox.is_configured()
+    captured: dict = {}
+
+    def fake_urlopen(req, timeout=0):
+        captured["url"] = req.full_url
+        captured["auth"] = req.get_header("Authorization")
+        captured["method"] = req.get_method()
+        return _FakeHttpResp({"new_count": 1, "mails": [
+            {"mail_id": 3, "from": "front@corp.com",
+             "subject": "[GKCLAW][TASK_IMPORT_ACK] K1903/t1",
+             "date": "Thu, 11 Jun 2026 09:00:00 +0800",
+             "snippet": "见附件", "has_attachments": True, "is_read": False}]})
+
+    orig = mailbox.urllib.request.urlopen
+    mailbox.urllib.request.urlopen = fake_urlopen
+    try:
+        data = mailbox.list_inbox(refresh=True, limit=50, unread_only=False)
+    finally:
+        mailbox.urllib.request.urlopen = orig
+    assert data["mails"][0]["mail_id"] == 3
+    assert captured["method"] == "GET" and captured["auth"] == "Bearer tok-aida"
+    assert "/api/inbox" in captured["url"]
+    assert "refresh=true" in captured["url"] and "limit=50" in captured["url"]
+
+
+@test
+def mailbox_save_attachment():
+    import os, json as _json
+    import agent.mailbox as mailbox
+    os.environ["MAILGW_BASE"] = "http://127.0.0.1:8025"
+    os.environ["MAILGW_TOKEN"] = "tok-aida"
+    captured: dict = {}
+
+    def fake_urlopen(req, timeout=0):
+        captured["url"] = req.full_url
+        captured["body"] = _json.loads(req.data.decode())
+        return _FakeHttpResp({"saved_to": "D:/tmp/ack-t1.zip"})
+
+    orig = mailbox.urllib.request.urlopen
+    mailbox.urllib.request.urlopen = fake_urlopen
+    try:
+        saved = mailbox.save_attachment(3, 0, "D:/tmp")
+    finally:
+        mailbox.urllib.request.urlopen = orig
+    assert saved == "D:/tmp/ack-t1.zip"
+    assert captured["url"].endswith("/api/inbox/3/attachments/0/save")
+    assert captured["body"] == {"save_path": "D:/tmp"}
+
+
 # ─── main ───
 
 def main() -> int:
