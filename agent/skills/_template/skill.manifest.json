@@ -1,0 +1,16 @@
+{
+  "schema_version": "aida.skill/v1",
+  "skill_id": "xxx",
+  "is_langgraph": true,
+  "tool_name": "run_xxx",
+  "description": "<一句话模块描述>。触发词：xxx、yyy、zzz。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "project_code": { "type": "string", "description": "项目编码" },
+      "project_name": { "type": "string", "description": "项目名称" }
+    },
+    "additionalProperties": true
+  },
+  "version": "default"
+}

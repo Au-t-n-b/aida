@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from collections import defaultdict
 from pathlib import Path
 
@@ -23,24 +22,19 @@ from ._intent_guard import should_skip
 
 
 def _resolve_project_recipients(ctx: SkillContext, emit: Emit) -> list[dict]:
-    """解析项目组收件人（复用工作区 path_config）。不可用时优雅降级为 []。"""
-    from ..bridge import get_zhgk_root
+    """解析项目组收件人（模块内置默认，自包含）。不可用时优雅降级为 []。"""
+    from .. import recipients as _pc
     try:
-        root = str(Path(get_zhgk_root()))
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        from path_config import get_recipients  # type: ignore
-        # 客户反馈走全体干系人/项目组；不同部署角色常量名可能不同，逐个兜底
+        get_recipients = getattr(_pc, "get_recipients", None)
+        if get_recipients is None:
+            return []
+        # 客户反馈走全体干系人/项目组；逐个角色兜底
         for role_name in ("ROLE_ALL_STAKEHOLDERS", "ROLE_PROJECT_TEAM", "ROLE_PD_TD_EXPERT"):
-            try:
-                import path_config as _pc  # type: ignore
-                role = getattr(_pc, role_name, None)
-                if role is not None:
-                    rcs = get_recipients(role) or []
-                    if rcs:
-                        return rcs
-            except Exception:
-                continue
+            role = getattr(_pc, role_name, None)
+            if role is not None:
+                rcs = get_recipients(role) or []
+                if rcs:
+                    return rcs
         return []
     except Exception as e:  # noqa: BLE001
         emit(f"  [提示] 读取项目组收件人失败：{e}")

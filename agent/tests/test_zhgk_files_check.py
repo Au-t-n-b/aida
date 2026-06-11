@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from agent.zhgk_files import (
+from agent.skills.zhgk.files import (
     PERSONNEL_FILENAME,
     check_need_files,
     check_project_files,

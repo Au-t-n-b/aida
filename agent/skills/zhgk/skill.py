@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import BaseSkill
-from ... import zhgk_files as _zhgk_files
+from . import files as _zhgk_files
 from .sdui import project as _sdui_project
 from .steps import (
     PreflightStep,

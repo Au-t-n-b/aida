@@ -1,0 +1,18 @@
+{
+  "schema_version": "aida.skill/v1",
+  "skill_id": "zhgk",
+  "is_langgraph": true,
+  "tool_name": "run_zhgk",
+  "description": "智慧工勘 v4 · 意图驱动单流水线。支持 4 种意图：scene_suggest（场景建议）/ survey_work（全流程工勘：建表→勘测→评估→问题清单→复勘）/ supplement（补充勘测）/ report_gen（报告生成）。触发词：工勘、智慧工勘、场景建议、补充勘测、生成工勘报告、入场评估、机房满足度、BOQ、代际制冷。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "project_code": { "type": "string", "description": "项目编码" },
+      "project_name": { "type": "string", "description": "项目名称" },
+      "room_name": { "type": "string", "description": "机房名称" },
+      "activity_id": { "type": "string", "description": "活动 ID" }
+    },
+    "additionalProperties": true
+  },
+  "version": "default"
+}

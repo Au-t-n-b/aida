@@ -1,0 +1,15 @@
+{
+  "schema_version": "aida.skill/v1",
+  "skill_id": "guihua",
+  "is_langgraph": true,
+  "tool_name": "run_guihua",
+  "description": "规划设计（建模仿真 · jmfz）· 设备适配→数据确认→创建超节点→机柜落位→移交设备安装。触发词：规划设计、建模仿真、jmfz、设备适配、适配信息表、创建超节点、机柜落位、移交设备安装、BOQ、超节点、灵衢、nVisual、batchCreateCombo、batchMoveNodes。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "project_name": { "type": "string", "description": "项目名称" }
+    },
+    "additionalProperties": true
+  },
+  "version": "default"
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": "aida.skill/v1",
+  "skill_id": "device_install",
+  "is_langgraph": true,
+  "tool_name": "run_device_install",
+  "description": "设备安装（新范式 · 单流水线 + 命令路由）。主建设流程：接收上游实施计划→计划下发→SN扫码表生成→ESN填写；辅助流：进展反馈/进展查询/计划查询/计划调整/设备总览（由启动载荷 command 路由，无意图选择卡）。触发词：设备安装、实施计划、计划下发、SN扫码表、ESN填写、进展反馈、进展查询、计划调整、设备总览。",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "project_code": { "type": "string", "description": "项目编码" },
+      "project_name": { "type": "string", "description": "项目名称" },
+      "command": { "type": "string", "description": "命令路由：build（默认主流程）/ progress_report / progress_query / plan_query / plan_adjust / device_overview" }
+    },
+    "additionalProperties": true
+  },
+  "version": "default"
+}

@@ -14,7 +14,6 @@ v4 审批闭环（设计文档「报告审批与分发」）：
 """
 from __future__ import annotations
 import os
-import sys
 import json
 from datetime import datetime
 from pathlib import Path
@@ -38,13 +37,9 @@ def _find_output_file(output_dir: Path, pattern: str) -> Path | None:
 
 
 def _resolve_recipients(role_names: tuple[str, ...]) -> list[dict]:
-    """从工作区 path_config 解析收件人（逐个角色常量兜底）。不可用 → []。"""
-    from ..bridge import get_zhgk_root
+    """从模块内置收件人配置解析（逐个角色常量兜底，自包含）。不可用 → []。"""
+    from .. import recipients as _pc
     try:
-        root = str(Path(get_zhgk_root()))
-        if root not in sys.path:
-            sys.path.insert(0, root)
-        import path_config as _pc  # type: ignore
         get_recipients = getattr(_pc, "get_recipients", None)
         if get_recipients is None:
             return []

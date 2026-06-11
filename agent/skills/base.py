@@ -412,7 +412,7 @@ class BaseSkill(abc.ABC):
     #   infer_upload_kind(filename)->str · save_upload(root, kind, file)
     #   check_need_files(root, need)->dict · check_project_files(root)->dict
     # None = 该 skill 无文件补齐 HITL（/upload·/files/check 返回 501）。
-    # 例：zhgk 直接挂 agent.zhgk_files 模块。
+    # 例：zhgk 挂模块内 agent.skills.zhgk.files 模块（自包含）。
     file_handler: ClassVar[Any] = None
 
     # SKILL.md 在 Claude Code skills 目录下的路径（可被子类覆盖）。
