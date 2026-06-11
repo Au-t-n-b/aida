@@ -333,6 +333,119 @@ def package_extract_evidence():
     assert saved[0] == dest / "evidence" / "p1.jpg"
 
 
+# ─── registry ───
+
+def _registry(root=None):
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    return TaskRegistry(root or tmpdir())
+
+
+def _create_task(reg, tid="task-20260611-K1903-000001"):
+    t = _valid_task()
+    t["task_id"] = tid
+    return reg.create_task(
+        task_id=tid, task_payload=t, zip_path="outbox/x.zip",
+        table_fingerprint="sha256:tbl", project=t["project"], dry_run=False,
+    )
+
+
+@test
+def registry_create_get_and_states():
+    reg = _registry()
+    task = _create_task(reg)
+    assert task["state"] == "planned"
+    reg.set_state(task["task_id"], "dispatched", mailgw_task_id="m1")
+    got = reg.get(task["task_id"])
+    assert got["state"] == "dispatched" and got["mailgw_task_id"] == "m1"
+    assert reg.get("task-not-exists") is None
+    assert [t["task_id"] for t in reg.list_tasks()] == [task["task_id"]]
+    reg.mark_superseded(task["task_id"])
+    assert reg.get(task["task_id"])["state"] == "superseded"
+
+
+@test
+def registry_decide_inbound_idempotency_matrix():
+    """契约 §20 幂等/冲突矩阵 + 边界规则。"""
+    from agent.skills.zhgk.services.gkclaw.registry import decide_inbound
+    base_task = {"task_id": "t1", "state": "dispatched"}
+    known = [{"package_id": "p1", "checksum": "sha256:aaa",
+              "package_type": "task.import_ack", "disposition": "processed"}]
+
+    # 未知 task_id → quarantine
+    d, _ = decide_inbound(None, [], package_type="task.import_ack",
+                          package_id="px", checksum="sha256:x", session_status="")
+    assert d == "quarantine"
+    # 同 package_id 同 checksum → duplicate
+    d, _ = decide_inbound(base_task, known, package_type="task.import_ack",
+                          package_id="p1", checksum="sha256:aaa", session_status="")
+    assert d == "duplicate"
+    # 同 package_id 异 checksum → conflict
+    d, _ = decide_inbound(base_task, known, package_type="task.import_ack",
+                          package_id="p1", checksum="sha256:bbb", session_status="")
+    assert d == "conflict"
+    # superseded 任务 → archived（落档不生效）
+    d, _ = decide_inbound({"task_id": "t1", "state": "superseded"}, [],
+                          package_type="task.result", package_id="p2",
+                          checksum="sha256:c", session_status="completed")
+    assert d == "archived"
+    # dispatched 收 ack → processed
+    d, _ = decide_inbound(base_task, [], package_type="task.import_ack",
+                          package_id="p2", checksum="sha256:c", session_status="")
+    assert d == "processed"
+    # accepted 收 staged result → processed
+    d, _ = decide_inbound({"task_id": "t1", "state": "accepted"}, [],
+                          package_type="task.result", package_id="p3",
+                          checksum="sha256:d", session_status="active")
+    assert d == "processed"
+    # completed 后收 staged → quarantine（final 后 staged）
+    d, _ = decide_inbound({"task_id": "t1", "state": "completed"}, [],
+                          package_type="task.result", package_id="p4",
+                          checksum="sha256:e", session_status="active")
+    assert d == "quarantine"
+    # completed 后收异内容 final → conflict
+    d, _ = decide_inbound({"task_id": "t1", "state": "completed"}, [],
+                          package_type="task.result", package_id="p5",
+                          checksum="sha256:f", session_status="completed")
+    assert d == "conflict"
+    # error 包任意状态 → processed
+    d, _ = decide_inbound(base_task, [], package_type="task.error",
+                          package_id="p6", checksum="sha256:g", session_status="")
+    assert d == "processed"
+
+
+@test
+def registry_result_versions_and_notes():
+    reg = _registry()
+    task = _create_task(reg, "task-20260611-K1903-000002")
+    p1 = reg.store_result_version(task["task_id"], {"session": {"status": "active"}, "items": []},
+                                  final=False)
+    p2 = reg.store_result_version(task["task_id"], {"session": {"status": "completed"}, "items": []},
+                                  final=True)
+    assert p1.name == "result-001.json" and p2.name == "result-002.json"
+    got = reg.get(task["task_id"])
+    assert got["result_versions"] == 2 and got["final_result"] == "results/result-002.json"
+    reg.append_result_notes(task["task_id"], [{"问题序号": "5", "to_back_备注": "[规则自动处理] x"}])
+    notes = reg.read_result_notes(task["task_id"])
+    assert notes and notes[0]["问题序号"] == "5"
+
+
+@test
+def registry_package_ledger_and_scan_ledger():
+    reg = _registry()
+    task = _create_task(reg, "task-20260611-K1903-000003")
+    reg.record_package(task["task_id"], {"package_id": "p1", "checksum": "sha256:a",
+                                         "package_type": "task.import_ack",
+                                         "direction": "in", "disposition": "processed",
+                                         "mail_id": 7})
+    pkgs = reg.packages(task["task_id"])
+    assert len(pkgs) == 1 and pkgs[0]["package_id"] == "p1" and pkgs[0]["at"]
+    # 扫描账本
+    assert reg.scanned_mail_ids() == set()
+    reg.mark_mail_scanned(7, "processed")
+    reg.mark_mail_scanned(8, "ignored")
+    assert reg.scanned_mail_ids() == {7, 8}
+
+
 # ─── main ───
 
 def main() -> int:
