@@ -1085,6 +1085,25 @@ def wait_survey_shows_gkclaw_state_and_accepts_mailed_result():
     assert result["metrics"]["filled_count"] == 2
 
 
+# ─── sdui gkclaw 卡 ───
+
+@test
+def sdui_gkclaw_card_renders():
+    from agent.skills.zhgk.sdui import _build_gkclaw_card, ZHGK_STEP_NAMES, ZHGK_MACRO_PHASES
+    assert ZHGK_STEP_NAMES.get("task_dispatch") == "任务下发"
+    assert "task_dispatch" in ZHGK_MACRO_PHASES[2][3]   # survey 阶段含 task_dispatch
+    # collect_metrics 从 step 记录聚合（execute_step 写入处），按真实运行时形态构造
+    state = {"steps": [{"key": "task_dispatch", "name": "任务下发", "status": "completed",
+                        "metrics": {"gkclaw_task_id": "task-20260611-K1903-000001",
+                                    "gkclaw_state": "accepted", "gkclaw_dry_run": False,
+                                    "gkclaw_items": 12,
+                                    "gkclaw_web_url": "https://front-agent.example.com/tasks/web/wa_x"}}],
+             "logs": [], "project": {"intent": "survey_work"}}
+    card = _build_gkclaw_card(state)
+    assert card is not None and card.id == "gkclaw-card"
+    assert _build_gkclaw_card({"steps": [], "logs": []}) is None
+
+
 # ─── main ───
 
 def main() -> int:

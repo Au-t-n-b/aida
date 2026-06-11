@@ -17,7 +17,7 @@ description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心
 
 ---
 
-## A. 业务流程（14 个步骤 · 意图驱动）
+## A. 业务流程（15 个步骤 · 意图驱动）
 
 | 步骤 | 名称 | 输入 → 输出 | 意图 | 后端节点 |
 |------|------|------------|------|---------|
@@ -28,13 +28,14 @@ description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心
 | 5 | 勘测方法分流 | 全量结果表 → 现场勘测/客户反馈分组 | survey_work | `method_split` |
 | 6 | 数据条目追加 | 底表数据类 → 追加到结果表 | survey_work | `data_append` |
 | 7 | 勘测表确认 | 结果表摘要 → 用户确认（HITL） | survey_work | `confirm_table` |
-| 8 | 等待现场上传 | 空白表 → 已填写的结果表（HITL） | survey_work | `wait_survey` |
-| 9 | AI 五值评估 | 结果表检查内容+结果 → AI评估列 | survey_work/report_gen | `assess` |
-| 10 | 问题清单生成 | 不满足+无法识别条目 → 问题清单.xlsx | survey_work/report_gen | `issue_list` |
-| 11 | 复勘检查门控 | 评估结果 → 复勘决策（HITL） | survey_work | `resurvey_gate` |
-| 12 | 补充勘测处理 | 已有结果表 → 追加数据/自定义条目 | supplement | `supplement_run` |
-| 13 | 报告生成 | 三件套 + 报告模板 → 工勘报告.docx | report_gen | `report_gen_run` |
-| 14 | 审批与分发 | 工勘报告 → 邮件通知干系人 | report_gen | `report_distribute` |
+| 8 | 任务下发 | 确认后的勘测表 → GKCLAW 任务包邮件下发（HITL） | survey_work | `task_dispatch` |
+| 9 | 等待现场上传 | 空白表 → 已填写的结果表（HITL） | survey_work | `wait_survey` |
+| 10 | AI 五值评估 | 结果表检查内容+结果 → AI评估列 | survey_work/report_gen | `assess` |
+| 11 | 问题清单生成 | 不满足+无法识别条目 → 问题清单.xlsx | survey_work/report_gen | `issue_list` |
+| 12 | 复勘检查门控 | 评估结果 → 复勘决策（HITL） | survey_work | `resurvey_gate` |
+| 13 | 补充勘测处理 | 已有结果表 → 追加数据/自定义条目 | supplement | `supplement_run` |
+| 14 | 报告生成 | 三件套 + 报告模板 → 工勘报告.docx | report_gen | `report_gen_run` |
+| 15 | 审批与分发 | 工勘报告 → 邮件通知干系人 | report_gen | `report_distribute` |
 
 > **preflight（环境预检）** 为内部基础设施步骤（`internal=True`），豁免契约约束，先于所有业务步骤执行。
 
@@ -71,10 +72,10 @@ ProjectData/
 
 | 意图 | 触发关键词 | 适用步骤 |
 |------|-----------|---------|
-| survey_work | 开始工勘/全流程/建表/代际制冷/入场评估 | 步骤 3-11 |
-| report_gen | 生成报告/出报告/Word 报告 | 步骤 3, 9-10, 13-14 |
+| survey_work | 开始工勘/全流程/建表/代际制冷/入场评估 | 步骤 3-12 |
+| report_gen | 生成报告/出报告/Word 报告 | 步骤 3, 10-11, 14-15 |
 | scene_suggest | 场景建议/推荐场景 | 步骤 2 |
-| supplement | 补充条目/追加条目 | 步骤 3, 12 |
+| supplement | 补充条目/追加条目 | 步骤 3, 13 |
 
 ---
 
@@ -85,6 +86,7 @@ ProjectData/
 | intent_select | ChoiceCard | intent 未设置 | 选择 4 个意图之一 |
 | determine_gen | ChoiceCard | BOQ 解析失败 | 手动选择代际-制冷 |
 | confirm_table | ChoiceCard | 表格生成完成 | 确认 / 重新生成 |
+| task_dispatch | ChoiceCard | 勘测表确认完成后 | 下发到现场 App / 跳过（本地人工勘测） |
 | wait_survey | FilePicker | 等待现场回传 | 上传填好的结果表 |
 | resurvey_gate | ChoiceCard | 有不满足条目 | 复勘 / 跳过 |
 

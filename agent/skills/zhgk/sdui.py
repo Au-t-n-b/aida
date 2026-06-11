@@ -10,6 +10,7 @@ Metrics 键约定（由各 step 写入）：
   determine_gen    → generation_cooling · gen_cooling_source
   filter_build     → filtered_count · sub_scenes · preview_rows
   method_split     → customer_feedback_count · customer_feedback_emailed
+  task_dispatch    → gkclaw_task_id · gkclaw_state · gkclaw_dry_run · gkclaw_items · gkclaw_web_url
   wait_survey      → survey_round · survey_round_history (list[{round,filled,total}])
   issue_list       → issue_list_path · issue_count · issue_rows (list[{序号,问题描述,状态,整改建议}])
   report_gen_run   → risks (list[{level, title, trigger}]) · risk_hit
@@ -50,6 +51,7 @@ ZHGK_STEP_NAMES: dict[str, str] = {
     "method_split":      "勘测方法分流",
     "data_append":       "数据条目追加",
     "confirm_table":     "勘测表确认",
+    "task_dispatch":     "任务下发",
     "wait_survey":       "等待现场上传",
     "assess":            "AI 五值评估",
     "issue_list":        "问题清单生成",
@@ -80,7 +82,7 @@ _RISK_LEVEL_TO_NODE = {"high": "high", "medium": "mid", "low": "low"}
 ZHGK_MACRO_PHASES: list[tuple[str, str, str, list[str]]] = [
     ("prep",   "环境准备", "预检 · 选意图",         ["preflight", "intent_select"]),
     ("plan",   "方案识别", "代际制冷 · 建勘测表",   ["scene_suggest_run", "determine_gen", "filter_build", "method_split"]),
-    ("survey", "勘测评估", "数据汇总 · AI 评估 · 复勘", ["data_append", "confirm_table", "wait_survey", "assess", "issue_list", "resurvey_gate", "supplement_run"]),
+    ("survey", "勘测评估", "数据汇总 · AI 评估 · 复勘", ["data_append", "confirm_table", "task_dispatch", "wait_survey", "assess", "issue_list", "resurvey_gate", "supplement_run"]),
     ("report", "报告分发", "出报告 · 审批分发",     ["report_gen_run", "report_distribute"]),
 ]
 
@@ -444,6 +446,38 @@ def _build_resurvey_history(state: dict[str, Any]) -> SduiCardNode | None:
     )
 
 
+def _build_gkclaw_card(state: dict[str, Any]) -> SduiCardNode | None:
+    """GKCLAW 任务下发状态卡（task_dispatch 后出现）。
+    展示 task_id / 链路状态 / dry-run 提示 / 现场 Web 入口 / 合并告警。"""
+    m = collect_metrics(state)
+    tid = m.get("gkclaw_task_id")
+    if not tid:
+        return None
+    labels = {"planned": "已编排", "dispatched": "已下发", "accepted": "对端已导入",
+              "staged_returned": "已收阶段回传", "completed": "已完成",
+              "failed": "失败", "superseded": "已被新任务取代"}
+    st = str(m.get("gkclaw_state", ""))
+    badge = {"completed": "done", "failed": "fail"}.get(st, "run")
+    children: list[SduiNode] = [
+        SduiStatusBannerNode(id="gkclaw-banner", items=[
+            SduiStatusItem(status=badge, text=f"{tid} · {labels.get(st, st)}"),  # type: ignore[arg-type]
+        ]),
+    ]
+    bits: list[str] = []
+    if m.get("gkclaw_dry_run"):
+        bits.append("dry-run：任务包已生成未发送（设 AIDA_SEND_EMAIL=1 真发）")
+    if m.get("gkclaw_items") is not None:
+        bits.append(f"下发现场条目 {m['gkclaw_items']} 条")
+    if m.get("gkclaw_web_url"):
+        bits.append(f"现场 Web 入口：{m['gkclaw_web_url']}")
+    if m.get("gkclaw_message"):
+        bits.append(str(m["gkclaw_message"]))
+    if bits:
+        children.append(SduiAlertNode(id="gkclaw-info", tone="info",
+                                      title="GKCLAW 邮件链路", message="；".join(bits)))
+    return SduiCardNode(id="gkclaw-card", title="任务下发（GKCLAW）", children=children)
+
+
 def _build_approval_card(state: dict[str, Any]) -> SduiCardNode | None:
     """审批流程状态卡（B6 · report_distribute 决策后出现）。
     通过→分发闭环 / 驳回→引导补勘 / 暂存→待处理。"""
@@ -664,6 +698,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             _build_assessment_panel(state),
             _build_issue_table(state),
             _build_resurvey_history(state),
+            _build_gkclaw_card(state),
             _build_alerts(state),
             _build_approval_card(state),
             build_artifacts(state, input_file_keys=("boq_xlsx", "presets_docx")),
