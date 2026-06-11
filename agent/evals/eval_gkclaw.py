@@ -446,6 +446,113 @@ def registry_package_ledger_and_scan_ledger():
     assert reg.scanned_mail_ids() == {7, 8}
 
 
+# ─── mapping ───
+
+def _survey_rows() -> list[dict]:
+    """模拟 read_survey_table 输出（列结构见 survey_table_builder.RESULT_TABLE_HEADERS）。"""
+    return [
+        {"序号": 1, "细分场景": "硬装入场", "勘测要素": "接地", "项目": "接地线",
+         "检查内容": "检查机房接地线规格是否达标", "勘测方法": "现场勘测",
+         "最新检查结果": "", "AI评估结果": "", "备注": ""},
+        {"序号": 2, "细分场景": "硬装入场", "勘测要素": "层高", "项目": "梁下净高",
+         "检查内容": "测量梁下净高是否≥3m", "勘测方法": "数据",
+         "最新检查结果": "", "AI评估结果": "", "备注": ""},
+        {"序号": 3, "细分场景": "通液前", "勘测要素": "管路", "项目": "排水管",
+         "检查内容": "检查排水管走向与坡度", "勘测方法": "现场勘测",
+         "最新检查结果": "", "AI评估结果": "", "备注": ""},
+    ]
+
+
+def _base_items() -> list[dict]:
+    """模拟 load_base_table 输出（含建表时被丢弃的背景知识列）。"""
+    return [
+        {"序号": 11, "代际_制冷": "G5-液冷", "分类": "标准", "细分场景": "硬装入场",
+         "勘测要素": "接地", "项目": "接地线", "检查内容": "检查机房接地线规格是否达标",
+         "是否支持视频勘测": "是", "勘测方法": "现场勘测", "检查结果": "", "备注": "",
+         "语音助手背景知识": "接地线常见 35/50mm²", "视频勘测背景知识": "拍摄接地排与标识牌"},
+        {"序号": 12, "代际_制冷": "G5-液冷", "分类": "标准", "细分场景": "通液前",
+         "勘测要素": "管路", "项目": "排水管", "检查内容": "检查排水管走向与坡度",
+         "是否支持视频勘测": "否", "勘测方法": "现场勘测", "检查结果": "", "备注": "",
+         "语音助手背景知识": "", "视频勘测背景知识": "沿管路全程拍摄"},
+    ]
+
+
+def _project() -> dict:
+    return {"project_code": "K1903", "project_name": "智算 Q3 · 客户甲一期",
+            "room_name": "A 机房", "activity_id": "ACT001"}
+
+
+@test
+def mapping_builds_contract_task():
+    from agent.skills.zhgk.services.gkclaw import mapping, schema
+    task = mapping.build_task_payload(
+        task_id="task-20260611-K1903-000001",
+        rows=_survey_rows(), base_items=_base_items(),
+        project=_project(),
+        assignees=[{"surveyor_name": "张三", "surveyor_code": "S001"}],
+    )
+    assert schema.validate_task(task) == [], schema.validate_task(task)
+    # 只下发 现场勘测 条目（序号 2 是数据类，不下发）
+    keys = [it["问题序号"] for it in task["items"]]
+    assert keys == ["1", "3"]
+    it1 = task["items"][0]
+    assert it1["勘测项"] == "检查机房接地线规格是否达标"
+    assert it1["选项列表"] == [] and it1["勘测结果"] == "" and it1["to_back_备注"] == ""
+    # to_front_备注 = 【勘测要素/项目】+ 视频勘测背景知识 + 语音助手背景知识
+    assert it1["to_front_备注"].startswith("【接地/接地线】")
+    assert "拍摄接地排与标识牌" in it1["to_front_备注"]
+    assert "接地线常见 35/50mm²" in it1["to_front_备注"]
+    # metadata 溯源
+    assert it1["metadata"]["细分场景"] == "硬装入场"
+    assert it1["metadata"]["是否支持视频勘测"] == "是"
+    assert it1["metadata"]["底表序号"] == 11
+    # 顶层
+    assert task["task_name"] == "智算 Q3 · 客户甲一期·A 机房 现场勘测"
+    assert task["project"] == {"project_id": "ACT001", "project_code": "K1903",
+                               "project_name": "智算 Q3 · 客户甲一期"}
+    assert task["dependency_rules"] == [] and task["supplemental_context"] is None
+    assert task["metadata"]["generation_cooling"] == "" and task["metadata"]["room_name"] == "A 机房"
+
+
+@test
+def mapping_join_miss_is_tolerated():
+    from agent.skills.zhgk.services.gkclaw import mapping
+    task = mapping.build_task_payload(
+        task_id="task-20260611-K1903-000002",
+        rows=_survey_rows(), base_items=[],  # 底表 join 全失败
+        project=_project(),
+        assignees=[{"surveyor_name": "张三", "surveyor_code": "S001"}],
+    )
+    it1 = task["items"][0]
+    assert it1["to_front_备注"] == "【接地/接地线】"
+    assert "底表序号" not in it1["metadata"]
+
+
+@test
+def mapping_clusters_default_single():
+    """物理空间分簇：v1 无字段 → 单一兜底簇 cluster-all（cluster_name=机房名）。"""
+    from agent.skills.zhgk.services.gkclaw import mapping
+    clusters = mapping.derive_clusters(["1", "3"], room_name="A 机房")
+    assert clusters == [{"cluster_id": "cluster-all", "cluster_name": "A 机房",
+                         "item_keys": ["1", "3"]}]
+    assert mapping.derive_clusters(["1"], room_name="")[0]["cluster_name"] == "全部条目"
+
+
+@test
+def mapping_clusters_by_field_when_present():
+    """预留升级点：提供 cluster_values（key→物理位置标签）时按标签分簇 + 空值落兜底。"""
+    from agent.skills.zhgk.services.gkclaw import mapping
+    clusters = mapping.derive_clusters(
+        ["1", "2", "3", "4"], room_name="A 机房",
+        cluster_values={"1": "配电区", "2": "制冷区", "3": "配电区", "4": ""},
+    )
+    assert clusters == [
+        {"cluster_id": "cluster-01", "cluster_name": "配电区", "item_keys": ["1", "3"]},
+        {"cluster_id": "cluster-02", "cluster_name": "制冷区", "item_keys": ["2"]},
+        {"cluster_id": "cluster-other", "cluster_name": "其他", "item_keys": ["4"]},
+    ]
+
+
 # ─── main ───
 
 def main() -> int:
