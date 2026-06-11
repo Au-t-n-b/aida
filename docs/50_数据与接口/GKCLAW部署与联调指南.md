@@ -16,15 +16,16 @@ zhgk(backagent·内网服务器) ──mailgw(同机:8025)──→ 邮件[task.
 
 | 前提 | 说明 |
 |---|---|
-| 代码版本 | GKCLAW 链路已合入 master（commit `4ff5db9` 及之前 14 个 gkclaw commit）。服务器从 origin 拉取，**确认 origin/master 已包含上述提交** |
+| 代码版本 | GKCLAW 链路已合入 master；**mailgw 网关也已并入本仓 `mailgw/` 子目录**（含完整历史）。服务器 `git clone` 本仓即同时获得 AIDA 与 mailgw 两个服务的代码 |
 | 同机部署 | mailgw 与 AIDA 后端必须部署在**同一台机器**（附件按本地绝对路径传递，是双方的接口约定） |
 | 公司邮箱 | 一个专用邮箱账号（backagent 邮箱）：SMTP 发信 + POP3 收信凭据 |
 | 对端信息 | frontagent 收件邮箱地址（联调前由对方提供，见 §6） |
 | Python | 3.11+（两个服务各自 venv） |
 
-## 2. mailgw 部署（邮件网关 · 端口 8025）
+## 2. mailgw 部署（邮件网关 · 端口 8025 · 代码在本仓 `mailgw/` 子目录）
 
-详细步骤见邮件仓《部署与配置手册》，此处只列 GKCLAW 相关要点：
+详细步骤见 [mailgw/docs/部署与配置手册.md](../../mailgw/docs/部署与配置手册.md)（独立 venv 安装
+`mailgw/requirements.txt`，与 AIDA 的 venv 分开），此处只列 GKCLAW 相关要点：
 
 1. **凭据**（mailgw `.env`）：公司邮箱 SMTP/POP3 host、端口、账号、授权码；为 AIDA 签发调用 token：
    ```

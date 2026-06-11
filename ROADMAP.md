@@ -575,6 +575,7 @@ Step 4 文档
 > 设计决策与边界：[docs/50_数据与接口/GKCLAW邮件链路.md](docs/50_数据与接口/GKCLAW邮件链路.md)（实现说明+§24 验收对照）
 > 部署与联调：[docs/50_数据与接口/GKCLAW部署与联调指南.md](docs/50_数据与接口/GKCLAW部署与联调指南.md)（部署清单/自验/十步联调/排障/回退）
 > 分支：feat/gkclaw-mail-link · 2026-06-11 完成并合入 master（eval_gkclaw 42/42）
+> mailgw 邮件网关已以 subtree 并入仓内 `mailgw/` 子目录（独立服务独立 venv，后续 mailgw 开发直接在此目录进行）
 
 - [x] gkclaw 协议层（ids/schema/package/registry/mapping，eval_gkclaw 离线回归）
 - [x] mailer.py mailgw backend + mailbox.py 统一收件入口
