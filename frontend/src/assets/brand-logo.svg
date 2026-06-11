@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Brand logo">
+  <defs>
+    <linearGradient id="brand-accent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1565C0" />
+      <stop offset="100%" stop-color="#4FC3F7" />
+    </linearGradient>
+  </defs>
+  <path
+    fill="#FFFFFF"
+    d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"
+  />
+  <path
+    fill="url(#brand-accent)"
+    d="M 36.0855 92 L 53.0855 92 L 59.248 80.7375 L 50 80.7375 Z"
+  />
+</svg>

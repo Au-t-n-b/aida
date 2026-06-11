@@ -1,0 +1,1368 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIDA 交付作业平台 · 团队协作门户</title>
+<style>/* ============================================================
+   AIDA 交付作业平台 · 团队协作门户
+   视觉语言：精密仪器 · 亮面拉丝钛 · 蓝图栅格 · 大留白
+   ============================================================ */
+
+:root{
+  /* —— 底色：冷调珍珠白 / 蓝图浅场 —— */
+  --bg:#e8ebef;
+  --bg-2:#eef1f4;
+  --bg-3:#f5f7f9;
+  --paper:#ffffff;
+
+  /* —— 文本墨阶 —— */
+  --ink:#161b22;
+  --ink-2:#3a414b;
+  --ink-3:#5c646f;
+  --ink-4:#8b929c;
+  --ink-5:#aab0b9;
+
+  /* —— 发丝线 / 描边 —— */
+  --hair:rgba(20,26,34,.10);
+  --hair-2:rgba(20,26,34,.06);
+  --hair-strong:rgba(20,26,34,.18);
+
+  /* —— 阴影（柔性悬浮）—— */
+  --sh-1:0 1px 2px rgba(16,22,30,.05);
+  --sh-2:0 1px 2px rgba(16,22,30,.04),0 6px 18px rgba(16,22,30,.06);
+  --sh-3:0 2px 4px rgba(16,22,30,.05),0 18px 44px rgba(16,22,30,.10);
+  --sh-accent:0 8px 30px rgba(58,84,180,.18);
+
+  /* —— 亮面拉丝钛（签名 · 石墨拉丝）—— */
+  --titanium:linear-gradient(110deg,#272c34 0%,#5a626d 24%,#2c313a 46%,#7a818c 64%,#2f343d 82%,#565d68 100%);
+  --titanium-soft:linear-gradient(110deg,#3a414b,#7b828d 45%,#3a414b 72%,#6a717c);
+  --steel:#5b6675;
+
+  /* —— 蓝图主控色（交互 / 进度 / 激活）—— */
+  --accent:#3a54c4;
+  --accent-2:#5b73e0;
+  --accent-ink:#2b3f9a;
+  --accent-soft:rgba(58,84,196,.10);
+  --accent-soft-2:rgba(58,84,196,.18);
+
+  /* —— 语义色 —— */
+  --ok:#1f9d5c;
+  --ok-soft:rgba(31,157,92,.12);
+  --warn:#c2820a;
+  --warn-soft:rgba(194,130,10,.10);
+  --danger:#cf4b3a;
+
+  --radius:15px;
+  --radius-lg:22px;
+  --nav-h:64px;
+  --ease:cubic-bezier(.2,.7,.2,1);
+  --ease-io:cubic-bezier(.16,1,.3,1);
+
+  --font-cn:"Segoe UI","PingFang SC","Microsoft YaHei","Noto Sans SC",sans-serif;
+  --font-tech:"Segoe UI","Space Grotesk","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-mono:"SF Mono","JetBrains Mono",Consolas,"Cascadia Code",monospace;
+}
+
+*{box-sizing:border-box}
+*:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:6px}
+html{
+  scroll-behavior:smooth;
+  scroll-padding-top:96px;
+  -webkit-text-size-adjust:100%;
+}
+html,body{margin:0;min-height:100%}
+body{
+  background:var(--bg);
+  color:var(--ink-3);
+  font-family:var(--font-cn);
+  font-weight:400;
+  line-height:1.5;
+  letter-spacing:0;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+/* 全局氛围：顶部冷光 + 极淡蓝图栅格 */
+body::before{
+  content:'';position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background:
+    radial-gradient(1100px 680px at 50% -20%,rgba(58,84,196,.07),transparent 58%),
+    radial-gradient(820px 560px at 90% 6%,rgba(120,132,150,.08),transparent 55%),
+    linear-gradient(180deg,#eef1f5,#e6e9ee 60%,#e8ebef);
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.5;
+  background-image:
+    linear-gradient(rgba(20,26,34,.022) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,26,34,.022) 1px,transparent 1px);
+  background-size:60px 60px;
+  -webkit-mask-image:radial-gradient(130% 100% at 50% 0%,#000,transparent 78%);
+          mask-image:radial-gradient(130% 100% at 50% 0%,#000,transparent 78%);
+}
+a{color:inherit;text-decoration:none}
+code,pre,kbd{font-family:var(--font-mono)}
+::selection{background:rgba(58,84,196,.18);color:var(--ink)}
+
+.shell{max-width:1280px;margin:0 auto;padding:0 clamp(22px,5vw,72px)}
+
+/* —— 拉丝钛文字 —— */
+.titanium{
+  background:var(--titanium);
+  background-size:220% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:sheen 8s linear infinite;
+}
+@keyframes sheen{to{background-position:-220% 0}}
+
+/* —— 图标系统 —— */
+svg.i{width:1em;height:1em;flex:none;display:inline-block;vertical-align:-.16em;
+  fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.sdot{display:inline-block;width:.62em;height:.62em;border-radius:50%;vertical-align:.02em;margin:0 .12em;
+  box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+.sdot.amber{background:var(--warn)}
+.sdot.red{background:var(--danger)}
+.sdot.green{background:var(--ok)}
+
+/* ============================================================
+   顶部滚动进度线 + 导航
+   ============================================================ */
+.scrollbar{
+  position:fixed;top:0;left:0;height:2px;width:0;z-index:80;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 12px rgba(58,84,196,.45);
+  transition:width .12s linear;
+}
+.nav{
+  position:sticky;top:0;z-index:50;
+  display:flex;align-items:center;gap:26px;
+  height:var(--nav-h);padding:0 clamp(22px,5vw,48px);
+  background:rgba(244,246,249,.72);
+  backdrop-filter:blur(18px) saturate(150%);
+  -webkit-backdrop-filter:blur(18px) saturate(150%);
+  border-bottom:1px solid var(--hair);
+}
+.nav-brand{
+  display:flex;align-items:center;gap:11px;white-space:nowrap;
+  font-size:14px;font-weight:600;letter-spacing:.01em;color:var(--ink);
+}
+.nav-brand .dot{
+  width:9px;height:9px;border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));
+  box-shadow:0 0 10px rgba(58,84,196,.5);
+}
+.nav-roles{display:flex;gap:2px;margin-left:8px}
+.nav-role{
+  position:relative;display:inline-flex;align-items:center;gap:8px;
+  font-size:13px;color:var(--ink-4);white-space:nowrap;
+  padding:8px 14px;border-radius:9px;transition:color .18s var(--ease),background .18s var(--ease);
+}
+.nav-role svg.i{font-size:15px;color:var(--ink-4);transition:color .18s var(--ease)}
+.nav-role:hover{color:var(--ink-2);background:rgba(20,26,34,.04)}
+.nav-role:hover svg.i{color:var(--ink-2)}
+.nav-role.active{color:var(--accent-ink);background:var(--accent-soft)}
+.nav-role.active svg.i{color:var(--accent)}
+.nav-role.active::after{
+  content:'';position:absolute;left:14px;right:14px;bottom:3px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,var(--accent),var(--accent-2));
+}
+.nav-links{margin-left:auto;display:flex;gap:2px;flex-wrap:wrap}
+.nav-link{
+  display:inline-flex;align-items:center;gap:7px;
+  font-size:12px;color:var(--ink-4);padding:7px 12px;border-radius:8px;
+  transition:color .18s var(--ease),background .18s var(--ease),border-color .18s var(--ease);
+}
+.nav-link svg.i{font-size:14px}
+.nav-link:hover{color:var(--ink-2);background:rgba(20,26,34,.04)}
+.nav-link.primary{color:var(--accent-ink);border:1px solid var(--accent-soft-2);background:var(--accent-soft)}
+.nav-link.primary:hover{border-color:var(--accent);color:var(--accent-ink);background:rgba(58,84,196,.14)}
+
+/* ============================================================
+   揭示动画（滚动进入）
+   ============================================================ */
+.js .reveal{
+  opacity:0;transform:translateY(30px);filter:blur(6px);
+  transition:opacity .9s var(--ease-io),transform .9s var(--ease-io),filter .9s var(--ease-io);
+  transition-delay:calc(var(--i,0) * 65ms);
+  will-change:opacity,transform;
+}
+.reveal.in{opacity:1;transform:none;filter:none}
+.no-motion *,.no-motion *::before,.no-motion *::after{transition:none!important;animation:none!important}
+.no-motion .reveal{opacity:1!important;transform:none!important;filter:none!important}
+.no-motion .hero-title .ln > span{opacity:1!important;transform:none!important}
+
+/* ============================================================
+   门（角色页）显隐 + 切换
+   ============================================================ */
+[data-door]{display:none}
+[data-door].show{display:block}
+[data-door].show.enter{animation:doorIn .8s var(--ease-io)}
+@keyframes doorIn{
+  from{opacity:0;transform:translateY(18px) scale(.994);filter:blur(5px)}
+  to{opacity:1;transform:none;filter:none}
+}
+
+/* 拉丝钛幕布扫切 */
+.curtain{
+  position:fixed;inset:0;z-index:70;pointer-events:none;
+  background:linear-gradient(90deg,#dfe3e9,#f3f5f8);
+  transform:scaleX(0);transform-origin:left center;opacity:0;
+  border-right:2px solid var(--accent);
+  box-shadow:0 0 60px rgba(58,84,196,.22),inset -40px 0 80px rgba(255,255,255,.5);
+}
+.curtain.play{animation:wipe .82s cubic-bezier(.76,0,.24,1) both}
+@keyframes wipe{
+  0%{transform:scaleX(0);transform-origin:left center;opacity:1}
+  46%{transform:scaleX(1);transform-origin:left center;opacity:1}
+  54%{transform:scaleX(1);transform-origin:right center;opacity:1}
+  100%{transform:scaleX(0);transform-origin:right center;opacity:1}
+}
+
+/* ============================================================
+   HOME · Hero
+   ============================================================ */
+.hero{
+  position:relative;min-height:100svh;
+  display:flex;flex-direction:column;justify-content:flex-start;
+  padding:clamp(118px,14vh,158px) 0 5vh;
+  overflow:hidden;
+}
+.hero-bg{position:absolute;inset:-10% -5%;z-index:0;pointer-events:none}
+#home .hero > .shell{width:100%;max-width:1280px;}
+.hero-glow{
+  position:absolute;width:1100px;height:1100px;left:50%;top:-24%;transform:translateX(-50%);
+  background:radial-gradient(closest-side,rgba(58,84,196,.14),rgba(91,115,224,.05) 45%,transparent 72%);
+  filter:blur(10px);will-change:transform;
+}
+.hero-arc{
+  position:absolute;left:50%;top:-46%;transform:translateX(-50%);
+  width:1500px;height:1500px;border-radius:50%;
+  border:1px solid rgba(58,84,196,.14);
+  -webkit-mask-image:radial-gradient(closest-side,transparent 70%,#000 71%,#000 73%,transparent 74%);
+          mask-image:radial-gradient(closest-side,transparent 70%,#000 71%,#000 73%,transparent 74%);
+}
+.hero-grid{
+  position:absolute;inset:0;opacity:.6;
+  background-image:
+    linear-gradient(rgba(20,26,34,.04) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(20,26,34,.04) 1px,transparent 1px);
+  background-size:74px 74px;
+  -webkit-mask-image:radial-gradient(120% 90% at 50% 12%,#000,transparent 68%);
+          mask-image:radial-gradient(120% 90% at 50% 12%,#000,transparent 68%);
+}
+.hero-inner{position:relative;z-index:1;max-width:1000px;margin-left:0}
+.home-stage-hero .hero-inner,
+.home-stage-transitioning .hero-inner,
+.home-stage-roles .hero-inner{
+  transition:transform .28s var(--ease-io),opacity .22s var(--ease);
+}
+.home-stage-transitioning .hero-inner{
+  transform:translateY(-14px) scale(.997)!important;
+  opacity:.38!important;
+}
+.home-stage-roles .hero-inner{
+  transform:translateY(-22px) scale(.996)!important;
+  opacity:0!important;
+}
+.home-stage-hero .hero-glow,
+.home-stage-transitioning .hero-glow,
+.home-stage-roles .hero-glow{
+  transition:transform .3s var(--ease-io),filter .18s var(--ease),opacity .24s var(--ease);
+}
+.home-stage-transitioning .hero-glow{filter:blur(10px);opacity:.92}
+.home-stage-roles .hero-glow{filter:blur(10px);opacity:.72}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:10px;white-space:nowrap;
+  font-family:var(--font-tech);font-size:12px;font-weight:600;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--accent-ink);margin:0 0 30px;
+  padding:7px 14px;border-radius:30px;border:1px solid var(--accent-soft-2);background:var(--accent-soft);
+}
+.hero-eyebrow .pip{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.hero-title{
+  margin:0;font-weight:900;line-height:1.04;letter-spacing:0;
+  font-size:clamp(58px,9.2vw,138px);
+  color:var(--ink);
+}
+.hero-title .ln{
+  display:block;overflow:visible;padding-block:.06em;margin-block:-.04em;
+}
+.hero-line-lead{
+  font-size:clamp(44px,6.6vw,96px);font-weight:800;color:var(--ink-2);
+  line-height:1.08;
+}
+.hero-line-main{
+  margin-top:clamp(2px,.6vw,10px);
+  font-size:clamp(58px,9.2vw,138px);font-weight:900;color:var(--ink);
+  line-height:1.02;
+}
+.js .hero-title .ln > span{
+  display:block;opacity:0;transform:translateY(22px);
+  will-change:opacity,transform;
+}
+.hero-title.lit .ln > span{
+  opacity:1;transform:none;
+  transition:transform .72s var(--ease-io),opacity .42s var(--ease);
+}
+.hero-title .hero-line-main > span{transition-delay:.07s}
+.hero-sub{
+  margin:34px 0 0;max-width:560px;
+  font-size:clamp(16px,1.7vw,21px);font-weight:300;line-height:1.6;color:var(--ink-2);
+}
+.hero-cue{
+  position:absolute;left:50%;bottom:30px;transform:translateX(-50%);z-index:1;
+  display:flex;flex-direction:column;align-items:center;gap:9px;
+  font-family:var(--font-tech);font-size:10.5px;letter-spacing:.34em;text-transform:uppercase;color:var(--ink-4);
+}
+.hero-cue .line{width:1px;height:46px;background:linear-gradient(var(--accent),transparent);position:relative;overflow:hidden}
+.hero-cue .line::after{content:'';position:absolute;top:-50%;left:0;width:100%;height:50%;background:var(--accent);animation:drop 2.1s var(--ease) infinite}
+@keyframes drop{0%{top:-50%}60%,100%{top:120%}}
+
+/* ============================================================
+   HOME · 章节通用头
+   ============================================================ */
+.section{position:relative;padding:clamp(90px,13vh,170px) 0}
+#home > .section:first-of-type{padding:clamp(42px,5.5vh,70px) 0 clamp(24px,4vh,48px)}
+#home > .section:nth-of-type(2){padding:clamp(18px,3vh,34px) 0 clamp(48px,7vh,80px)}
+#home > .section:nth-of-type(2) .sec-head{display:none}
+#home > .section:first-of-type .sec-head,
+#home > .section:first-of-type .role-card{
+  transition:transform .3s var(--ease-io),opacity .22s var(--ease),filter .12s var(--ease);
+  will-change:transform,opacity;
+}
+.home-stage-hero #home > .section:first-of-type .sec-head,
+.home-stage-hero #home > .section:first-of-type .role-card{
+  opacity:.001;
+  transform:translateY(12px);
+  filter:none;
+}
+.home-stage-transitioning #home > .section:first-of-type .sec-head,
+.home-stage-transitioning #home > .section:first-of-type .role-card{
+  opacity:.58;
+  transform:translateY(5px);
+  filter:none;
+}
+.home-stage-roles #home > .section:first-of-type .sec-head,
+.home-stage-roles #home > .section:first-of-type .role-card{
+  opacity:1;
+  transform:none;
+  filter:none;
+}
+.home-cards-popping #home > .section:first-of-type .role-card{
+  animation:roleCardFloatPop .46s var(--ease-io) both;
+}
+.home-cards-popping #home > .section:first-of-type .role-card:nth-child(1){animation-delay:0s}
+.home-cards-popping #home > .section:first-of-type .role-card:nth-child(2){animation-delay:.07s}
+.home-cards-popping #home > .section:first-of-type .role-card:nth-child(3){animation-delay:.14s}
+@keyframes roleCardFloatPop{
+  0%{
+    opacity:.1;
+    transform:translateY(22px) scale(.965);
+    box-shadow:0 1px 2px rgba(16,22,30,.04),0 8px 18px rgba(16,22,30,.06);
+  }
+  56%{
+    opacity:1;
+    transform:translateY(-10px) scale(1.018);
+    box-shadow:0 4px 10px rgba(16,22,30,.06),0 24px 54px rgba(58,84,196,.16);
+  }
+  100%{
+    opacity:1;
+    transform:none;
+    box-shadow:var(--sh-2);
+  }
+}
+.sec-head{display:flex;flex-direction:column;gap:18px;margin-bottom:clamp(48px,7vh,80px);max-width:760px}
+.sec-eyebrow{
+  font-family:var(--font-tech);font-size:12px;font-weight:600;letter-spacing:.3em;text-transform:uppercase;
+  color:var(--accent);display:flex;align-items:center;gap:14px;
+}
+.sec-eyebrow::before{content:'';width:30px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--accent),transparent)}
+.sec-title{
+  margin:0;font-weight:800;letter-spacing:-.03em;line-height:1.04;
+  font-size:clamp(34px,5.4vw,72px);color:var(--ink);
+}
+.sec-desc{margin:0;font-size:16px;font-weight:300;line-height:1.7;color:var(--ink-3);max-width:600px}
+
+/* ============================================================
+   HOME · 角色卡
+   ============================================================ */
+.role-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.role-card{
+  position:relative;display:flex;flex-direction:column;
+  min-height:300px;padding:28px 28px 24px;
+  border-radius:var(--radius-lg);
+  background:var(--paper);
+  border:1px solid var(--hair);
+  box-shadow:var(--sh-2);
+  overflow:hidden;isolation:isolate;
+  transition:transform .5s var(--ease-io),border-color .4s var(--ease),box-shadow .4s var(--ease);
+}
+.role-card::before{ /* 鼠标流光 */
+  content:'';position:absolute;inset:0;z-index:-1;opacity:0;transition:opacity .4s var(--ease);
+  background:radial-gradient(420px circle at var(--mx,50%) var(--my,0%),rgba(58,84,196,.09),transparent 60%);
+}
+.role-card::after{ /* 顶部蓝图高光边 */
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  opacity:0;transition:opacity .4s var(--ease);
+}
+.role-card:hover{transform:translateY(-8px);border-color:var(--accent-soft-2);box-shadow:var(--sh-3)}
+.role-card:hover::before{opacity:1}
+.role-card:hover::after{opacity:.9}
+.role-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:0}
+.role-index{
+  font-family:var(--font-tech);font-size:clamp(50px,5vw,72px);font-weight:600;line-height:.8;letter-spacing:-.04em;
+  background:var(--titanium);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;animation:sheen 8s linear infinite;opacity:.85;
+}
+.role-icon{
+  width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:none;
+  color:var(--accent);font-size:24px;
+  background:var(--accent-soft);border:1px solid var(--accent-soft-2);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);
+  transition:transform .5s var(--ease-io),background .4s var(--ease);
+}
+.role-card:hover .role-icon{transform:scale(1.06) rotate(-3deg);background:rgba(58,84,196,.16)}
+.role-name{margin:24px 0 0;font-size:25px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.role-desc{margin:13px 0 0;font-size:14px;font-weight:300;line-height:1.66;color:var(--ink-3)}
+.role-go{
+  margin-top:auto;padding-top:16px;border-top:1px solid var(--hair-2);
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:var(--font-tech);font-size:12.5px;font-weight:600;letter-spacing:.03em;color:var(--ink-3);
+  transition:color .3s var(--ease);
+}
+.role-go .txt{white-space:nowrap}
+.role-go .arr{display:grid;place-items:center;width:30px;height:30px;border-radius:9px;
+  background:var(--accent-soft);color:var(--accent);transition:transform .4s var(--ease-io),background .3s}
+.role-go .arr svg.i{font-size:15px}
+.role-card:hover .role-go{color:var(--accent-ink)}
+.role-card:hover .role-go .arr{transform:translateX(5px);background:rgba(58,84,196,.18)}
+
+/* ============================================================
+   HOME · 术语表
+   ============================================================ */
+.glossary{
+  border:1px solid var(--hair);border-radius:var(--radius-lg);
+  background:var(--paper);box-shadow:var(--sh-2);
+  overflow:hidden;
+}
+.glossary summary{
+  list-style:none;cursor:pointer;user-select:none;
+  display:flex;align-items:center;gap:14px;
+  padding:26px clamp(24px,3vw,40px);
+  font-size:16px;font-weight:600;color:var(--ink-2);transition:color .2s var(--ease)}
+.glossary summary svg.i{font-size:19px;color:var(--accent)}
+.glossary summary::-webkit-details-marker{display:none}
+.glossary summary:hover{color:var(--ink)}
+.glossary .gx{
+  margin-left:auto;width:34px;height:34px;flex:none;border-radius:10px;border:1px solid var(--hair);
+  display:grid;place-items:center;color:var(--ink-3);font-size:15px;transition:transform .3s var(--ease-io),color .2s,border-color .2s,background .2s;
+}
+.glossary[open] .gx{transform:rotate(45deg);color:var(--accent);border-color:var(--accent-soft-2);background:var(--accent-soft)}
+.glossary .gnum{font-family:var(--font-tech);font-size:13px;color:var(--ink-4);font-weight:500}
+.glossary dl{
+  margin:0;padding:0 clamp(24px,3vw,40px) 12px;
+  display:grid;grid-template-columns:1fr 1fr;gap:0 56px;
+}
+.glossary dt{
+  font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-.01em;
+  padding:22px 0 8px;border-top:1px solid var(--hair-2);
+}
+.glossary dd{
+  margin:0 0 22px;font-size:13.5px;font-weight:300;line-height:1.72;color:var(--ink-3);
+  padding-top:22px;border-top:1px solid var(--hair-2);
+}
+.glossary[open] dl{animation:gloss .5s var(--ease-io)}
+@keyframes gloss{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+
+/* ============================================================
+   门页 · Hero band
+   ============================================================ */
+.door-back{
+  display:inline-flex;align-items:center;gap:9px;
+  font-size:13px;color:var(--ink-3);padding:9px 16px 9px 13px;border-radius:30px;
+  border:1px solid var(--hair);background:var(--paper);box-shadow:var(--sh-1);
+  transition:color .2s var(--ease),border-color .2s var(--ease),transform .3s var(--ease-io);
+}
+.door-back svg.i{font-size:14px}
+.door-back:hover{color:var(--accent-ink);border-color:var(--accent-soft-2);transform:translateX(-3px)}
+.door-hero{position:relative;padding:28px 0 0}
+.door-kicker{
+  display:flex;align-items:center;gap:14px;margin:30px 0 0;
+}
+.door-kicker .idx{
+  font-family:var(--font-tech);font-size:clamp(34px,3.8vw,52px);font-weight:600;line-height:.8;letter-spacing:-.04em;
+  background:var(--titanium);background-size:220% 100%;-webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;animation:sheen 8s linear infinite;
+}
+.door-kicker .ic{
+  width:48px;height:48px;border-radius:14px;display:grid;place-items:center;flex:none;
+  color:var(--accent);font-size:24px;
+  background:var(--accent-soft);border:1px solid var(--accent-soft-2);box-shadow:var(--sh-1),inset 0 1px 0 rgba(255,255,255,.6);
+}
+.door-title{
+  margin:16px 0 0;font-weight:800;letter-spacing:0;line-height:1.08;
+  font-size:clamp(34px,4.4vw,64px);color:var(--ink);
+}
+.door-sub{margin:14px 0 0;font-size:clamp(14px,1.25vw,17px);font-weight:300;color:var(--ink-2);max-width:720px;line-height:1.58}
+.door-quote{
+  margin:28px 0 0;
+  padding:20px 24px;max-width:none;
+  border-radius:var(--radius);border:1px solid var(--hair);
+  border-left:3px solid var(--accent);
+  background:var(--paper);box-shadow:var(--sh-1);
+  font-size:14px;font-weight:400;line-height:1.65;color:var(--ink-2);
+}
+
+/* ============================================================
+   门页 · 两栏（左侧时间轴导航 + 右侧步骤）
+   ============================================================ */
+.door-body{
+  display:grid;grid-template-columns:280px minmax(0,1fr);gap:clamp(24px,3vw,42px);
+  align-items:start;margin-top:clamp(30px,5vh,54px);
+}
+.door-aside{position:sticky;top:calc(var(--nav-h) + 18px);display:flex;flex-direction:column;gap:18px}
+
+/* 进度卡 */
+.door-rail{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:16px 16px;
+  border-radius:18px;border:1px solid var(--hair);
+  background:var(--paper);box-shadow:var(--sh-2);
+}
+.rail-ring{position:relative;width:50px;height:50px;flex:none}
+.rail-ring svg{width:50px;height:50px;display:block;transform:rotate(-90deg)}
+.rail-ring .track{fill:none;stroke:rgba(20,26,34,.10);stroke-width:3.2}
+.rail-ring .prog{fill:none;stroke:var(--accent);stroke-width:3.2;stroke-linecap:round;
+  stroke-dasharray:126;stroke-dashoffset:126;transition:stroke-dashoffset .7s var(--ease-io)}
+.rail-ring.complete .prog{stroke:var(--ok)}
+.rail-ring .pct-mini{
+  position:absolute;inset:0;display:grid;place-items:center;
+  font-family:var(--font-cn);font-size:15px;line-height:1;font-weight:700;color:var(--ink-2);
+  font-variant-numeric:tabular-nums;
+}
+.rail-ring.complete .pct-mini{font-family:var(--font-cn);font-size:18px;font-weight:700;color:var(--ok)}
+.rail-label{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.rail-count{font-family:var(--font-tech);font-size:18px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.rail-count em{color:var(--ink-4);font-style:normal;font-weight:500}
+.rail-hint{font-size:11.5px;color:var(--ink-4);letter-spacing:.02em}
+/* 旧的细进度条隐藏（环已表达） */
+.rail-bar{display:none}
+.rail-fill{display:none}
+.rail-tools{display:flex;gap:6px;flex-basis:100%}
+.rail-tools .tool{flex:1}
+.tool{
+  font-size:12px;color:var(--ink-3);background:var(--paper);border:1px solid var(--hair);border-radius:9px;
+  padding:8px 10px;cursor:pointer;font-family:var(--font-cn);text-align:center;
+  transition:color .18s,border-color .18s,background .18s;
+}
+.tool:hover{color:#fff;border-color:var(--accent);background:var(--accent)}
+
+/* 时间轴 */
+.tl{list-style:none;margin:0;padding:6px 4px 4px;position:relative;
+  border-radius:18px;border:1px solid var(--hair);background:var(--paper);box-shadow:var(--sh-1)}
+.tl::before{content:'';position:absolute;left:25px;top:24px;bottom:24px;width:2px;border-radius:2px;
+  background:linear-gradient(var(--hair),var(--hair) 60%,var(--hair-2));z-index:0}
+.tl-node{
+  position:relative;z-index:1;display:flex;align-items:center;gap:13px;
+  padding:11px 14px 11px 12px;border-radius:12px;cursor:pointer;
+  transition:background .2s var(--ease);
+}
+.tl-node:hover{background:var(--accent-soft)}
+.tl-dot{
+  width:26px;height:26px;flex:none;border-radius:50%;display:grid;place-items:center;
+  background:var(--paper);border:2px solid var(--hair-strong);
+  font-family:var(--font-tech);font-size:11.5px;font-weight:600;color:var(--ink-4);
+  transition:.28s var(--ease);
+}
+.tl-dot svg.i{font-size:13px;color:#fff;display:none}
+.tl-name{font-size:12.5px;font-weight:500;color:var(--ink-3);line-height:1.4;
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  transition:color .2s var(--ease)}
+.tl-node:hover .tl-name{color:var(--ink-2)}
+.tl-node.active{background:var(--accent-soft)}
+.tl-node.active .tl-dot{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.tl-node.active .tl-name{color:var(--accent-ink);font-weight:600}
+.tl-node.done .tl-dot{background:var(--ok);border-color:var(--ok);color:#fff}
+.tl-node.done .tl-dot .num{display:none}
+.tl-node.done .tl-dot svg.i{display:block}
+.tl-node.active.done .tl-dot{box-shadow:0 0 0 4px var(--ok-soft)}
+
+/* 键盘提示 */
+.kbd-hint{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:11px 14px;border-radius:14px;border:1px dashed var(--hair-strong);
+  font-size:11.5px;color:var(--ink-4);line-height:1.7;
+}
+.kbd-hint kbd{
+  font-family:var(--font-tech);font-size:11px;font-weight:600;color:var(--ink-2);
+  background:var(--bg-3);border:1px solid var(--hair);border-bottom-width:2px;border-radius:6px;
+  padding:1px 6px;min-width:18px;text-align:center;
+}
+
+/* ============================================================
+   步骤器
+   ============================================================ */
+.stepper{display:flex;flex-direction:column;gap:14px;min-width:0}
+.step{
+  position:relative;border-radius:var(--radius);overflow:hidden;scroll-margin-top:96px;
+  border:1px solid var(--hair);
+  background:var(--paper);box-shadow:var(--sh-1);
+  transition:border-color .3s var(--ease),box-shadow .3s var(--ease);
+}
+.step:hover{border-color:var(--hair-strong)}
+.step.open{box-shadow:var(--sh-2);border-color:var(--accent-soft-2)}
+.step.is-active{border-color:var(--accent-soft-2)}
+.step.is-active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--accent),var(--accent-2));z-index:2}
+.step.is-done{border-left:3px solid var(--ok)}
+.step.is-done .step-index{color:var(--ok);border-color:color-mix(in oklch,var(--ok),transparent 60%);background:var(--ok-soft)}
+.step-head{
+  display:flex;align-items:center;gap:18px;padding:20px 22px;cursor:pointer;user-select:none;
+}
+.step-index{
+  flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;
+  font-family:var(--font-tech);font-size:17px;font-weight:600;color:var(--ink-3);
+  border:1px solid var(--hair);background:var(--bg-3);
+  transition:.35s var(--ease);
+}
+.step.open .step-index{
+  background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#fff;border-color:transparent;
+  box-shadow:var(--sh-accent);
+}
+.step.open.is-done .step-index{background:linear-gradient(135deg,var(--ok),#27b36c)}
+.step-titles{flex:1;min-width:0}
+.step-title{font-size:17px;font-weight:600;letter-spacing:0;color:var(--ink);line-height:1.35}
+.step-goal{margin-top:6px;font-size:14px;font-weight:400;color:var(--ink-3);line-height:1.55;max-width:860px}
+.step.open .step-goal{color:var(--ink-2)}
+.step-toggle{
+  flex:none;width:34px;height:34px;border-radius:10px;border:1px solid var(--hair);
+  display:grid;place-items:center;color:var(--ink-4);font-size:13px;background:var(--paper);
+  transition:transform .35s var(--ease-io),color .2s,border-color .2s,background .2s;
+}
+.step-toggle svg.i{font-size:15px}
+.step:hover .step-toggle{color:var(--ink-2);border-color:var(--hair-strong)}
+.step.open .step-toggle{transform:rotate(90deg);color:var(--accent);border-color:var(--accent-soft-2);background:var(--accent-soft)}
+
+/* 平滑高度展开 */
+.step-wrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .5s var(--ease-io)}
+.step.open .step-wrap{grid-template-rows:1fr}
+.step-body{overflow:hidden}
+.step-inner{padding:4px 22px 24px;border-top:1px solid var(--hair-2);margin-top:2px}
+
+/* 内容块 */
+.block{margin:18px 0}
+.block:first-child{margin-top:16px}
+.block-label{
+  display:flex;align-items:center;gap:10px;margin-bottom:12px;
+  font-family:var(--font-tech);font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);
+}
+.block-label svg.i{font-size:15px;color:var(--accent)}
+.readlinks{display:flex;flex-direction:column;border:1px solid var(--hair-2);border-radius:12px;overflow:hidden;background:var(--bg-3)}
+.readlink{
+  display:flex;align-items:center;gap:14px;padding:13px 15px;font-size:13.5px;color:var(--ink-2);
+  border-bottom:1px solid var(--hair-2);transition:background .18s var(--ease),color .18s var(--ease),padding .25s var(--ease);
+}
+.readlink .t{display:flex;align-items:center;gap:9px;min-width:0;flex:1;text-align:left}
+.readlink svg.i{font-size:15px;flex:none;color:var(--ink-4);transition:color .18s}
+.readlink:last-child{border-bottom:none}
+.readlink:hover{color:var(--accent-ink);background:var(--paper);padding-left:18px}
+.readlink:hover svg.i{color:var(--accent)}
+.readlink code{
+  flex:none;margin-left:auto;color:var(--ink-4);font-size:11.5px;font-weight:400;
+  padding:3px 9px;border-radius:7px;background:var(--bg);border:1px solid var(--hair-2);white-space:nowrap;max-width:46%;overflow:hidden;text-overflow:ellipsis;
+}
+
+.copy{
+  margin-left:auto;font-family:var(--font-tech);font-size:11px;letter-spacing:.06em;color:var(--ink-2);
+  background:var(--paper);border:1px solid var(--hair);border-radius:8px;padding:5px 14px;cursor:pointer;
+  transition:.18s var(--ease);min-width:62px;text-align:center;
+}
+.copy:hover{background:var(--accent);color:#fff;border-color:var(--accent)}
+.copy.done-btn{color:var(--ok);border-color:color-mix(in oklch,var(--ok),transparent 55%);background:var(--ok-soft)}
+pre.prompt,pre.cmd{
+  margin:0;padding:18px 20px;border-radius:12px;white-space:pre-wrap;word-break:break-word;
+  font-size:13px;line-height:1.78;color:var(--ink-2);
+  background:var(--bg-3);border:1px solid var(--hair-2);border-left:3px solid var(--hair-strong);
+}
+pre.prompt{border-left-color:var(--accent);background:linear-gradient(180deg,rgba(58,84,196,.04),var(--bg-3))}
+pre.cmd{padding:42px 20px 18px 38px;position:relative;color:#2d333c;background:#1d2128;border-color:#2a2f37;border-left-color:var(--accent-2)}
+pre.cmd{color:#cdd2da}
+pre.cmd::before{content:'$';position:absolute;left:18px;top:42px;color:var(--accent-2);font-weight:700}
+pre.cmd::after{content:'';position:absolute;top:16px;left:18px;width:10px;height:10px;border-radius:50%;
+  background:#3a4150;box-shadow:18px 0 0 #3a4150,36px 0 0 #3a4150}
+
+/* 完成勾选 + 下一步 */
+.done{
+  display:flex;align-items:flex-start;gap:12px;margin-top:24px;padding:16px 18px;
+  border-radius:12px;border:1px solid var(--hair-2);background:var(--bg-3);
+  color:var(--ink-2);font-size:13.5px;font-weight:400;cursor:pointer;user-select:none;
+  transition:border-color .2s var(--ease),background .2s var(--ease);
+}
+.done:hover{border-color:var(--hair)}
+.done input{
+  appearance:none;-webkit-appearance:none;margin:1px 0 0;width:19px;height:19px;flex:none;cursor:pointer;
+  border:1.5px solid var(--hair-strong);border-radius:6px;background:var(--paper);position:relative;transition:.2s var(--ease);
+}
+.done input:checked{background:var(--ok);border-color:var(--ok)}
+.done input:checked::after{content:'✓';position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:12px;font-weight:800}
+.done input:checked ~ .done-txt{color:var(--ok)}
+.done-txt{line-height:1.6}
+.note{
+  margin-top:18px;padding:14px 18px;border-radius:12px;border:1px solid var(--warn-soft);border-left:3px solid var(--warn);
+  background:var(--warn-soft);color:#8a6310;font-size:13px;font-weight:400;line-height:1.7;
+}
+.next{
+  margin-top:18px;padding:14px 18px;border-radius:12px;border:1px solid var(--accent-soft-2);
+  background:var(--accent-soft);color:var(--accent-ink);font-size:13px;font-weight:400;line-height:1.7;
+  display:flex;align-items:center;gap:10px;
+}
+.next svg.i{font-size:16px;flex:none}
+
+/* 门页底部留白 */
+.door-foot{height:14vh}
+
+/* 完成庆祝条 */
+.door-clear{
+  display:none;margin-top:18px;padding:18px 22px;border-radius:16px;
+  border:1px solid var(--ok);background:var(--ok-soft);color:#0f5c34;
+  align-items:center;gap:13px;font-size:14px;font-weight:500;animation:doorIn .5s var(--ease-io)}
+.door-clear.show{display:flex}
+.door-clear svg.i{font-size:22px;color:var(--ok)}
+
+/* ============================================================
+   深色页脚（明暗收底 · 拉丝钛收边线 + mono 签名角注）
+   ============================================================ */
+.foot{
+  position:relative;margin-top:6vh;
+  background:var(--ink);color:var(--ink-5);
+  padding:30px clamp(22px,5vw,72px);
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+}
+.foot::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--titanium)}
+.foot .brand{display:flex;align-items:center;gap:10px;color:#fff;font-weight:600;font-size:13px;white-space:nowrap}
+.foot .brand .dot{width:8px;height:8px;border-radius:50%;flex:none;
+  background:linear-gradient(135deg,var(--accent-2),#8fa1ec);box-shadow:0 0 10px rgba(91,115,224,.55)}
+.foot .sig{
+  margin-left:auto;font-family:var(--font-mono);font-size:10px;
+  letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.36);white-space:nowrap;
+}
+@media (max-width:640px){
+  .foot{gap:10px;padding:24px 18px}
+  .foot .sig{margin-left:0;white-space:normal;letter-spacing:.1em}
+}
+
+/* ============================================================
+   回到顶部
+   ============================================================ */
+.totop{
+  position:fixed;right:26px;bottom:26px;z-index:40;width:46px;height:46px;border-radius:14px;
+  display:grid;place-items:center;cursor:pointer;border:1px solid var(--hair);font-size:17px;color:var(--ink-2);
+  background:var(--paper);box-shadow:var(--sh-2);
+  opacity:0;pointer-events:none;transform:translateY(12px) scale(.92);
+  transition:opacity .3s var(--ease),transform .3s var(--ease-io),border-color .2s,color .2s;
+}
+.totop.show{opacity:1;pointer-events:auto;transform:none}
+.totop:hover{color:var(--accent-ink);border-color:var(--accent-soft-2)}
+
+/* ============================================================
+   响应式
+   ============================================================ */
+@media (max-width:1180px){
+  .door-body{grid-template-columns:260px minmax(0,1fr);gap:24px}
+}
+@media (max-width:1080px){
+  .nav-links .nav-link:not(.primary){display:none}
+}
+@media (max-width:1100px){
+  .door-body{grid-template-columns:1fr;gap:18px}
+  .door-aside{position:static;flex-direction:row;flex-wrap:wrap;gap:12px}
+  .door-rail{flex:1;min-width:240px}
+  .tl{display:none}
+  .kbd-hint{display:none}
+}
+@media (max-width:900px){
+  .door-title{font-size:clamp(32px,8vw,52px)}
+  .door-quote{max-width:none;padding:18px 20px;line-height:1.68}
+  .role-grid{grid-template-columns:1fr;gap:14px}
+  .role-card{min-height:auto}
+  .glossary dl{grid-template-columns:1fr;gap:0}
+  .glossary dt{border-top:1px solid var(--hair-2);padding-bottom:6px}
+  .glossary dd{border-top:none;padding-top:6px;margin-bottom:18px}
+  .nav-links{display:none}
+}
+@media (max-width:640px){
+  .nav{gap:12px;padding:0 18px}
+  .nav-roles{margin-left:0;overflow-x:auto;scrollbar-width:none}
+  .nav-roles::-webkit-scrollbar{display:none}
+  .nav-role{padding:8px 10px;font-size:12px;white-space:nowrap}
+  .door-aside{flex-direction:column}
+  .step-head{padding:18px 18px;gap:14px}
+  .step-index{width:40px;height:40px;font-size:15px}
+  .step-inner{padding:6px 18px 22px}
+  .step-title{font-size:16px}
+  .step-goal{font-size:13px}
+  .readlink{font-size:13px}
+  .readlink code{display:none}
+}
+
+/* ============================================================
+   降低动态偏好
+   ============================================================ */
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important}
+  .js .reveal{opacity:1;transform:none;filter:none}
+  .js .hero-title .ln > span{opacity:1;transform:none}
+  .home-stage-transitioning .hero-inner,
+  .home-stage-roles .hero-inner,
+  .home-stage-hero #home > .section:first-of-type .sec-head,
+  .home-stage-hero #home > .section:first-of-type .role-card,
+  .home-stage-transitioning #home > .section:first-of-type .sec-head,
+  .home-stage-transitioning #home > .section:first-of-type .role-card{
+    opacity:1!important;transform:none!important;filter:none!important;
+  }
+  .curtain{display:none}
+}
+</style></head><body>
+<!-- 派生制品 · 自动生成 gen_team_portal.py · 改 docs/onboarding/portal.json 或 portal_assets/ 后重生成 · lint_team_portal.py 守门 · 勿手改 -->
+<svg aria-hidden="true" width="0" height="0" style="position:absolute" focusable="false">
+<defs>
+<symbol id="i-newcomer" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.6 8.4l-2.4 4.8-4.8 2.4 2.4-4.8z"/></symbol>
+<symbol id="i-architect" viewBox="0 0 24 24"><path d="M12 3.2l8.4 4.6-8.4 4.6-8.4-4.6z"/><path d="M3.6 12l8.4 4.6 8.4-4.6"/><path d="M3.6 16.4l8.4 4.6 8.4-4.6"/></symbol>
+<symbol id="i-developer" viewBox="0 0 24 24"><circle cx="5.5" cy="6" r="2.3"/><circle cx="5.5" cy="18" r="2.3"/><circle cx="18" cy="12" r="2.3"/><path d="M7.6 7.1l8.3 3.9M7.6 16.9l8.3-3.9"/></symbol>
+<symbol id="i-prompt" viewBox="0 0 24 24"><path d="M11 3.4l1.7 4.9 4.9 1.7-4.9 1.7L11 16.6l-1.7-4.9L4.4 10l4.9-1.7z"/><path d="M18.2 14.4l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/></symbol>
+<symbol id="i-read" viewBox="0 0 24 24"><path d="M12 6.6C10.4 5.4 8.4 4.7 6 4.7c-1 0-1.9.1-2.8.4v12.9c.9-.3 1.8-.4 2.8-.4 2.4 0 4.4.7 6 1.9"/><path d="M12 6.6c1.6-1.2 3.6-1.9 6-1.9 1 0 1.9.1 2.8.4v12.9c-.9-.3-1.8-.4-2.8-.4-2.4 0-4.4.7-6 1.9z"/><path d="M12 6.6v12.9"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.3"/><path d="M15.2 15.2L20.5 20.5"/></symbol>
+<symbol id="i-cmd" viewBox="0 0 24 24"><rect x="3" y="4.6" width="18" height="14.8" rx="2.6"/><path d="M7.5 10l2.6 2-2.6 2M12.8 14.4h4"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4.3l8.6 14.9H3.4z"/><path d="M12 10v4.2"/><path d="M12 17.2h.01"/></symbol>
+<symbol id="i-library" viewBox="0 0 24 24"><rect x="3.6" y="3.6" width="7" height="7" rx="1.6"/><rect x="13.4" y="3.6" width="7" height="7" rx="1.6"/><rect x="3.6" y="13.4" width="7" height="7" rx="1.6"/><rect x="13.4" y="13.4" width="7" height="7" rx="1.6"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4.5 12h15M13 5.5l6.5 6.5-6.5 6.5"/></symbol>
+<symbol id="i-chevron" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.3 4.3 9.2-9.6"/></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4"/><path d="M6 4.6h11l-2.2 3.7L17 12H6"/></symbol>
+</defs>
+</svg>
+<div class="scrollbar"></div>
+<div class="curtain"></div>
+<nav class="nav"><a class="nav-brand" href="#home"><span class="dot"></span>AIDA 交付作业平台</a><div class="nav-roles"><a class="nav-role" href="#newcomer" data-role="newcomer"><svg class="i"><use href="#i-newcomer"></use></svg> 我是新人</a><a class="nav-role" href="#architect" data-role="architect"><svg class="i"><use href="#i-architect"></use></svg> 我是架构师</a><a class="nav-role" href="#developer" data-role="developer"><svg class="i"><use href="#i-developer"></use></svg> 我是模块开发者</a></div><div class="nav-links"><a class="nav-link primary" href="index.html"><svg class="i"><use href="#i-library"></use></svg> 全部文档（图书馆）</a><a class="nav-link" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/00_开发者地图.md" target="_blank" rel="noopener">开发者地图</a><a class="nav-link" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/AGENTS.md" target="_blank" rel="noopener">提交红线 AGENTS.md</a></div></nav>
+<section id="home" data-door><header class="hero"><div class="hero-bg" aria-hidden="true"><div class="hero-grid"></div><div class="hero-arc"></div><div class="hero-glow"></div></div><div class="shell"><div class="hero-inner" data-stagger><p class="hero-eyebrow reveal"><span class="pip"></span>AIDA 交付作业平台</p><h1 class="hero-title"><span class="ln hero-line-lead"><span>让交付，</span></span><span class="ln hero-line-main"><span>自己跑起来。</span></span></h1><p class="hero-sub reveal">数据中心交付作业的 AI 编排平台</p></div></div><div class="hero-cue" aria-hidden="true"><span class="line"></span>SCROLL</div></header><section class="section"><div class="shell"><div class="sec-head" data-stagger><span class="sec-eyebrow reveal">ROLES</span><h2 class="sec-title reveal titanium">选择你的角色</h2><p class="sec-desc reveal">三条路径，对应三种身份。挑一个进去，按步骤一路跑通。</p></div><div class="role-grid" data-stagger><a class="role-card reveal" href="#newcomer"><div class="role-top"><span class="role-index">01</span><span class="role-icon"><svg class="i"><use href="#i-newcomer"></use></svg></span></div><h3 class="role-name">我是新人</h3><p class="role-desc">搞清这是什么项目、团队怎么协作、怎么把它跑起来</p><div class="role-go"><span class="txt">4 步 · 进入</span><span class="arr"><svg class="i"><use href="#i-arrow"></use></svg></span></div></a><a class="role-card reveal" href="#architect"><div class="role-top"><span class="role-index">02</span><span class="role-icon"><svg class="i"><use href="#i-architect"></use></svg></span></div><h3 class="role-name">我是架构师</h3><p class="role-desc">守两张地图、把需求拆成有护栏的 TASK、用 lint 守一致性</p><div class="role-go"><span class="txt">5 步 · 进入</span><span class="arr"><svg class="i"><use href="#i-arrow"></use></svg></span></div></a><a class="role-card reveal" href="#developer"><div class="role-top"><span class="role-index">03</span><span class="role-icon"><svg class="i"><use href="#i-developer"></use></svg></span></div><h3 class="role-name">我是模块开发者</h3><p class="role-desc">照 zhgk 样板，一步步搭出一个能端到端 run 的业务场景 Skill</p><div class="role-go"><span class="txt">8 步 · 进入</span><span class="arr"><svg class="i"><use href="#i-arrow"></use></svg></span></div></a></div></div></section><section class="section" style="padding-top:0"><div class="shell"><div class="sec-head" data-stagger><span class="sec-eyebrow reveal">GLOSSARY</span><h2 class="sec-title reveal" style="font-size:clamp(28px,3.6vw,46px)">术语表</h2></div><details class="glossary reveal"><summary><svg class="i"><use href="#i-read"></use></svg> 术语表 · 看不懂上面的词？<span class="gnum">点开（6 个）</span><span class="gx">+</span></summary><dl><dt>业务场景 Skill / Skill</dt><dd>把交付里的一个环节（工勘、建模、系统设计…）做成一个能自己跑的 AI 流水线，是本平台的基本单位。</dd><dt>A+B 双层</dt><dd>A 层是一个 SKILL.md（写触发词和端点，给 Claude Code / Cursor 读）；B 层是 Python 代码（skill.py + 各步骤），真正干活。</dd><dt>HITL（人在环中）</dt><dd>流程跑到一半需要你补文件或点确认时会「软中断」停下等你，补完自动接着跑。</dd><dt>SDUI（服务端驱动界面）</dt><dd>后端吐一棵「界面树」、前端照着渲染；新模块不写前端就自动有作业界面。</dd><dt>守门（lint）</dt><dd>一组提交前必跑的检查脚本，自动拦住违反规范的代码——没有守门的规范会退化成 PPT。</dd><dt>Claw · 四层</dt><dd>模块跑在「前端 / Manager / 数据中心 / Claw 执行引擎」四层里；Claw 是真正执行你 Skill 的那一层。</dd></dl></details></div></section></section>
+<section class="door" id="newcomer" data-door><div class="shell"><div class="door-hero" data-stagger><a class="door-back" href="#home"><svg class="i" style="transform:rotate(180deg)"><use href="#i-arrow"></use></svg> 返回选择角色</a><div class="door-kicker reveal"><span class="idx">01</span><span class="ic"><svg class="i"><use href="#i-newcomer"></use></svg></span></div><h2 class="door-title reveal">我是新人</h2><p class="door-sub reveal">搞清这是什么项目、团队怎么协作、怎么把它跑起来</p><blockquote class="door-quote reveal">目标：半天内建立全局认知 + 本地跑通样板。这条路只需「读 + 跑」，不要求写代码。读完想自己做模块，去「模块开发者」门。</blockquote></div><div class="door-body"><aside class="door-aside"><div class="door-rail"><div class="rail-ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="track" cx="23" cy="23" r="20"></circle><circle class="prog" cx="23" cy="23" r="20"></circle></svg><span class="pct-mini">0</span></div><div class="rail-label"><span class="rail-count">0 <em>/ 4</em></span><span class="rail-hint">完成进度</span></div><span class="rail-bar"><span class="rail-fill"></span></span><div class="rail-tools"><button class="tool" type="button" onclick="expandAll(this)">展开全部</button><button class="tool" type="button" onclick="collapseAll(this)">折叠全部</button></div></div><ol class="tl" data-tl></ol><div class="kbd-hint">键盘 <kbd>J</kbd><kbd>K</kbd> 切换步骤 · <kbd>X</kbd> 标记完成 · <kbd>Enter</kbd> 展开</div></aside><div class="stepper" data-stagger><div class="step open reveal" data-step="newcomer-1"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">1</span><div class="step-titles"><div class="step-title">这是什么项目（零基础 · 5 分钟）</div><div class="step-goal">不用懂任何术语：看懂 AIDA 在做什么、四层架构、业务场景 Skill = Skill。看不懂的词翻首页「术语表」。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/00_开发者地图.md" target="_blank" rel="noopener"><span class="t">开发者地图（总入口）</span><code>@docs/00_开发者地图.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/01_AI智能化系统架构梳理.md" target="_blank" rel="noopener"><span class="t">01 系统架构（为什么这么设计）</span><code>@docs/20_架构与范式/01_AI智能化系统架构梳理.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/00_开发者地图.md @docs/20_架构与范式/01_AI智能化系统架构梳理.md
+用 5 分钟给我讲清楚三件事：
+1) AIDA 是做什么的、解决什么交付痛点？
+2) 「前端 / Manager / 数据中心 / Claw」四层各自负责什么？
+3) 我作为新人，该按哪个角色入手（新人 / 架构师 / 模块开发者）？</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能用一句话说清 AIDA、能说出四层、知道 zhgk 是样板模块。</span></label></div></div></div></div><div class="step reveal" data-step="newcomer-2"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">2</span><div class="step-titles"><div class="step-title">团队红线（六铁律）</div><div class="step-goal">记住「禁裸 LLM / 走统一入口 / 新能力=新 Skill / 状态走 SkillState / 外发统一出口」，以及提交前要守门。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/AGENTS.md" target="_blank" rel="noopener"><span class="t">AGENTS.md（提交红线 · 权威）</span><code>@AGENTS.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/03_团队Agent开发范式.md" target="_blank" rel="noopener"><span class="t">03 团队 Agent 开发范式</span><code>@docs/20_架构与范式/03_团队Agent开发范式.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@AGENTS.md
+把这个项目的「必守」红线提炼成一份 checklist，每条告诉我：
+- 它禁止/要求什么；
+- 为什么这么定；
+- 违反会被哪个 lint 脚本拦下来。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能复述六铁律的大意，知道提交前必须跑哪几个 lint。</span></label></div></div></div></div><div class="step reveal" data-step="newcomer-3"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">3</span><div class="step-titles"><div class="step-title">把它跑起来</div><div class="step-goal">本地起后端 + 前端，curl 看到 skills 列表，浏览器打开作业界面。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/10_快速开始/AGENT_QUICKSTART.md" target="_blank" rel="noopener"><span class="t">AGENT_QUICKSTART §0（环境就绪）</span><code>@docs/10_快速开始/AGENT_QUICKSTART.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/10_快速开始/AGENT_QUICKSTART.md
+按 §0 帮我在本地把后端和前端跑起来：逐条给出命令并说明每条验证了什么。
+特别提醒我那个坑：没在 agent/.venv 下跑时，契约类 lint 会显示 SKIP 而不是真校验，别把 SKIP 误判成「绿了」。</pre></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-cmd"></use></svg> 命令<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="cmd">uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload
+cd frontend &amp;&amp; npm run dev   # http://localhost:5173
+curl http://127.0.0.1:7401/agent/skills   # 看到 zhgk/guihua/xtsj = 成功</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：前端能打开、curl 能列出已注册的 skill。</span></label></div></div></div></div><div class="step reveal" data-step="newcomer-4"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">4</span><div class="step-titles"><div class="step-title">你的第一课：读懂样板 zhgk</div><div class="step-goal">通读智慧工勘样板盘点，跑一次它的全流程，看到产物落盘。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/样板盘点_智慧工勘zhgk.md" target="_blank" rel="noopener"><span class="t">样板盘点 · 智慧工勘 zhgk</span><code>@docs/30_skill开发/样板盘点_智慧工勘zhgk.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/agent/skills/zhgk" target="_blank" rel="noopener"><span class="t">zhgk 源码（skill.py + steps/）</span><code>@agent/skills/zhgk</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/30_skill开发/样板盘点_智慧工勘zhgk.md
+带我读懂 zhgk 这个样板：它有几个 step？哪个 step 用了真 LLM？文件型 HITL（缺料软中断）在哪触发？产物落在哪个目录？
+最后告诉我怎么在本地跑一次它的全流程，并指给我看产物文件。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：本地跑通一次 zhgk run，在 ProjectData/Output 看到产物。</span></label><div class="next"><svg class="i"><use href="#i-arrow"></use></svg> 想自己造一个模块？→ 去「模块开发者」门，照样板复制。</div></div></div></div></div></div></div></div><div class="door-clear"><svg class="i"><use href="#i-flag"></use></svg>这条新人路线已全部跑通 — 关键动作已完成。</div><div class="door-foot"></div></section><section class="door" id="architect" data-door><div class="shell"><div class="door-hero" data-stagger><a class="door-back" href="#home"><svg class="i" style="transform:rotate(180deg)"><use href="#i-arrow"></use></svg> 返回选择角色</a><div class="door-kicker reveal"><span class="idx">02</span><span class="ic"><svg class="i"><use href="#i-architect"></use></svg></span></div><h2 class="door-title reveal">我是架构师</h2><p class="door-sub reveal">守两张地图、把需求拆成有护栏的 TASK、用 lint 守一致性</p><blockquote class="door-quote reveal">铁律：架构师不写业务 step 代码——只维护地图、生成 TASK、审 RFC、跑审查。四条工作流：A 需求→TASK · B 一致性审查 · C 基线重置 · RFC 审批。</blockquote></div><div class="door-body"><aside class="door-aside"><div class="door-rail"><div class="rail-ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="track" cx="23" cy="23" r="20"></circle><circle class="prog" cx="23" cy="23" r="20"></circle></svg><span class="pct-mini">0</span></div><div class="rail-label"><span class="rail-count">0 <em>/ 5</em></span><span class="rail-hint">完成进度</span></div><span class="rail-bar"><span class="rail-fill"></span></span><div class="rail-tools"><button class="tool" type="button" onclick="expandAll(this)">展开全部</button><button class="tool" type="button" onclick="collapseAll(this)">折叠全部</button></div></div><ol class="tl" data-tl></ol><div class="kbd-hint">键盘 <kbd>J</kbd><kbd>K</kbd> 切换步骤 · <kbd>X</kbd> 标记完成 · <kbd>Enter</kbd> 展开</div></aside><div class="stepper" data-stagger><div class="step open reveal" data-step="architect-1"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">1</span><div class="step-titles"><div class="step-title">守两张地图</div><div class="step-goal">掌握 01 系统架构 + 02 模块边界：模块清单、依赖矩阵、§4 高冲突文件、§5 红线区。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/README.md" target="_blank" rel="noopener"><span class="t">治理骨架 README</span><code>@docs/20_架构与范式/architecture/README.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/01_system_architecture.md" target="_blank" rel="noopener"><span class="t">01 系统架构（活层）</span><code>@docs/20_架构与范式/architecture/01_system_architecture.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/02_module_boundaries.md" target="_blank" rel="noopener"><span class="t">02 模块边界图 ⭐</span><code>@docs/20_架构与范式/architecture/02_module_boundaries.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/50_数据与接口/业务数据规范.md" target="_blank" rel="noopener"><span class="t">业务数据规范 · 模块握手矩阵 / 跨模块写白名单</span><code>@docs/50_数据与接口/业务数据规范.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/20_架构与范式/architecture/01_system_architecture.md @docs/20_架构与范式/architecture/02_module_boundaries.md
+我是架构师。把这两张地图的现状梳理成一页速览：
+- 当前注册了哪些业务场景 Skill、各自边界与公共接口；
+- §4 高冲突文件是哪几个（注册表 / module.tsx / modules-data.ts）；
+- §5 红线区是哪些（碰它们要走 RFC）。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能口述当前模块全集 + 高冲突文件 + 红线区。</span></label></div></div></div></div><div class="step reveal" data-step="architect-2"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">2</span><div class="step-titles"><div class="step-title">Workflow A · 需求 → TASK</div><div class="step-goal">把一句需求拆成带护栏的 TASK：影响速查四问 → 更新地图 → WBS（每子任务只动一个模块）→ 客观可验 AC。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md" target="_blank" rel="noopener"><span class="t">架构师 SOP · Workflow A</span><code>@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md @docs/20_架构与范式/architecture/02_module_boundaries.md
+需求：&lt;在这里写一句话需求&gt;。照 Workflow A 产出 tasks/TASK_&lt;名&gt;.md：
+1) 先做影响速查四问（涉及哪些模块/层、是否动 §4 高冲突文件、是否碰 §5 红线区、是否需要新接口走 RFC）；
+2) WBS 拆解，每个子任务只动一个模块的文件集，高冲突文件给行级范围；
+3) 写客观可验的 AC（lint 全绿 + eval 阈值 + 端到端 run 到 done），禁止「质量好」这类不可测表述。
+直接用 SOP 里的 TASK 模板。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：产出一份 TASK_&lt;名&gt;.md，高冲突文件标了行级范围，AC 客观可验。</span></label></div></div></div></div><div class="step reveal" data-step="architect-3"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">3</span><div class="step-titles"><div class="step-title">Workflow B · 一致性审查</div><div class="step-goal">AIDA 的审查是可执行的：主审查 = 跑全套守门 lint，lint 盖不到的语义才人工抽查。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md" target="_blank" rel="noopener"><span class="t">架构师 SOP · Workflow B</span><code>@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md
+开发者提了 PR。照 Workflow B 帮我审查：
+1) 给我那套全量守门命令（在 agent/.venv 下跑）；
+2) 列出 lint 盖不到、必须人工抽查的语义点（如 check_inputs 路径 == run 真读路径、diff 是否越界、高冲突文件是否只改分配行）；
+3) 按 ✅ 完全合规 / ⚠️ 存在漂移 / ❌ 存在违规 给我结论模板。</pre></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-cmd"></use></svg> 命令<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="cmd">agent/.venv/Scripts/python agent/scripts/lint_no_naked_llm.py
+agent/.venv/Scripts/python agent/scripts/lint_skill_contract.py
+agent/.venv/Scripts/python agent/scripts/lint_module_boundaries.py
+agent/.venv/Scripts/python agent/evals/eval_zhgk.py --fixture</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：守门全绿 + 语义抽查完成 + 出 ✅/⚠️/❌ 结论。</span></label></div></div></div></div><div class="step reveal" data-step="architect-4"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">4</span><div class="step-titles"><div class="step-title">守门体系（lint 全集）</div><div class="step-goal">理解每个 lint 守什么：契约类（skill/tool/sdui/runtime）+ 派生制品新鲜度类（gallery/docs-site）+ 红线类（裸 LLM/裸外发/边界）。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/AGENTS.md" target="_blank" rel="noopener"><span class="t">AGENTS.md · 提交前守门清单</span><code>@AGENTS.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/03_团队Agent开发范式.md" target="_blank" rel="noopener"><span class="t">03 团队范式（六铁律 + §0 守门）</span><code>@docs/20_架构与范式/03_团队Agent开发范式.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@AGENTS.md
+把「提交前守门」那一串 lint 逐条解释：
+- 每个 lint 守的是什么契约或不变量？
+- 哪些属于派生制品新鲜度守门（改了源没重生成就会红）？
+- 为什么说「没有守门的规范会退化成 PPT」？</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能说清每个 lint 的职责，知道哪些是新鲜度守门。</span></label></div></div></div></div><div class="step reveal" data-step="architect-5"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">5</span><div class="step-titles"><div class="step-title">Workflow C · 基线重置 + RFC 审批</div><div class="step-goal">代码与文档脱节时，以代码为准刷新地图；审 RFC，若改了红线底座必落一条 ADR。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md" target="_blank" rel="noopener"><span class="t">架构师 SOP · Workflow C + RFC</span><code>@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/90_决策ADR/README.md" target="_blank" rel="noopener"><span class="t">ADR 决策库</span><code>@docs/90_决策ADR/README.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md
+文档和代码脱节了，照 Workflow C 以代码为准刷新两张地图：
+1) 扫 agent/skills/__init__.py 的 registry.register 得到当前模块全集；
+2) 逐模块核对 SKILL.md「后端节点」↔ agent/skills/&lt;id&gt;/steps/ 的 step.key；
+3) 扫前端 MODULE_TO_SKILL ↔ MODULE_SCHEMAS 键的漂移，不一致登记到 02 §8；
+4) 跑 Workflow B 全套 lint 验证刷新后「文档 ≡ 代码」。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：两张地图对齐代码现状，漂移已登记 02 §8，lint 全绿。</span></label></div></div></div></div></div></div></div><div class="door-clear"><svg class="i"><use href="#i-flag"></use></svg>这条架构师路线已全部跑通 — 关键动作已完成。</div><div class="door-foot"></div></section><section class="door" id="developer" data-door><div class="shell"><div class="door-hero" data-stagger><a class="door-back" href="#home"><svg class="i" style="transform:rotate(180deg)"><use href="#i-arrow"></use></svg> 返回选择角色</a><div class="door-kicker reveal"><span class="idx">03</span><span class="ic"><svg class="i"><use href="#i-developer"></use></svg></span></div><h2 class="door-title reveal">我是模块开发者</h2><p class="door-sub reveal">照 zhgk 样板，一步步搭出一个能端到端 run 的业务场景 Skill</p><blockquote class="door-quote reveal">你要写的是执行层的一个业务场景 Skill（A 层 SKILL.md + B 层 skill.py/steps）。运行时已泛化：注册一行即得 /agent/&lt;name&gt;/{start,stream,resume,...} 全套端点 + SDUI 界面，main.py/graph.py/前端通用件零改。每一步都给了可直接复制喂给 Claude Code / Cursor 的提示词。</blockquote></div><div class="door-body"><aside class="door-aside"><div class="door-rail"><div class="rail-ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle class="track" cx="23" cy="23" r="20"></circle><circle class="prog" cx="23" cy="23" r="20"></circle></svg><span class="pct-mini">0</span></div><div class="rail-label"><span class="rail-count">0 <em>/ 8</em></span><span class="rail-hint">完成进度</span></div><span class="rail-bar"><span class="rail-fill"></span></span><div class="rail-tools"><button class="tool" type="button" onclick="expandAll(this)">展开全部</button><button class="tool" type="button" onclick="collapseAll(this)">折叠全部</button></div></div><ol class="tl" data-tl></ol><div class="kbd-hint">键盘 <kbd>J</kbd><kbd>K</kbd> 切换步骤 · <kbd>X</kbd> 标记完成 · <kbd>Enter</kbd> 展开</div></aside><div class="stepper" data-stagger><div class="step open reveal" data-step="developer-1"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">1</span><div class="step-titles"><div class="step-title">① 认知全局（你在哪一层）</div><div class="step-goal">搞清 A+B 双层、preflight→step→END 的 DAG、「注册即得端点」、哪些文件零改白拿。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/10_快速开始/START_HERE.md" target="_blank" rel="noopener"><span class="t">START_HERE 起手式 §0–1</span><code>@docs/10_快速开始/START_HERE.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/00_开发者地图.md" target="_blank" rel="noopener"><span class="t">开发者地图</span><code>@docs/00_开发者地图.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/10_快速开始/START_HERE.md
+我要新建一个业务场景 Skill。先帮我建立全局认知：
+1) 我的代码落在四层架构的哪一层、运行时和谁交互？
+2) A 层（SKILL.md）和 B 层（skill.py + steps/）各负责什么？
+3) 「注册即得端点」具体是什么意思、哪些文件是零改白拿（不许我改）？</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能画出 preflight → step1 → step2 → END 的链，并说清 A/B 分层。</span></label></div></div></div></div><div class="step reveal" data-step="developer-2"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">2</span><div class="step-titles"><div class="step-title">② 看样板 zhgk（定选型）</div><div class="step-goal">读懂样板，决定抄 zhgk（文件型 HITL）还是 guihua（确认型 HITL），设计自己的 2–3 个 step。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/样板盘点_智慧工勘zhgk.md" target="_blank" rel="noopener"><span class="t">样板盘点 zhgk（复制基线）</span><code>@docs/30_skill开发/样板盘点_智慧工勘zhgk.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/agent/skills/zhgk/skill.py" target="_blank" rel="noopener"><span class="t">zhgk skill.py</span><code>@agent/skills/zhgk/skill.py</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/agent/skills/_template" target="_blank" rel="noopener"><span class="t">脚手架 _template/</span><code>@agent/skills/_template</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/30_skill开发/样板盘点_智慧工勘zhgk.md @agent/skills/zhgk/skill.py
+带我读懂 zhgk：steps 链是什么？哪个 step 用真 LLM？文件型 HITL 怎么触发与续跑？
+然后帮我判断：我的业务 &lt;一句话描述&gt; 更像 zhgk（文件型 HITL）还是 guihua（确认型 HITL）？给选型建议，并帮我把业务拆成最简的 2–3 个 step（先验证范式，不求业务完整）。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：选定样板，画好自己的 step 链与每步职责。</span></label></div></div></div></div><div class="step reveal" data-step="developer-3"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">3</span><div class="step-titles"><div class="step-title">③ 认识两条造 skill 的路线（手搓 vs 流水线）</div><div class="step-goal">搞清你有两条路：本门教的「手搓」（亲手写 skill.py/steps，理解骨架，样板 zhgk 走这条）；以及 skill2langgraph「流水线」（业务专家写 Raw Skill → AI 编译成 LangGraph → 真实 AIDA 容器三类验证 → 交付）。流水线是目标形态，手搓帮你看懂它的产出。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/39_编译路线_skill2langgraph/README.md" target="_blank" rel="noopener"><span class="t">skill2langgraph 流水线 · 文档库条目（入口）</span><code>@docs/30_skill开发/39_编译路线_skill2langgraph/README.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/39_编译路线_skill2langgraph/工作流执行指南.md" target="_blank" rel="noopener"><span class="t">工作流执行指南（Session A–G 编译管线）</span><code>@docs/30_skill开发/39_编译路线_skill2langgraph/工作流执行指南.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/39_编译路线_skill2langgraph/可编译业务Skill编写规范.md" target="_blank" rel="noopener"><span class="t">可编译业务 Skill 编写规范（Raw Skill 契约）</span><code>@docs/30_skill开发/39_编译路线_skill2langgraph/可编译业务Skill编写规范.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/30_skill开发/39_编译路线_skill2langgraph/README.md
+我在学手搓业务场景 Skill（本门 zhgk 样板这条线）。请对照 skill2langgraph 流水线帮我讲清三件事：
+1) 两条路线的边界：手搓 vs「Raw Skill → SkillIR → Graph → 测试底座验证」流水线，各自何时用？
+2) 唯一接缝是什么（SKILL.md + assumptions.json）、为什么「零静默决策」（每处模糊→确定都进假设清单、经作者确认）？
+3) 不论哪条路线，产出都是同一种标准 AIDA skill 模块（BaseSkill + steps + sdui 投影器），都要过同一套守门 lint 与 AIDA-RUNTIME-CONTRACT —— 帮我把这套「共同契约」列出来。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能说清两条路线的边界、唯一接缝（SKILL.md + assumptions.json）、以及两者产出同构于标准 AIDA skill 模块。</span></label><div class="note"><svg class="i"><use href="#i-warn"></use></svg> skill-as-tool（run_survey / zhgk_bridge）是历史妥协，不是流水线的最终形态；先看懂骨架，未来用流水线产线化产 skill。</div></div></div></div></div><div class="step reveal" data-step="developer-4"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">4</span><div class="step-titles"><div class="step-title">④ 让 AI 进入范式护栏（标准起手式）</div><div class="step-goal">用 @ 引用把两张地图 + TASK 喂给 AI，关进护栏；之后每轮重新 @TASK 防止多轮越界。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md" target="_blank" rel="noopener"><span class="t">开发者 SOP · D1 标准起手式</span><code>@docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/AGENTS.md" target="_blank" rel="noopener"><span class="t">AGENTS.md 红线</span><code>@AGENTS.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/.cursorrules" target="_blank" rel="noopener"><span class="t">.cursorrules 红线速记</span><code>@.cursorrules</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">先读以下三份了解全局与边界：
+- @docs/20_架构与范式/architecture/01_system_architecture.md
+- @docs/20_架构与范式/architecture/02_module_boundaries.md
+- @docs/20_架构与范式/architecture/tasks/TASK_&lt;名&gt;.md
+
+据 TASK 子任务 [3.x] 实现 &lt;功能&gt;。严格限制：
+- 只新建/修改 TASK §1 列出的文件；高冲突文件（注册表 / module.tsx / modules-data.ts）只在分配行追加；
+- 不碰 02 §5 红线区（main.py / graph.py / base.py / 前端通用件）；需要碰就停下告诉我走 RFC；
+- LLM 走 ctx.invoke_llm，工具走 ctx.call_tool，外发走 mailer/notifier（不裸调）；
+- 不 import 其它业务场景 Skill（zhgk / guihua / xtsj）。</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：AI 已加载红线，承诺不裸调 LLM、不跨模块 import、不碰红线区。</span></label><div class="note"><svg class="i"><use href="#i-warn"></use></svg> 多轮对话里 AI 会逐渐突破边界。发现越界立刻用开发者 SOP 的「制止话术」打断，例如：「停下。你改了 &lt;文件&gt;，它不在 TASK §1 范围内，撤回。」</div></div></div></div></div><div class="step reveal" data-step="developer-5"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">5</span><div class="step-titles"><div class="step-title">⑤ 照清单搭骨架（复制模板）</div><div class="step-goal">复制 _template → &lt;name&gt;/，替换占位符，对照「碰这些文件」9 项逐一改；SKILL.md 要部署两处。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/10_快速开始/AGENT_QUICKSTART.md" target="_blank" rel="noopener"><span class="t">AGENT_QUICKSTART 照抄细则</span><code>@docs/10_快速开始/AGENT_QUICKSTART.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/10_快速开始/AGENT_QUICKSTART.md" target="_blank" rel="noopener"><span class="t">AGENT_QUICKSTART §1 碰这些文件</span><code>@docs/10_快速开始/AGENT_QUICKSTART.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/10_快速开始/AGENT_QUICKSTART.md
+帮我把 agent/skills/_template/ 复制成 agent/skills/&lt;name&gt;/，全局替换 xxx→&lt;name&gt;、Xxx→类名前缀。
+然后照「碰这些文件」表逐项列出我要改的 9 个点，标明哪些必改、哪些可选。
+重点提醒：① SKILL.md「后端节点」表的 key 必须和 step.key 逐一对应（lint_skill_contract 双向校验）；② SKILL.md 要部署两处（skills/&lt;name&gt;/ 和 ~/.claude/skills/&lt;name&gt;/）；③ 在 agent/skills/__init__.py 加一行 registry.register。</pre></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-cmd"></use></svg> 命令<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="cmd">curl http://127.0.0.1:7401/agent/skills   # 看到 &lt;name&gt; = 注册成功
+curl -X POST http://127.0.0.1:7401/agent/&lt;name&gt;/start -d &#x27;{}&#x27;</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：骨架能 import、curl /agent/skills 能看到 &lt;name&gt; 元数据。</span></label></div></div></div></div><div class="step reveal" data-step="developer-6"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">6</span><div class="step-titles"><div class="step-title">⑥ 定数据落点与接口契约（数据规范 + API 规范）</div><div class="step-goal">写 run() 读写文件前先定契约：数据放哪一层（输入/解析/输出三层 IPO）、跨模块只读上游「输出结果」、命名带版本不静默覆盖；且一切读写经数据中心 API，不直接碰磁盘/数据库。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/50_数据与接口/业务数据规范.md" target="_blank" rel="noopener"><span class="t">业务数据规范（落点/IPO/握手/命名/RBAC/自检）</span><code>@docs/50_数据与接口/业务数据规范.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/50_数据与接口/数据中心API调用规范.md" target="_blank" rel="noopener"><span class="t">数据中心 API 调用规范（定位→上传→下载→血缘）</span><code>@docs/50_数据与接口/数据中心API调用规范.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/50_数据与接口/业务数据规范.md @docs/50_数据与接口/数据中心API调用规范.md
+我的模块是 &lt;一句话描述&gt;。照这两份规范帮我把数据契约定下来：
+1) 从哪些上游「输出结果」读输入、写到本模块哪一层（解析结果=中间态 / 输出结果=对外成品）、是否涉及 §4.3 跨模块写白名单？
+2) 产物怎么命名（带版本 / Rx、不静默覆盖）、要不要登记血缘 derived_from？
+3) 给我标准调用序列：先 GET 目录树 / 文件列表拿 nodeId / fileId，再 upload / download；提醒我别直接读写磁盘或连数据库。
+最后对照「开发数据自检清单」给我一份本模块的勾选项。</pre></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-cmd"></use></svg> 命令<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="cmd">curl &quot;$BASE/api/v1/projects/$UUID/tree&quot;   # $BASE=数据中心服务地址；拿目标目录 nodeId
+curl &quot;$BASE/api/v1/files?moduleCode=&lt;上游模块&gt;&amp;fileStage=输出结果&quot;   # 定位上游输出，拿 fileId</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：能说清本模块输入来源（上游输出结果）、输出落点（哪一层）、命名规则，且读写只经数据中心 API。</span></label><div class="note"><svg class="i"><use href="#i-warn"></use></svg> 数据本体在文件、数据库只存元数据与目录索引；绕过 API 直接动磁盘会造成「磁盘有文件但目录树查不到」的不一致（数据规范 §6.3）。</div></div></div></div></div><div class="step reveal" data-step="developer-7"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">7</span><div class="step-titles"><div class="step-title">⑦ 填业务 + 接界面（steps + SDUI）</div><div class="step-goal">每个 step 写 check_inputs（决定 HITL）+ run（LLM/工具/产物）；sdui.py 的 project(state) 把 metrics 投影成 UI 树，前端零改。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md" target="_blank" rel="noopener"><span class="t">SKILL-DEVELOPMENT（A+B / BaseStep / HITL）</span><code>@docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/30_skill开发/31_手写规范/SDUI.md" target="_blank" rel="noopener"><span class="t">SDUI（投影器模式）</span><code>@docs/30_skill开发/31_手写规范/SDUI.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md @docs/30_skill开发/31_手写规范/SDUI.md
+照 step 骨架帮我实现 step &lt;stepkey&gt;：
+- check_inputs 返回缺料清单（missing 非空即触发 HITL 软中断）；
+- run 里用 ctx.invoke_llm 抽取、用 ctx.call_tool 读写文件、产物写到 ctx.output_dir、把要展示的业务指标写进 metrics；
+- 再写 sdui.py 的 project(state) 把 metrics 投影成 UI 树。
+关键提醒我：check_inputs 声明的必填路径必须 == run 里真正读的路径，否则 HITL 清单漂移；投影器只能读 step 真写进 metrics/state 的键。</pre></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-cmd"></use></svg> 命令<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="cmd">python -c &quot;from agent.skills.&lt;name&gt;.sdui import project; print(project({}))&quot;
+# 前端 /module/&lt;moduleKey&gt; 自动渲染 SDUI（IdleScreen → 启动 → SduiNodeView）</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：POST /agent/&lt;name&gt;/start 跑到 done，前端 /module/&lt;key&gt; 渲染出 SDUI。</span></label></div></div></div></div><div class="step reveal" data-step="developer-8"><div class="step-head" role="button" tabindex="0" onclick="toggleStep(this)" onkeydown="stepKey(event,this)"><span class="step-index">8</span><div class="step-titles"><div class="step-title">⑧ 守门验收（全绿才提交）</div><div class="step-goal">本地跑全套守门 lint + eval + typecheck，确认 diff 不越界，走一遍 PR 自查清单。</div></div><span class="step-toggle"><svg class="i"><use href="#i-chevron"></use></svg></span></div><div class="step-wrap"><div class="step-body"><div class="step-inner"><div class="block"><div class="block-label"><svg class="i"><use href="#i-read"></use></svg> 读什么</div><div class="readlinks"><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/AGENTS.md" target="_blank" rel="noopener"><span class="t">AGENTS.md 命令速查</span><code>@AGENTS.md</code></a><a class="readlink" href="http://10.143.2.109:3010/jintao/aida/src/branch/feat/merge-delivery-frontend/docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md" target="_blank" rel="noopener"><span class="t">开发者 SOP · D4 提交 PR</span><code>@docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md</code></a></div></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-prompt"></use></svg> 给 AI 的提示词<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="prompt">@AGENTS.md @docs/20_架构与范式/architecture/00_DEVELOPER_SOP.md
+我要提交了。照 D4 帮我把关：
+1) 在 agent/.venv 下跑全套守门 lint（提醒哪些不在 venv 下会显 SKIP 假绿）；
+2) 跑 eval 回归闸；碰了前端再跑 npm run typecheck；
+3) git diff --name-only 确认只动了 TASK §1 范围内的文件、高冲突文件只改了分配行；
+4) 走一遍 PR 自查清单（无裸 LLM / 无裸外发 / 无 console.log / 无残留 TODO[Wait for RFC]）。</pre></div><div class="block"><div class="block-label"><svg class="i"><use href="#i-cmd"></use></svg> 命令<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div><pre class="cmd">agent/.venv/Scripts/python agent/scripts/lint_no_naked_llm.py
+agent/.venv/Scripts/python agent/scripts/lint_no_naked_send.py
+agent/.venv/Scripts/python agent/scripts/lint_skill_contract.py
+agent/.venv/Scripts/python agent/scripts/lint_sdui_contract.py
+npm run eval   # 四维评测回归闸
+cd frontend &amp;&amp; npm run typecheck   # 碰了前端才跑</pre></div><label class="done"><input type="checkbox" onchange="toggleDone(this)"><span class="done-txt">完成标志：全套 lint + eval + typecheck 全绿，端到端 run 到 done，产物落 Output/。</span></label><div class="note"><svg class="i"><use href="#i-warn"></use></svg> 缺一个别的模块/底座没提供的接口？别伪造——用 Mock 占位 + 写 RFC（开发者 SOP D2），继续干本模块其余部分，不要空等。</div></div></div></div></div></div></div></div><div class="door-clear"><svg class="i"><use href="#i-flag"></use></svg>这条模块开发者路线已全部跑通 — 关键动作已完成。</div><div class="door-foot"></div></section>
+<footer class="foot"><span class="brand"><span class="dot"></span>AIDA 交付作业平台</span><span class="sig">TEAM PORTAL · DERIVED FROM portal.json · GUARDED BY lint_team_portal</span></footer>
+<button class="totop" type="button" aria-label="回到顶部">↑</button>
+<script>/* ============================================================
+   AIDA 门户 · 交互与动效
+   路由 / 时间轴导航 / 滚动联动 / 进度 / 键盘 / 揭示 / 幕布
+   ============================================================ */
+(function(){
+  'use strict';
+  document.documentElement.classList.add('js');
+
+  var NAVH = 64;
+  var doors = Array.prototype.slice.call(document.querySelectorAll('[data-door]'));
+  var roleTabs = Array.prototype.slice.call(document.querySelectorAll('.nav-role'));
+  var STORE = 'aida-portal-done';
+  var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  /* ---------- 持久化 ---------- */
+  function load(){ try{ return JSON.parse(localStorage.getItem(STORE)) || {}; }catch(e){ return {}; } }
+  function save(o){ try{ localStorage.setItem(STORE, JSON.stringify(o)); }catch(e){} }
+
+  /* ---------- 构建侧栏时间轴（由步骤生成）---------- */
+  function buildTimelines(){
+    doors.forEach(function(d){
+      if(d.id === 'home') return;
+      var ol = d.querySelector('[data-tl]');
+      if(!ol) return;
+      var steps = Array.prototype.slice.call(d.querySelectorAll('.step'));
+      ol.innerHTML = '';
+      steps.forEach(function(step, i){
+        var key = step.getAttribute('data-step');
+        var titleEl = step.querySelector('.step-title');
+        var raw = titleEl ? titleEl.textContent : ('步骤 ' + (i+1));
+        // 去掉前导「N · 」编号，时间轴自带序号
+        var name = raw.replace(/^\s*\d+\s*[·.]\s*/, '');
+        var li = document.createElement('li');
+        li.className = 'tl-node';
+        li.setAttribute('data-jump', key);
+        li.innerHTML = '<span class="tl-dot"><span class="num">' + (i+1) +
+          '</span><svg class="i"><use href="#i-check"></use></svg></span>' +
+          '<span class="tl-name"></span>';
+        li.querySelector('.tl-name').textContent = name;
+        li.addEventListener('click', function(){ jumpToStep(d, key); });
+        ol.appendChild(li);
+      });
+    });
+  }
+
+  /* ---------- 进度刷新 ---------- */
+  function refresh(){
+    doors.forEach(function(d){
+      if(d.id === 'home') return;
+      var steps = Array.prototype.slice.call(d.querySelectorAll('.step'));
+      var total = steps.length, done = 0;
+      steps.forEach(function(s){ if(s.classList.contains('is-done')) done++; });
+      var pctVal = total ? done/total : 0;
+      var complete = total>0 && done===total;
+
+      var ring = d.querySelector('.rail-ring');
+      if(ring){
+        var prog = ring.querySelector('.prog');
+        if(prog){ var C = 126; prog.style.strokeDashoffset = (C - C*pctVal).toFixed(1); }
+        ring.classList.toggle('complete', complete);
+      }
+      var mini = d.querySelector('.pct-mini');
+      if(mini) mini.textContent = complete ? '✓' : Math.round(pctVal*100);
+      var count = d.querySelector('.rail-count');
+      if(count) count.innerHTML = done + ' <em>/ ' + total + '</em>';
+
+      // 时间轴节点完成态
+      var nodes = d.querySelectorAll('.tl-node');
+      steps.forEach(function(s, i){
+        if(nodes[i]) nodes[i].classList.toggle('done', s.classList.contains('is-done'));
+      });
+      // 完成庆祝条
+      var clear = d.querySelector('.door-clear');
+      if(clear) clear.classList.toggle('show', total>0 && done===total);
+
+      // 首页角色卡进度文案
+      var go = document.querySelector('.role-card[href="#'+d.id+'"] .role-go .txt');
+      if(go) go.textContent = done>0 ? (done+'/'+total+' · 继续') : (total+' 步 · 进入');
+    });
+  }
+
+  function applySaved(){
+    var state = load();
+    document.querySelectorAll('.step').forEach(function(step){
+      var input = step.querySelector('.done input');
+      if(input && state[step.getAttribute('data-step')]){ input.checked = true; step.classList.add('is-done'); }
+    });
+    refresh();
+  }
+
+  /* ---------- 滚动揭示 ---------- */
+  function inView(el, ratio){
+    var r = el.getBoundingClientRect();
+    var h = window.innerHeight || document.documentElement.clientHeight;
+    return r.top < h * (ratio || 0.92) && r.bottom > -40;
+  }
+  function checkReveals(){
+    document.querySelectorAll('.reveal:not(.in)').forEach(function(el){
+      var door = el.closest('[data-door]');
+      if(door && !door.classList.contains('show')) return;
+      if(inView(el)) el.classList.add('in');
+    });
+  }
+  function armReveals(scope){
+    try{
+      scope.querySelectorAll('[data-stagger]').forEach(function(group){
+        Array.prototype.slice.call(group.children).forEach(function(child, i){
+          var target = child.classList.contains('reveal') ? child : child.querySelector('.reveal');
+          if(target) target.style.setProperty('--i', Math.min(i, 8));
+        });
+      });
+    }catch(e){}
+    requestAnimationFrame(checkReveals);
+    setTimeout(checkReveals, 90);
+    setTimeout(checkReveals, 360);
+  }
+
+  function syncAfterLayoutChange(){
+    var run = function(){
+      checkReveals();
+      updateActiveStep();
+    };
+    if(window.requestAnimationFrame) requestAnimationFrame(run);
+    else run();
+    setTimeout(run, 80);
+    setTimeout(run, 260);
+    setTimeout(run, 620);
+  }
+
+  /* ---------- 滚动联动：高亮当前步骤 + 时间轴 ---------- */
+  function updateActiveStep(){
+    if(current === 'home') return;
+    var d = document.getElementById(current);
+    if(!d) return;
+    var steps = Array.prototype.slice.call(d.querySelectorAll('.step'));
+    if(!steps.length) return;
+    var nodes = d.querySelectorAll('.tl-node');
+    var threshold = (window.innerHeight || 800) * 0.34;
+    var activeIdx = 0;
+    steps.forEach(function(s, i){
+      if(s.getBoundingClientRect().top - threshold <= 0) activeIdx = i;
+    });
+    steps.forEach(function(s, i){ s.classList.toggle('is-active', i === activeIdx); });
+    nodes.forEach(function(n, i){ n.classList.toggle('active', i === activeIdx); });
+  }
+
+  function scrollToStep(step){
+    var y = window.scrollY + step.getBoundingClientRect().top - (NAVH + 16);
+    window.scrollTo({ top: Math.max(0, y), behavior: reduce ? 'auto' : 'smooth' });
+  }
+  function jumpToStep(door, key){
+    var step = door.querySelector('.step[data-step="'+key+'"]');
+    if(!step) return;
+    step.classList.add('open');
+    scrollToStep(step);
+  }
+
+  /* ---------- 路由：门切换 ---------- */
+  var curtain = document.querySelector('.curtain');
+  var current = null;
+  var homeStage = 'hero';
+  var homeSnapInProgress = false;
+
+  function showDoor(id){
+    var found = false;
+    doors.forEach(function(d){
+      var on = d.id === id;
+      if(on){
+        d.classList.add('show'); d.classList.remove('enter');
+        void d.offsetWidth;
+        if(!reduce) d.classList.add('enter');
+        found = true;
+      } else { d.classList.remove('show','enter'); }
+    });
+    if(!found){ var home = document.getElementById('home'); if(home){ home.classList.add('show'); } id='home'; }
+    roleTabs.forEach(function(t){ t.classList.toggle('active', t.dataset.role === id); });
+    current = id;
+
+    document.documentElement.style.scrollBehavior = 'auto';
+    window.scrollTo(0,0);
+    requestAnimationFrame(function(){ window.scrollTo(0,0); document.documentElement.style.scrollBehavior = ''; });
+
+    if(id === 'home'){ setHomeStage('hero'); litHero(); }
+    var active = document.getElementById(id) || document.getElementById('home');
+    if(active) armReveals(active);
+    try{ refresh(); }catch(e){}
+    updateActiveStep();
+  }
+
+  function route(playCurtain){
+    var id = (location.hash || '#home').slice(1);
+    if(id === current){ return; }
+    if(playCurtain && !reduce && curtain){
+      curtain.classList.remove('play'); void curtain.offsetWidth; curtain.classList.add('play');
+      setTimeout(function(){ showDoor(id); }, 380);
+    } else { showDoor(id); }
+  }
+  window.addEventListener('hashchange', function(){ route(true); });
+
+  /* ---------- Hero 标题逐行揭示 ---------- */
+  function litHero(){
+    var t = document.querySelector('.hero-title');
+    if(t){ setTimeout(function(){ t.classList.add('lit'); }, 40); }
+  }
+
+  function setHomeStage(stage){
+    if(homeStage === stage && document.documentElement.classList.contains('home-stage-' + stage)) return;
+    homeStage = stage;
+    var root = document.documentElement;
+    root.classList.remove('home-stage-hero','home-stage-transitioning','home-stage-roles');
+    root.classList.add('home-stage-' + stage);
+    if(stage === 'hero' && heroInner && (window.scrollY || document.documentElement.scrollTop || 0) < 80){
+      heroInner.style.opacity = '1';
+      heroInner.style.transform = 'translateY(0px)';
+    }
+  }
+
+  function playRoleCardPop(){
+    if(reduce) return;
+    var root = document.documentElement;
+    root.classList.remove('home-cards-popping');
+    void root.offsetWidth;
+    root.classList.add('home-cards-popping');
+    setTimeout(function(){ root.classList.remove('home-cards-popping'); }, 760);
+  }
+
+  function syncHomeStageFromScroll(st){
+    if(current !== 'home' || reduce || homeSnapInProgress) return;
+    var hero = document.querySelector('#home .hero');
+    var boundary = hero ? Math.round(hero.offsetHeight) : window.innerHeight;
+    if(st < 80) setHomeStage('hero');
+    else if(st >= boundary - 120) setHomeStage('roles');
+  }
+
+  /* ---------- 首页轻滚分页：Hero ⇄ Roles ---------- */
+  function installHomePageSnap(){
+    var snapping = false;
+    var lastSnap = 0;
+    function homeRoleSection(){
+      return document.querySelector('#home > .section:first-of-type');
+    }
+    function homeHero(){
+      return document.querySelector('#home .hero');
+    }
+    function homePageBoundary(){
+      var hero = homeHero();
+      return hero ? Math.round(hero.offsetHeight) : window.innerHeight;
+    }
+    function snapTo(y, stageAfter){
+      snapping = true;
+      homeSnapInProgress = true;
+      lastSnap = Date.now();
+      var target = Math.max(0, y);
+      if(!reduce) setHomeStage('transitioning');
+      if(stageAfter === 'roles') playRoleCardPop();
+      window.scrollTo({ top: target, behavior: reduce ? 'auto' : 'smooth' });
+      setTimeout(function(){
+        window.scrollTo({ top: target, behavior: 'auto' });
+        snapping = false;
+        homeSnapInProgress = false;
+        setHomeStage(stageAfter || 'hero');
+        syncAfterLayoutChange();
+      }, reduce ? 80 : 360);
+    }
+    function snapToRoles(){
+      snapTo(homePageBoundary(), 'roles');
+    }
+    function snapToHomeTop(){
+      snapTo(0, 'hero');
+    }
+    function onHomeWheel(e){
+      if(current !== 'home' || e.ctrlKey || e.metaKey) return;
+      var dy = e.deltaY || 0;
+      if(Math.abs(dy) < 12) return;
+      var now = Date.now();
+      if(snapping){ e.preventDefault(); return; }
+      if(now - lastSnap < 520) return;
+      var roles = homeRoleSection();
+      if(!roles) return;
+      var y = window.scrollY || document.documentElement.scrollTop || 0;
+      var pageTop = homePageBoundary();
+      if(dy > 0 && y < pageTop - 80){
+        e.preventDefault();
+        snapToRoles();
+      } else if(dy < 0 && y > 80 && y <= pageTop + 220){
+        e.preventDefault();
+        snapToHomeTop();
+      }
+    }
+    window.addEventListener('wheel', onHomeWheel, {passive:false});
+  }
+
+  /* ---------- Hero 视差 ---------- */
+  var glow = document.querySelector('.hero-glow');
+  var heroInner = document.querySelector('.hero-inner');
+  if(!reduce){
+    window.addEventListener('mousemove', function(e){
+      if(current !== 'home' || !glow) return;
+      var x = (e.clientX / window.innerWidth - .5);
+      var y = (e.clientY / window.innerHeight - .5);
+      glow.style.transform = 'translateX(-50%) translate('+(x*40)+'px,'+(y*30)+'px)';
+    }, {passive:true});
+  }
+
+  /* ---------- 滚动进度线 + 联动 + 回顶 ---------- */
+  var scrollbar = document.querySelector('.scrollbar');
+  var totop = document.querySelector('.totop');
+  var ticking = false;
+  function onScroll(){
+    if(ticking) return; ticking = true;
+    var run = function(){
+      var st = window.scrollY || document.documentElement.scrollTop;
+      var h = document.documentElement.scrollHeight - window.innerHeight;
+      var p = h>0 ? st/h : 0;
+      if(scrollbar) scrollbar.style.width = (p*100)+'%';
+      if(totop) totop.classList.toggle('show', st > 360);
+      syncHomeStageFromScroll(st);
+      checkReveals();
+      updateActiveStep();
+      if(current === 'home' && heroInner && !reduce && homeStage !== 'transitioning'){
+        heroInner.style.transform = 'translateY('+(st*0.18)+'px)';
+        heroInner.style.opacity = Math.max(0, 1 - st/620);
+      }
+      ticking = false;
+    };
+    if(window.requestAnimationFrame){ requestAnimationFrame(run); setTimeout(function(){ if(ticking) run(); }, 60); }
+    else { run(); }
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+
+  /* ---------- 角色卡鼠标流光 ---------- */
+  document.querySelectorAll('.role-card').forEach(function(card){
+    card.addEventListener('mousemove', function(e){
+      var r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', (e.clientX - r.left)+'px');
+      card.style.setProperty('--my', (e.clientY - r.top)+'px');
+    }, {passive:true});
+  });
+
+  /* ---------- 步骤交互 ---------- */
+  window.toggleStep = function(head){ head.closest('.step').classList.toggle('open'); syncAfterLayoutChange(); };
+  window.stepKey = function(e, head){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); window.toggleStep(head); }
+  };
+  window.toggleDone = function(input){
+    var step = input.closest('.step');
+    var state = load(), key = step.getAttribute('data-step');
+    if(input.checked){
+      state[key] = 1; step.classList.add('is-done');
+      // 标记完成 → 自动展开并滚到下一步（引导式流程）
+      var next = step.nextElementSibling;
+      while(next && !next.classList.contains('step')) next = next.nextElementSibling;
+      if(next && !next.classList.contains('is-done')){
+        next.classList.add('open');
+        setTimeout(function(){ scrollToStep(next); syncAfterLayoutChange(); }, 80);
+      }
+    } else { delete state[key]; step.classList.remove('is-done'); }
+    save(state); refresh(); syncAfterLayoutChange();
+  };
+  window.expandAll = function(btn){
+    btn.closest('[data-door]').querySelectorAll('.step').forEach(function(s){ s.classList.add('open'); });
+    syncAfterLayoutChange();
+  };
+  window.collapseAll = function(btn){
+    btn.closest('[data-door]').querySelectorAll('.step').forEach(function(s){ s.classList.remove('open'); });
+    syncAfterLayoutChange();
+  };
+
+  /* ---------- 键盘导航（门内）---------- */
+  document.addEventListener('keydown', function(e){
+    if(current === 'home') return;
+    var tag = (e.target.tagName || '').toLowerCase();
+    if(tag === 'input' || tag === 'textarea' || e.metaKey || e.ctrlKey || e.altKey) return;
+    var d = document.getElementById(current); if(!d) return;
+    var steps = Array.prototype.slice.call(d.querySelectorAll('.step'));
+    if(!steps.length) return;
+    var idx = 0;
+    steps.forEach(function(s, i){ if(s.classList.contains('is-active')) idx = i; });
+    var k = e.key.toLowerCase();
+    if(k === 'j'){ e.preventDefault(); goStep(steps[Math.min(idx+1, steps.length-1)]); }
+    else if(k === 'k'){ e.preventDefault(); goStep(steps[Math.max(idx-1, 0)]); }
+    else if(k === 'x'){
+      e.preventDefault();
+      var cb = steps[idx].querySelector('.done input');
+      if(cb){ cb.checked = !cb.checked; window.toggleDone(cb); }
+    }
+  });
+  function goStep(step){ if(!step) return; step.classList.add('open'); scrollToStep(step); syncAfterLayoutChange(); }
+
+  /* ---------- 复制 ---------- */
+  window.copyBlock = function(btn){
+    var pre = btn.closest('.block').querySelector('pre');
+    if(!pre) return;
+    var txt = pre.textContent;
+    var ok = function(){
+      var o = btn.textContent; btn.textContent = '已复制 ✓'; btn.classList.add('done-btn');
+      setTimeout(function(){ btn.textContent = o; btn.classList.remove('done-btn'); }, 1400);
+    };
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(txt).then(ok, function(){ fallback(txt); ok(); });
+    } else { fallback(txt); ok(); }
+  };
+  function fallback(txt){
+    var ta = document.createElement('textarea'); ta.value = txt;
+    ta.style.position='fixed'; ta.style.opacity='0';
+    document.body.appendChild(ta); ta.select();
+    try{ document.execCommand('copy'); }catch(e){} document.body.removeChild(ta);
+  }
+
+  /* ---------- 回到顶部 ---------- */
+  if(totop){ totop.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); }); }
+
+  /* ---------- 动效可用性探针 ---------- */
+  function motionProbe(){
+    if(reduce){ document.documentElement.classList.add('no-motion'); return; }
+    var t = document.createElement('div');
+    t.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;transition:opacity .05s linear;pointer-events:none';
+    document.body.appendChild(t);
+    requestAnimationFrame(function(){ t.style.opacity = '1'; });
+    setTimeout(function(){
+      var ok = parseFloat(getComputedStyle(t).opacity) > 0.2;
+      if(!ok) document.documentElement.classList.add('no-motion');
+      if(t.parentNode) t.parentNode.removeChild(t);
+    }, 240);
+  }
+
+  /* ---------- 初始化 ---------- */
+  buildTimelines();
+  applySaved();
+  motionProbe();
+  installHomePageSnap();
+  showDoor((location.hash || '#home').slice(1));
+  onScroll();
+})();
+</script>
+</body></html>

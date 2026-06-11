@@ -1,0 +1,1040 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AIDA · 登录</title>
+<style>
+
+
+html, body {
+  --bg-1: #f5f8fd;
+  --bg-2: #e9f0fa;
+  --bg-3: #dfe9f6;
+  --ink: #16233c;
+  --ink-soft: #46566f;
+  --ink-faint: #8a99b5;
+  --ink-ghost: #aeb9cd;
+  --blue: #2f7df6;
+  --blue-deep: #1d5fd0;
+  --cyan: #19b8d8;
+  --line: rgba(120, 160, 220, 0.3);
+  --glass: rgba(255, 255, 255, 0.66);
+  --glass-strong: rgba(255, 255, 255, 0.82);
+  --glass-border: rgba(140, 175, 230, 0.42);
+  --shadow: 0 30px 80px -32px rgba(38, 86, 160, 0.5);
+  --shadow-sm: 0 12px 34px -18px rgba(38, 86, 160, 0.42);
+  --danger: #ef4444;
+
+  color: var(--ink);
+  margin: 0;
+  overflow: hidden;
+  min-height: 100vh;
+  height: 100vh;
+  width: 100%;
+  font-family:
+    'Segoe UI', 'PingFang SC', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont,
+    'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  background:
+    radial-gradient(1300px 850px at 26% 14%, #ffffff 0%, rgba(255, 255, 255, 0) 55%),
+    radial-gradient(1200px 980px at 86% 92%, #eef4ff 0%, rgba(238, 244, 255, 0) 60%),
+    linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 46%, var(--bg-3) 100%);
+}
+
+#stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#stage::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background-image:
+    linear-gradient(rgba(70, 120, 200, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(70, 120, 200, 0.055) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(closest-side at 38% 50%, #000 30%, transparent 88%);
+  -webkit-mask-image: radial-gradient(closest-side at 38% 50%, #000 30%, transparent 88%);
+}
+
+canvas#field {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 2;
+}
+
+@keyframes login-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+
+.login-gateway {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  transform: translate(-50%, -50%);
+  height: 130vh;
+  width: auto;
+  pointer-events: none;
+  z-index: 4;
+  opacity: 0;
+}
+
+body.s2 .login-gateway {
+  animation: login-fade-in 1.25s ease forwards;
+}
+
+.login-gateway svg {
+  height: 100%;
+  width: auto;
+  display: block;
+  overflow: visible;
+}
+
+.login-gateway .stroke {
+  fill: none;
+  stroke: rgba(22, 35, 60, 0.13);
+  stroke-width: 0.7;
+}
+
+.login-gateway .stroke-soft {
+  fill: none;
+  stroke: rgba(22, 35, 60, 0.06);
+  stroke-width: 0.5;
+}
+
+.login-gateway .notch {
+  fill: rgba(47, 125, 246, 0.14);
+}
+
+.login-center-logo {
+  position: absolute;
+  left: 50%;
+  top: 52%;
+  z-index: 6;
+  pointer-events: none;
+  height: 13vh;
+  width: auto;
+  transform: translate(-50%, -50%) scale(0.7);
+  opacity: 0;
+  filter: drop-shadow(0 14px 36px rgba(38, 86, 160, 0.34));
+}
+
+.login-center-logo svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+body.s1 .login-center-logo {
+  animation: login-mark-in 0.4s cubic-bezier(0.22, 0.9, 0.3, 1.1) forwards;
+}
+
+body.s2 .login-center-logo {
+  animation: login-mark-out 1.6s cubic-bezier(0.36, 0, 0.2, 1) forwards;
+}
+
+@keyframes login-mark-in {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes login-mark-out {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+    filter: drop-shadow(0 14px 36px rgba(38, 86, 160, 0.34));
+  }
+  45% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(10);
+    filter: drop-shadow(0 0 0 rgba(38, 86, 160, 0));
+  }
+}
+
+
+.login-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: 1.18fr 0.82fr;
+  align-items: center;
+}
+
+.login-hero {
+  position: relative;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 0 0 96px;
+}
+
+.login-hero-inner {
+  position: relative;
+  z-index: 2;
+  max-width: 560px;
+  opacity: 0;
+  transform: translateY(22px);
+}
+
+body.s3 .login-hero-inner {
+  animation: login-rise 0.95s cubic-bezier(0.22, 0.9, 0.3, 1.1) forwards;
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.login-hero-logo {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 30px;
+}
+
+.login-hero-logo .wm {
+  height: 60px;
+  color: var(--ink);
+}
+
+.login-hero-logo .wm svg {
+  height: 100%;
+  width: auto;
+  display: block;
+}
+
+.login-hero-tagline {
+  font-size: 13px;
+  letter-spacing: 5px;
+  text-transform: uppercase;
+  color: var(--blue);
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.login-hero-h1 {
+  font-size: 40px;
+  font-weight: 800;
+  line-height: 1.22;
+  letter-spacing: 0.5px;
+  color: var(--ink);
+  margin-bottom: 18px;
+  text-wrap: balance;
+}
+
+.login-hero-h1 em {
+  font-style: normal;
+  color: var(--blue-deep);
+}
+
+
+.login-auth-wrap {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 84px 0 24px;
+}
+
+.login-auth {
+  position: relative;
+  width: 100%;
+  max-width: 396px;
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  border-radius: 24px;
+  padding: 40px 38px 34px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(22px) saturate(1.4);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  opacity: 0;
+  transform: translateY(22px);
+}
+
+body.s3 .login-auth {
+  animation: login-rise 1s 0.12s cubic-bezier(0.22, 0.9, 0.3, 1.1) forwards;
+}
+
+.login-auth::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  pointer-events: none;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 40%);
+}
+
+.login-auth-head {
+  position: relative;
+  margin-bottom: 26px;
+}
+
+.login-auth-head h2 {
+  font-size: 25px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  margin: 0;
+  color: var(--ink);
+}
+
+.login-field {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.login-field label {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  letter-spacing: 1px;
+  margin-bottom: 8px;
+}
+
+.login-field .inp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(120, 150, 200, 0.32);
+  border-radius: 13px;
+  padding: 0 14px;
+  height: 48px;
+  transition:
+    border-color 0.22s ease,
+    box-shadow 0.22s ease,
+    background 0.22s ease;
+}
+
+.login-field .inp:focus-within {
+  border-color: var(--blue);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(47, 125, 246, 0.12);
+}
+
+.login-field .inp.invalid {
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+}
+
+.login-field .inp svg {
+  width: 17px;
+  height: 17px;
+  color: var(--ink-faint);
+  flex: none;
+}
+
+.login-field input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14.5px;
+  color: var(--ink);
+  letter-spacing: 0.3px;
+  font-family: inherit;
+}
+
+.login-field input::placeholder {
+  color: var(--ink-ghost);
+}
+
+.login-field .toggle {
+  cursor: pointer;
+  color: var(--ink-faint);
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.login-field .toggle:hover {
+  color: var(--ink-soft);
+}
+
+.login-field .err {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 6px;
+  min-height: 14px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.login-field .err.show {
+  opacity: 1;
+}
+
+.login-row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 6px 0 22px;
+}
+
+.login-remember {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  user-select: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+}
+
+.login-remember .box {
+  width: 17px;
+  height: 17px;
+  border-radius: 5px;
+  border: 1.5px solid rgba(120, 150, 200, 0.55);
+  display: grid;
+  place-items: center;
+  transition: all 0.2s ease;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.login-remember .box svg {
+  width: 11px;
+  height: 11px;
+  color: #fff;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.2s ease;
+}
+
+.login-remember.on .box {
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.login-remember.on .box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.login-link {
+  font-size: 12.5px;
+  color: var(--blue);
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  text-decoration: none;
+}
+
+.login-link:hover {
+  color: var(--blue-deep);
+}
+
+.login-btn-primary {
+  width: 100%;
+  height: 50px;
+  border: none;
+  cursor: pointer;
+  border-radius: 13px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  font-family: inherit;
+  background: linear-gradient(135deg, var(--blue) 0%, var(--blue-deep) 100%);
+  box-shadow:
+    0 16px 34px -14px rgba(29, 95, 208, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.login-btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow:
+    0 22px 44px -14px rgba(29, 95, 208, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.login-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.97);
+}
+
+.login-btn-primary:disabled {
+  cursor: default;
+  opacity: 0.85;
+}
+
+.login-btn-primary svg {
+  width: 17px;
+  height: 17px;
+  flex: none;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 18px;
+  color: var(--ink-faint);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(120, 150, 200, 0.25);
+}
+
+.login-btn-sso {
+  width: 100%;
+  height: 46px;
+  cursor: pointer;
+  font-family: inherit;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 150, 200, 0.34);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--ink-soft);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.2s ease;
+}
+
+.login-btn-sso:hover:not(:disabled) {
+  background: #fff;
+  border-color: var(--blue);
+  color: var(--blue-deep);
+  box-shadow: var(--shadow-sm);
+}
+
+.login-btn-sso:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.login-btn-sso svg {
+  width: 16px;
+  height: 16px;
+  color: var(--blue);
+  flex: none;
+}
+
+@media (max-width: 1080px) {
+  .login-scene {
+    grid-template-columns: 1fr;
+  }
+
+  .login-hero {
+    display: none;
+  }
+
+  .login-auth-wrap {
+    padding: 0 24px;
+  }
+
+  #stage::before {
+    mask-image: radial-gradient(closest-side at 50% 42%, #000 30%, transparent 88%);
+    -webkit-mask-image: radial-gradient(closest-side at 50% 42%, #000 30%, transparent 88%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-gateway,
+  .login-center-logo,
+  .login-hero-inner,
+  .login-auth {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}
+
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="field"></canvas>
+
+  <div class="login-center-logo" aria-hidden="true">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="cg" x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#1d5fd0"/>
+          <stop offset="100%" stop-color="#19b8d8"/>
+        </linearGradient>
+      </defs>
+      <path fill="#16233c" d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"/>
+      <path fill="url(#cg)" d="M 36.0855 92 L 53.0855 92 L 59.248 80.7375 L 50 80.7375 Z"/>
+    </svg>
+  </div>
+
+  <div class="login-gateway" aria-hidden="true">
+    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+      <path class="stroke" d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"/>
+      <path class="stroke-soft" transform="translate(7,6) scale(0.86)" d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"/>
+      <path class="notch" d="M 36.0855 92 L 53.0855 92 L 59.248 80.7375 L 50 80.7375 Z"/>
+    </svg>
+  </div>
+
+  <div class="login-scene">
+    <div class="login-hero">
+      <div class="login-hero-inner">
+        <div class="login-hero-logo">
+          <div class="wm"><svg viewBox="0 0 410.524 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="AIDA" fill="currentColor">
+  <polygon points="0,120 42.658,36.574 57.342,36.574 100,120 86.522,120 50,48.574 13.478,120"/>
+  <rect x="135.502" y="36.574" width="12" height="83.426"/>
+  <g transform="translate(183.004, 36.574) scale(0.05212822)">
+    <path fill-rule="evenodd" d="M 0 0 H 1262.4 A 800.2 800.2 0 0 1 1262.4 1600.4 H 0 Z M 230.202 230.202 V 1370.198 H 1262.4 A 569.998 569.998 0 0 0 1262.4 230.202 H 230.202 Z"/>
+  </g>
+  <polygon transform="translate(310.524, 0)" points="0,120 42.658,36.574 57.342,36.574 100,120 86.522,120 50,48.574 13.478,120"/>
+</svg></div>
+        </div>
+        <div class="login-hero-tagline">Agentic Integrated Delivery Arena</div>
+        <h1 class="login-hero-h1">算力<em>智能交付</em>中枢</h1>
+      </div>
+    </div>
+
+    <div class="login-auth-wrap">
+      <form class="login-auth" id="authForm" autocomplete="off" novalidate aria-label="登录">
+        <div class="login-auth-head">
+          <h2>登录工作台</h2>
+        </div>
+
+        <div class="login-field">
+          <label for="user">账号</label>
+          <div class="inp" id="userBox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            <input type="text" id="user" placeholder="工号 / 企业邮箱" autocomplete="off" />
+          </div>
+          <div class="err" id="userErr">请输入账号</div>
+        </div>
+
+        <div class="login-field">
+          <label for="pwd">密码</label>
+          <div class="inp" id="pwdBox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="pwd" placeholder="请输入密码" autocomplete="off" />
+            <button type="button" class="toggle" id="pwdToggle" title="显示 / 隐藏" aria-label="显示或隐藏密码">
+              <svg id="eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </div>
+          <div class="err" id="pwdErr">请输入密码</div>
+        </div>
+
+        <div class="login-row-between">
+          <button type="button" class="login-remember on" id="remember">
+            <span class="box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+            保持登录
+          </button>
+          <a class="login-link" href="#" id="forgot">忘记密码？</a>
+        </div>
+
+        <button type="submit" class="login-btn-primary" id="submitBtn">
+          <span id="btnLabel">进入平台</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        </button>
+
+        <div class="login-divider">或</div>
+
+        <button type="button" class="login-btn-sso" id="ssoBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L3 7v5c0 5 3.8 8.5 9 10 5.2-1.5 9-5 9-10V7l-9-5z"/></svg>
+          企业统一身份认证 (SSO)
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============ entrance timeline（与 use-login-entrance.ts 一致） ============ */
+(function () {
+  var MARK_IN_MS = 400;
+  var MARK_HOLD_MS = 350;
+  var body = document.body;
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function run() {
+    if (reduce) { body.classList.add("s1", "s2", "s3"); return; }
+    body.classList.add("s1");
+    setTimeout(function () { body.classList.add("s2"); }, MARK_IN_MS + MARK_HOLD_MS);
+    setTimeout(function () { body.classList.add("s3"); }, MARK_IN_MS + MARK_HOLD_MS + 1500);
+  }
+  if (document.readyState === "complete") run();
+  else window.addEventListener("load", run);
+})();
+
+/* ============ particle field（login-particle-v2.ts） ============ */
+/** login-particle-v2.ts — 浏览器内联版，与 src/components/login/login-particle-v2.ts 同步 */
+function mountLoginParticleV2(canvas) {
+  var ctx = canvas.getContext('2d');
+  if (!ctx) return function () {};
+
+  var W = 0;
+  var H = 0;
+  var DPR = Math.min(window.devicePixelRatio || 1, 2);
+  var TAU = Math.PI * 2;
+  var COLORS = [
+    [47, 125, 246],
+    [25, 184, 216],
+    [99, 132, 200],
+    [123, 140, 235],
+  ];
+  var LINK_STROKE = [90, 130, 200];
+  var MOUSE_STROKE = [47, 125, 246];
+  var LINK = 132;
+  var MOTION_SPEED = 5;
+
+  var rand = function (a, b) {
+    return a + Math.random() * (b - a);
+  };
+  var rgba = function (c, a) {
+    return 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+  };
+
+  var parts = [];
+  var bokeh = [];
+  var motes = [];
+  var mouse = { x: -9999, y: -9999, active: false };
+  var raf = 0;
+
+  function pickColor() {
+    return COLORS[(Math.random() * COLORS.length) | 0];
+  }
+
+  function newMote(seed) {
+    return {
+      x: Math.random() * W,
+      y: seed ? Math.random() * H : H + 12,
+      vy: -rand(0.12, 0.42) * MOTION_SPEED,
+      drift: rand(-0.12, 0.12) * MOTION_SPEED,
+      r: rand(0.7, 1.8),
+      a: rand(0.25, 0.6),
+      col: pickColor(),
+      tw: Math.random() * TAU,
+      tws: rand(0.8, 2.0),
+    };
+  }
+
+  function build() {
+    var area = W * H;
+    var count = Math.min(240, Math.max(110, Math.round(area / 8200)));
+    var i;
+    parts = [];
+    for (i = 0; i < count; i += 1) {
+      var c = pickColor();
+      var depth = Math.random();
+      parts.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: rand(-0.16, 0.16) * (0.5 + depth) * MOTION_SPEED,
+        vy: rand(-0.16, 0.16) * (0.5 + depth) * MOTION_SPEED,
+        r: rand(0.6, 1.6) + depth * 1.4,
+        a: rand(0.16, 0.42) + depth * 0.16,
+        col: c,
+        depth: depth,
+        glow: Math.random() < 0.18,
+        tw: Math.random() * TAU,
+        tws: rand(0.6, 1.6),
+      });
+    }
+    var bcount = Math.min(14, Math.max(7, Math.round(area / 150000)));
+    bokeh = [];
+    for (i = 0; i < bcount; i += 1) {
+      bokeh.push({
+        x: Math.random() * W,
+        y: Math.random() * H,
+        vx: rand(-0.08, 0.08) * MOTION_SPEED,
+        vy: rand(-0.06, 0.06) * MOTION_SPEED,
+        r: rand(60, 150),
+        col: pickColor(),
+        a: rand(0.025, 0.06),
+      });
+    }
+    var mcount = Math.min(26, Math.max(12, Math.round(area / 70000)));
+    motes = [];
+    for (i = 0; i < mcount; i += 1) motes.push(newMote(true));
+  }
+
+  function resize() {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    build();
+  }
+
+  function frame(t) {
+    var time = t * 0.001;
+    var i;
+    var j;
+    ctx.clearRect(0, 0, W, H);
+
+    for (i = 0; i < bokeh.length; i += 1) {
+      var b = bokeh[i];
+      b.x += b.vx;
+      b.y += b.vy;
+      if (b.x < -b.r) b.x = W + b.r;
+      else if (b.x > W + b.r) b.x = -b.r;
+      if (b.y < -b.r) b.y = H + b.r;
+      else if (b.y > H + b.r) b.y = -b.r;
+      var bg = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+      bg.addColorStop(0, rgba(b.col, b.a));
+      bg.addColorStop(1, rgba(b.col, 0));
+      ctx.fillStyle = bg;
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, b.r, 0, TAU);
+      ctx.fill();
+    }
+
+    for (i = 0; i < parts.length; i += 1) {
+      var p = parts[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      if (mouse.active) {
+        var dx = p.x - mouse.x;
+        var dy = p.y - mouse.y;
+        var d2 = dx * dx + dy * dy;
+        if (d2 < 16000) {
+          var d = Math.sqrt(d2) || 1;
+          var f = (1 - d / 126) * 0.7;
+          p.x += (dx / d) * f;
+          p.y += (dy / d) * f;
+        }
+      }
+      if (p.x < -20) p.x = W + 20;
+      else if (p.x > W + 20) p.x = -20;
+      if (p.y < -20) p.y = H + 20;
+      else if (p.y > H + 20) p.y = -20;
+    }
+
+    ctx.lineWidth = 1;
+    for (i = 0; i < parts.length; i += 1) {
+      var a = parts[i];
+      for (j = i + 1; j < parts.length; j += 1) {
+        var b2 = parts[j];
+        var dx2 = a.x - b2.x;
+        var dy2 = a.y - b2.y;
+        var d22 = dx2 * dx2 + dy2 * dy2;
+        if (d22 < LINK * LINK) {
+          var dist = Math.sqrt(d22);
+          ctx.strokeStyle = rgba(LINK_STROKE, (1 - dist / LINK) * 0.14);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b2.x, b2.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    if (mouse.active) {
+      for (i = 0; i < parts.length; i += 1) {
+        var p2 = parts[i];
+        var mdx = p2.x - mouse.x;
+        var mdy = p2.y - mouse.y;
+        var md2 = mdx * mdx + mdy * mdy;
+        if (md2 < 150 * 150) {
+          ctx.strokeStyle = rgba(MOUSE_STROKE, (1 - Math.sqrt(md2) / 150) * 0.22);
+          ctx.beginPath();
+          ctx.moveTo(p2.x, p2.y);
+          ctx.lineTo(mouse.x, mouse.y);
+          ctx.stroke();
+        }
+      }
+    }
+
+    for (i = 0; i < parts.length; i += 1) {
+      var p3 = parts[i];
+      var tw = 0.72 + 0.28 * Math.sin(time * p3.tws + p3.tw);
+      var alpha = p3.a * tw;
+      if (p3.glow) {
+        var gr = p3.r * 5;
+        var g = ctx.createRadialGradient(p3.x, p3.y, 0, p3.x, p3.y, gr);
+        g.addColorStop(0, rgba(p3.col, alpha * 0.5));
+        g.addColorStop(1, rgba(p3.col, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(p3.x, p3.y, gr, 0, TAU);
+        ctx.fill();
+      }
+      ctx.fillStyle = rgba(p3.col, alpha);
+      ctx.beginPath();
+      ctx.arc(p3.x, p3.y, p3.r, 0, TAU);
+      ctx.fill();
+      if (p3.glow) {
+        ctx.fillStyle = 'rgba(255,255,255,' + alpha * 0.85 + ')';
+        ctx.beginPath();
+        ctx.arc(p3.x, p3.y, p3.r * 0.42, 0, TAU);
+        ctx.fill();
+      }
+    }
+
+    for (i = 0; i < motes.length; i += 1) {
+      var m = motes[i];
+      m.y += m.vy;
+      m.x += m.drift;
+      if (m.y < -12 || m.x < -12 || m.x > W + 12) {
+        motes[i] = newMote(false);
+        continue;
+      }
+      var mtw = 0.55 + 0.45 * Math.sin(time * m.tws + m.tw);
+      var ma = m.a * mtw;
+      var mgr = m.r * 4.5;
+      var mg = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, mgr);
+      mg.addColorStop(0, rgba(m.col, ma * 0.55));
+      mg.addColorStop(1, rgba(m.col, 0));
+      ctx.fillStyle = mg;
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, mgr, 0, TAU);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,' + ma * 0.9 + ')';
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, m.r * 0.6, 0, TAU);
+      ctx.fill();
+    }
+
+    raf = requestAnimationFrame(frame);
+  }
+
+  function onMove(e) {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    mouse.active = true;
+  }
+  function onOut() {
+    mouse.active = false;
+  }
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseout', onOut);
+  resize();
+  raf = requestAnimationFrame(frame);
+
+  return function () {
+    cancelAnimationFrame(raf);
+    window.removeEventListener('resize', resize);
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseout', onOut);
+  };
+}
+
+(function () {
+  var canvas = document.getElementById("field");
+  mountLoginParticleV2(canvas);
+})();
+
+/* ============ form interactions ============ */
+(function () {
+  var remember = document.getElementById("remember");
+  var pwd = document.getElementById("pwd");
+  var toggle = document.getElementById("pwdToggle");
+  var eye = document.getElementById("eye");
+  var user = document.getElementById("user");
+  var userBox = document.getElementById("userBox");
+  var pwdBox = document.getElementById("pwdBox");
+  var userErr = document.getElementById("userErr");
+  var pwdErr = document.getElementById("pwdErr");
+  var btn = document.getElementById("submitBtn");
+  var btnLabel = document.getElementById("btnLabel");
+  var form = document.getElementById("authForm");
+  var forgot = document.getElementById("forgot");
+
+  remember.addEventListener("click", function () { remember.classList.toggle("on"); });
+  forgot.addEventListener("click", function (e) { e.preventDefault(); });
+  var ssoBtn = document.getElementById("ssoBtn");
+  if (ssoBtn) ssoBtn.addEventListener("click", function () { window.parent.postMessage({ type: "aida-particle-login", account: "sso@aida.cloud", password: "" }, "*"); });
+
+  toggle.addEventListener("click", function () {
+    var show = pwd.type === "password";
+    pwd.type = show ? "text" : "password";
+    eye.innerHTML = show
+      ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+      : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+  });
+
+  function clearErr() {
+    userBox.classList.remove("invalid");
+    pwdBox.classList.remove("invalid");
+    userErr.classList.remove("show");
+    pwdErr.classList.remove("show");
+  }
+  user.addEventListener("input", clearErr);
+  pwd.addEventListener("input", clearErr);
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    clearErr();
+    var ok = true;
+    if (!user.value.trim()) {
+      userBox.classList.add("invalid");
+      userErr.classList.add("show");
+      ok = false;
+    }
+    if (!pwd.value) {
+      pwdBox.classList.add("invalid");
+      pwdErr.classList.add("show");
+      ok = false;
+    }
+    if (!ok) return;
+    btn.disabled = true;
+    btnLabel.textContent = "验证中…";
+    setTimeout(function () {
+      btn.disabled = false;
+      btnLabel.textContent = "进入平台";
+      window.parent.postMessage({ type: "aida-particle-login", account: user.value.trim(), password: pwd.value }, "*");
+    }, 1400);
+  });
+})();
+</script>
+</body>
+</html>

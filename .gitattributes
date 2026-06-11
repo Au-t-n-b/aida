@@ -1,0 +1,5 @@
+# 派生制品锁 LF：让生成器的字节级 diff 守门在 autocrlf=true 的 Windows 检出下也成立
+# （否则检出变 CRLF、生成器产 LF → lint_sdui_gallery / lint_docs_site / lint_team_portal 假阳性）。
+agent/docs/sdui-gallery.html text eol=lf
+docs/site/index.html text eol=lf
+docs/site/portal.html text eol=lf

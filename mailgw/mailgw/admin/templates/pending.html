@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>mailgw 邮件审批</title>
+<style>
+  body { font-family: system-ui, "Microsoft YaHei", sans-serif; margin: 2em; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 2em; }
+  td, th { border: 1px solid #ccc; padding: 6px 8px; text-align: left;
+           vertical-align: top; font-size: 14px; }
+  form { display: inline; }
+  .preview { max-width: 360px; white-space: pre-wrap; word-break: break-all; }
+</style>
+</head>
+<body>
+<h2>待审批（{{ pending|length }}）</h2>
+<table>
+<tr><th>提交时间</th><th>调用方</th><th>收件人</th><th>主题</th>
+    <th>正文预览</th><th>附件</th><th>操作</th></tr>
+{% for t in pending %}
+<tr>
+  <td>{{ t.created_at[:19] }}</td>
+  <td>{{ t.caller }}</td>
+  <td>{{ (t.to_addrs + t.cc_addrs) | join('、') }}</td>
+  <td>{{ t.subject }}</td>
+  <td class="preview">{{ t.body_text[:500] }}</td>
+  <td>{{ t.attachments | join('；') }}</td>
+  <td>
+    <form method="post" action="/admin/approve/{{ t.id }}"><button>通过</button></form>
+    <form method="post" action="/admin/reject/{{ t.id }}">
+      <input name="reason" placeholder="驳回原因" required>
+      <button>驳回</button>
+    </form>
+  </td>
+</tr>
+{% endfor %}
+</table>
+
+<h2>最近处理（50 条）</h2>
+<table>
+<tr><th>提交时间</th><th>状态</th><th>收件人</th><th>主题</th><th>说明</th></tr>
+{% for t in recent %}
+<tr>
+  <td>{{ t.created_at[:19] }}</td>
+  <td>{{ t.status }}</td>
+  <td>{{ t.to_addrs | join('、') }}</td>
+  <td>{{ t.subject }}</td>
+  <td>{{ t.reject_reason or t.verdict_reason or '' }}</td>
+</tr>
+{% endfor %}
+</table>
+</body>
+</html>

@@ -1,0 +1,220 @@
+/* 玻璃拟态登录页样式 — 由 login-glass.html 迁移。
+   作用域根为 .lg-root；原版加在 document.body 上的 settled / logo-pinned 状态类
+   现加在 .lg-root 上（见 glassIntro.ts）。背景图改为 /login-glass-bg.webp（public/）。 */
+
+.lg-root {
+  --tab-blue: oklch(0.621 0.193 256);
+  --tab-blue-2: oklch(0.556 0.196 258);
+  --tab-blue-light: oklch(0.74 0.13 250);
+  --c-brand: oklch(0.621 0.193 256);
+  --accent-cyan: oklch(0.74 0.13 250);
+  --accent-indigo: oklch(0.74 0.13 250);
+  --glass-text: #eef4fc;
+  --glass-muted: #9fb1c6;
+  --glass-faint: #6c7d92;
+  --font-mono: 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  position: fixed;
+  inset: 0;
+  color: var(--glass-text);
+  background: #05080e;
+  overflow: hidden;
+}
+.lg-root * { box-sizing: border-box; }
+
+/* ── Background image + scrim ── */
+.lg-bg {
+  position: fixed; inset: 0; z-index: 0;
+  background: url('/login-glass-bg.webp') center / cover no-repeat;
+  transform: scale(1.08);
+  filter: blur(14px) brightness(0.58) saturate(0.72);
+  transition: filter 1.4s cubic-bezier(0.16, 1, 0.3, 1), transform 1.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lg-root.settled .lg-bg { filter: blur(3px) brightness(0.66) saturate(0.7); transform: scale(1.02); }
+.lg-bg-scrim {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(130% 100% at 18% 30%, rgba(8, 12, 20, 0.2) 0%, rgba(6, 9, 16, 0.62) 60%, rgba(4, 6, 11, 0.85) 100%),
+    linear-gradient(180deg, rgba(5, 8, 14, 0.3), rgba(5, 8, 14, 0.55));
+}
+
+/* ── Entrance particle canvas (full screen) ── */
+#lg-spark { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+
+/* ── Stage / centered glass card ── */
+.lg-stage {
+  position: relative; z-index: 6;
+  height: 100vh; width: 100%;
+  display: grid; place-items: center;
+  padding: 32px;
+}
+.lg-card {
+  position: relative;
+  width: min(1040px, 96vw);
+  height: min(620px, 88vh);
+  display: grid;
+  grid-template-columns: 1.18fr 0.92fr;
+  border-radius: 22px;
+  overflow: hidden;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  filter: blur(7px);
+  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), filter 0.9s ease;
+}
+.lg-root.settled .lg-card { opacity: 1; filter: none; }
+
+/* ── Left visual panel — server-room photo ── */
+.lg-visual {
+  position: relative;
+  display: flex; flex-direction: column;
+  padding: 30px 30px 28px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.lg-visual::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: url('/login-glass-bg.webp') center / cover no-repeat;
+  filter: saturate(0.62) brightness(0.74) contrast(0.98);
+}
+.lg-visual::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(20, 25, 36, 0.34) 0%, rgba(20, 25, 36, 0.2) 40%, rgba(16, 20, 30, 0.62) 100%),
+    radial-gradient(120% 90% at 30% 40%, rgba(53, 81, 216, 0.1), transparent 60%);
+}
+.lg-brand { display: flex; align-items: center; gap: 14px; position: relative; z-index: 2; opacity: 0; transition: opacity 0.4s ease; }
+.lg-root.logo-pinned .lg-brand { opacity: 1; }
+.lg-logo {
+  width: 56px; height: 56px; border-radius: 15px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.lg-logo svg { width: 42px; height: 42px; }
+.lg-brand-name { font-size: 25px; font-weight: 700; letter-spacing: 0.04em; color: #fff; line-height: 1; }
+.lg-brand-sub { font-size: 12px; color: var(--glass-muted); letter-spacing: 0.16em; margin-top: 4px; font-family: var(--font-mono); text-transform: uppercase; }
+
+/* intro logo clone — measured onto the real logo's rect; ends at transform:none */
+.lg-intro-brand {
+  position: fixed; z-index: 30; pointer-events: none;
+  opacity: 0; will-change: transform, opacity;
+  display: flex; align-items: center; gap: 14px;
+}
+
+.lg-graph-wrap { flex: 1; position: relative; min-height: 0; margin: 8px -6px; }
+#lg-graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.lg-graph-hint {
+  position: absolute; left: 0; bottom: 4px; z-index: 3;
+  font-size: 10.5px; color: var(--glass-faint);
+  font-family: var(--font-mono); letter-spacing: 0.04em;
+  display: flex; align-items: center; gap: 7px;
+  opacity: 0; transition: opacity 0.6s ease 0.4s;
+}
+.lg-root.settled .lg-graph-hint { opacity: 1; }
+.lg-graph-hint .pip {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 8px var(--accent-cyan);
+  animation: lgPip 2.2s ease-in-out infinite;
+}
+@keyframes lgPip { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+/* ── Right form panel — frosted glass ── */
+.lg-form-panel {
+  position: relative;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 44px 48px;
+  background: linear-gradient(160deg, rgba(15, 21, 33, 0.64), rgba(9, 13, 21, 0.74));
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+}
+.lg-form-head { margin-bottom: 26px; }
+.lg-form-head h2 { font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.01em; }
+.lg-form-head p { margin-top: 7px; font-size: 12.5px; color: var(--glass-muted); }
+
+.lg-field { margin-bottom: 16px; }
+.lg-field label {
+  display: block; font-size: 11.5px; font-weight: 600;
+  color: var(--glass-muted); margin-bottom: 7px; letter-spacing: 0.02em;
+}
+.lg-input-wrap { position: relative; }
+.lg-input-wrap .ic {
+  position: absolute; left: 13px; top: 50%; transform: translateY(-50%);
+  color: var(--glass-faint); pointer-events: none; display: grid; place-items: center;
+}
+.lg-field input {
+  width: 100%; height: 44px;
+  padding: 0 14px 0 40px;
+  font-size: 13.5px; color: var(--glass-text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 10px;
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.16s, background 0.16s, box-shadow 0.16s;
+}
+.lg-field input::placeholder { color: var(--glass-faint); }
+.lg-field input:focus {
+  border-color: var(--tab-blue-light);
+  background: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 0 0 3px oklch(0.621 0.193 256 / 0.25);
+}
+.lg-field input:focus + .ic, .lg-input-wrap:focus-within .ic { color: var(--accent-indigo); }
+
+.lg-row { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 22px; }
+.lg-check { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--glass-muted); cursor: pointer; user-select: none; }
+.lg-check input { width: 14px; height: 14px; accent-color: var(--c-brand); cursor: pointer; }
+.lg-link { font-size: 12px; color: var(--accent-cyan); cursor: pointer; transition: color 0.14s; background: none; border: none; font-family: inherit; }
+.lg-link:hover { color: #fff; }
+
+.lg-submit {
+  width: 100%; height: 46px;
+  font-size: 14px; font-weight: 650; color: #fff;
+  border-radius: 10px; cursor: pointer; border: none;
+  background: linear-gradient(135deg, var(--tab-blue), var(--tab-blue-2));
+  box-shadow: 0 6px 22px oklch(0.621 0.193 256 / 0.45), 0 1px 0 rgba(255, 255, 255, 0.18) inset;
+  transition: transform 0.12s, box-shadow 0.16s, filter 0.16s;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
+  font-family: inherit;
+}
+.lg-submit:hover { filter: brightness(1.08); box-shadow: 0 8px 28px oklch(0.621 0.193 256 / 0.55), 0 1px 0 rgba(255, 255, 255, 0.18) inset; transform: translateY(-1px); }
+.lg-submit:active { transform: translateY(0); }
+.lg-submit.loading { pointer-events: none; }
+.lg-submit .spin { width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, 0.4); border-top-color: #fff; border-radius: 50%; animation: lgSpin 0.7s linear infinite; display: none; }
+.lg-submit.loading .spin { display: block; }
+.lg-submit.loading .label { opacity: 0.8; }
+@keyframes lgSpin { to { transform: rotate(360deg); } }
+
+.lg-divider { display: flex; align-items: center; gap: 12px; margin: 22px 0; color: var(--glass-faint); font-size: 11px; letter-spacing: 0.1em; }
+.lg-divider::before, .lg-divider::after { content: ''; height: 1px; flex: 1; background: rgba(255, 255, 255, 0.1); }
+
+.lg-sso {
+  width: 100%; height: 44px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  font-size: 13px; font-weight: 550; color: var(--glass-text);
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px; cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+  font-family: inherit;
+}
+.lg-sso:hover { background: rgba(255, 255, 255, 0.09); border-color: rgba(255, 255, 255, 0.24); }
+.lg-sso svg { color: var(--accent-cyan); }
+
+.lg-foot { margin-top: 24px; text-align: center; font-size: 12px; color: var(--glass-muted); }
+.lg-foot .lg-link { font-weight: 600; }
+
+/* ── Responsive ── */
+@media (max-width: 760px) {
+  .lg-card { grid-template-columns: 1fr; height: auto; max-height: 92vh; overflow-y: auto; width: min(440px, 96vw); }
+  .lg-visual { display: none; }
+  .lg-form-panel { padding: 38px 30px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-bg, .lg-card { transition: none; }
+}

@@ -1,0 +1,75 @@
+name: aida-ci
+
+# AIDA 守门闸 —— 把「守门元规范」（团队范式 §0：每条规范配一个 lint）从「记得手动跑」
+# 升级为 PR 必过的硬阻断。后端跑 5 个守门 lint + 范式附录漂移 + 评测回归（fixture 离线）；
+# 前端跑 typecheck + no-ts-nocheck + vite build。任一红 → 合并被拦。
+#
+# 设计见 docs/03_团队Agent开发范式.md §0、§6；新增守门时在此追加 step。
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  backend-guards:
+    name: 后端守门 + 评测
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: agent/requirements.txt
+
+      - name: 安装后端依赖
+        run: pip install -r agent/requirements.txt
+
+      - name: 部署 SKILL.md 到运行时位置 ~/.claude/skills
+        # A 层 SKILL.md 运行时读 ~/.claude/skills/<name>/（_loader.default_skill_md_path），
+        # 仓库 skills/ 是版本化源。lint_skill_contract / BaseSkill 读运行时位置，CI 须先部署。
+        run: |
+          mkdir -p ~/.claude/skills
+          cp -r skills/. ~/.claude/skills/
+
+      - name: 守门 · 禁裸 LLM 调用
+        run: python agent/scripts/lint_no_naked_llm.py
+      - name: 守门 · 禁裸外发
+        run: python agent/scripts/lint_no_naked_send.py
+      - name: 守门 · SKILL.md ↔ steps 契约
+        run: python agent/scripts/lint_skill_contract.py
+      - name: 守门 · 工具 name/desc/schema 契约
+        run: python agent/scripts/lint_tools.py
+      - name: 守门 · SDUI 协议三方一致（builder ↔ sdui.ts ↔ NodeView）
+        run: python agent/scripts/lint_sdui_contract.py
+      - name: 守门 · SDUI 组件目录 HTML ≡ 契约（派生制品新鲜度）
+        run: python agent/scripts/lint_sdui_gallery.py
+      - name: 守门 · 开发者文档站 HTML ≡ MD 源（派生制品新鲜度）
+        run: python agent/scripts/lint_docs_site.py
+      - name: 守门 · 团队协作门户 HTML ≡ portal.json 源（派生制品新鲜度）
+        run: python agent/scripts/lint_team_portal.py
+      - name: 守门 · 运行时契约 ≡ 代码（DEFAULT_TOOLS / is_tool_error · 给三种工具+工厂对齐）
+        run: python agent/scripts/lint_runtime_contract.py
+      - name: 评测回归（zhgk golden · 离线 fixture）
+        run: python agent/evals/eval_zhgk.py --fixture
+      - name: 单元测试（工勘孪生 SOG 资产）
+        run: python -m unittest agent.tests.test_sog_assets -v
+
+  frontend-build:
+    name: 前端 typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: 安装前端依赖
+        working-directory: frontend
+        run: npm ci
+      - name: 构建（prebuild = typecheck + lint:no-ts-nocheck → vite build）
+        working-directory: frontend
+        run: npm run build
