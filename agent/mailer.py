@@ -6,10 +6,12 @@ AIDA Agent · 邮件统一出口（《交付 Claw/Agent 工程范式》铁律③
 
 配置（agent/.env）：
     AIDA_SEND_EMAIL=1
-    AIDA_MAIL_BACKEND=outlook | smtp | outlook_http
+    AIDA_MAIL_BACKEND=outlook | smtp | outlook_http | mailgw
       outlook      — Windows 本地 Outlook COM（华为内网常用，与 nanobot 一致）
       outlook_http — nanobot outlook_service_full.py（默认 http://127.0.0.1:5123）
       smtp         — SMTP_HOST / SMTP_USER / SMTP_PASSWORD …
+      mailgw       — mailgw 邮件网关 HTTP API（MAILGW_BASE / MAILGW_TOKEN；
+                     白名单分级管控 + 人工审批，GKCLAW 链路推荐通道）
 """
 from __future__ import annotations
 
@@ -164,6 +166,56 @@ def _send_via_smtp(
         return {"ok": False, "error": str(e), "via": "smtp"}
 
 
+def _send_via_mailgw(
+    recipients: list[str],
+    subject: str,
+    body: str,
+    attachments: list[str] | None,
+) -> dict[str, Any]:
+    """经 mailgw 邮件网关发送（白名单外收件人会进入人工审批队列）。
+
+    返回扩展字段：mailgw_task_id / mailgw_status（sent | pending_approval），
+    供 GKCLAW 链路登记追踪。attachments 为网关所在机器上的本地绝对路径（同机部署约定）。
+    """
+    base = os.environ.get("MAILGW_BASE", "http://127.0.0.1:8025").rstrip("/")
+    token = os.environ.get("MAILGW_TOKEN", "").strip()
+    if not token:
+        return {"ok": False, "error": "MAILGW_TOKEN 未配置（mailgw Bearer token）", "via": "mailgw"}
+    payload = {"to": recipients, "cc": [], "subject": subject,
+               "body": body, "attachments": attachments or []}
+    req = urllib.request.Request(
+        f"{base}/api/send",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            data = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        try:
+            err = json.loads(e.read().decode())
+            msg = err.get("detail", str(err))
+        except Exception:
+            msg = str(e)
+        return {"ok": False, "error": msg, "via": "mailgw"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": str(e), "via": "mailgw"}
+
+    status = data.get("status", "")
+    out: dict[str, Any] = {
+        "ok": status in ("sent", "pending_approval"),
+        "via": "mailgw", "to": recipients, "subject": subject,
+        "attachments": attachments or [],
+        "mailgw_task_id": data.get("task_id", ""),
+        "mailgw_status": status,
+        "message": data.get("message", ""),
+    }
+    if not out["ok"]:
+        out["error"] = data.get("message", str(data))
+    return out
+
+
 def send_mail(
     to: str | list[str],
     subject: str,
@@ -193,4 +245,6 @@ def send_mail(
         return _send_via_outlook_com(recipients, subject, body, attachments)
     if backend == "outlook_http":
         return _send_via_outlook_http(recipients, subject, body, attachments)
+    if backend == "mailgw":
+        return _send_via_mailgw(recipients, subject, body, attachments)
     return _send_via_smtp(recipients, subject, body, attachments)

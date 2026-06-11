@@ -553,6 +553,65 @@ def mapping_clusters_by_field_when_present():
     ]
 
 
+# ─── mailer mailgw backend ───
+
+class _FakeHttpResp:
+    def __init__(self, data: dict):
+        import json as _json
+        self._raw = _json.dumps(data).encode()
+    def read(self):
+        return self._raw
+    def __enter__(self):
+        return self
+    def __exit__(self, *a):
+        return False
+
+
+@test
+def mailer_mailgw_backend_sends():
+    import os, json as _json
+    import agent.mailer as mailer
+    os.environ["MAILGW_BASE"] = "http://127.0.0.1:8025"
+    os.environ["MAILGW_TOKEN"] = "tok-aida"
+    os.environ["AIDA_MAIL_BACKEND"] = "mailgw"
+    captured: dict = {}
+
+    def fake_urlopen(req, timeout=0):
+        captured["url"] = req.full_url
+        captured["auth"] = req.get_header("Authorization")
+        captured["body"] = _json.loads(req.data.decode())
+        return _FakeHttpResp({"task_id": "mgw-1", "status": "pending_approval",
+                              "message": "已转入待审批队列"})
+
+    orig = mailer.urllib.request.urlopen
+    mailer.urllib.request.urlopen = fake_urlopen
+    try:
+        r = mailer.send_mail(["front@corp.com"], "[GKCLAW][TASK_DISPATCH] K1903/t1",
+                             "正文", attachments=["D:/x.zip"], dry_run=False)
+    finally:
+        mailer.urllib.request.urlopen = orig
+        os.environ.pop("AIDA_MAIL_BACKEND", None)
+    assert r["ok"] and r["via"] == "mailgw"
+    assert r["mailgw_task_id"] == "mgw-1" and r["mailgw_status"] == "pending_approval"
+    assert captured["url"].endswith("/api/send")
+    assert captured["auth"] == "Bearer tok-aida"
+    assert captured["body"]["to"] == ["front@corp.com"]
+    assert captured["body"]["attachments"] == ["D:/x.zip"]
+
+
+@test
+def mailer_mailgw_requires_token():
+    import os
+    import agent.mailer as mailer
+    os.environ.pop("MAILGW_TOKEN", None)
+    os.environ["AIDA_MAIL_BACKEND"] = "mailgw"
+    try:
+        r = mailer.send_mail("a@b.com", "s", "b", dry_run=False)
+    finally:
+        os.environ.pop("AIDA_MAIL_BACKEND", None)
+    assert not r["ok"] and "MAILGW_TOKEN" in r["error"]
+
+
 # ─── main ───
 
 def main() -> int:
