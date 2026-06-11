@@ -1054,6 +1054,37 @@ def step_missing_assignees_blocks():
     assert any("assignees.json" in x for x in check["missing"])
 
 
+# ─── wait_survey gkclaw 钩子 ───
+
+@test
+def wait_survey_shows_gkclaw_state_and_accepts_mailed_result():
+    import json as _json
+    from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
+    from agent.skills.zhgk.steps.wait_survey import WaitSurveyStep
+    from agent.skills.zhgk.services.gkclaw import ingest
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    # 下发（dry-run）后进入 wait_survey：note 应展示 GKCLAW 任务状态
+    ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch", "assignees": _ASSIGNEES})
+    TaskDispatchStep().run(ctx, {}, lambda m: None)
+    ws = WaitSurveyStep()
+    check = ws.check_inputs(ctx)
+    assert not check["ok"]
+    tid = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))["gkclaw_task_id"]
+    assert tid in check["note"] and "dispatched" in check["note"]
+    # 模拟邮件 final 到达（直接走 ingest，等价于钩子拉取后的落盘效果）
+    tp = TaskRegistry(ctx.runtime_dir).task_payload(tid)
+    table = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))["survey_table_path"]
+    out = ingest.ingest_zip(_result_zip(tp, tmpdir(), status="completed"),
+                            runtime_dir=ctx.runtime_dir, input_dir=ctx.input_dir,
+                            survey_table_path=table)
+    assert out["merged"] is True
+    # 已填写表落 Input → wait_survey 放行，run 走原有合并通道
+    check2 = ws.check_inputs(ctx)
+    assert check2["ok"]
+    result = ws.run(ctx, {}, lambda m: None)
+    assert result["metrics"]["filled_count"] == 2
+
+
 # ─── main ───
 
 def main() -> int:

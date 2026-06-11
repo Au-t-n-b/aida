@@ -79,10 +79,52 @@ class WaitSurveyStep(BaseStep):
     name = "等待现场上传"
     artifacts_pattern = []
 
+    def _gkclaw_status_note(self, ctx: SkillContext) -> str:
+        """GKCLAW 链路钩子：有已下发任务时拉取邮件回传并返回状态行（异常不阻断流程）。
+
+        dry-run 任务或 mailgw 未配置时只展示状态不拉取（边界 C9/C10：拉取发生在
+        本 check 被调用时——run 启动与每次 resume；无后台轮询）。
+        """
+        try:
+            info_path = ctx.runtime_dir / "project_info.json"
+            if not info_path.exists():
+                return ""
+            info = json.loads(info_path.read_text(encoding="utf-8"))
+            tid = info.get("gkclaw_task_id", "")
+            if not tid:
+                return ""
+            from ..services.gkclaw.registry import TaskRegistry
+            reg = TaskRegistry(ctx.runtime_dir)
+            task = reg.get(tid)
+            if task is None:
+                return ""
+            alerts: list[str] = []
+            if not task.get("dry_run"):
+                import agent.mailbox as mailbox
+                if mailbox.is_configured() and task["state"] in (
+                        "dispatched", "accepted", "staged_returned"):
+                    from ..services.gkclaw.ingest import poll_and_ingest
+                    summary = poll_and_ingest(
+                        runtime_dir=ctx.runtime_dir, input_dir=ctx.input_dir,
+                        survey_table_path=_get_survey_table(ctx))
+                    alerts = list(summary.get("alerts", []))
+                    task = reg.get(tid) or task
+            bits = [f"GKCLAW 任务 {tid} · 状态 {task['state']}"]
+            if task.get("dry_run"):
+                bits.append("dry-run 未真发")
+            if task.get("web_access_url"):
+                bits.append(f"现场 Web 入口 {task['web_access_url']}")
+            if task.get("merge_blocked"):
+                bits.append(f"⚠ 合并阻塞：{task.get('merge_blocked_reason', '')}")
+            return "；".join(bits) + ("；" + "；".join(alerts[-3:]) if alerts else "")
+        except Exception as e:  # noqa: BLE001 — 邮件链路异常绝不阻断人工上传通道
+            return f"[gkclaw] 拉取回传失败：{e}"
+
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
             return {"ok": True, "missing": []}
 
+        gk_note = self._gkclaw_status_note(ctx)
         resurvey_pending = ctx.project.get("resurvey_decision") == "resurvey"
         survey_table = _get_survey_table(ctx)
 
@@ -90,13 +132,14 @@ class WaitSurveyStep(BaseStep):
             # 复勘模式：忽略「已有结果」检测，必须有新上传文件
             if _find_uploaded_table(ctx) is not None:
                 return {"ok": True, "missing": []}
+            base_note = (
+                "请将第 N+1 轮复勘后的全量勘测结果表（填写「最新检查结果」列）"
+                f"保存为 {UPLOADED_FILENAME} 并上传到 ProjectData/Input/"
+            )
             return {
                 "ok": False,
                 "missing": [f"ProjectData/Input/{UPLOADED_FILENAME}"],
-                "note": (
-                    "请将第 N+1 轮复勘后的全量勘测结果表（填写「最新检查结果」列）"
-                    f"保存为 {UPLOADED_FILENAME} 并上传到 ProjectData/Input/"
-                ),
+                "note": base_note + (f"\n{gk_note}" if gk_note else ""),
             }
 
         # 正常流程
@@ -106,13 +149,14 @@ class WaitSurveyStep(BaseStep):
         if _find_uploaded_table(ctx) is not None:
             return {"ok": True, "missing": []}
 
+        base_note = (
+            "请从 Output/ 下载全量勘测结果表，完成现场勘测后填写「最新检查结果」列，"
+            f"将文件保存为 {UPLOADED_FILENAME} 后上传到 ProjectData/Input/"
+        )
         return {
             "ok": False,
             "missing": [f"ProjectData/Input/{UPLOADED_FILENAME}"],
-            "note": (
-                "请从 Output/ 下载全量勘测结果表，完成现场勘测后填写「最新检查结果」列，"
-                f"将文件保存为 {UPLOADED_FILENAME} 后上传到 ProjectData/Input/"
-            ),
+            "note": base_note + (f"\n{gk_note}" if gk_note else ""),
         }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
