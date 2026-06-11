@@ -572,16 +572,21 @@ Step 4 文档
 ## GKCLAW 邮件链路（zhgk = backagent）· 2026-06-11 立项
 
 > 契约真相源：[docs/50_数据与接口/back-agent-development-guide_ch.md](docs/50_数据与接口/back-agent-development-guide_ch.md)
-> 设计决策与边界：见实现说明 docs/50_数据与接口/GKCLAW邮件链路.md（完成后补链）
-> 分支：feat/gkclaw-mail-link
+> 设计决策与边界：[docs/50_数据与接口/GKCLAW邮件链路.md](docs/50_数据与接口/GKCLAW邮件链路.md)（实现说明+联调手册+§24 验收对照）
+> 分支：feat/gkclaw-mail-link · 2026-06-11 完成（eval_gkclaw 42/42）
 
-- [ ] gkclaw 协议层（ids/schema/package/registry/mapping，eval_gkclaw 离线回归）
-- [ ] mailer.py mailgw backend + mailbox.py 统一收件入口
-- [ ] dispatch/ingest 服务（下发建包发送；ack/result/error 处理、final 转写已填写表）
-- [ ] task_dispatch step（HITL·仅 survey_work）+ wait_survey 拉取钩子
-- [ ] A 层 SKILL.md 契约同步 + SDUI 状态卡
-- [ ] .env.example / AGENTS.md 收件入口行 / GKCLAW邮件链路.md / docs site 重生成
-- [ ] 全部 10 守门绿 + 真实联调（待 frontagent 邮箱配置，见实现说明§联调）
+- [x] gkclaw 协议层（ids/schema/package/registry/mapping，eval_gkclaw 离线回归）
+- [x] mailer.py mailgw backend + mailbox.py 统一收件入口
+- [x] dispatch/ingest 服务（下发建包发送；ack/result/error 处理、final 转写已填写表）
+- [x] task_dispatch step（HITL·仅 survey_work）+ wait_survey 拉取钩子
+- [x] A 层 SKILL.md 契约同步 + SDUI 状态卡
+- [x] .env.example / AGENTS.md 收件入口行 / GKCLAW邮件链路.md / docs site 重生成
+- [x] 守门验证（注：lint_skill_contract 在存在 v3 旧部署副本 ~/.claude/skills/zhgk/SKILL.md 的机器上为环境性红，
+      同步部署副本即绿，见下方技术债）；真实联调待 frontagent 邮箱配置（操作见 GKCLAW邮件链路.md §5）
+
+技术债：① 本机 `~/.claude/skills/zhgk/SKILL.md` 为 v3 旧部署副本（先于本次改动），须用仓内
+`skills/zhgk/SKILL.md` 同步后 lint_skill_contract 方绿；② mailbox.py 守门〔待建〕（lint_no_naked_inbox）；
+③ supplement 意图开放下发、复勘轮重发、cron 自动拉取、对账页面=后续增强（见实现说明 §7）。
 
 ---
 
