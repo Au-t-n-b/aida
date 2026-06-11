@@ -142,21 +142,30 @@ def build_stepper(
     state: dict[str, Any], *,
     step_names: dict[str, str],
     orientation: str | None = None,
+    collapsible: bool = False,
+    default_collapsed: bool = False,
 ) -> SduiCardNode:
     """执行进度 Stepper。step_names 是有序 {step_key: 中文名}（顺序即展示顺序）。
-    orientation: "horizontal"（默认紧凑头部）/ "vertical"（时间轴竖向，zhgk 用）。"""
+    orientation: "horizontal"（默认紧凑头部）/ "vertical"（时间轴竖向，zhgk 用）。
+    collapsible: 卡头可折叠（把 micro-step 明细收起，macro-rail/donut 已承载概览）。"""
     by_key = {s.get("key", ""): s for s in (state.get("steps") or [])}
     steps: list[SduiStepperStep] = []
+    done = 0
     for key, title in step_names.items():
         rec = by_key.get(key)
         status = backend_status_to_sdui(rec.get("status", "pending")) if rec else "waiting"
+        if status == "done":
+            done += 1
         lines = [str(l) for l in (rec.get("log_tail") or [])[-3:]] if rec else []
         steps.append(SduiStepperStep(
             id=key, title=title,
             status=status,  # type: ignore[arg-type]
             detail=lines or None,  # 空则 None（不产空数组）
         ))
-    return SduiCardNode(id="stepper", title="执行进度",
+    title = f"执行明细 · {done}/{len(steps)}" if collapsible else "执行进度"
+    return SduiCardNode(id="stepper", title=title,
+                        collapsible=collapsible or None,
+                        defaultCollapsed=default_collapsed or None,
                         children=[SduiStepperNode(
                             id="steps", steps=steps,
                             orientation=orientation,  # type: ignore[arg-type]
@@ -170,6 +179,8 @@ def build_stepper_for_intent(
     intent_step_map: dict[str, set[str]] | None = None,
     always_show: set[str] | None = None,
     orientation: str | None = None,
+    collapsible: bool = False,
+    default_collapsed: bool = False,
 ) -> SduiCardNode:
     """意图感知 Stepper：只展示当前 intent 涉及的步骤，避免全量 pipeline 淹没用户。
 
@@ -203,7 +214,8 @@ def build_stepper_for_intent(
             or (intent in (intent_step_map.get(k) or set()))
         }
 
-    return build_stepper(state, step_names=filtered, orientation=orientation)
+    return build_stepper(state, step_names=filtered, orientation=orientation,
+                         collapsible=collapsible, default_collapsed=default_collapsed)
 
 
 def build_progress_donut(state: dict[str, Any], *, step_order: list[str]) -> SduiDonutChartNode:
@@ -248,24 +260,34 @@ def build_metrics_card(
 
 
 def build_artifacts(
-    state: dict[str, Any], *, input_file_keys: tuple[str, ...] = ()
+    state: dict[str, Any], *, input_file_keys: tuple[str, ...] = (),
+    input_paths: list[str] | None = None,
+    output_paths: list[str] | None = None,
 ) -> SduiRowNode | None:
-    """产物双栏。input_file_keys 非空时显示「已上传文件」栏（从 state.files 取这些键），
-    始终显示「作业结果」栏（从已完成 step 的 artifacts 收集）。两栏皆空 → None。"""
-    steps = state.get("steps") or []
-    output_paths: list[str] = []
-    for s in steps:
-        if s.get("status") == "completed":
-            for p in s.get("artifacts") or []:
-                if p not in output_paths:
-                    output_paths.append(p)
+    """产物双栏：「已上传文件」+「作业结果」。两栏皆空 → None。
 
-    files = state.get("files") or {}
-    input_paths: list[str] = []
-    for key in input_file_keys:
-        p = files.get(key)
-        if p and isinstance(p, str):
-            input_paths.append(p)
+    路径来源（保持本函数纯·不读盘）：
+      - output_paths/input_paths 显式传入 → 直接用（调用方负责采集，可扫盘）。
+      - 否则回退默认：output 从已完成 step 的 artifacts 收集；
+        input 从 state.files 按 input_file_keys 取。
+    """
+    show_input = input_paths is not None or bool(input_file_keys)
+
+    if output_paths is None:
+        output_paths = []
+        for s in state.get("steps") or []:
+            if s.get("status") == "completed":
+                for p in s.get("artifacts") or []:
+                    if p not in output_paths:
+                        output_paths.append(p)
+
+    if input_paths is None:
+        files = state.get("files") or {}
+        input_paths = []
+        for key in input_file_keys:
+            p = files.get(key)
+            if p and isinstance(p, str):
+                input_paths.append(p)
 
     if not input_paths and not output_paths:
         return None
@@ -276,7 +298,7 @@ def build_artifacts(
                                 status="ready")
 
     grids: list[SduiNode] = []
-    if input_file_keys:
+    if show_input:
         grids.append(SduiArtifactGridNode(
             id="input-files", title="已上传文件", mode="input",
             artifacts=[_item(p, i) for i, p in enumerate(input_paths)], flex=1))
@@ -449,6 +471,55 @@ def build_data_table(
         title=f"{title}（{len(rows)} 条{suffix}）",
         tone=tone,  # type: ignore[arg-type]
         children=[SduiTableNode(id=f"{node_id}-tbl", headers=headers, rows=rows[:max_rows])],
+    )
+
+
+def build_editable_table(state: dict[str, Any]) -> SduiCardNode | None:
+    """在线编辑型 HITL（hitl.need_edit）→ 可编辑 DataTable 卡。
+
+    need_edit 契约（由 step.check_inputs 下发）：
+      card_title / title / subtitle / columns(list[dict]) / rows(list[dict])
+      / rowKey / checkKey / submitLabel / fillLabel / fillRows
+      / groupKey / pageSize / requiredKeys
+
+    提交语义：前端把编辑后的行 POST /resume，payload={"rows": [...]}；
+    skill.apply_resume_payload 据 hitl.step 写回 project（dispatch_rows / esn_rows）。
+    """
+    from agent.sdui.builder import SduiDataTableNode, SduiDataTableColumn
+
+    hitl = state.get("hitl") or {}
+    step_key = hitl.get("step")
+    spec = hitl.get("need_edit") or {}
+    if not step_key or not spec:
+        return None
+
+    columns = [SduiDataTableColumn.model_validate(c) for c in (spec.get("columns") or [])]
+    subtitle = spec.get("subtitle") or ""
+    table = SduiDataTableNode(
+        id=f"edit-{step_key}",
+        title=spec.get("title"),
+        columns=columns,
+        rows=spec.get("rows") or [],
+        editable=True,
+        submitMode="resume",
+        stepId=step_key,
+        rowKey=spec.get("rowKey"),
+        checkKey=spec.get("checkKey"),
+        submitLabel=spec.get("submitLabel") or "提交",
+        fillLabel=spec.get("fillLabel"),
+        fillRows=spec.get("fillRows"),
+        groupKey=spec.get("groupKey"),
+        pageSize=spec.get("pageSize"),
+        requiredKeys=spec.get("requiredKeys"),
+    )
+    children: list[SduiNode] = []
+    if subtitle:
+        children.append(SduiTextNode(content=subtitle, variant="body"))
+    children.append(table)
+    return SduiCardNode(
+        id=f"edit-card-{step_key}",
+        title=spec.get("card_title") or "在线编辑",
+        children=children,
     )
 
 

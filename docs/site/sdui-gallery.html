@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 59 个节点类型 · 29 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 60 个节点类型 · 32 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -112,12 +112,15 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#InputSlotList">InputSlotList</a>
 <a href="#TaskTimelineStrip">TaskTimelineStrip</a>
 <a href="#MacroStepRail">MacroStepRail</a>
+<a href="#EmbeddedWeb">EmbeddedWeb</a>
 <h4>嵌套子类型</h4>
+<a href="#SduiCardHeaderAction">CardHeaderAction</a>
+<a href="#SduiPostUserMessage">PostUserMessage</a>
+<a href="#SduiOpenPreview">OpenPreview</a>
+<a href="#SduiResetSession">ResetSession</a>
 <a href="#SduiStepperStep">StepperStep</a>
 <a href="#SduiStatisticRowItem">StatisticRowItem</a>
 <a href="#KeyValueItem">KeyValueItem</a>
-<a href="#SduiPostUserMessage">PostUserMessage</a>
-<a href="#SduiOpenPreview">OpenPreview</a>
 <a href="#SduiDonutSegment">DonutSegment</a>
 <a href="#SduiBarDatum">BarDatum</a>
 <a href="#SduiArtifactItem">ArtifactItem</a>
@@ -129,6 +132,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#SduiFileTreeItem">FileTreeItem</a>
 <a href="#SduiTabItem">TabItem</a>
 <a href="#SduiAccordionItem">AccordionItem</a>
+<a href="#SduiDataTableColumn">DataTableColumn</a>
 <a href="#SduiTabbedTableTab">TabbedTableTab</a>
 <a href="#SduiMultiSelectOption">MultiSelectOption</a>
 <a href="#SduiFormField">FormField</a>
@@ -162,7 +166,10 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>density</b></td><td><code>enum: default | compact</code></td><td class='req'>—</td><td><code>default</code> | <code>compact</code></td></tr>
 <tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>tone</b></td><td><code>enum: default | warning | danger | info | success</code></td><td class='req'>—</td><td><code>default</code> | <code>warning</code> | <code>danger</code> | <code>info</code> | <code>success</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>tone</b></td><td><code>enum: default | warning | danger | info | success</code></td><td class='req'>—</td><td><code>default</code> | <code>warning</code> | <code>danger</code> | <code>info</code> | <code>success</code></td></tr>
+<tr><td><b>headerAction</b></td><td><code>CardHeaderAction</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>collapsible</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>defaultCollapsed</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;Card&quot;,
   &quot;children&quot;: [
     {
@@ -188,7 +195,8 @@ footer code{color:var(--cyan)}</style></head><body>
   ]
 }</pre></section>
 <section id="Divider"><h3><code>Divider</code> SduiDividerNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Divider</code></td><td class='req'>—</td><td><code>Divider</code></td></tr>
-<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;Divider&quot;
 }</pre></section>
 <section id="Skeleton"><h3><code>Skeleton</code> SduiSkeletonNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Skeleton</code></td><td class='req'>—</td><td><code>Skeleton</code></td></tr>
@@ -534,12 +542,24 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="DataTable"><h3><code>DataTable</code> SduiDataTableNode<span class="tag">Other</span></h3><p class="desc">数据表格 · 列 + 行（带标题 / 计数栏）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DataTable</code></td><td class='req'>—</td><td><code>DataTable</code></td></tr>
+<section id="DataTable"><h3><code>DataTable</code> SduiDataTableNode<span class="tag">Other</span></h3><p class="desc">数据表格 · 列 + 行（带标题 / 计数栏）。  两种形态向后兼容：   ① 旧只读位置型：columns=list[str]、rows=list[list]（zhgk 等沿用）；   ② 新类型化 / 可编辑：columns=list[SduiDataTableColumn]、rows=list[dict]，      editable=True 时前端按列 type 渲染输入框 + 底部「填充 / 提交」按钮。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DataTable</code></td><td class='req'>—</td><td><code>DataTable</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>columns</b></td><td><code>string[]</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>rows</b></td><td><code>string | int | number[][]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>columns</b></td><td><code>string[] | DataTableColumn[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>string | int | number[][] | object[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>subtitle</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>flex</b></td><td><code>number</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>editable</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
+<tr><td><b>submitMode</b></td><td><code>enum: resume | run-patch</code></td><td class='req'>—</td><td><code>resume</code> | <code>run-patch</code></td></tr>
+<tr><td><b>submitLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rowKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>checkKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>fillLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>fillRows</b></td><td><code>object[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>groupKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>pageSize</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>requiredKeys</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;DataTable&quot;,
   &quot;columns&quot;: [
     &quot;示例&quot;
@@ -779,7 +799,26 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
+<section id="EmbeddedWeb"><h3><code>EmbeddedWeb</code> SduiEmbeddedWebNode<span class="tag">Other</span></h3><p class="desc">内嵌网页 · iframe 承载外部 Web UI（如 nVisual 仿真软件访问页）。  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认前端给 520）。 openInNewTab=True 时页眉给「新页打开」链接（内网 iframe 不可达时的兜底）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: EmbeddedWeb</code></td><td class='req'>—</td><td><code>EmbeddedWeb</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>url</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>note</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>height</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>openInNewTab</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>offline</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;EmbeddedWeb&quot;,
+  &quot;url&quot;: &quot;示例&quot;
+}</pre></section>
 <h2 class="cat">嵌套子类型（被上面节点引用）</h2>
+<section id="SduiCardHeaderAction"><h3><code>CardHeaderAction</code></h3><p class="desc">卡片头部动作按钮（label + variant + action）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>variant</b></td><td><code>enum: primary | secondary | ghost | danger</code></td><td class='req'>—</td><td><code>primary</code> | <code>secondary</code> | <code>ghost</code> | <code>danger</code></td></tr>
+<tr><td><b>action</b></td><td><code>PostUserMessage | OpenPreview | ResetSession</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiPostUserMessage"><h3><code>PostUserMessage</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: post_user_message</code></td><td class='req'>—</td><td><code>post_user_message</code></td></tr>
+<tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiOpenPreview"><h3><code>OpenPreview</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: open_preview</code></td><td class='req'>—</td><td><code>open_preview</code></td></tr>
+<tr><td><b>path</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiResetSession"><h3><code>ResetSession</code></h3><p class="desc">重置会话动作：前端清空当前 run 状态、回到 idle（卡片头部「重置会话」按钮触发）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: reset_session</code></td><td class='req'>—</td><td><code>reset_session</code></td></tr></table></section>
 <section id="SduiStepperStep"><h3><code>StepperStep</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>status</b></td><td><code>enum: waiting | running | done | error</code></td><td class='req'>✓</td><td><code>waiting</code> | <code>running</code> | <code>done</code> | <code>error</code></td></tr>
@@ -789,10 +828,6 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>color</b></td><td><code>enum: success | warning | error | accent | subtle</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>error</code> | <code>accent</code> | <code>subtle</code></td></tr></table></section>
 <section id="KeyValueItem"><h3><code>KeyValueItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
-<section id="SduiPostUserMessage"><h3><code>PostUserMessage</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: post_user_message</code></td><td class='req'>—</td><td><code>post_user_message</code></td></tr>
-<tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
-<section id="SduiOpenPreview"><h3><code>OpenPreview</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>kind</b></td><td><code>enum: open_preview</code></td><td class='req'>—</td><td><code>open_preview</code></td></tr>
-<tr><td><b>path</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
 <section id="SduiDonutSegment"><h3><code>DonutSegment</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>color</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
@@ -827,6 +862,12 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>content</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiAccordionItem"><h3><code>AccordionItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>body</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
+<section id="SduiDataTableColumn"><h3><code>DataTableColumn</code></h3><p class="desc">类型化列：key 取行 dict 字段，type 决定单元格渲染（文本 / 状态徽标 / 进度条）。  editable=True 的列在可编辑表里渲染为输入框（如 ESN 列）；其余列只读。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>type</b></td><td><code>enum: text | status | progress</code></td><td class='req'>—</td><td><code>text</code></td></tr>
+<tr><td><b>width</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>editable</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
+<tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiTabbedTableTab"><h3><code>TabbedTableTab</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>headers</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>rows</b></td><td><code>string[][]</code></td><td class='req'>✓</td><td></td></tr></table></section>

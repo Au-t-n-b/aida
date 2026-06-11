@@ -102,6 +102,10 @@ def write_survey_results(
         1. 覆盖 "最新检查结果" 列
         2. 存档到 "第{round_number}轮勘测结果" 列
         3. 如果该轮次列不存在则动态新增
+
+    返回:
+        匹配统计 {requested, matched, skipped, skipped_seqs} —— 供上层回显，
+        让「上传 N 行但只有 M 行序号对得上、Z 行没匹配」对用户可见（不再静默）。
     """
     if not os.path.exists(survey_table_path):
         raise ResurveyError("SS-RM-E-002", f"文件不存在: {survey_table_path}")
@@ -169,21 +173,33 @@ def write_survey_results(
             except (ValueError, TypeError):
                 pass
 
-    # 写入结果
+    # 写入结果（统计匹配/未匹配序号）
+    matched = 0
+    skipped_seqs: list[int] = []
     for seq, value in results.items():
         row_idx = seq_to_row.get(seq)
         if row_idx is None:
+            skipped_seqs.append(seq)
             log_warn("resurvey_manager", "write_survey_results",
                      f"序号 {seq} 未找到对应行，已跳过")
             continue
         ws.cell(row_idx, latest_col, value=value)
         ws.cell(row_idx, round_col, value=value)
+        matched += 1
 
     wb.save(survey_table_path)
     wb.close()
 
     log_info("resurvey_manager", "write_survey_results",
-             f"第{to_chinese_number(round_number)}轮结果已写入 {len(results)} 条")
+             f"第{to_chinese_number(round_number)}轮结果已写入 {matched} 条"
+             + (f"（{len(skipped_seqs)} 行序号未匹配，已跳过）" if skipped_seqs else ""))
+
+    return {
+        "requested": len(results),
+        "matched": matched,
+        "skipped": len(skipped_seqs),
+        "skipped_seqs": skipped_seqs[:50],  # 防超长，最多回显 50 个
+    }
 
 
 def get_latest_result(row: SurveyResultRow) -> str:

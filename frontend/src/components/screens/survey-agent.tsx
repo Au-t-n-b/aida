@@ -12,6 +12,7 @@
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
+import { HITL_HOLD_MS } from '@/components/sdui/hitlOptimistic';
 
 // 懒加载：预览组件内含 xlsx/mammoth 动态 import，懒加载使其仅在「打开预览」时才被 Vite 转译，
 // 避免未安装这两个库时（如 CI / 首次拉取）解析整棵模块图失败导致白屏。
@@ -57,32 +58,32 @@ export interface SkillAgentScreenProps {
       height:100%; display:flex; flex-direction:column;
       align-items:center; justify-content:center;
       padding:32px 28px 36px;
-      background:radial-gradient(ellipse at 50% 30%, #f0f4fd 0%, #e8edf6 100%);
+      background:radial-gradient(ellipse at 50% 30%, var(--c-brand-soft) 0%, var(--c-bg-soft) 100%);
       overflow:auto; gap:0;
       animation:skillIdleFadeUp .45s cubic-bezier(.16,1,.3,1) both;
     }
     .skill-idle-emblem {
       width:72px; height:72px; border-radius:18px;
-      background:#fff; border:1px solid #dde3ef;
-      box-shadow:0 4px 14px rgba(15,23,42,.06);
+      background:var(--c-surface); border:1px solid var(--c-border);
+      box-shadow:var(--shadow-md);
       display:grid; place-items:center;
-      color:#3551d8; margin-bottom:22px;
+      color:var(--c-brand); margin-bottom:22px;
       animation:skillEmblemBreathe 3.2s ease-in-out infinite;
       position:relative;
     }
     .skill-idle-emblem::before {
       content:''; position:absolute; inset:-1px; border-radius:19px; padding:1px;
-      background:linear-gradient(135deg,rgba(53,81,216,.3),transparent 55%);
+      background:linear-gradient(135deg,color-mix(in srgb,var(--c-brand) 30%,transparent),transparent 55%);
       -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
       mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
       -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
     }
     .skill-idle-title {
-      font-size:19px; font-weight:660; color:#0f172a;
+      font-size:19px; font-weight:660; color:var(--c-text);
       letter-spacing:-.02em; text-align:center; margin-bottom:7px;
     }
     .skill-idle-desc {
-      font-size:12.5px; color:#64748b; text-align:center;
+      font-size:12.5px; color:var(--c-text-muted); text-align:center;
       line-height:1.6; max-width:300px; margin-bottom:28px;
     }
     /* ── 横向步骤条 ── */
@@ -94,40 +95,40 @@ export interface SkillAgentScreenProps {
     .skill-idle-step-row { display:flex; align-items:center; width:100%; }
     .skill-idle-dot {
       width:28px; height:28px; border-radius:50%; flex-shrink:0;
-      background:#fff; border:1.5px solid #c8d1e6;
+      background:var(--c-surface); border:1.5px solid var(--c-border-strong);
       display:flex; align-items:center; justify-content:center;
-      font-size:11px; font-weight:700; color:#94a3b8;
+      font-size:11px; font-weight:700; color:var(--c-text-faint);
       transition:border-color .2s;
-      box-shadow:0 1px 3px rgba(15,23,42,.06);
+      box-shadow:var(--shadow-sm);
     }
-    .skill-idle-conn { flex:1; height:1.5px; background:#dde3ef; }
+    .skill-idle-conn { flex:1; height:1.5px; background:var(--c-border); }
     .skill-idle-step-label {
-      font-size:10px; color:#64748b; font-weight:500;
+      font-size:10px; color:var(--c-text-muted); font-weight:500;
       margin-top:7px; text-align:center; white-space:nowrap;
       max-width:56px; overflow:hidden; text-overflow:ellipsis;
     }
     .skill-idle-step-sub {
-      font-size:9.5px; color:#94a3b8; margin-top:2px;
+      font-size:9.5px; color:var(--c-text-faint); margin-top:2px;
       text-align:center; max-width:60px; line-height:1.35;
       display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
     }
     /* ── 文件提示 ── */
     .skill-idle-files {
       width:100%; max-width:420px; margin-bottom:24px;
-      background:#fff; border:1px solid #dde3ef; border-radius:10px;
+      background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px;
       padding:11px 14px; display:flex; gap:10px; align-items:flex-start;
-      box-shadow:0 1px 3px rgba(15,23,42,.04);
+      box-shadow:var(--shadow-sm);
     }
     .skill-idle-files-ic {
       font-size:14px; flex-shrink:0; margin-top:1px; opacity:.75;
     }
     .skill-idle-files-body { flex:1; min-width:0; }
     .skill-idle-files-title {
-      font-size:11px; font-weight:650; color:#334155; margin-bottom:5px;
+      font-size:11px; font-weight:650; color:var(--c-text-2); margin-bottom:5px;
     }
     .skill-idle-file-row {
       display:flex; align-items:center; gap:7px; padding:4px 0;
-      border-top:1px solid #f0f4fa;
+      border-top:1px solid var(--c-divider);
     }
     .skill-idle-file-row:first-of-type { border-top:none; padding-top:0; }
     .skill-idle-file-ext {
@@ -135,28 +136,29 @@ export interface SkillAgentScreenProps {
       padding:1px 5px; border-radius:4px; flex-shrink:0;
       font-family:var(--font-mono);
     }
-    .skill-idle-file-ext.xlsx { background:#e6f4ea; color:#0a7d46; }
-    .skill-idle-file-ext.docx { background:#e8effc; color:#1747b8; }
+    .skill-idle-file-ext.xlsx { background:var(--c-success-soft); color:var(--c-success-text); }
+    .skill-idle-file-ext.docx { background:var(--c-info-soft);    color:var(--c-info-text); }
+    .skill-idle-file-ext.md   { background:var(--c-brand-soft);   color:var(--c-brand-text); }
     .skill-idle-file-name {
-      font-size:10.5px; color:#475569; font-family:var(--font-mono);
+      font-size:10.5px; color:var(--c-text-2); font-family:var(--font-mono);
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     }
     .skill-idle-file-tag {
-      font-size:9px; color:#94a3b8; margin-left:auto; flex-shrink:0;
+      font-size:9px; color:var(--c-text-faint); margin-left:auto; flex-shrink:0;
     }
     /* ── 启动按钮 ── */
     .skill-idle-btn {
       width:100%; max-width:420px;
       padding:12px 0; border-radius:10px; border:none; cursor:pointer;
       font-size:14px; font-weight:650; letter-spacing:.01em;
-      background:#3551d8; color:#fff; font-family:var(--font-sans);
-      box-shadow:0 1px 2px rgba(53,81,216,.25),0 4px 14px rgba(53,81,216,.14);
+      background:var(--c-brand); color:#fff; font-family:var(--font-sans);
+      box-shadow:var(--shadow-sm);
       transition:background .14s,box-shadow .14s,transform .1s;
       display:flex; align-items:center; justify-content:center; gap:8px;
     }
     .skill-idle-btn:hover:not(:disabled) {
-      background:#2a44c2;
-      box-shadow:0 2px 4px rgba(53,81,216,.3),0 8px 20px rgba(53,81,216,.18);
+      background:var(--c-brand-hover);
+      box-shadow:var(--shadow-md);
       transform:translateY(-1px);
     }
     .skill-idle-btn:active:not(:disabled) { transform:translateY(0); }
@@ -172,7 +174,7 @@ export interface SkillAgentScreenProps {
 
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
-  files: Array<{ name: string; ext: 'xlsx' | 'docx'; optional?: boolean }>;
+  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
   icon: React.ReactNode;
 }> = {
   zhgk: {
@@ -195,6 +197,25 @@ const SKILL_META: Record<string, {
       { name: 'BOQ.xlsx',                   ext: 'xlsx' },
       { name: '入场评估标准表.xlsx',         ext: 'xlsx' },
       { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
+    ],
+  },
+  guihua: {
+    icon: (
+      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
+        <rect x="7" y="4" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M11 9h12M11 14h12M11 19h12M11 24h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="20" cy="24" r="1.4" fill="currentColor" />
+      </svg>
+    ),
+    steps: [
+      { key: 'adapt_build',  name: '设备适配',   sub: '型号·板卡匹配' },
+      { key: 'data_confirm', name: '数据确认',   sub: '核对适配表' },
+      { key: 'combo_create', name: '创建超节点', sub: '平铺 9 个 POD' },
+      { key: 'cabinet_move', name: '机柜落位',   sub: '162 柜落位' },
+      { key: 'handoff',      name: '移交安装',   sub: '交设备安装' },
+    ],
+    files: [
+      { name: '建模仿真设备信息表.md', ext: 'md' },
     ],
   },
 };
@@ -288,23 +309,47 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   return found;
 }
 
-/** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
-const HITL_POINTER: SduiNode = {
-  type: 'Alert', id: 'hitl-pointer', tone: 'warning',
-  title: '需要你确认',
-  message: '交互卡片已移至左侧会话框，请在左侧完成选择 / 上传后继续。',
-} as SduiNode;
-
-/** 把 root 下的 hitl-card 替换为只读指引（交互卡渲染到左侧会话，避免左右双份）。
- *  hitl-card 是 root Stack 的直接子节点（见 zhgk/sdui.py），浅层替换即可。*/
-function routeHitlToChat(root: SduiNode): SduiNode {
+/** 移除 root 下的 hitl-card（交互卡已路由到左侧会话框，避免左右双份）。
+ *  hitl-card 是 root Stack 的直接子节点（见 zhgk/sdui.py），浅层移除即可。
+ *  右侧此刻由 P4「你的回合」接管态承载（见主渲染）。*/
+function stripHitlCard(root: SduiNode): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
-  const idx = children.findIndex(c => (c as { id?: string }).id === 'hitl-card');
-  if (idx < 0) return root;
-  const next = children.slice();
-  next[idx] = HITL_POINTER;
+  const next = children.filter(c => (c as { id?: string }).id !== 'hitl-card');
+  if (next.length === children.length) return root;
   return { ...root, children: next } as SduiNode;
+}
+
+/** P4 · 你的回合（HITL 接管态）：等待用户操作时，把「该你了」抬成主角，
+ *  下方遥测整体退后降饱和。交互卡片在左侧会话框，这里是右侧的肯定式引导。*/
+function HitlTakeover() {
+  return (
+    <div style={{
+      border: '1px solid var(--c-warning)', borderRadius: 'var(--r-lg)',
+      background: 'linear-gradient(180deg, var(--c-warning-soft) 0%, var(--c-surface) 64%)',
+      boxShadow: 'var(--shadow-md)', overflow: 'hidden', marginBottom: 'var(--sp-4)',
+      animation: 'sdui-node-in .3s cubic-bezier(.2,.65,.4,1) both',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px var(--sp-5) 0' }}>
+        <span style={{
+          width: 9, height: 9, borderRadius: '50%', background: 'var(--c-warning)',
+          boxShadow: '0 0 0 4px var(--c-warning-soft)', flexShrink: 0,
+        }} />
+        <span style={{
+          fontSize: 'var(--fs-11)', fontWeight: 700, letterSpacing: '.08em',
+          textTransform: 'uppercase', color: 'var(--c-warning-text)',
+        }}>你的回合 · 需要你的操作</span>
+      </div>
+      <div style={{ padding: '4px var(--sp-5) var(--sp-5)' }}>
+        <div style={{ fontSize: 'var(--fs-16)', fontWeight: 600, letterSpacing: '-.01em', margin: '4px 0 6px' }}>
+          ← 请在左侧会话框完成确认
+        </div>
+        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--c-text-muted)' }}>
+          下方运行面板已暂时退后。交互卡片就在左侧会话框，完成选择 / 上传后将自动继续。
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** 从 SDUI 文档提取运行阶段信息（供 updateSkillRun 写入）*/
@@ -483,6 +528,9 @@ export default function SkillAgentScreen({
       }
     } else if (action.kind === 'open_preview') {
       setPreviewPath(action.path);
+    } else if (action.kind === 'reset_session') {
+      // 「重置会话」：重启一条新 run（initial_project 会清运行态）
+      await handleStart();
     }
   }, [handleStart, doResume]);
 
@@ -494,11 +542,21 @@ export default function SkillAgentScreen({
       console.error('[SDUI] upload error:', e);
       throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
     }
-    await doResume({ uploaded: arr.map(f => f.name) });
+    // 上传已完成 → 立即 resolve（组件随即显示「已上传」确认态）；推进延后 HOLD，
+    // 让确认态稳定可见一段时间，再触发 full_restart 重放。
+    setTimeout(() => { void doResume({ uploaded: arr.map(f => f.name) }); }, HITL_HOLD_MS);
   }, [skillId, doResume]);
 
   const handleChoiceSubmit = useCallback(async (value: string) => {
+    // 组件已显示「已提交」确认态 → 先 hold 再推进，保证确认态可见一段时间
+    await new Promise(r => setTimeout(r, HITL_HOLD_MS));
     await doResume({ choice: value });
+  }, [doResume]);
+
+  // 可编辑 DataTable（计划下发勾选 / ESN 填写）提交：编辑后的行回传 /resume
+  const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[]) => {
+    await new Promise(r => setTimeout(r, HITL_HOLD_MS));
+    await doResume({ rows });
   }, [doResume]);
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
@@ -525,6 +583,7 @@ export default function SkillAgentScreen({
     onAction: (action) => { void handleAction(action); },
     onUpload: (files) => { void handleUpload(files); },
     onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
+    onRowsSubmit: (rows) => { void handleRowsSubmit(rows); },
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────────────
@@ -534,7 +593,7 @@ export default function SkillAgentScreen({
       <div style={{ height: '100%', overflow: 'auto' }}>
         <IdleScreen skillId={skillId} title={title} description={description} onStart={() => { void handleStart(); }} loading={starting} />
         {error && (
-          <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--red-50)', borderRadius: 'var(--radius-md)', color: 'var(--red-700)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
+          <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--c-danger-soft)', borderRadius: 'var(--r-md)', color: 'var(--c-danger-text)', fontSize: 'var(--fs-13)', textAlign: 'center' }}>
             {error}
           </div>
         )}
@@ -542,12 +601,24 @@ export default function SkillAgentScreen({
     );
   }
 
+  // P4：待用户操作时（root 含 hitl-card），右侧进入「你的回合」接管态
+  const hasHitl = !!(displayDoc && findNodeById(displayDoc.root, 'hitl-card'));
+
   return (
     <SduiRuntimeContext.Provider value={runtime}>
       <div style={{ height: '100%', overflow: 'auto', padding: 'var(--pad-panel)' }}>
         {displayDoc ? (
-          /* HITL 交互卡已路由到左侧会话框，右侧渲染只读指引（routeHitlToChat）*/
-          <SduiNodeView node={routeHitlToChat(displayDoc.root)} />
+          hasHitl ? (
+            /* P4 接管态：「你的回合」抬为主角 + 下方遥测退后降饱和（交互卡在左侧会话框）*/
+            <>
+              <HitlTakeover />
+              <div style={{ filter: 'saturate(.5) opacity(.62)', pointerEvents: 'none', transition: 'filter .35s' }}>
+                <SduiNodeView node={stripHitlCard(displayDoc.root)} />
+              </div>
+            </>
+          ) : (
+            <SduiNodeView node={displayDoc.root} />
+          )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* 骨架屏：正在连接 SSE / 等待第一个 sdui 事件 */}

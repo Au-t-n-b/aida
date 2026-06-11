@@ -51,6 +51,19 @@ COLUMN_MAPPING = {
 # 公开接口
 # ──────────────────────────────────────────────
 
+def survey_table_path_for(
+    output_dir: str,
+    activity_id: str,
+    project_name: str,
+    room_name: str,
+) -> str:
+    """全量勘测结果表的目标路径（文件名规则单一真相，供 build + 幂等复用共用）。"""
+    parts = [p for p in [activity_id, project_name, room_name] if p]
+    prefix = "_".join(parts)
+    filename = f"{prefix}_全量勘测结果表.xlsx" if prefix else "全量勘测结果表.xlsx"
+    return os.path.join(output_dir, filename)
+
+
 def build_survey_table(
     filtered_items: list[SurveyItem],
     output_dir: str,
@@ -67,10 +80,7 @@ def build_survey_table(
     返回:
         生成的文件完整路径
     """
-    parts = [p for p in [activity_id, project_name, room_name] if p]
-    prefix = "_".join(parts)
-    filename = f"{prefix}_全量勘测结果表.xlsx" if prefix else "全量勘测结果表.xlsx"
-    output_path = os.path.join(output_dir, filename)
+    output_path = survey_table_path_for(output_dir, activity_id, project_name, room_name)
 
     os.makedirs(output_dir, exist_ok=True)
 

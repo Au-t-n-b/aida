@@ -31,11 +31,15 @@ PROJECT_ROOT = ROOT.parent                        # aida/
 
 MAILER_FILE = (ROOT / "mailer.py").resolve()
 NOTIFIER_FILE = (ROOT / "notifier.py").resolve()
+# 仿真软件 API 统一出口（guihua 建模仿真）：与 notifier 同级的「唯一外发通道」，
+# 内置 dry-run + 留痕，是 requests.post 的合法白名单文件。
+SIM_API_FILE = (ROOT / "skills" / "guihua" / "services" / "sim_api.py").resolve()
 
 SKIP_DIRS = {".venv", "__pycache__", "node_modules", ".git", "scripts", "evals"}
 
-# (pattern, human-reason, whitelisted-file)
-RULES: list[tuple[re.Pattern[str], str, Path]] = [
+# (pattern, human-reason, whitelisted-file(s))
+# 最后一项可为单个 Path 或一组 Path（多个合法出口文件）。
+RULES: list[tuple[re.Pattern[str], str, object]] = [
     (
         re.compile(r"^\s*(import|from)\s+smtplib(\.|\s|$)"),
         "import smtplib → 邮件必须经 agent.mailer.send_mail()",
@@ -53,8 +57,8 @@ RULES: list[tuple[re.Pattern[str], str, Path]] = [
     ),
     (
         re.compile(r"requests\.post\s*\("),
-        "requests.post → IM/外发必须经 agent.notifier.send_welink()",
-        NOTIFIER_FILE,
+        "requests.post → IM/外发必须经 agent.notifier.send_welink()（仿真 API 经 services/sim_api.py）",
+        frozenset({NOTIFIER_FILE, SIM_API_FILE}),
     ),
 ]
 
@@ -104,8 +108,11 @@ def main() -> int:
         if any(part in SKIP_DIRS for part in py.relative_to(ROOT).parts):
             continue
         resolved = py.resolve()
-        # 仅保留该文件不在白名单的规则
-        applicable = [(pat, reason) for pat, reason, allowed in RULES if resolved != allowed]
+        # 仅保留该文件不在白名单的规则（allowed 可为单文件或一组合法出口文件）
+        applicable = [
+            (pat, reason) for pat, reason, allowed in RULES
+            if resolved not in (allowed if isinstance(allowed, (set, frozenset)) else {allowed})
+        ]
         if not applicable:
             continue
         for lineno, line, reason in scan_file(py, applicable):
@@ -125,7 +132,8 @@ def main() -> int:
         "说明：邮件统一走 agent.mailer.send_mail()，"
         "IM 统一走 agent.notifier.send_welink()。\n"
         "白名单：agent/mailer.py（smtplib/win32com）、"
-        "agent/notifier.py（httpx.post/requests.post）。\n"
+        "agent/notifier.py（httpx.post/requests.post）、"
+        "agent/skills/guihua/services/sim_api.py（requests.post · 仿真 API 统一出口）。\n"
     )
     return 1
 

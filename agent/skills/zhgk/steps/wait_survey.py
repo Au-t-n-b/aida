@@ -52,6 +52,24 @@ def _find_uploaded_table(ctx: SkillContext) -> str | None:
     return None
 
 
+def _validate_uploaded(path: str) -> str:
+    """校验上传表 schema：必须含「序号」「最新检查结果」列头。
+    返回空串=通过；否则返回中文错误原因（供清晰报错，防传错文件静默）。"""
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb.active
+        headers = {str(ws.cell(1, c).value or "").strip()
+                   for c in range(1, ws.max_column + 1)}
+        wb.close()
+    except Exception as e:
+        return f"无法读取（{e}）——请确认是有效的 .xlsx"
+    missing = [c for c in ("序号", "最新检查结果") if c not in headers]
+    if missing:
+        return f"缺少必需列：{'、'.join(missing)}——请下载 Output/ 的全量勘测结果表填写后再传，勿改表头"
+    return ""
+
+
 def _has_survey_results(survey_table_path: str) -> bool:
     """检查主表中是否已有非空的「最新检查结果」（即已合并过某轮结果）"""
     try:
@@ -140,6 +158,12 @@ class WaitSurveyStep(BaseStep):
             )
 
         emit(f"[wait_survey] 读取已填写表: {os.path.basename(uploaded)}")
+
+        # #6 schema 校验：传错文件当场清晰报错，不静默
+        schema_err = _validate_uploaded(uploaded)
+        if schema_err:
+            raise RuntimeError(f"上传表格式不符：{schema_err}")
+
         filled_rows = read_survey_table(uploaded)
         results: dict[int, str] = {
             row["序号"]: row["最新检查结果"]
@@ -148,13 +172,17 @@ class WaitSurveyStep(BaseStep):
         }
 
         if not results:
-            emit("[wait_survey] ⚠ 上传的表格「最新检查结果」列全部为空，请检查文件")
-            return {"metrics": {"filled_count": 0}}
+            emit(f"[wait_survey] ⚠ 上传表共 {len(filled_rows)} 行，但「最新检查结果」列全部为空——"
+                 "请填写检查结果后重新上传（否则后续 AI 评估将全判「未勘测」）")
+            return {"metrics": {"filled_count": 0, "uploaded_rows": len(filled_rows)}}
 
         round_num = get_current_round(survey_table)
         emit(f"[wait_survey] 合并第 {round_num} 轮勘测结果：{len(results)} 条")
-        write_survey_results(survey_table, results, round_num)
-        emit(f"[wait_survey] ✓ 结果已合并（第{round_num}轮，{len(results)} 条）")
+        stat = write_survey_results(survey_table, results, round_num)
+        merged = stat.get("matched", len(results))
+        skipped = stat.get("skipped", 0)
+        emit(f"[wait_survey] ✓ 结果已合并（第{round_num}轮，匹配 {merged}/{len(filled_rows)} 行）"
+             + (f"；⚠ {skipped} 行序号未对上、已跳过" if skipped else ""))
 
         # 删除上传的临时文件，为下一轮复勘准备
         try:
@@ -169,7 +197,7 @@ class WaitSurveyStep(BaseStep):
         history = [h for h in history if h.get("round") != round_num]
         history.append({
             "round": round_num,
-            "filled": len(results),
+            "filled": merged,
             "total": len(filled_rows),
         })
         history.sort(key=lambda h: h.get("round", 0))
@@ -177,7 +205,11 @@ class WaitSurveyStep(BaseStep):
         return {
             "metrics": {
                 "survey_round": round_num,
-                "filled_count": len(results),
+                "filled_count": merged,
+                "uploaded_rows": len(filled_rows),
+                "survey_matched": merged,
+                "survey_skipped": skipped,
+                "survey_skipped_seqs": stat.get("skipped_seqs", []),
                 "survey_round_history": history,
             }
         }

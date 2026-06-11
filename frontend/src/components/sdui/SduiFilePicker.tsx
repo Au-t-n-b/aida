@@ -10,6 +10,7 @@
  */
 import { useRef, useState } from 'react';
 import { useSduiRuntime } from './SduiContext';
+import { hitlKey, getHitlOptimistic, setHitlOptimistic } from './hitlOptimistic';
 import type { SduiFilePickerNode } from '@/lib/sdui';
 
 type Props = Omit<SduiFilePickerNode, 'type' | 'id' | 'flex'>;
@@ -24,10 +25,15 @@ export function SduiFilePicker({
   multiple = true,
   stepId,
 }: Props) {
-  const { onUpload } = useSduiRuntime();
+  const { onUpload, runId } = useSduiRuntime();
   const inputRef = useRef<HTMLInputElement>(null);
+  // 跨重挂载回读上传态（冻结重放期间组件会重挂，避免闪回「未传」）
+  const key = hitlKey(runId, stepId);
+  const restored = getHitlOptimistic(key);
+  const restoredNames = restored?.kind === 'file' ? restored.names : null;
   const [pending, setPending] = useState<File[]>([]);
-  const [status, setStatus] = useState<UploadStatus>('idle');
+  const [status, setStatus] = useState<UploadStatus>(restoredNames ? 'success' : 'idle');
+  const [doneNames, setDoneNames] = useState<string[]>(restoredNames ?? []);
   const [errMsg, setErrMsg] = useState('');
 
   // ── 选择文件（不自动上传，只暂存）─────────────────────────────────────────
@@ -51,7 +57,11 @@ export function SduiFilePicker({
       // 把 File[] 转成 FileList-like：构造 DataTransfer（浏览器支持）
       const dt = new DataTransfer();
       for (const f of pending) dt.items.add(f);
+      const names = pending.map(f => f.name);
+      // onUpload 内 parent 仅上传、然后 hold 再 resume → 此处 resolve 即显示成功态
       await onUpload(dt.files, purpose ?? 'hitl', stepId);
+      setDoneNames(names);
+      setHitlOptimistic(key, { kind: 'file', names });
       setStatus('success');
     } catch (e) {
       setStatus('error');
@@ -150,7 +160,9 @@ export function SduiFilePicker({
           fontSize: 'var(--text-sm)', color: 'var(--green-700)',
         }}>
           <span>✅</span>
-          <span>文件已上传，正在继续工勘流程…</span>
+          <span>
+            已上传{doneNames.length ? `：${doneNames.join('、')}` : ''} · 正在继续工勘流程…
+          </span>
         </div>
       )}
 

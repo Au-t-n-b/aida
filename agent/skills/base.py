@@ -103,6 +103,7 @@ class CheckResult(TypedDict, total=False):
     found: list[str]
     note: str  # 简短说明
     need_inputs: list[NeedInput]  # 确认型 HITL 的输入项（ChoiceCard 规格）
+    need_edit: dict  # 在线编辑型 HITL 规格（→ build_editable_table → 可编辑 DataTable）
 
 
 class StepRecord(TypedDict, total=False):
@@ -500,6 +501,7 @@ class BaseSkill(abc.ABC):
                     "reason": f"{note}" if note else default_reason,
                     "need_files": missing,
                     "need_inputs": need_inputs,
+                    "need_edit": check.get("need_edit"),
                 },
             }
 

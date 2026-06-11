@@ -24,8 +24,9 @@ export interface SkillRunInfo {
   progress: number;
   /** 当前步骤显示名（用于左侧卡展示）*/
   currentStepName: string;
-  /** HITL 类型（左侧卡仅提示「去右侧面板操作」，完整 HITL UI 在右侧 SDUI）*/
-  hitlType: 'file' | 'choice' | null;
+  /** HITL 类型（左侧卡仅提示「去右侧面板操作」，完整 HITL UI 在右侧 SDUI）。
+   *  edit = 在线填表（route_hitl_edit 契约，表格在右侧大盘提交）。*/
+  hitlType: 'file' | 'choice' | 'edit' | null;
   /** 错误信息（简短，用于左侧卡展示）*/
   errorMsg: string;
 }

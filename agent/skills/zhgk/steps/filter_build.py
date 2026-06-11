@@ -93,7 +93,7 @@ class FilterBuildStep(BaseStep):
             return {}
 
         from ..services.table_filter import load_base_table, filter_items, get_sub_scenes_for_cooling
-        from ..services.survey_table_builder import build_survey_table
+        from ..services.survey_table_builder import build_survey_table, survey_table_path_for
         from ..path_config import get_base_table_path
 
         gen_cooling = _get_generation_cooling(ctx, state)
@@ -125,14 +125,21 @@ class FilterBuildStep(BaseStep):
         emit(f"[filter_build] 过滤后条目: {len(filtered)} 条（标准类，{gen_cooling}）")
 
         output_dir = str(ctx.output_dir)
-        survey_table_path = build_survey_table(
-            filtered_items=filtered,
-            output_dir=output_dir,
-            activity_id=activity_id,
-            project_name=project_name,
-            room_name=room_name,
-        )
-        emit(f"[filter_build] ✓ 全量勘测结果表: {os.path.basename(survey_table_path)}")
+        # 幂等：resume 走 full_restart 会重放本步。若结果表已存在则复用、不重建，
+        # 否则会覆盖 wait_survey 已合并的「最新检查结果 / 第N轮」列 → assess 评空表全判「未勘测」。
+        expected_path = survey_table_path_for(output_dir, activity_id, project_name, room_name)
+        if os.path.exists(expected_path):
+            survey_table_path = expected_path
+            emit(f"[filter_build] ✓ 复用已存在的结果表（幂等，保住已合并勘测结果）: {os.path.basename(expected_path)}")
+        else:
+            survey_table_path = build_survey_table(
+                filtered_items=filtered,
+                output_dir=output_dir,
+                activity_id=activity_id,
+                project_name=project_name,
+                room_name=room_name,
+            )
+            emit(f"[filter_build] ✓ 全量勘测结果表: {os.path.basename(survey_table_path)}")
 
         # 写路径到 project_info.json
         _update_project_info(ctx.runtime_dir, "survey_table_path", survey_table_path)

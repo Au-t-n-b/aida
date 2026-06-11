@@ -10,6 +10,8 @@ export interface SduiRuntime {
   onAction: (action: SduiAction) => void;
   onUpload: (files: FileList, purpose: string, stepId?: string) => void;
   onChoiceSubmit: (value: string, stepId?: string) => void;
+  /** 可编辑 DataTable 提交：把编辑后的行回传 /resume（payload={rows}）。可选 —— 不支持的提供方不实现。 */
+  onRowsSubmit?: (rows: Record<string, unknown>[], stepId?: string) => void;
 }
 
 const defaultRuntime: SduiRuntime = {
