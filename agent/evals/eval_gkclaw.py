@@ -199,6 +199,140 @@ def schema_manifest_ack_result_error():
     assert any("code" in e for e in schema.validate_error({"task_id": "t1", "message": "x"}))
 
 
+# ─── package ───
+
+@test
+def package_build_parse_roundtrip():
+    from agent.skills.zhgk.services.gkclaw import package
+    out = tmpdir()
+    task = _valid_task()
+    zp = package.build_package(
+        package_type="task.dispatch", task_id=task["task_id"],
+        project=task["project"], payload=task,
+        assets={"assets/items/1/example-1.jpg": b"\xff\xd8fakejpg"},
+        out_dir=out,
+    )
+    assert zp.name == f"task-{task['task_id']}.zip"
+    parsed = package.parse_package(zp)
+    assert parsed["ok"], parsed["errors"]
+    assert parsed["manifest"]["package_type"] == "task.dispatch"
+    assert parsed["payload"]["task_id"] == task["task_id"]
+    assert parsed["payload_name"] == "task.json"
+    assert "assets/items/1/example-1.jpg" in parsed["manifest"]["checksum"]
+
+
+@test
+def package_checksum_tamper_detected():
+    import zipfile
+    from agent.skills.zhgk.services.gkclaw import package
+    out = tmpdir()
+    task = _valid_task()
+    zp = package.build_package(package_type="task.dispatch", task_id=task["task_id"],
+                               project=task["project"], payload=task, out_dir=out)
+    # 重写 task.json 内容但保留 manifest → checksum 不匹配
+    tampered = out / "tampered.zip"
+    with zipfile.ZipFile(zp) as src, zipfile.ZipFile(tampered, "w") as dst:
+        for name in src.namelist():
+            data = src.read(name)
+            if name == "task.json":
+                data = data.replace(b"K1903", b"HACKED")
+            dst.writestr(name, data)
+    parsed = package.parse_package(tampered)
+    assert not parsed["ok"]
+    assert any("checksum" in e for e in parsed["errors"])
+
+
+@test
+def package_path_escape_rejected():
+    import json, zipfile
+    from agent.skills.zhgk.services.gkclaw import package
+    out = tmpdir()
+    evil = out / "evil.zip"
+    manifest = {"schema_version": "gkclaw.mail.v1", "package_id": "pkg-x",
+                "package_type": "task.result", "created_at": "2026-06-11T00:00:00+00:00",
+                "source": "front-agent", "target": "back-agent", "task_id": "t1",
+                "checksum": {"result.json": "sha256:dead"}}
+    with zipfile.ZipFile(evil, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+        zf.writestr("result.json", "{}")
+        zf.writestr("../escape.txt", "evil")
+    parsed = package.parse_package(evil)
+    assert not parsed["ok"]
+    assert any("路径" in e or "path" in e.lower() for e in parsed["errors"])
+
+
+@test
+def package_missing_manifest_and_type_mismatch():
+    import json, zipfile, hashlib
+    from agent.skills.zhgk.services.gkclaw import package
+    out = tmpdir()
+    z1 = out / "nomanifest.zip"
+    with zipfile.ZipFile(z1, "w") as zf:
+        zf.writestr("task.json", "{}")
+    parsed = package.parse_package(z1)
+    assert not parsed["ok"] and any("manifest" in e for e in parsed["errors"])
+
+    # 类型与 payload 文件不匹配：声明 task.result 但只有 task.json
+    z2 = out / "mismatch.zip"
+    payload = json.dumps({"x": 1})
+    digest = "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
+    manifest = {"schema_version": "gkclaw.mail.v1", "package_id": "pkg-y",
+                "package_type": "task.result", "created_at": "2026-06-11T00:00:00+00:00",
+                "source": "front-agent", "target": "back-agent", "task_id": "t1",
+                "checksum": {"task.json": digest}}
+    with zipfile.ZipFile(z2, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+        zf.writestr("task.json", payload)
+    parsed = package.parse_package(z2)
+    assert not parsed["ok"] and any("result.json" in e for e in parsed["errors"])
+
+
+@test
+def package_unlisted_files_policy():
+    import json, zipfile, hashlib
+    from agent.skills.zhgk.services.gkclaw import package
+    out = tmpdir()
+    payload = json.dumps({"task_id": "t1", "session": {"status": "active"},
+                          "submitted_by": {"surveyor_code": "S001"}, "items": []})
+    digest = "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
+    manifest = {"schema_version": "gkclaw.mail.v1", "package_id": "pkg-z",
+                "package_type": "task.result", "created_at": "2026-06-11T00:00:00+00:00",
+                "source": "front-agent", "target": "back-agent", "task_id": "t1",
+                "checksum": {"result.json": digest}}
+    # evidence 未列入 manifest → 仅 warning；根目录未列文件 → error
+    z1 = out / "evidence-unlisted.zip"
+    with zipfile.ZipFile(z1, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+        zf.writestr("result.json", payload)
+        zf.writestr("evidence/photo1.jpg", b"img")
+    parsed = package.parse_package(z1)
+    assert parsed["ok"], parsed["errors"]
+    assert any("evidence" in w for w in parsed["warnings"])
+
+    z2 = out / "root-unlisted.zip"
+    with zipfile.ZipFile(z2, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(manifest))
+        zf.writestr("result.json", payload)
+        zf.writestr("extra.json", "{}")
+    parsed = package.parse_package(z2)
+    assert not parsed["ok"] and any("extra.json" in e for e in parsed["errors"])
+
+
+@test
+def package_extract_evidence():
+    from agent.skills.zhgk.services.gkclaw import package
+    out = tmpdir()
+    res = {"task_id": "task-20260611-K1903-000009", "session": {"status": "completed"},
+           "submitted_by": {"surveyor_name": "张三", "surveyor_code": "S001"}, "items": []}
+    zp = package.build_package(package_type="task.result", task_id=res["task_id"],
+                               project={"project_id": "ACT001", "project_code": "K1903"},
+                               payload=res, assets={"evidence/p1.jpg": b"img1"}, out_dir=out)
+    dest = out / "ev"
+    saved = package.extract_files(zp, ["evidence/p1.jpg"], dest)
+    assert saved[0].read_bytes() == b"img1"
+    assert saved[0] == dest / "evidence" / "p1.jpg"
+
+
 # ─── main ───
 
 def main() -> int:
