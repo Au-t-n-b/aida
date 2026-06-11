@@ -1,0 +1,21 @@
+smtp:
+  host: smtp.corp.com
+  port: 465
+  ssl: true                 # true=SMTP_SSL；false=STARTTLS
+  username: aida@corp.com
+  from_addr: aida@corp.com
+  display_name: AIDA 智能助手
+pop3:
+  host: pop3.corp.com
+  port: 995
+  ssl: true
+  username: aida@corp.com
+  poll_interval: 0          # 秒；0 = 仅按需拉取（list_inbox?refresh=true）
+policy:
+  whitelist_domains: ["corp.com"]
+  whitelist_addresses: []
+  hourly_limit: 20
+  daily_limit: 100
+  max_attachment_mb: 25
+  max_recipients: 20
+data_dir: ./data
