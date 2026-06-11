@@ -24,18 +24,79 @@ zhgk(backagent·内网服务器) ──mailgw(同机:8025)──→ 邮件[task.
 
 ## 2. mailgw 部署（邮件网关 · 端口 8025 · 代码在本仓 `mailgw/` 子目录）
 
-详细步骤见 [mailgw/docs/部署与配置手册.md](../../mailgw/docs/部署与配置手册.md)（独立 venv 安装
-`mailgw/requirements.txt`，与 AIDA 的 venv 分开），此处只列 GKCLAW 相关要点：
+> **收件协议说明**：mailgw 收件用 **POP3**（UIDL 去重、不删服务器邮件），发件用 **SMTP**，
+> **不使用 IMAP**——契约 §7 只要求邮箱参数运行时可配置、不强制协议，IMAP 切换在 mailgw
+> 未来扩展清单中。给邮箱账号开通服务时请确认 **SMTP 与 POP3 均已开启**并取得**客户端授权码**
+> （多数企业邮箱的第三方客户端登录不用网页密码，用授权码）。
 
-1. **凭据**（mailgw `.env`）：公司邮箱 SMTP/POP3 host、端口、账号、授权码；为 AIDA 签发调用 token：
-   ```
-   MAILGW_TOKEN_AIDA=<随机长串>     # 网关侧命名 MAILGW_TOKEN_<调用方>
-   ```
-2. **白名单**（mailgw `config.yaml`）：把 **frontagent 邮箱的域名**加入 `whitelist_domains`——
-   否则每次任务下发都会卡在人工审批队列。
-3. **附件上限**：`max_attachment_mb` 需 ≥ 任务包大小（当前任务包无示例图，几十 KB；
-   将来启用示例图资产后按需调大，并与对方确认其邮箱附件上限）。
-4. 启动：`python -m mailgw --host 127.0.0.1 --port 8025`（建议 systemd 托管，参考 AIDA 的单元写法）。
+### 2.1 安装与启动（独立 venv，与 AIDA 的分开）
+
+```bash
+cd /app/aida/mailgw
+python -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp config.yaml.example config.yaml      # 按 2.2 填写
+cp .env.example .env                    # 按 2.3 填写
+.venv/bin/python -m mailgw --host 127.0.0.1 --port 8025
+```
+
+### 2.2 config.yaml 完整字段（照抄改值；以 `mailgw/config.yaml.example` 为准）
+
+```yaml
+smtp:
+  host: smtp.corp.com          # 公司邮箱 SMTP 服务器
+  port: 465
+  ssl: true                    # true=SMTP_SSL(465)；false=STARTTLS(587)
+  username: aida@corp.com      # backagent 专用邮箱账号
+  from_addr: aida@corp.com
+  display_name: AIDA 智能助手
+pop3:
+  host: pop3.corp.com          # 公司邮箱 POP3 服务器（收 ACK/结果/错误包靠它）
+  port: 995
+  ssl: true
+  username: aida@corp.com
+  poll_interval: 0             # 秒；0=仅按需拉取（wait_survey 刷新时触发），GKCLAW 推荐保持 0
+policy:
+  whitelist_domains: ["corp.com", "<frontagent 邮箱的域名>"]   # ★ 不加则每次下发卡审批队列
+  whitelist_addresses: []      # 也可精确加单个地址
+  hourly_limit: 20             # 发送限流，按业务量调
+  daily_limit: 100
+  max_attachment_mb: 25        # ★ 须 ≥ 任务包大小（当前几十 KB；启用示例图资产后调大）
+  max_recipients: 20
+data_dir: ./data               # SQLite 与附件落盘目录
+```
+
+### 2.3 .env 凭据（四项全要填）
+
+```bash
+MAILGW_SMTP_PASSWORD=<邮箱授权码>        # 发件
+MAILGW_POP3_PASSWORD=<邮箱授权码>        # 收件（通常与 SMTP 同一个授权码）
+MAILGW_ADMIN_PASSWORD=<审批页口令>       # /admin Basic 认证（白名单外审批用）
+MAILGW_TOKEN_AIDA=<随机长串>             # 为 AIDA 签发；★ 同一个值填到 AIDA 侧
+                                         #   agent/.env 的 MAILGW_TOKEN（注意两侧变量名不同）
+```
+
+### 2.4 启停与网络
+
+- systemd 单元（参考 AIDA 的写法，ROADMAP §3.6）：`ExecStart=/app/aida/mailgw/.venv/bin/python -m mailgw --host 127.0.0.1 --port 8025`，`WorkingDirectory=/app/aida/mailgw`。
+- 服务绑 127.0.0.1 即可（只有同机的 AIDA 调用）；**审批页 `/admin` 若需审批人远程访问**，
+  经 nginx 反代暴露（自带 Basic 认证，建议再套 HTTPS）或走内网端口映射。
+- 防火墙放行**出站** SMTP(465/587) 与 POP3(995) 到公司邮件服务器，否则收发都不通。
+
+### 2.5 部署后自检（联调前必做）
+
+```bash
+TOKEN=<MAILGW_TOKEN_AIDA 的值>
+# POP3 通：能拉收件箱（首次会从服务器取信）
+curl -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:8025/api/inbox?refresh=true"
+# SMTP 通：给自己邮箱发一封测试信，status 应为 sent（白名单内）
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+  -d '{"to":["aida@corp.com"],"subject":"mailgw 自检","body":"ok"}' \
+  http://127.0.0.1:8025/api/send
+# 审批页可登录：浏览器开 http://127.0.0.1:8025/admin（admin / MAILGW_ADMIN_PASSWORD）
+```
+
+更多（审批操作、API 全量规格、限流语义）见 [mailgw/docs/部署与配置手册.md](../../mailgw/docs/部署与配置手册.md)、
+[mailgw/docs/API接口文档.md](../../mailgw/docs/API接口文档.md)、[mailgw/docs/审批操作手册.md](../../mailgw/docs/审批操作手册.md)。
 
 ## 3. AIDA 后端部署（端口 7401）
 
