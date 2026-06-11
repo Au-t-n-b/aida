@@ -572,8 +572,9 @@ Step 4 文档
 ## GKCLAW 邮件链路（zhgk = backagent）· 2026-06-11 立项
 
 > 契约真相源：[docs/50_数据与接口/back-agent-development-guide_ch.md](docs/50_数据与接口/back-agent-development-guide_ch.md)
-> 设计决策与边界：[docs/50_数据与接口/GKCLAW邮件链路.md](docs/50_数据与接口/GKCLAW邮件链路.md)（实现说明+联调手册+§24 验收对照）
-> 分支：feat/gkclaw-mail-link · 2026-06-11 完成（eval_gkclaw 42/42）
+> 设计决策与边界：[docs/50_数据与接口/GKCLAW邮件链路.md](docs/50_数据与接口/GKCLAW邮件链路.md)（实现说明+§24 验收对照）
+> 部署与联调：[docs/50_数据与接口/GKCLAW部署与联调指南.md](docs/50_数据与接口/GKCLAW部署与联调指南.md)（部署清单/自验/十步联调/排障/回退）
+> 分支：feat/gkclaw-mail-link · 2026-06-11 完成并合入 master（eval_gkclaw 42/42）
 
 - [x] gkclaw 协议层（ids/schema/package/registry/mapping，eval_gkclaw 离线回归）
 - [x] mailer.py mailgw backend + mailbox.py 统一收件入口
