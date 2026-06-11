@@ -669,6 +669,104 @@ def mailbox_save_attachment():
     assert captured["body"] == {"save_path": "D:/tmp"}
 
 
+# ─── dispatch ───
+
+def _make_survey_xlsx(out_dir) -> str:
+    """用真实 builder 生成全量勘测结果表（3 条：2 现场 + 1 数据）。"""
+    from agent.skills.zhgk.services.survey_table_builder import build_survey_table
+    items = [
+        {"细分场景": "硬装入场", "勘测要素": "接地", "项目": "接地线",
+         "检查内容": "检查机房接地线规格是否达标", "勘测方法": "现场勘测", "备注": ""},
+        {"细分场景": "硬装入场", "勘测要素": "层高", "项目": "梁下净高",
+         "检查内容": "测量梁下净高是否≥3m", "勘测方法": "数据", "备注": ""},
+        {"细分场景": "通液前", "勘测要素": "管路", "项目": "排水管",
+         "检查内容": "检查排水管走向与坡度", "勘测方法": "现场勘测", "备注": ""},
+    ]
+    return build_survey_table(items, str(out_dir), "ACT001", "智算 Q3 · 客户甲一期", "A 机房")
+
+
+_ASSIGNEES = [{"surveyor_name": "张三", "surveyor_code": "S001"}]
+
+
+@test
+def dispatch_dry_run_creates_task_and_zip():
+    from agent.skills.zhgk.services.gkclaw import dispatch, package
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    root = tmpdir()
+    table = _make_survey_xlsx(root / "Output")
+    r = dispatch.dispatch_task(
+        runtime_dir=root / "RunTime", survey_table_path=table,
+        project=_project(), assignees=_ASSIGNEES, dry_run=True,
+    )
+    assert r["dry_run"] is True and r["state"] == "dispatched"
+    assert r["items_count"] == 2
+    reg = TaskRegistry(root / "RunTime")
+    task = reg.get(r["task_id"])
+    assert task["state"] == "dispatched" and task["dry_run"] is True
+    assert task["table_fingerprint"].startswith("sha256:")
+    zp = reg.root / r["task_id"] / "outbox" / f"task-{r['task_id']}.zip"
+    assert zp.exists()
+    parsed = package.parse_package(zp)
+    assert parsed["ok"] and parsed["payload"]["task_id"] == r["task_id"]
+    assert len(reg.packages(r["task_id"])) == 1  # 出站包入账本
+
+
+@test
+def dispatch_real_send_and_supersede():
+    from agent.skills.zhgk.services.gkclaw import dispatch
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    root = tmpdir()
+    table = _make_survey_xlsx(root / "Output")
+    sent: list[dict] = []
+
+    def fake_send(to, subject, body, *, attachments=None, dry_run=None):
+        sent.append({"to": to, "subject": subject, "attachments": attachments})
+        return {"ok": True, "via": "mailgw", "mailgw_task_id": "mgw-7", "mailgw_status": "sent"}
+
+    r1 = dispatch.dispatch_task(
+        runtime_dir=root / "RunTime", survey_table_path=table,
+        project=_project(), assignees=_ASSIGNEES, dry_run=True,
+    )
+    r2 = dispatch.dispatch_task(
+        runtime_dir=root / "RunTime", survey_table_path=table,
+        project=_project(), assignees=_ASSIGNEES,
+        dry_run=False, send_fn=fake_send,
+        frontagent_mailbox="front@corp.com", previous_task_id=r1["task_id"],
+    )
+    reg = TaskRegistry(root / "RunTime")
+    assert reg.get(r1["task_id"])["state"] == "superseded"          # 重发=新 task_id+旧任务取代
+    task2 = reg.get(r2["task_id"])
+    assert task2["state"] == "dispatched" and task2["mailgw_task_id"] == "mgw-7"
+    assert sent[0]["to"] == ["front@corp.com"]
+    assert sent[0]["subject"] == f"[GKCLAW][TASK_DISPATCH] K1903/{r2['task_id']}"
+    assert sent[0]["attachments"][0].endswith(f"task-{r2['task_id']}.zip")
+
+
+@test
+def dispatch_send_failure_marks_failed():
+    from agent.skills.zhgk.services.gkclaw import dispatch
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    root = tmpdir()
+    table = _make_survey_xlsx(root / "Output")
+
+    def bad_send(to, subject, body, *, attachments=None, dry_run=None):
+        return {"ok": False, "error": "connection refused", "via": "mailgw"}
+
+    try:
+        dispatch.dispatch_task(
+            runtime_dir=root / "RunTime", survey_table_path=table,
+            project=_project(), assignees=_ASSIGNEES,
+            dry_run=False, send_fn=bad_send, frontagent_mailbox="front@corp.com",
+        )
+        assert False, "应抛 RuntimeError"
+    except RuntimeError as e:
+        assert "connection refused" in str(e)
+    reg = TaskRegistry(root / "RunTime")
+    tasks = reg.list_tasks()
+    assert len(tasks) == 1 and tasks[0]["state"] == "failed"
+    assert "connection refused" in tasks[0]["last_error"]
+
+
 # ─── main ───
 
 def main() -> int:
