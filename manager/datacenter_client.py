@@ -13,6 +13,8 @@ _DC_ERRORS = {
     1003: "账号已禁用",
     1004: "用户不存在",
     1005: "不能删除自己的账号",
+    2001: "项目状态不允许此操作",
+    2002: "项目名已存在",
 }
 
 
@@ -100,6 +102,99 @@ async def register_user(
         data = _unwrap(resp.json())
         if not isinstance(data, dict):
             raise DataCenterError(500, "数据中心注册响应异常", status_code=502)
+        return data
+
+
+async def claw_login(username: str, password: str) -> dict[str, Any]:
+    """CLaw 专用登录：POST /api/v1/auth/login → accessToken + user 档案。"""
+    async with _client() as client:
+        resp = await client.post(
+            "/api/v1/auth/login",
+            json={"username": username, "password": password},
+        )
+        if resp.status_code == 404:
+            raise DataCenterError(404, "claw auth/login 未实现", status_code=404)
+        if resp.status_code >= 400:
+            try:
+                body = resp.json()
+                if isinstance(body, dict) and "code" in body:
+                    _unwrap(body)
+            except DataCenterError:
+                raise
+            except Exception:
+                pass
+            raise DataCenterError(
+                resp.status_code,
+                f"数据中心 CLaw 登录失败: HTTP {resp.status_code}",
+                status_code=resp.status_code,
+            )
+        data = _unwrap(resp.json())
+        if not isinstance(data, dict) or not data.get("accessToken"):
+            raise DataCenterError(500, "CLaw 登录响应缺少 accessToken", status_code=502)
+        return data
+
+
+async def create_project(token: str, body: dict[str, Any]) -> dict[str, Any]:
+    """新建项目：POST /api/v1/projects，初始状态 PENDING_APPROVAL。"""
+    async with _client() as client:
+        resp = await client.post(
+            "/api/v1/projects",
+            headers={"Authorization": f"Bearer {token}"},
+            json=body,
+        )
+        if resp.status_code == 401:
+            raise DataCenterError(1002, "登录已失效，请重新登录", status_code=401)
+        if resp.status_code >= 400:
+            try:
+                payload = resp.json()
+                if isinstance(payload, dict) and "code" in payload:
+                    _unwrap(payload)
+            except DataCenterError:
+                raise
+            except Exception:
+                pass
+            raise DataCenterError(
+                resp.status_code,
+                f"新建项目失败: HTTP {resp.status_code}",
+                status_code=resp.status_code,
+            )
+        data = _unwrap(resp.json())
+        if not isinstance(data, dict):
+            raise DataCenterError(500, "数据中心新建项目响应异常", status_code=502)
+        return data
+
+
+async def list_my_projects(
+    token: str,
+    *,
+    page: int = 1,
+    page_size: int = 100,
+    status: str | None = None,
+    keyword: str | None = None,
+) -> dict[str, Any]:
+    """当前用户参与的项目列表：GET /api/v1/projects/my。"""
+    params: dict[str, Any] = {"page": page, "pageSize": page_size}
+    if status:
+        params["status"] = status
+    if keyword:
+        params["keyword"] = keyword
+    async with _client() as client:
+        resp = await client.get(
+            "/api/v1/projects/my",
+            headers={"Authorization": f"Bearer {token}"},
+            params=params,
+        )
+        if resp.status_code == 401:
+            raise DataCenterError(1002, "登录已失效，请重新登录", status_code=401)
+        if resp.status_code >= 400:
+            raise DataCenterError(
+                resp.status_code,
+                f"获取项目列表失败: HTTP {resp.status_code}",
+                status_code=resp.status_code,
+            )
+        data = _unwrap(resp.json())
+        if not isinstance(data, dict):
+            raise DataCenterError(500, "数据中心 projects/my 响应异常", status_code=502)
         return data
 
 

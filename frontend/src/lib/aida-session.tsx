@@ -11,41 +11,47 @@ import {
   logoutFromClawManager,
   requestChatAccess,
   type ChatAccessResponse,
+  type ClawUserProfile,
 } from './claw-manager-client';
 
-type AidaSessionState = {
+export type AidaSessionState = {
+  /** 数据中心 Bearer token，后续 API 统一携带 */
   accessToken: string;
+  tokenType: string;
   sessionId: string;
   role: string;
+  user: ClawUserProfile | null;
+  expiresAt?: number | null;
   containerEndpoint?: string | null;
   chatAccess?: ChatAccessResponse | null;
 };
 
 type AidaSessionContextValue = {
   session: AidaSessionState | null;
-  login: (username: string, password: string, projectCode?: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   logoutLocal: () => void;
   getChatAccess: () => Promise<ChatAccessResponse>;
 };
 
 const STORAGE_KEY = 'aida:session';
-const DEFAULT_PROJECT = 'K1903';
 const AidaSessionContext = createContext<AidaSessionContextValue | null>(null);
 
 export function AidaSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AidaSessionState | null>(() => readStoredSession());
 
-  const login = useCallback(async (username: string, password: string, projectCode = DEFAULT_PROJECT) => {
-    const resp = await loginToClawManager({
-      username,
-      password,
-      project_code: projectCode,
-    });
+  const login = useCallback(async (username: string, password: string) => {
+    const resp = await loginToClawManager({ username, password });
+    const expiresAt = resp.expires_in
+      ? Date.now() + resp.expires_in * 1000
+      : null;
     const next: AidaSessionState = {
       accessToken: resp.access_token,
+      tokenType: resp.token_type || 'Bearer',
       sessionId: resp.session_id,
       role: resp.role,
+      user: resp.user ?? null,
+      expiresAt,
       containerEndpoint: resp.container_endpoint,
       chatAccess: null,
     };
@@ -113,7 +119,19 @@ function readStoredSession(): AidaSessionState | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as AidaSessionState) : null;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<AidaSessionState>;
+    if (!parsed.accessToken || !parsed.sessionId) return null;
+    return {
+      accessToken: parsed.accessToken,
+      tokenType: parsed.tokenType || 'Bearer',
+      sessionId: parsed.sessionId,
+      role: parsed.role || 'user',
+      user: parsed.user ?? null,
+      expiresAt: parsed.expiresAt ?? null,
+      containerEndpoint: parsed.containerEndpoint ?? null,
+      chatAccess: parsed.chatAccess ?? null,
+    };
   } catch {
     return null;
   }

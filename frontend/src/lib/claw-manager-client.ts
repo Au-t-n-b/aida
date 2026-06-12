@@ -1,9 +1,73 @@
+export type ClawUserProfile = {
+  user_id: string;
+  username: string;
+  display_name: string;
+  email?: string | null;
+  status?: number | null;
+  global_roles: { roleCode: string; roleName?: string }[];
+  permissions: string[];
+};
+
 export type LoginResponse = {
   access_token: string;
+  token_type?: string;
   role: string;
   session_id: string;
   container_endpoint?: string | null;
   reused: boolean;
+  user_id?: number | null;
+  username?: string | null;
+  expires_in?: number | null;
+  user?: ClawUserProfile | null;
+};
+
+export type DcEnvelope<T> = {
+  code: number;
+  message: string;
+  data: T;
+};
+
+export type MyProjectsQuery = {
+  page?: number;
+  pageSize?: number;
+  status?: string;
+  keyword?: string;
+};
+
+export type CreateProjectBody = {
+  projectName: string;
+  projectCode?: string;
+  bidCode?: string;
+  customerName?: string;
+  tdUserId?: number;
+  pdUserId?: number;
+  pcmUserId?: number;
+};
+
+export type CreateProjectResult = {
+  id: number;
+  projectId: string;
+  status: string;
+  rootPath?: string;
+};
+
+export type DcMyProjectsData = {
+  list: Array<{
+    id: number;
+    projectId: string;
+    projectName: string;
+    projectCode?: string | null;
+    bidCode?: string | null;
+    status: string;
+    stage?: string | null;
+    progress: number;
+    risk: string;
+    updatedAt?: string | null;
+    myRoles: { roleCode: string; roleName?: string }[];
+    canEnter: boolean;
+    disabledReason?: string | null;
+  }>;
+  total: number;
 };
 
 export type RegisterResponse = {
@@ -62,12 +126,43 @@ export function managerBase(): string {
 export async function loginToClawManager(input: {
   username: string;
   password: string;
-  project_code: string;
+  project_code?: string;
 }): Promise<LoginResponse> {
   return request<LoginResponse>('/api/v1/auth/login', {
     method: 'POST',
-    body: JSON.stringify(input),
+    body: JSON.stringify({
+      username: input.username,
+      password: input.password,
+      project_code: input.project_code ?? '',
+    }),
   });
+}
+
+/** 新建项目 POST /api/v1/projects（初始待审批） */
+export async function createProject(
+  accessToken: string,
+  body: CreateProjectBody,
+): Promise<DcEnvelope<CreateProjectResult>> {
+  return requestEnvelope<CreateProjectResult>('/api/v1/projects', {
+    method: 'POST',
+    accessToken,
+    body: JSON.stringify(body),
+  });
+}
+
+/** 接口二：当前用户参与的项目列表（Bearer token） */
+export async function fetchMyProjects(
+  accessToken: string,
+  query: MyProjectsQuery = {},
+): Promise<DcEnvelope<DcMyProjectsData>> {
+  const params = new URLSearchParams();
+  if (query.page) params.set('page', String(query.page));
+  if (query.pageSize) params.set('pageSize', String(query.pageSize));
+  if (query.status) params.set('status', query.status);
+  if (query.keyword) params.set('keyword', query.keyword);
+  const qs = params.toString();
+  const path = `/api/v1/projects/my${qs ? `?${qs}` : ''}`;
+  return requestEnvelope(path, { accessToken });
 }
 
 export async function registerToClawManager(input: {
@@ -274,6 +369,21 @@ async function request<T>(
     throw new Error(await errorMessage(resp));
   }
   return resp.json() as Promise<T>;
+}
+
+async function requestEnvelope<T>(
+  path: string,
+  init: RequestInit & { accessToken?: string } = {},
+): Promise<DcEnvelope<T>> {
+  const payload = await request<DcEnvelope<T> | T>(path, init);
+  if (payload && typeof payload === 'object' && 'code' in payload && 'data' in payload) {
+    const env = payload as DcEnvelope<T>;
+    if (env.code !== 0) {
+      throw new Error(env.message || '请求失败');
+    }
+    return env;
+  }
+  return { code: 0, message: 'success', data: payload as T };
 }
 
 async function errorMessage(resp: Response): Promise<string> {
