@@ -237,6 +237,10 @@ export type SduiDataTableNode = OptId & {
   groupAsTabs?: boolean;
   pageSize?: number;
   requiredKeys?: string[];
+  /** Tier B 展示/编辑双模式（组件库 DataTable · 编辑/保存/取消） */
+  dualMode?: boolean;
+  /** dualMode 保存时 run-patch 的 action，默认 task_progress */
+  patchAction?: string;
 };
 
 /** TabbedTable — 页签表格，多组表格按页签切换。*/

@@ -403,7 +403,7 @@ async def start_run(skill: str, req: StartReq):
 
 @app.post("/agent/{skill}/reset-workspace")
 async def reset_workspace_endpoint(skill: str):
-    """重置 skill 工作区：清空 ProjectData 运行态与产物（重置会话时调用）。"""
+    """重置 skill 工作区：清空 ProjectData 运行态与产物，保留 Input（重置会话时调用）。"""
     skill_obj = _get_skill_or_404(skill)
     handler = getattr(skill_obj, "file_handler", None)
     reset_fn = getattr(handler, "reset_workspace", None) if handler else None

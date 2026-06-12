@@ -533,6 +533,8 @@ class SduiDataTableNode(BaseModel):
     groupAsTabs: bool | None = None      # True → 按 groupKey 分页签切换（替代表内分组头）
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
+    dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
+    patchAction: str | None = None         # dualMode 保存时 run-patch action（默认 task_progress）
 
 
 class SduiTabbedTableTab(BaseModel):
