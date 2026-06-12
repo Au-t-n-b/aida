@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 
+from ._common import principal_display_name
+
 
 def iso_now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -39,7 +41,16 @@ def get_tasks(path: str) -> list[dict]:
 
 
 # 任务状态 → 默认进度百分比（无用户覆盖 progress_pct 时使用）
-_STATUS_PCT = {"已完成": 100, "进行中": 60, "已下发": 20, "待下发": 0, "暂停/受阻": 0}
+_STATUS_PCT = {"已完成": 100, "进行中": 60, "已下发": 20, "未开始": 0, "待下发": 0, "暂停/受阻": 0}
+
+
+def _status_from_progress(pct: int) -> str:
+    """进度百分比 → 任务状态（0=未开始 · 1–99=进行中 · 100=已完成）。"""
+    if pct >= 100:
+        return "已完成"
+    if pct > 0:
+        return "进行中"
+    return "未开始"
 
 
 def progress_pct_for_task(t: dict) -> int:
@@ -86,15 +97,16 @@ def dispatch_progress_rows(state: dict, *, row_limit: int = 50) -> list[dict]:
     scoped = [t for t in tasks if _task_in_dispatch_scope(t, ids, keys)]
     rows: list[dict] = []
     for t in scoped[:row_limit]:
+        prog = progress_pct_for_task(t)
         rows.append({
             "id": str(t.get("id") or ""),
             "unit": str(t.get("unit") or ""),
             "activity_id": str(t.get("activity_id") or ""),
             "activity_name": str(t.get("activity_name") or ""),
-            "principal": str(t.get("principal") or t.get("owner") or ""),
+            "principal": principal_display_name(t.get("principal") or t.get("owner")),
             "end_date": str(t.get("end_date") or ""),
-            "status": str(t.get("status") or "待下发"),
-            "progress": progress_pct_for_task(t),
+            "status": _status_from_progress(prog),
+            "progress": prog,
         })
     return rows
 
@@ -116,10 +128,10 @@ def patch_task_progress(path: str, updates: list[dict]) -> dict:
         except (TypeError, ValueError):
             continue
         by_id[tid]["progress_pct"] = pct
+        by_id[tid]["status"] = _status_from_progress(pct)
     st["tasks"] = tasks
     save_tasks_state(path, st)
-    summary = task_summary(tasks)
-    summary["di_dispatch_progress_rows"] = dispatch_progress_rows(st)
+    summary = task_summary(tasks, state=st)
     return summary
 
 
@@ -164,7 +176,7 @@ def task_summary(tasks: list[dict], *, row_limit: int = 50, state: dict | None =
             str(t.get("unit", "")),
             str(t.get("activity_id", "")),
             str(t.get("activity_name", "")),
-            str(t.get("principal") or t.get("owner", "")),
+            principal_display_name(t.get("principal") or t.get("owner", "")),
             str(t.get("end_date", "")),
             str(t.get("status", "待下发")),
         ]

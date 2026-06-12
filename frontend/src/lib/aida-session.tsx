@@ -37,27 +37,18 @@ export function AidaSessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AidaSessionState | null>(() => readStoredSession());
 
   const login = useCallback(async (username: string, password: string, projectCode = DEFAULT_PROJECT) => {
-    let next: AidaSessionState;
-    try {
-      const resp = await loginToClawManager({
-        username,
-        password,
-        project_code: projectCode,
-      });
-      next = {
-        accessToken: resp.access_token,
-        sessionId: resp.session_id,
-        role: resp.role,
-        containerEndpoint: resp.container_endpoint,
-        chatAccess: null,
-      };
-    } catch (err) {
-      // ClawManager 鉴权服务不可达（本地 / 演示环境没有 8000 端口的后端）时退化为本地演示会话，
-      // 让登录在无后端的情况下也能进入。真实鉴权失败（HTTP 4xx/5xx）不是网络错误，仍照常抛出。
-      if (!isNetworkError(err)) throw err;
-      console.warn('[AIDA] ClawManager 不可达，已使用本地演示会话登录', err);
-      next = buildDemoSession(username, projectCode);
-    }
+    const resp = await loginToClawManager({
+      username,
+      password,
+      project_code: projectCode,
+    });
+    const next: AidaSessionState = {
+      accessToken: resp.access_token,
+      sessionId: resp.session_id,
+      role: resp.role,
+      containerEndpoint: resp.container_endpoint,
+      chatAccess: null,
+    };
     setSession(next);
     storeSession(next);
   }, []);
@@ -70,15 +61,19 @@ export function AidaSessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
-    if (session) {
-      await logoutFromClawManager({
-        accessToken: session.accessToken,
-        sessionId: session.sessionId,
-      });
-    }
-    setSession(null);
-    if (typeof window !== 'undefined') {
-      sessionStorage.removeItem(STORAGE_KEY);
+    const current = session;
+    try {
+      if (current) {
+        await logoutFromClawManager({
+          accessToken: current.accessToken,
+          sessionId: current.sessionId,
+        });
+      }
+    } finally {
+      setSession(null);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem(STORAGE_KEY);
+      }
     }
   }, [session]);
 
@@ -112,24 +107,6 @@ export function useAidaSession(): AidaSessionContextValue {
   const ctx = useContext(AidaSessionContext);
   if (!ctx) throw new Error('useAidaSession must be used within AidaSessionProvider');
   return ctx;
-}
-
-function isNetworkError(err: unknown): boolean {
-  // fetch() 在连接被拒绝 / 服务未启动时抛 TypeError（"Failed to fetch" / "Load failed" /
-  // "NetworkError…"）。我们自己的 HTTP 错误经 errorMessage() 包装成普通 Error，不是 TypeError，
-  // 因此用 instanceof 即可把「后端不可达」与「真实鉴权失败」区分开。
-  return err instanceof TypeError;
-}
-
-function buildDemoSession(username: string, projectCode: string): AidaSessionState {
-  const who = username.trim() || 'demo';
-  return {
-    accessToken: `demo-${projectCode}`,
-    sessionId: `demo-${projectCode}-${who}`,
-    role: 'demo',
-    containerEndpoint: null,
-    chatAccess: null,
-  };
 }
 
 function readStoredSession(): AidaSessionState | null {

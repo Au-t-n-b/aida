@@ -12,7 +12,8 @@ from __future__ import annotations
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import tasks_state_path, refresh_task_metrics
-from ..services._common import as_str
+from ..path_config import get_output_dir, output_rel
+from ..services._common import as_str, principal_display_name
 from ..services.edit_fill import fill_principal_rows
 from ..services.table_builder import generate_principal_table
 from ..services.task_store import load_tasks_state, save_tasks_state, get_tasks, iso_now
@@ -34,7 +35,7 @@ def _rows_from_tasks(tasks: list[dict]) -> list[dict]:
             "unit": as_str(t.get("unit")),
             "start_date": as_str(t.get("start_date")),
             "end_date": as_str(t.get("end_date")),
-            "principal": as_str(t.get("principal") or t.get("owner")),
+            "principal": principal_display_name(t.get("principal") or t.get("owner")),
             "principal_org": as_str(t.get("principal_org")),
         }
         for t in tasks
@@ -107,14 +108,14 @@ class PrincipalFillStep(BaseStep):
         save_tasks_state(state_path, st)
 
         # 落地《责任人信息表.xlsx》：行来自真实任务，责任人/责任主体取已填真实值
-        out = ctx.output_dir / "责任人信息表.xlsx"
+        out = get_output_dir(ctx.project) / "责任人信息表.xlsx"
         generate_principal_table(tasks, str(out))
         emit(
             f"[principal_fill] ✓ 已保存 {updated} 条责任人信息，"
             f"生成《责任人信息表》（{len(tasks)} 条）"
         )
 
-        artifacts = [ctx.rel(out)] if out.exists() else []
+        artifacts = [output_rel(ctx.work_root, out)] if out.exists() else []
         metrics = {"principal_updated": updated}
         metrics.update(refresh_task_metrics(ctx))
         return {"artifacts": artifacts, "metrics": metrics}

@@ -13,6 +13,7 @@
 
 import Link from '@/compat/link';
 import { usePathname } from '@/compat/navigation';
+import { useLogout } from '@/lib/use-logout';
 import type { ReactNode } from 'react';
 
 type AdminNavItem = { key: string; label: string; href: string; sub?: string };
@@ -30,6 +31,7 @@ function readQueryTab(): string {
 }
 
 export function AdminShell({ children }: { children: ReactNode }) {
+  const doLogout = useLogout();
   const pathname = usePathname() ?? '/admin';
   const activeTab = readQueryTab();
 
@@ -63,9 +65,14 @@ export function AdminShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="admin-nav-foot">
-          <Link href="/login" className="admin-nav-exit" title="切回项目空间需要重新登录">
+          <button
+            type="button"
+            className="admin-nav-exit"
+            title="切回项目空间需要重新登录"
+            onClick={() => void doLogout()}
+          >
             ⏎ 退出 · 回到登录
-          </Link>
+          </button>
           <Link href="/cockpit" className="admin-nav-exit alt" title="临时返回项目空间（仅当账号兼职 PD/TD 时可用）">
             ↗ 进入项目空间
           </Link>

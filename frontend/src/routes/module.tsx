@@ -5,7 +5,7 @@ import SkillAgentScreen from '@/components/screens/survey-agent';
 import ClawRail from '@/components/claw-rail';
 import { TweaksProvider, useTweaks } from '@/lib/tweaks-context';
 import { TweaksPanel } from '@/components/tweaks-panel';
-import { MODULE_SCHEMAS } from '@/data/modules-data';
+import { ALL_MODULES, MODULE_SCHEMAS } from '@/data/modules-data';
 
 /* 前端模块 key → 后端 skill_id：已注册后端 skill 的模块走 SDUI 通用作业界面 */
 const MODULE_TO_SKILL: Record<string, string> = {
@@ -18,7 +18,8 @@ const MODULE_TO_SKILL: Record<string, string> = {
 function ModuleInner({ moduleKey }: { moduleKey: string }) {
   const { tweaks, setTweak } = useTweaks();
   const schema = MODULE_SCHEMAS[moduleKey as keyof typeof MODULE_SCHEMAS];
-  const name = schema?.name || moduleKey;
+  const moduleEntry = ALL_MODULES.find(m => m.key === moduleKey);
+  const name = schema?.name ?? moduleEntry?.name ?? moduleKey;
   const skillId = MODULE_TO_SKILL[moduleKey];
 
   /* 有后端 skill 的模块走 LangGraph Agent 工作台（SDUI 通用界面）；其它沿用 mock ModuleRoute */
@@ -36,7 +37,11 @@ function ModuleInner({ moduleKey }: { moduleKey: string }) {
           />
         }
       >
-        <SkillAgentScreen skillId={skillId} title={name} description={schema?.subtitle} />
+        <SkillAgentScreen
+          skillId={skillId}
+          title={name}
+          description={schema?.subtitle ?? moduleEntry?.desc}
+        />
       </AppShell>
     );
   }

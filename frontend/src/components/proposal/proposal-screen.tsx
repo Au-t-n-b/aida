@@ -10,7 +10,6 @@ import { NetworkChapterWrapper } from './chapters/network-chapters';
 import { PartsChapter } from './chapters/parts-chapter';
 import { PlanChapter } from './chapters/plan-chapter';
 import { RaciChapter } from './chapters/raci-chapter';
-import { RiskChapterWrapper } from './chapters/risk-chapter';
 import { RoomChapter } from './chapters/room-chapter';
 import { ServiceChapterWrapper } from './chapters/service-chapters';
 import { SoftwareChapter } from './chapters/software-chapter';
@@ -29,10 +28,11 @@ import {
 } from './proposal-navigation';
 import { ProposalOutlineRail } from './proposal-outline-rail';
 import { VersionDropdown } from './proposal-version-dropdown';
+import { ProposalDataProvider, useProposalData } from '@/hooks/useProposalData';
 
-export default function ProposalScreen() {
+function ProposalScreenInner() {
+  const { dirty, setDirty, saveDraft, saveAndConfirm } = useProposalData();
   const [snapKey, setSnapKey] = useState<SnapKey>('dtrb');
-  const [dirty, setDirty] = useState(false);
   const [activeChapterKey, setActiveChapterKey] = useState<string | null>(null);
   const [pendingTip, setPendingTip] = useState<{ num: string; panel: string } | null>(null);
   const [outlineCollapsed, setOutlineCollapsed] = useState(false);
@@ -100,12 +100,22 @@ export default function ProposalScreen() {
     window.setTimeout(() => setDocToast(null), 2400);
   }, []);
 
-  const handleSaveDraft = useCallback(() => {
-    setDirty(false);
-    fireDocToast('草稿已保存 · 版本号不变');
-  }, [fireDocToast]);
+  const handleSaveDraft = useCallback(async () => {
+    try {
+      await saveDraft();
+      fireDocToast('草稿已保存 · 版本号不变');
+    } catch {
+      fireDocToast('保存失败 · 请确认 Agent 服务已启动');
+    }
+  }, [fireDocToast, saveDraft]);
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
+    try {
+      await saveAndConfirm();
+    } catch {
+      fireDocToast('保存失败 · 请确认 Agent 服务已启动');
+      return;
+    }
     setDirty(false);
     if (typeof window === 'undefined') return;
     const fire = (delay: number, detail: object) =>
@@ -135,7 +145,7 @@ export default function ProposalScreen() {
       ],
     });
     setTimeout(() => window.location.assign('/cockpit'), 2800);
-  }, [snapKey]);
+  }, [snapKey, saveAndConfirm, setDirty]);
 
   const snap = SNAPSHOTS[snapKey];
   const chapters = CHAPTERS_BY_SNAP[snapKey] || [];
@@ -232,7 +242,6 @@ export default function ProposalScreen() {
           <PlanChapter />
           <AcceptanceChapter />
           <TestCaseChapter />
-          <RiskChapterWrapper />
         </div>
 
         {docToast && <div className="boq-attach-toast">{docToast}</div>}
@@ -261,5 +270,13 @@ export default function ProposalScreen() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProposalScreen() {
+  return (
+    <ProposalDataProvider>
+      <ProposalScreenInner />
+    </ProposalDataProvider>
   );
 }

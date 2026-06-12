@@ -525,10 +525,16 @@ class SduiDataTableNode(BaseModel):
     rowKey: str | None = None
     checkKey: str | None = None          # 勾选列字段名（task_dispatch）
     fillLabel: str | None = None         # 「一键填充」按钮文案
+    deselectLabel: str | None = None     # 勾选型全选后切换为取消（如「一键取消」）
     fillRows: list[dict[str, Any]] | None = None  # 一键填充后的整组行
+    backLabel: str | None = None         # 表头「返回上一步」文案（run-patch go_back）
+    backStepId: str | None = None        # run-patch stepId，默认 go_back
     groupKey: str | None = None          # 分组列（esn 按设备大类）
+    groupAsTabs: bool | None = None      # True → 按 groupKey 分页签切换（替代表内分组头）
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
+    dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
+    patchAction: str | None = None         # dualMode 保存时 run-patch action（默认 task_progress）
 
 
 class SduiTabbedTableTab(BaseModel):
@@ -896,6 +902,30 @@ class SduiHitlTextInputNode(BaseModel):
     stepId: str | None = None
 
 
+class SduiHitlFormField(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+    placeholder: str | None = None
+    required: bool | None = None
+    defaultValue: str | None = None
+
+
+class SduiHitlFormNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["HitlForm"] = "HitlForm"
+    id: str | None = None
+    title: str
+    fields: list[SduiHitlFormField]
+    payloadKey: str | None = None
+    repeatable: bool | None = None
+    submitLabel: str | None = None
+    helpText: str | None = None
+    hitlRequestId: str | None = None
+    stepId: str | None = None
+
+
+
 # ── MachineRoom3D：3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）─────────────────
 
 class SduiRoom3DEntry(BaseModel):
@@ -1025,6 +1055,7 @@ SduiNode = Annotated[
         SduiFilePickerNode,
         SduiChoiceCardNode,
         SduiHitlTextInputNode,
+        SduiHitlFormNode,
     ],
     Field(discriminator="type"),
 ]

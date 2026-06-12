@@ -112,63 +112,52 @@ def check_project_files(root: Path) -> dict[str, Any]:
 
 
 def reset_workspace(root: Path) -> dict[str, Any]:
-    """重置会话：清空运行态与产物，保留上游源目录中的《设备安装实施计划》。
+    """重置会话：清空工作区运行态与产物，保留 Input/ 输入文件。
 
-    清除：
-      - ProjectData/Output/  全部产物（xlsx、报告等）
-      - ProjectData/RunTime/  tasks_state.json / sn_pool.json / sn_tables.json
-      - ProjectData/Start/、Images/（若有）
-    保留：
-      - DEVICE_INSTALL_SOURCE_ROOT 中的上游实施计划（不在 work_root 时不受影响）
-      - Input/ 中仅保留《设备安装实施计划.xlsx》副本（供 plan_receive 再同步）
+    清除 ProjectData 下 Output / RunTime / Start / Images；Input/ 不动。
+    上游源目录 DEVICE_INSTALL_SOURCE_ROOT 不在 work_root 内，不受影响。
     """
-    from .services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
-
     root = Path(root).resolve()
     pd = root / "ProjectData"
     removed: list[str] = []
-    kept_input_plan = False
 
     def _clear_dir(rel: str) -> None:
         d = pd / rel
         if not d.is_dir():
             return
         for p in list(d.iterdir()):
-            if not p.is_file():
-                continue
-            if p.name.startswith("~$"):
-                continue
-            try:
-                p.unlink()
-                removed.append(str(p.relative_to(root)))
-            except OSError:
-                pass
+            if p.is_file() and not p.name.startswith("~$"):
+                try:
+                    p.unlink()
+                    removed.append(str(p.relative_to(root)))
+                except OSError:
+                    pass
 
-    _clear_dir("Output")
-    _clear_dir("RunTime")
-    _clear_dir("Start")
-    _clear_dir("Images")
+    for sub in ("Output", "RunTime", "Start", "Images"):
+        _clear_dir(sub)
 
-    inp = pd / "Input"
-    if inp.is_dir():
-        for p in list(inp.iterdir()):
-            if not p.is_file() or p.name.startswith("~$"):
-                continue
-            if p.name == DISPATCH_PLAN_FILENAME:
-                kept_input_plan = True
-                continue
-            try:
-                p.unlink()
-                removed.append(str(p.relative_to(root)))
-            except OSError:
-                pass
+    # 输出目录被 DEVICE_INSTALL_OUTPUT_ROOT 外置（服务器/数据中心落点，
+    # 不在 ProjectData/Output 内）时，单独清理其中的产物文件。
+    from .path_config import get_output_dir
+    out_dir = get_output_dir().resolve()
+    if out_dir != (pd / "Output").resolve() and out_dir.is_dir():
+        for p in list(out_dir.iterdir()):
+            if p.is_file() and not p.name.startswith("~$"):
+                try:
+                    p.unlink()
+                    try:
+                        rel = str(p.relative_to(root))
+                    except ValueError:
+                        rel = str(p)
+                    removed.append(rel)
+                except OSError:
+                    pass
 
     return {
         "ok": True,
         "removed_count": len(removed),
         "removed": removed,
-        "kept_input_plan": kept_input_plan,
-        "message": "已清空运行态与产物，可重新接收上游实施计划并下发。",
+        "message": "已清空运行态与产物（Input 已保留），可重新启动主建设流程。",
     }
 
 

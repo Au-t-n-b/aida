@@ -30,11 +30,8 @@
   /* Brand (indigo = AI / interactive / active) */
   --c-brand: #3551d8;
   --c-brand-hover: #2a44c2;
-  --c-brand-active: #2640a8;   /* pressed / selected-strong (v4) */
   --c-brand-soft: #eef1fc;
-  --c-brand-softer: #f5f7fe;   /* hover row / edit-cell tint (v4) */
   --c-brand-text: #1e34a8;
-  --c-brand-line: #c7d0f5;     /* brand-soft 容器描边 (v4) */
 
   /* Status */
   --c-success: #0f9d58;
@@ -79,21 +76,20 @@
 
   /* Font sizes */
   --fs-10: 10px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px;
-  --fs-15: 15px; --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-22: 22px;
-  --fs-24: 24px; --fs-26: 26px; --fs-30: 30px; --fs-32: 32px;
+  --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-22: 22px;
+  --fs-24: 24px; --fs-26: 26px; --fs-32: 32px;
 
   /* Radii */
-  --r-xs: 4px; --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px; --r-pill: 999px;
+  --r-sm: 4px; --r-md: 6px; --r-lg: 8px; --r-xl: 12px; --r-pill: 999px;
 
   /* Shadows */
-  --shadow-xs: 0 1px 2px rgba(15,23,42,.04);
   --shadow-sm: 0 1px 2px rgba(15,23,42,.04), 0 1px 1px rgba(15,23,42,.03);
   --shadow-md: 0 4px 14px rgba(15,23,42,.06), 0 1px 4px rgba(15,23,42,.04);
   --shadow-lg: 0 12px 28px rgba(15,23,42,.10), 0 2px 6px rgba(15,23,42,.05);
 
   /* Spacing (8pt grid) */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
-  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px; --sp-12: 48px;
+  --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
 
   /* Layout */
   --nav-w: 232px;
@@ -252,10 +248,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   0%, 66%, 100% { opacity: 0; }
   33%            { opacity: 1; }
 }
-
-/* SDUI Table（SduiNodeView Table 节点）· 行 hover 提亮（v4 .d-dt） */
-.sdui-tbl tbody tr { transition: background .12s; }
-.sdui-tbl tbody tr:hover td { background: var(--c-surface-2); }
 
 
 /* ---------- App layout ---------- */
@@ -3280,7 +3272,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .lp-top-user-name { font-size: 12px; font-weight: 600; }
 .lp-top-user-title { font-size: 10px; color: #94a3b8; }
 .lp-top-user-av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #c7000a, #8a0007); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
-.lp-top-logout { font-size: 11px; color: #94a3b8; text-decoration: none; padding: 4px 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; }
+.lp-top-logout { font-size: 11px; color: #94a3b8; text-decoration: none; padding: 4px 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: transparent; cursor: pointer; font: inherit; }
 .lp-top-logout:hover { color: #fff; border-color: rgba(255,255,255,.3); }
 
 .lp-main { flex: 1; padding: 28px 32px 16px; max-width: 1280px; margin: 0 auto; width: 100%; }
@@ -5850,12 +5842,17 @@ html { scroll-behavior: smooth; }
 }
 .admin-nav-exit {
   display: block;
+  width: 100%;
   padding: 6px 8px;
   font-size: 11px;
   color: var(--zinc-300);
   border-radius: 4px;
   text-decoration: none;
   background: rgba(255,255,255,0.03);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
 }
 .admin-nav-exit:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .admin-nav-exit.alt   { color: var(--zinc-400); background: transparent; }
@@ -6381,3 +6378,102 @@ html { scroll-behavior: smooth; }
 .eval-metric-meaning { font-size: 11px; color: var(--c-text-muted); line-height: 1.5; margin-bottom: 6px; }
 .eval-metric-formula, .eval-metric-interpret { font-size: 10px; color: var(--c-text-faint); line-height: 1.5; margin-top: 4px; }
 .eval-metric-tag { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: .04em; color: var(--c-brand); margin-right: 6px; text-transform: uppercase; }
+
+/* ---------- Preview (contract + BOQ) typography & layout — match reference spec ----------
+ * Scoped to .preview-screen so nothing leaks to other pages. The earlier mid-file
+ * override region (~L3522-3553) is dead (parse break near mojibake comments), so
+ * everything the /preview tables need is restated here at EOF. */
+
+/* Panel titles 项目信息 / 合同列表 · 15px, left-aligned */
+.preview-screen .jn-panel-head { font-size: 15px; }
+
+/* Table headers · 14px / 600 / #475569 / 0.025em / left.
+ * nowrap+ellipsis stops the narrow-column vertical-text collapse (项目名称 → 项/目/名/称). */
+.preview-screen .proposal-link-table thead th,
+.preview-screen .contract-table thead th,
+.preview-screen .boq-hier-table thead th {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  letter-spacing: 0.025em !important;
+  text-align: left !important;
+  text-transform: none !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Table content · 13px / 400 / #334155 / 0.025em / left / line-height 1.625.
+ * color left without !important so the blue BOQ-name link & muted version cells keep their accent. */
+.preview-screen .proposal-link-table tbody td,
+.preview-screen .contract-table tbody td,
+.preview-screen .boq-hier-table tbody td {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: #334155;
+  letter-spacing: 0.025em !important;
+  text-align: left !important;
+  line-height: 1.625;
+}
+
+/* 项目信息 is a single-row table — keep every cell on one line */
+.preview-screen .proposal-link-table tbody td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* the sort button inside the 收入触发比例 header inherits the header look */
+.preview-screen .contract-table thead th .th-sort-btn {
+  color: #475569 !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  letter-spacing: 0.025em !important;
+  text-transform: none !important;
+}
+
+/* ===== Proposal page · uniform table typography (per spec) =====
+ * Headers 14/600/#475569/0.025em/left · content 13/400/#334155/0.025em/left/1.625.
+ * Scoped to .proposal-page; the more-specific selector beats Tailwind utilities,
+ * !important guards against inline styles. Pills (colored <span>s) keep their color. */
+.proposal-page table thead th {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  letter-spacing: 0.025em !important;
+  text-align: left !important;
+  text-transform: none !important;
+  white-space: nowrap !important;
+}
+.proposal-page table tbody td {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: #334155 !important;
+  letter-spacing: 0.025em !important;
+  text-align: left !important;
+  line-height: 1.625 !important;
+}
+.proposal-page table tbody td input,
+.proposal-page table tbody td select,
+.proposal-page table tbody td textarea {
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: #334155 !important;
+  letter-spacing: 0.025em !important;
+}
+/* 单元格内容最多 2 行，溢出省略号，title 悬浮看全文 */
+.proposal-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+/* 含 rowSpan 的表（RACI / SLA）：所有单元格统一左内边距，
+ * 覆盖 .tbl-light *:first-child{padding-left:0}——否则被合并行挤成首列的单元格会丢内边距、
+ * 与表头错位。统一 12px → 表头与内容同一竖线左对齐。 */
+.proposal-table-aligned th,
+.proposal-table-aligned td {
+  padding-left: 12px !important;
+}

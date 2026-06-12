@@ -441,7 +441,6 @@ def _build_assessment_panel(state: dict[str, Any]) -> SduiCardNode | None:
     )
 
 
-
 def _build_task_timeline(state: dict[str, Any]) -> SduiTaskTimelineStripNode | None:
     """勘测窗口 · 计划 vs 实际时间条（backlog #2）。
 

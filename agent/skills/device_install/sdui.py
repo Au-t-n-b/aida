@@ -29,7 +29,7 @@ from agent.sdui.builder import (
 from agent.sdui.projector_base import (
     collect_metrics, overall_status,
     artifact_kind,
-    build_header, build_stepper,
+    build_stepper,
     build_artifacts, build_hitl, build_editable_table,
 )
 
@@ -150,7 +150,7 @@ def _build_di_stepper(state: dict[str, Any]) -> SduiCardNode:
     base = build_stepper(state, step_names=DI_STEP_NAMES, orientation="horizontal")
     return SduiCardNode(
         id="stepper",
-        title="执行进度",
+        title="设备安装 · 执行进度",
         headerAction=SduiCardHeaderAction(
             label="重置会话",
             variant="primary",
@@ -187,41 +187,8 @@ def _donut_progress_color(pct: int) -> Literal["success", "warning", "error"]:
     return "error"
 
 
-def _build_task_progress_overview(rows: list[dict[str, Any]]) -> SduiRowNode:
-    """任务进展概览：DonutChart + StatisticRow（组件库标准组合）。"""
-    total = len(rows)
-    done = sum(1 for r in rows if str(r.get("status")) == "已完成")
-    in_prog = sum(1 for r in rows if str(r.get("status")) == "进行中")
-    pct = int(done / total * 100) if total else 0
-    tone = _donut_progress_color(pct)
-    return SduiRowNode(
-        id="task-progress-overview",
-        align="center",
-        gap="md",
-        children=[  # type: ignore[arg-type]
-            SduiDonutChartNode(
-                id="task-progress-donut",
-                segments=[
-                    SduiDonutSegment(label="已完成", value=pct, color=tone),
-                    SduiDonutSegment(label="剩余", value=max(0, 100 - pct), color="subtle"),
-                ],
-                centerLabel="完成率", centerValue=f"{pct}%",
-            ),
-            SduiStatisticRowNode(
-                id="task-progress-kpi",
-                flex=2,
-                items=[
-                    SduiStatisticRowItem(title="任务总数", value=f"{total} 条", color="accent"),
-                    SduiStatisticRowItem(title="已完成", value=f"{done} 条", color="success"),
-                    SduiStatisticRowItem(title="进行中", value=f"{in_prog} 条", color="warning"),
-                ],
-            ),
-        ],
-    )
-
-
-def _build_task_progress_table(state: dict[str, Any]) -> SduiCardNode | None:
-    """任务进展：概览环 + KPI + 只读 DataTable（progress/status 列走组件库单元格）。"""
+def _build_task_progress_table(state: dict[str, Any]) -> SduiDataTableNode | None:
+    """任务进展：组件库 DataTable（Tier B 展示/编辑双模式 · status/progress 列）。"""
     if not _show_task_progress(state):
         return None
     m = collect_metrics(state)
@@ -230,25 +197,25 @@ def _build_task_progress_table(state: dict[str, Any]) -> SduiCardNode | None:
         return None
     columns = [
         SduiDataTableColumn(key="unit", label="管理单元", type="text", width=110),
-        SduiDataTableColumn(key="activity_id", label="活动ID", type="text", width=80),
         SduiDataTableColumn(key="activity_name", label="活动名称", type="text"),
         SduiDataTableColumn(key="principal", label="责任人", type="text", width=90),
         SduiDataTableColumn(key="end_date", label="结束日期", type="text", width=110),
         SduiDataTableColumn(key="status", label="状态", type="status", width=90),
-        SduiDataTableColumn(key="progress", label="进度", type="progress", width=120),
+        SduiDataTableColumn(key="progress", label="进度", type="progress", width=140),
     ]
-    children: list[SduiNode] = [_build_task_progress_overview(rows)]
-    if _show_go_back_toolbar(state):
-        children.append(_build_back_toolbar_dt())
-    children.append(SduiDataTableNode(
+    return SduiDataTableNode(
         id="task-table-dt",
-        title=f"计划下发任务明细（{len(rows)} 条）",
+        title="任务进展",
         columns=columns,
         rows=rows,
         editable=False,
+        dualMode=True,
+        patchAction="task_progress",
         rowKey="id",
-    ))
-    return SduiCardNode(id="task-table", title="任务进展", children=children)
+        pageSize=10,
+        backLabel="返回上一步" if _show_go_back_toolbar(state) else None,
+        backStepId="go_back",
+    )
 
 
 def _build_back_toolbar_dt() -> SduiDataTableNode:
@@ -264,6 +231,14 @@ def _build_back_toolbar_dt() -> SduiDataTableNode:
     )
 
 
+def _unwrap_edit_table(card: SduiCardNode) -> SduiNode | None:
+    """从编辑 Card 中取出 DataTable（去掉外层 Card 标题/边框嵌套）。"""
+    for c in card.children or []:
+        if getattr(c, "type", None) == "DataTable":
+            return c
+    return None
+
+
 def _strip_edit_card_text_hints(card: SduiCardNode) -> SduiCardNode:
     """去掉编辑卡顶部 Text 说明（reason/subtitle）；计划下发表格标题已自解释。"""
     kept: list[SduiNode] = [
@@ -275,7 +250,7 @@ def _strip_edit_card_text_hints(card: SduiCardNode) -> SduiCardNode:
 
 
 def _show_go_back_toolbar(state: dict[str, Any]) -> bool:
-    """是否投影「返回上一步」工具条（ESN 填写步 / 流水线完成后不展示）。"""
+    """是否投影独立「返回上一步」工具条（ESN 填写步用表头内嵌按钮；流水线完成后不展示）。"""
     if _pipeline_done(state):
         return False
     hitl_step = (state.get("hitl") or {}).get("step")
@@ -284,14 +259,22 @@ def _show_go_back_toolbar(state: dict[str, Any]) -> bool:
     return can_go_back(state)
 
 
-def _build_editable_table_di(state: dict[str, Any]) -> SduiCardNode | None:
-    """在线编辑 HITL；可回退时在主表工具栏上方追加「返回上一步」条（ESN 填写步除外）。"""
+def _build_editable_table_di(state: dict[str, Any]) -> SduiNode | None:
+    """在线编辑 HITL；计划下发/ESN 填写仅保留 DataTable 一层；可回退时在主表上方追加工具条。"""
     card = build_editable_table(state)
     if not card:
-        return card
+        return None
     hitl_step = (state.get("hitl") or {}).get("step")
-    if hitl_step == "task_dispatch":
+    if hitl_step in ("task_dispatch", "esn_fill"):
         card = _strip_edit_card_text_hints(card)
+        table = _unwrap_edit_table(card)
+        if table:
+            extras: list[SduiNode] = []
+            if _show_go_back_toolbar(state):
+                extras.append(_build_back_toolbar_dt())
+            if not extras:
+                return table
+            return SduiStackNode(id=f"edit-stack-{hitl_step}", gap="sm", children=[*extras, table])
     if _show_go_back_toolbar(state):
         children: list[SduiNode] = list(card.children or [])
         children.insert(0, _build_back_toolbar_dt())
@@ -332,7 +315,7 @@ def _sdui_meta(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def project(state: dict[str, Any]) -> dict[str, Any]:
-    """SkillState → SduiDocument（顶栏 header + 横向 Stepper + 主内容区）。"""
+    """SkillState → SduiDocument（横向 Stepper + 主内容区）。"""
     status_key, _ = overall_status(state, DI_STEP_ORDER, paused_badge="待补充")
     is_idle = status_key == "idle"
 
@@ -343,15 +326,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         )
         return dump_sdui_json(doc)
 
-    # 顶部全宽：项目名 + 状态徽标 · 横向步骤条
     nodes: list[SduiNode] = [
-        build_header(
-            state,
-            default_name="设备安装",
-            cta_map={},
-            step_order=DI_STEP_ORDER,
-            paused_badge="待补充",
-        ),
         _build_di_stepper(state),
     ]
 
@@ -378,9 +353,15 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         step_result = _build_step_result_artifacts(state)
         side_content = [n for n in (step_result or build_artifacts(state),) if n]
         if main_content and side_content:
-            nodes.append(SduiDashboardLayoutNode(
-                id="di-dashboard", main=main_content, side=side_content,
-            ))
+            if _show_task_progress(state):
+                # ESN 完工后：任务进展全宽在上，作业结果全宽在下（不用 5:2 侧栏）
+                nodes.append(SduiStackNode(
+                    id="dash-main", gap="sm", children=main_content + side_content,
+                ))
+            else:
+                nodes.append(SduiDashboardLayoutNode(
+                    id="di-dashboard", main=main_content, side=side_content,
+                ))
         else:
             combined = main_content + side_content
             if combined:

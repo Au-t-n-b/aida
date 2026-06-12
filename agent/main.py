@@ -23,7 +23,7 @@ import uuid
 from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, Form, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
@@ -34,6 +34,7 @@ from .state import AgentState
 from .llm import healthcheck as llm_healthcheck, get_langfuse_callbacks
 from .chat_engine import run_chat, run_chat_async, DEFAULT_SYSTEM
 from .sog_routes import router as sog_router
+from .routers.proposal_mock import router as proposal_mock_router
 
 
 def _get_sdui_projector(skill_id: str):
@@ -59,6 +60,7 @@ def _get_skill_or_404(skill_id: str):
 
 app = FastAPI(title="AIDA Agent · zhgk pilot", version="0.1.0")
 app.include_router(sog_router)
+app.include_router(proposal_mock_router)
 
 # 允许前端 (Next.js dev server) 跨域
 app.add_middleware(
@@ -102,6 +104,10 @@ class ResumeReq(BaseModel):
     from_step: str | None = None  # 如 report_distribute：仅重试该步，不全量重跑
 
 
+class RunPatchReq(BaseModel):
+    run_id: str
+    payload: dict = {}
+
 # ─── 健康检查 ───
 
 @app.get("/healthz")
@@ -125,8 +131,21 @@ def healthz():
             out["ok"] = False
     out["skills"] = skills_health
     out["llm"] = llm_healthcheck()
+    try:
+        from .nanobot_integration.config_bridge import nanobot_status
+        out["nanobot"] = nanobot_status()
+    except Exception as e:  # noqa: BLE001
+        out["nanobot"] = {"enabled": False, "error": str(e)}
     if not out["llm"].get("configured"):
         out["ok"] = False
+    try:
+        from agent.skills.zhgk import sdui as _zhgk_sdui
+        out["zhgk_sdui"] = {
+            "file": _zhgk_sdui.__file__,
+            "has_3d_cockpit": hasattr(_zhgk_sdui, "_build_machine_room_3d"),
+        }
+    except Exception as e:  # noqa: BLE001
+        out["zhgk_sdui"] = {"error": str(e)}
     code = 200 if out["ok"] else 500
     return JSONResponse(status_code=code, content=out)
 
@@ -201,6 +220,29 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
     loop = asyncio.get_running_loop()
     RUNS[run_id]["_running_step"] = None   # {key, name, log_tail} | None
     _emit_cnt: dict[str, int] = {}         # step_key → emit 累计次数（节流用）
+    # full_restart 重放期间抑制中间 SDUI；sn_generate 与冷启动 preflight 一样需可见 running
+    _PACE_VISIBLE_ON_REPLAY = frozenset({"sn_generate"})
+    # 中间对话框日志：跨 resume 持久的「已展示步骤」集合（确保每步日志只在首次真正执行时出现一次：
+    # 冷启动→预检/收计划；点确认下发后→计划下发/SN；点提交ESN后→ESN。避免重放重复刷屏）。
+    _runlog_logged: set[str] = RUNS[run_id].setdefault("_runlog_logged", set())
+    _runlog_shown_pass: set[str] = set()   # 本 pass 实际放行的步骤（保证同一步起止/逐行一致）
+    # 主建设 build 流程末尾会串过辅助只读步，command 不匹配时 run 空转但仍会 step_started；
+    # 中间对话框不展示这类空气泡。
+    _BUILD_AUX_LOG_STEPS = frozenset({
+        "progress_query", "plan_query", "device_overview", "plan_adjust",
+    })
+
+    def _suppress_aux_run_log(step_key: str) -> bool:
+        if step_key not in _BUILD_AUX_LOG_STEPS:
+            return False
+        if skill_id != "device_install":
+            return False
+        project = (RUNS[run_id].get("state") or {}).get("project") or {}
+        try:
+            from agent.skills.device_install.steps._command_guard import should_skip
+            return should_skip(step_key, project)
+        except Exception:
+            return False
 
     def _patched_state_with_running() -> dict:
         """构造带 running 记录的临时 state（不修改原 state）。"""
@@ -221,10 +263,16 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             }],
         }
 
+    def _push_run_log(payload: dict) -> None:
+        """向中间对话框推一条逐行运行日志事件（线程安全 · 不节流）。"""
+        loop.call_soon_threadsafe(queue.put_nowait, {"event": "run_log", "data": payload})
+
     def _push_sdui_overlay() -> None:
         """用带 running 记录的 patched state 生成 SDUI 并推入队列（线程安全）。"""
         if suppress_replay:
-            return  # 重放期间不推中间帧
+            running = RUNS[run_id].get("_running_step") or {}
+            if running.get("key") not in _PACE_VISIBLE_ON_REPLAY:
+                return
         try:
             _proj = _get_sdui_projector(skill_id)
             if _proj is None:
@@ -248,6 +296,15 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
+            # 中间对话框：开一个该节点的日志气泡（节点名作标题）。
+            # 冷启动全部放行；重放仅放行尚未展示过的步骤（首次真正执行时）。
+            # build 主流程跳过的辅助只读步不展示。
+            if not _suppress_aux_run_log(d["step"]) and (
+                (not suppress_replay) or (d["step"] not in _runlog_logged)
+            ):
+                _runlog_shown_pass.add(d["step"])
+                _runlog_logged.add(d["step"])
+                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
 
         elif ev == "step_log":
             d = item["data"]
@@ -258,10 +315,18 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 tail.append(d["msg"])
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
+            # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
+            if step_key in _runlog_shown_pass:
+                _push_run_log({
+                    "step": step_key,
+                    "name": (running or {}).get("name", ""),
+                    "msg": d["msg"],
+                    "phase": "log",
+                })
             # 节流：每 5 条 emit 推一次 SDUI（避免高频 LLM step 频繁序列化）
             cnt = _emit_cnt.get(step_key, 0) + 1
             _emit_cnt[step_key] = cnt
-            if cnt % 5 == 0:
+            if (suppress_replay and step_key in _PACE_VISIBLE_ON_REPLAY) or cnt % 5 == 0:
                 _push_sdui_overlay()
 
     register_run_push(run_id, _thread_push)
@@ -284,9 +349,19 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                         cur.setdefault(k, []).extend(v)
                     else:
                         cur[k] = v
-                # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）。
-                # 重放期间跳过——避免逐帧爬升的回退闪烁。
-                if not suppress_replay:
+                # 中间对话框：节点完成 → 收尾对应日志气泡（仅本 pass 已放行的步骤 + 终态）
+                if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
+                    _last_status = ""
+                    _dsteps = diff.get("steps") if isinstance(diff, dict) else None
+                    if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
+                        _last_status = _dsteps[-1].get("status", "")
+                    if _last_status in ("completed", "failed"):
+                        await queue.put({"event": "run_log", "data": {
+                            "step": node_name,
+                            "phase": "done" if _last_status == "completed" else "failed",
+                        }})
+                # 重放期间跳过中间帧；sn_generate 完成帧仍推送（与 preflight 步进条体验一致）
+                if not suppress_replay or node_name in _PACE_VISIBLE_ON_REPLAY:
                     try:
                         _proj = _get_sdui_projector(skill_id)
                         if _proj is not None:
@@ -339,6 +414,18 @@ async def start_run(skill: str, req: StartReq):
     task = asyncio.create_task(_run_graph_streaming(run_id, init_state))
     RUNS[run_id] = {"queue": queue, "state": init_state, "task": task}
     return {"run_id": run_id, "status": "started"}
+
+
+@app.post("/agent/{skill}/reset-workspace")
+async def reset_workspace_endpoint(skill: str):
+    """重置 skill 工作区：清空 ProjectData 运行态与产物，保留 Input（重置会话时调用）。"""
+    skill_obj = _get_skill_or_404(skill)
+    handler = getattr(skill_obj, "file_handler", None)
+    reset_fn = getattr(handler, "reset_workspace", None) if handler else None
+    if not callable(reset_fn):
+        raise HTTPException(404, f"skill {skill} 不支持工作区重置")
+    summary = reset_fn(skill_obj.work_root)
+    return summary
 
 
 # ─── SSE 订阅 ───
@@ -483,15 +570,29 @@ async def chat_stream_endpoint(req: ChatReq):
 
         async def _chat_task() -> None:
             try:
-                async for ev in run_chat_async(
-                    req.message,
-                    history=req.history or None,
-                    system=_chat_system(ctx),
-                    trace_meta={"scope": "chat", "page": ctx.get("page", "")},
-                    conv_id=conv_id or None,
-                    skill_launch_cb=_skill_launch_cb,
-                    approval_cb=_approval_cb,
-                ):
+                from .nanobot_integration.nanobot_chat import (
+                    _enabled as _nanobot_chat_enabled,
+                    run_nanobot_chat_async,
+                )
+
+                if _nanobot_chat_enabled():
+                    chat_iter = run_nanobot_chat_async(
+                        req.message,
+                        conv_id=conv_id or None,
+                        system=_chat_system(ctx),
+                    )
+                else:
+                    chat_iter = run_chat_async(
+                        req.message,
+                        history=req.history or None,
+                        system=_chat_system(ctx),
+                        trace_meta={"scope": "chat", "page": ctx.get("page", "")},
+                        conv_id=conv_id or None,
+                        skill_launch_cb=_skill_launch_cb,
+                        approval_cb=_approval_cb,
+                    )
+
+                async for ev in chat_iter:
                     if ev.get("type") == "tool_call":
                         flags["had_tools"] = True
                     await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
@@ -615,6 +716,145 @@ async def _run_single_step_streaming(run_id: str, step_key: str) -> None:
         await queue.put(None)
 
 
+async def _run_tail_steps_streaming(run_id: str, start_step: str) -> None:
+    """从某个 step 起继续线性执行后续步骤，用于外部事件唤醒 wait_survey。"""
+    from .skills.base import SkillContext
+
+    queue: asyncio.Queue = RUNS[run_id]["queue"]
+    skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
+    skill = _get_skill_or_404(skill_id)
+    keys = [s.key for s in skill.steps]
+    if start_step not in keys:
+        await queue.put({"event": "error", "data": {"error": f"unknown step: {start_step}"}})
+        await queue.put(None)
+        return
+
+    state: AgentState = dict(RUNS[run_id]["state"])
+    state["hitl"] = {}
+    state["error"] = ""
+    RUNS[run_id]["state"] = state
+
+    try:
+        for step in skill.steps[keys.index(start_step):]:
+            cur_state: AgentState = dict(RUNS[run_id]["state"])
+            ctx = SkillContext(
+                skill_id=skill.name,
+                work_root=skill.work_root,
+                run_id=run_id,
+                project=cur_state.get("project") or {},
+                llm_factory=skill.llm_factory,
+                emit_push=None,
+            )
+
+            try:
+                RUNS[run_id]["_running_step"] = {"key": step.key, "name": step.name, "log_tail": []}
+                _proj_pre = _get_sdui_projector(skill_id)
+                if _proj_pre is not None:
+                    await queue.put({"event": "sdui", "data": _proj_pre(RUNS[run_id]["state"])})
+            except Exception:
+                pass
+
+            diff = skill.execute_step(step, cur_state, ctx)
+            RUNS[run_id]["_running_step"] = None
+            cur = RUNS[run_id]["state"]
+            for k, v in diff.items():
+                if k in ("logs", "steps") and isinstance(v, list):
+                    cur.setdefault(k, []).extend(v)
+                else:
+                    cur[k] = v
+            await queue.put({"event": "node_update", "data": {"node": step.key, "diff": diff}})
+            try:
+                _proj = _get_sdui_projector(skill_id)
+                if _proj is not None:
+                    await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
+            except Exception:
+                pass
+
+            hitl = (diff.get("hitl") or {}) if isinstance(diff.get("hitl"), dict) else {}
+            if hitl.get("step") or diff.get("error"):
+                break
+        else:
+            asyncio.create_task(_trigger_eval_background(run_id=run_id, skill_id=skill_id))
+        await queue.put({"event": "done", "data": {"run_id": run_id}})
+    except Exception as e:
+        RUNS[run_id]["_running_step"] = None
+        await queue.put({"event": "error", "data": {"error": str(e)}})
+    finally:
+        RUNS[run_id]["_running_step"] = None
+        await queue.put(None)
+
+
+def _schedule_auto_tail_resume(target: dict) -> dict:
+    """根据 auto_resume_target 的输出调度 tail resume；返回给 webhook 的状态。"""
+    if not target.get("should_resume"):
+        return {**target, "status": "not_resumed"}
+    run_id = str(target.get("run_id") or "")
+    step = str(target.get("step") or "wait_survey")
+    if run_id not in RUNS:
+        return {**target, "status": "accepted_but_run_not_found"}
+
+    state = RUNS[run_id].get("state") or {}
+    current_hitl_step = str((state.get("hitl") or {}).get("step") or "")
+    if current_hitl_step and current_hitl_step != step:
+        return {**target, "status": "accepted_but_run_not_waiting", "current_step": current_hitl_step}
+
+    old_task = RUNS[run_id].get("task")
+    if old_task and not old_task.done():
+        return {**target, "status": "already_running"}
+
+    RUNS[run_id]["queue"] = asyncio.Queue()
+    RUNS[run_id]["attempt"] = RUNS[run_id].get("attempt", 0) + 1
+    task = asyncio.create_task(_run_tail_steps_streaming(run_id, step))
+    RUNS[run_id]["task"] = task
+    return {**target, "status": "scheduled"}
+
+
+@app.post("/agent/{skill}/gkclaw/ingest")
+async def ingest_gkclaw_package(
+    skill: str,
+    package_file: UploadFile = File(..., alias="package"),
+    mail_id: int | None = Form(None),
+    x_aida_gkclaw_token: str | None = Header(None),
+):
+    """mailgw 主动回调：接收 GKCLAW 入站 ZIP，final 合并后自动唤醒 wait_survey。"""
+    expected = os.environ.get("AIDA_GKCLAW_INGEST_TOKEN", "").strip()
+    if expected and (x_aida_gkclaw_token or "") != expected:
+        raise HTTPException(status_code=401, detail="invalid gkclaw ingest token")
+
+    skill_obj = _get_skill_or_404(skill)
+    work_root = Path(skill_obj.work_root)
+    runtime_dir = work_root / "ProjectData" / "RunTime"
+    input_dir = work_root / "ProjectData" / "Input"
+    inbound_dir = runtime_dir / "gkclaw" / "_inbound_webhook"
+    inbound_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = Path(package_file.filename or "gkclaw-inbound.zip").name
+    zip_path = inbound_dir / f"{uuid.uuid4().hex[:10]}-{safe_name}"
+    with zip_path.open("wb") as f:
+        shutil.copyfileobj(package_file.file, f)
+
+    from .skills.base import SkillContext
+    from .skills.zhgk.steps.wait_survey import _get_survey_table
+    from .skills.zhgk.services.gkclaw.ingest import ingest_zip
+    from .skills.zhgk.services.gkclaw.auto_resume import auto_resume_target
+
+    ctx = SkillContext(skill_id=skill_obj.name, work_root=work_root, run_id="<webhook>")
+    survey_table = _get_survey_table(ctx)
+    ingest_result = ingest_zip(
+        zip_path,
+        runtime_dir=runtime_dir,
+        input_dir=input_dir,
+        survey_table_path=survey_table,
+        mail_id=mail_id,
+    )
+    target = auto_resume_target(runtime_dir=runtime_dir, ingest_result=ingest_result)
+    auto_resume = _schedule_auto_tail_resume(target)
+    return {
+        "ok": True,
+        "ingest": ingest_result,
+        "auto_resume": auto_resume,
+    }
+
+
 @app.post("/agent/{skill}/resume")
 async def resume_run(skill: str, req: ResumeReq):
     if req.run_id not in RUNS:
@@ -673,6 +913,30 @@ async def resume_run(skill: str, req: ResumeReq):
         "from_step": None,
         "message": "将从环境预检重新执行全流程（含场景筛选、勘测汇总、评估报告等）。",
     }
+
+
+@app.post("/agent/{skill}/run-patch")
+async def run_patch(skill: str, req: RunPatchReq):
+    """运行时轻量补丁（不重跑图）：任务进展改百分比、返回上一步等。"""
+    if req.run_id not in RUNS:
+        raise HTTPException(404, "run_id not found")
+    state = RUNS[req.run_id]["state"]
+    skill_id = state.get("skill_id", skill)
+    skill_obj = _get_skill_or_404(skill_id)
+    fh = skill_obj.file_handler
+    if fh is None or not hasattr(fh, "merge_run_patch"):
+        raise HTTPException(status_code=501, detail=f"skill '{skill_id}' 未实现 run-patch")
+    result = fh.merge_run_patch(skill_obj.work_root, state, req.payload or {})
+    if not result.get("ok"):
+        raise HTTPException(400, result.get("error") or "run-patch failed")
+    queue = RUNS[req.run_id].get("queue")
+    proj_fn = _get_sdui_projector(skill_id)
+    if queue is not None and proj_fn is not None:
+        try:
+            await queue.put({"event": "sdui", "data": proj_fn(RUNS[req.run_id]["state"])})
+        except Exception:
+            pass
+    return {"ok": True, **{k: v for k, v in result.items() if k != "ok"}}
 
 
 # ─── 文件上传 / HITL 齐备检查 ───
@@ -1046,8 +1310,13 @@ def get_ui_snapshot(skill: str, run_id: str):
     """返回指定 run 的当前 SDUI 文档（JSON）。前端断线重连或初始化时调用。"""
     if run_id not in RUNS:
         raise HTTPException(404, "run_id not found")
-    # full_restart 重放期间返回重放前的旧 state，避免快照回退到「环境准备」早期态
-    state = RUNS[run_id].get("display_state") or RUNS[run_id]["state"]
+    # full_restart 重放期间才用 display_state 兜底；暂停/完成后用最新 state（含 3D 驾驶舱等）
+    entry = RUNS[run_id]
+    task = entry.get("task")
+    if entry.get("display_state") and task is not None and not task.done():
+        state = entry["display_state"]
+    else:
+        state = entry["state"]
     skill_id = state.get("skill_id", skill)
     proj_fn = _get_sdui_projector(skill_id)
     if proj_fn is None:

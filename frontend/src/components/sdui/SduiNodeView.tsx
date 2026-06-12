@@ -731,6 +731,184 @@ function HitlTextInput({ node, onSubmit }: HitlTextProps) {
   );
 }
 
+type HitlFormProps = {
+  node: Extract<SduiNode, { type: 'HitlForm' }>;
+  onSubmit?: (payload: Record<string, unknown>, stepId?: string) => void;
+};
+
+function makeHitlFormRow(node: Extract<SduiNode, { type: 'HitlForm' }>): Record<string, string> {
+  const row: Record<string, string> = {};
+  for (const field of node.fields ?? []) {
+    row[field.key] = field.defaultValue ?? '';
+  }
+  return row;
+}
+
+function HitlForm({ node, onSubmit }: HitlFormProps) {
+  const [rows, setRows] = useState<Record<string, string>[]>([makeHitlFormRow(node)]);
+  const [submitted, setSubmitted] = useState(false);
+  const fields = node.fields ?? [];
+  const repeatable = !!node.repeatable;
+
+  const updateCell = (rowIndex: number, key: string, value: string) => {
+    setRows(prev => prev.map((row, i) => i === rowIndex ? { ...row, [key]: value } : row));
+  };
+  const addRow = () => setRows(prev => [...prev, makeHitlFormRow(node)]);
+  const removeRow = (rowIndex: number) => {
+    setRows(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== rowIndex));
+  };
+
+  const cleanedRows = rows
+    .map(row => Object.fromEntries(fields.map(f => [f.key, String(row[f.key] ?? '').trim()])))
+    .filter(row => Object.values(row).some(v => String(v).length > 0));
+  const canSubmit = !!onSubmit && cleanedRows.length > 0 && cleanedRows.every(row =>
+    fields.every(field => !field.required || String(row[field.key] ?? '').trim().length > 0)
+  );
+
+  const handleSubmit = () => {
+    if (!canSubmit || submitted) return;
+    const payloadKey = node.payloadKey ?? node.id ?? 'form';
+    setSubmitted(true);
+    onSubmit?.({ [payloadKey]: repeatable ? cleanedRows : (cleanedRows[0] ?? {}) }, node.stepId);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {(node.title || node.helpText) && (
+        <div style={{
+          borderLeft: '3px solid #3551d8',
+          background: 'var(--c-surface-2)',
+          padding: '10px 12px',
+          borderRadius: '0 6px 6px 0',
+          lineHeight: 1.5,
+        }}>
+          <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }}>
+            {node.title}
+          </div>
+          {node.helpText && (
+            <div style={{ marginTop: 2, fontSize: '11px', color: 'var(--text-tertiary)' }}>
+              {node.helpText}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: submitted ? 0.58 : 1 }}>
+        {rows.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: repeatable ? '1fr auto' : '1fr',
+              gap: 8,
+              alignItems: 'end',
+              padding: 10,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+            }}
+          >
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: fields.length > 1 ? 'repeat(auto-fit, minmax(130px, 1fr))' : '1fr',
+              gap: 8,
+              minWidth: 0,
+            }}>
+              {fields.map(field => (
+                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)' }}>
+                    {field.label}{field.required ? ' *' : ''}
+                  </span>
+                  <input
+                    value={row[field.key] ?? ''}
+                    onChange={(e) => updateCell(rowIndex, field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    disabled={submitted}
+                    style={{
+                      width: '100%',
+                      minWidth: 0,
+                      padding: '8px 10px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      outline: 'none',
+                      fontSize: '12.5px',
+                      color: 'var(--text-primary)',
+                      background: submitted ? 'var(--zinc-50)' : 'var(--surface)',
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            {repeatable && rows.length > 1 && !submitted && (
+              <button
+                type="button"
+                onClick={() => removeRow(rowIndex)}
+                style={{
+                  padding: '8px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                删除
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!submitted ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {repeatable && (
+            <button
+              type="button"
+              onClick={addRow}
+              style={{
+                padding: '6px 12px',
+                fontSize: 'var(--text-sm)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              添加一行
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            style={{
+              padding: '6px 14px',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: canSubmit ? '#3551d8' : 'var(--zinc-200)',
+              color: canSubmit ? '#fff' : 'var(--text-tertiary)',
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {node.submitLabel ?? '提交'}
+          </button>
+        </div>
+      ) : (
+        <span style={{ fontSize: 'var(--text-xs)', color: '#065f46', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
+          </svg>
+          已提交 · 等待处理中…
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── Gap token → px ────────────────────────────────────────────────────────────
 
 const GAP: Record<string, number> = { none: 0, xs: 6, sm: 10, md: 14, lg: 20, xl: 28 };
@@ -944,7 +1122,7 @@ function MachineRoom3DView({ node }: { node: SduiMachineRoom3DNode }) {
 }
 
 export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
-  const { onAction, onChoiceSubmit } = useSduiRuntime();
+  const { onAction, onChoiceSubmit, onFormSubmit } = useSduiRuntime();
 
   const renderChildren = (children: SduiNode[] | undefined) =>
     children?.map((child, i) => {
@@ -979,6 +1157,26 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       // 依赖 React key 机制：id 稳定的 Card（header/stepper/golden-metrics）不会 remount，
       // 不会重复动画；新出现的 Card（risk-top-alert/hitl-card）会 remount → 触发动画。
       const headerAction = (node as { headerAction?: { label: string; variant?: string; action: import('@/lib/sdui').SduiAction } }).headerAction;
+      const headerActionEl = headerAction ? (
+        <button
+          type="button"
+          onClick={() => onAction(headerAction.action)}
+          style={{
+            padding: '5px 12px',
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--fs-12)',
+            fontWeight: 500,
+            lineHeight: 1.25,
+            borderRadius: 'var(--r-sm)',
+            cursor: 'pointer',
+            border: headerAction.variant === 'primary' ? '1px solid var(--c-brand)' : '1px solid var(--c-border)',
+            background: headerAction.variant === 'primary' ? 'var(--c-brand)' : 'var(--c-surface)',
+            color: headerAction.variant === 'primary' ? '#fff' : 'var(--c-text-2)',
+          }}
+        >
+          {headerAction.label}
+        </button>
+      ) : undefined;
       // 可折叠卡：把次要明细（如 micro-step Stepper）收起，减轻信息墙（需 title）。
       if (node.collapsible && node.title) {
         return (
@@ -988,19 +1186,8 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
         );
       }
       return (
-        <Panel title={node.title ?? undefined} tone={panelTone}
+        <Panel title={node.title ?? undefined} action={headerActionEl} tone={panelTone}
                style={{ animation: 'sdui-node-in .28s cubic-bezier(.2,.65,.4,1) both' }}>
-          {headerAction && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <button
-                onClick={() => onAction(headerAction.action)}
-                style={{ padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 4, cursor: 'pointer',
-                  border: headerAction.variant === 'primary' ? '1px solid #3551d8' : '1px solid var(--border)',
-                  background: headerAction.variant === 'primary' ? '#3551d8' : 'var(--surface)',
-                  color: headerAction.variant === 'primary' ? '#fff' : 'var(--text-secondary)' }}
-              >{headerAction.label}</button>
-            </div>
-          )}
           {renderChildren(node.children)}
         </Panel>
       );
@@ -2041,6 +2228,9 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     case 'HitlTextInput':
       return <HitlTextInput node={node} onSubmit={onChoiceSubmit} />;
+
+    case 'HitlForm':
+      return <HitlForm node={node} onSubmit={onFormSubmit} />;
 
     default:
       return <UnknownNode type={(node as { type?: string }).type ?? '?'} />;

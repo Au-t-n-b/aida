@@ -90,7 +90,8 @@ class ZhgkSkill(BaseSkill):
           determine_gen   → project["generation_cooling"] = choice（用户手动指定时）
           data_append     → project["data_append_choice"] = choice（追加/跳过）
           confirm_table   → project["table_confirmed"] = True / redo 仅清 table_confirmed
-          task_dispatch   → project["dispatch_decision"] = choice（下发/跳过）
+          task_dispatch   → project["dispatch_decision"] = choice（下发/跳过）；
+                            payload["assignees"] 补充工勘人员
           wait_survey     → 文件型 HITL；若 resurvey_pending 则清 resurvey_decision
           resurvey_gate   → project["resurvey_decision"] = choice
           supplement_run  → project["supplement_choice"] = choice（追加/跳过）
@@ -114,8 +115,15 @@ class ZhgkSkill(BaseSkill):
         elif hitl_step == "supplement_run" and choice:
             project["supplement_choice"] = choice
 
-        elif hitl_step == "task_dispatch" and choice:
-            project["dispatch_decision"] = choice
+        elif hitl_step == "task_dispatch":
+            if choice:
+                project["dispatch_decision"] = choice
+            assignees_raw = payload.get("assignees") or payload.get("rows")
+            if assignees_raw:
+                from .steps.task_dispatch import normalize_assignees
+                assignees = normalize_assignees(assignees_raw)
+                if assignees:
+                    project["assignees"] = assignees
 
         elif hitl_step == "confirm_table":
             if choice == "confirm":

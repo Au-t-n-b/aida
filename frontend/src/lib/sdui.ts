@@ -229,10 +229,18 @@ export type SduiDataTableNode = OptId & {
   rowKey?: string;
   checkKey?: string;
   fillLabel?: string;
+  deselectLabel?: string;
   fillRows?: Record<string, unknown>[];
+  backLabel?: string;
+  backStepId?: string;
   groupKey?: string;
+  groupAsTabs?: boolean;
   pageSize?: number;
   requiredKeys?: string[];
+  /** Tier B 展示/编辑双模式（组件库 DataTable · 编辑/保存/取消） */
+  dualMode?: boolean;
+  /** dualMode 保存时 run-patch 的 action，默认 task_progress */
+  patchAction?: string;
 };
 
 /** TabbedTable — 页签表格，多组表格按页签切换。*/
@@ -358,6 +366,26 @@ export type SduiHitlTextInputNode = OptId & {
   stepId?: string;
 };
 
+export type SduiHitlFormField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  defaultValue?: string;
+};
+
+export type SduiHitlFormNode = OptId & {
+  type: 'HitlForm';
+  title: string;
+  fields: SduiHitlFormField[];
+  payloadKey?: string;
+  repeatable?: boolean;
+  submitLabel?: string;
+  helpText?: string;
+  hitlRequestId?: string;
+  stepId?: string;
+};
+
 // ── Union ─────────────────────────────────────────────────────────────────────
 
 // MachineRoom3D — 3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）
@@ -403,7 +431,7 @@ export type SduiNode =
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
   | SduiEmbeddedWebNode
-  | SduiFilePickerNode | SduiChoiceCardNode | SduiHitlTextInputNode;
+  | SduiFilePickerNode | SduiChoiceCardNode | SduiHitlTextInputNode | SduiHitlFormNode;
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
 

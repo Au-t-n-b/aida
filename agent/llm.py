@@ -25,6 +25,14 @@ _ENV_PATH = Path(__file__).parent / ".env"
 if _ENV_PATH.exists():
     load_dotenv(_ENV_PATH, override=False)
 
+# nanobot 配置优先（若存在 ~/.nanobot/config.json）
+try:
+    from .nanobot_integration.config_bridge import apply_nanobot_llm_to_env
+
+    apply_nanobot_llm_to_env()
+except Exception:
+    pass
+
 
 def _cfg() -> tuple[str, str, str]:
     api_key = os.environ.get("ZHIPU_API_KEY", "").strip()
@@ -176,6 +184,7 @@ def healthcheck() -> dict:
             "model": model,
             "api_key_set": bool(api_key),
             "api_key_prefix": api_key[:8] + "..." if len(api_key) > 12 else "(short)",
+            "source": os.environ.get("AIDA_LLM_SOURCE", "env"),
         }
         pk = os.environ.get("LANGFUSE_PUBLIC_KEY", "").strip()
         sk = os.environ.get("LANGFUSE_SECRET_KEY", "").strip()
