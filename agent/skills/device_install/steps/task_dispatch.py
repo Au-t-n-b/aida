@@ -110,7 +110,7 @@ def _plan_artifact_rel(ctx: SkillContext) -> str | None:
     inp = ctx.input_dir / DISPATCH_PLAN_FILENAME
     if inp.is_file():
         return ctx.rel(inp)
-    out = get_output_dir() / DISPATCH_PLAN_FILENAME
+    out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
     return output_rel(ctx.work_root, out) if out.is_file() else None
 
 
@@ -195,7 +195,7 @@ class TaskDispatchStep(BaseStep):
         st = load_tasks_state(state_path)
         tasks = [t for t in st.get("tasks", []) if isinstance(t, dict)]
 
-        out = get_output_dir() / DISPATCH_PLAN_FILENAME
+        out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
         generate_dispatch_plan_xlsx(tasks, str(out))
 
         dispatched = 0

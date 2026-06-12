@@ -123,7 +123,7 @@ class SnGenerateStep(BaseStep):
 
         artifacts: list[str] = []
         for tbl in tables:
-            out = generate_sn_xlsx(tbl, str(get_output_dir()))
+            out = generate_sn_xlsx(tbl, str(get_output_dir(ctx.project)))
             if out:
                 artifacts.append(output_rel(ctx.work_root, out))
 

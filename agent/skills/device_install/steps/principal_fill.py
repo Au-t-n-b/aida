@@ -108,7 +108,7 @@ class PrincipalFillStep(BaseStep):
         save_tasks_state(state_path, st)
 
         # 落地《责任人信息表.xlsx》：行来自真实任务，责任人/责任主体取已填真实值
-        out = get_output_dir() / "责任人信息表.xlsx"
+        out = get_output_dir(ctx.project) / "责任人信息表.xlsx"
         generate_principal_table(tasks, str(out))
         emit(
             f"[principal_fill] ✓ 已保存 {updated} 条责任人信息，"

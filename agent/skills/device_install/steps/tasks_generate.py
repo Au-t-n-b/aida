@@ -61,7 +61,7 @@ class TasksGenerateStep(BaseStep):
             return {"ok": False, "missing": ["ProjectData/Input/*任务计划*.xlsx"]}
         rows = _rows_from_tasks(tasks)
         # 预生成《设备安装全量任务》，作为本步「作业结果」展示（提交后会按编辑结果重生成）
-        out = get_output_dir() / "设备安装全量任务.xlsx"
+        out = get_output_dir(ctx.project) / "设备安装全量任务.xlsx"
         generate_full_tasks_xlsx(tasks, str(out))
         return {
             "ok": False,
@@ -107,7 +107,7 @@ class TasksGenerateStep(BaseStep):
             st["tasks_edited_at"] = iso_now()
             save_tasks_state(state_path, st)
 
-        out = get_output_dir() / "设备安装全量任务.xlsx"
+        out = get_output_dir(ctx.project) / "设备安装全量任务.xlsx"
         generate_full_tasks_xlsx(tasks, str(out))
         emit(f"[tasks_generate] ✓ 已确认全量任务表，共 {len(tasks)} 条（在线微调 {changed} 条）")
 

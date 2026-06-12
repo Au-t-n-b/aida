@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Any
 
 from .bridge import get_device_install_root, get_data_dir
 
@@ -21,16 +22,32 @@ def get_input_dir() -> Path:
     return p
 
 
-def get_output_dir() -> Path:
+def get_output_dir(project: dict[str, Any] | None = None) -> Path:
     """作业产物输出目录（责任人表、全量任务、实施计划、SN 扫码表、完工清单/报告）。
 
     优先级：
-      1. 环境变量 DEVICE_INSTALL_OUTPUT_ROOT（绝对路径 · 服务器/数据中心落点，
-         如 .../交付作业/设备安装/输出结果）
-      2. 默认 <work_root>/ProjectData/Output（本地开发/评测，/artifact 可下载）
+      1. 环境变量 DEVICE_INSTALL_OUTPUT_ROOT
+      2. 数据中心 .../交付作业/设备安装/输出结果
+      3. 默认 <work_root>/ProjectData/Output（本地开发/评测）
     """
     raw = os.environ.get("DEVICE_INSTALL_OUTPUT_ROOT", "").strip()
-    p = Path(raw) if raw else get_data_dir("Output")
+    if raw:
+        p = Path(raw)
+    else:
+        from .data_center_paths import get_dc_output_dir, resolve_project_id, get_business_root
+        from .services.source_files import _scan_source_dir_with_plan
+
+        dc = get_dc_output_dir(project)
+        if dc is not None and get_business_root() and resolve_project_id(project):
+            p = dc
+        elif get_business_root():
+            scanned = _scan_source_dir_with_plan()
+            if scanned is not None:
+                p = scanned.parents[2] / "交付作业" / "设备安装" / "输出结果"
+            else:
+                p = get_data_dir("Output")
+        else:
+            p = get_data_dir("Output")
     p.mkdir(parents=True, exist_ok=True)
     return p
 
