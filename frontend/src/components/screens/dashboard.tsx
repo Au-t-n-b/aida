@@ -1,12 +1,156 @@
 ﻿// @ts-nocheck
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import Link from '@/compat/link';
 import { RISKS, MILESTONES, RISK_SOURCES } from '../../data/app-data';
 import { DispatchTracker } from '../dispatch-tracker';
 import Drawer from '../drawer';
+
+const commonRoomReady = {
+  expectedEnd: '2025-12-01', actualEnd: '2026-03-10', progress: 100, common: true, owner: '严浩丁 00635652',
+};
+const deliveryMilestone = (expectedEnd, actualEnd, owner = '') => ({ expectedEnd, actualEnd, progress: actualEnd ? 100 : 0, owner });
+const deliveryPod = (id, arrival, cabling, powerOn, online, handover) => ({
+  pod: id,
+  batch: id.split('-')[0] || id,
+  stages: {
+    roomReady: commonRoomReady,
+    arrival: deliveryMilestone(...arrival),
+    cabling: deliveryMilestone(...cabling),
+    powerOn: deliveryMilestone(...powerOn),
+    online: deliveryMilestone(...online),
+    handover: deliveryMilestone(...handover),
+  },
+});
+
+const formatLocalDate = (value) => {
+  if (!value) return '';
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
+  return match?.[0] || '';
+};
+
+const addDeliveryDays = (date, days) => {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+};
+
+const currentWeekMonday = () => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const day = today.getDay() || 7;
+  return addDeliveryDays(today, 1 - day);
+};
+
+const parseProgress = (value, completed) => {
+  if (completed) return 100;
+  const parsed = Number.parseFloat(String(value || '').replace('%', ''));
+  return Number.isFinite(parsed) ? Math.max(0, Math.min(99, parsed)) : 0;
+};
+
+const DELIVERY_STAGE_MATCHERS = {
+  roomReady: name => name.includes('机房改造实施'),
+  arrival: name => name.includes('设备到货静置') || name.includes('设备静置'),
+  cabling: name => name.includes('综合布线与成端'),
+  powerOn: name => name.includes('设备上电'),
+  online: name => name.includes('集群性能调优'),
+  handover: name => name === '移交',
+};
+
+const parseDeliveryPlanWorkbook = async (arrayBuffer, projectId) => {
+  const XLSX = await import('xlsx');
+  const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: '', raw: false });
+  const pods = Array.from(new Set(rows.flatMap(row =>
+    String(row.MANAGEMENT_UNIT || '').split(',').map(unit => unit.trim()).filter(unit => /POD\d+$/i.test(unit)),
+  ))).sort();
+  if (!pods.length) throw new Error('Excel 中未找到 PoD');
+
+  const podMap = new Map(pods.map(pod => [pod, { pod, batch: pod.split('-')[0] || pod, stages: {} }]));
+  Object.entries(DELIVERY_STAGE_MATCHERS).forEach(([key, matcher]) => {
+    const matchingRows = rows.filter(row => matcher(String(row.ACTIVITY_NAME || '').trim()));
+    pods.forEach(pod => {
+      const candidates = matchingRows.filter(row => {
+        const units = String(row.MANAGEMENT_UNIT || '').split(',').map(unit => unit.trim()).filter(Boolean);
+        return units.length === 0 || units.includes(pod);
+      });
+      if (!candidates.length) return;
+      const completed = candidates.every(row =>
+        String(row.STATUS || '').includes('已完成') || Number.parseFloat(String(row.PROCESS || '').replace('%', '')) >= 100,
+      );
+      const expectedEnds = candidates.map(row => formatLocalDate(row.END_DATE)).filter(Boolean).sort();
+      const actualEnds = candidates.map(row => formatLocalDate(row.ACTUAL_END_DATE)).filter(Boolean).sort();
+      podMap.get(pod).stages[key] = {
+        expectedEnd: expectedEnds.at(-1) || '',
+        actualEnd: completed ? actualEnds.at(-1) || '' : '',
+        progress: Math.min(...candidates.map(row => parseProgress(row.PROCESS, String(row.STATUS || '').includes('已完成')))),
+        owner: String(candidates.find(row => row.PRINCIPAL)?.PRINCIPAL || ''),
+        common: candidates.some(row => !String(row.MANAGEMENT_UNIT || '').trim()),
+      };
+    });
+  });
+
+  const parsedPods = Array.from(podMap.values()).filter(pod =>
+    DELIVERY_FLOW_STAGES.every(({ key }) => pod.stages[key]?.expectedEnd),
+  );
+  if (!parsedPods.length) throw new Error('Excel 中未找到完整交付里程碑');
+  return { projectId, sourceLabel: '数据中心 Excel', pods: parsedPods };
+};
+
+/* 当前从交付计划表.xlsx 提取的回退快照。后续数据中心接口返回同一结构即可直接替换。 */
+const DELIVERY_PLAN_FALLBACK = {
+  projectId: 'K1903',
+  sourceLabel: '交付计划表.xlsx（本地回退）',
+  actualEndNeedsReview: true,
+  pods: [
+    ...['B2DH401-POD01', 'B2DH401-POD02', 'B2DH401-POD03', 'B2DH401-POD04'].map(id =>
+      deliveryPod(id, ['2026-01-11', '2026-03-10'], ['2026-01-19', '2026-03-10'], ['2026-01-21', '2026-03-10'], ['2026-02-01', '2026-03-11'], ['2026-02-04', '2026-03-10'])),
+    ...['B2DH402-POD05', 'B2DH402-POD06', 'B2DH402-POD07', 'B2DH402-POD08'].map(id =>
+      deliveryPod(
+        id,
+        ['2026-03-05', '2026-03-10'],
+        ['2026-03-15', '2026-03-15'],
+        ['2026-03-17', '2026-03-15'],
+        ['2026-04-01', id.endsWith('POD08') ? '' : '2026-04-02'],
+        ['2026-04-04', id.endsWith('POD08') ? '' : '2026-04-04'],
+      )),
+    deliveryPod('B2DH403-POD09', ['2026-01-19', '2026-03-10'], ['2026-01-17', '2026-03-10'], ['2026-01-24', '2026-03-10'], ['2026-01-31', '2026-03-10'], ['2026-02-04', '2026-03-10']),
+  ],
+};
+
+async function fetchDeliveryPlan(projectId = 'K1903') {
+  const endpoint = import.meta.env.VITE_DELIVERY_PLAN_API
+    || `/api/v1/projects/${encodeURIComponent(projectId)}/delivery-plan/milestones`;
+  const excelEndpoint = import.meta.env.VITE_DELIVERY_PLAN_XLSX_URL
+    || `/api/v1/projects/${encodeURIComponent(projectId)}/delivery-plan.xlsx`;
+  try {
+    const response = await fetch(endpoint, { cache: 'no-store', headers: { Accept: 'application/json' } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    const snapshot = payload.data || payload;
+    return { ...snapshot, sourceLabel: snapshot.sourceLabel || '数据中心' };
+  } catch {
+    try {
+      const response = await fetch(excelEndpoint, { cache: 'no-store' });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return await parseDeliveryPlanWorkbook(await response.arrayBuffer(), projectId);
+    } catch {
+      return DELIVERY_PLAN_FALLBACK;
+    }
+  }
+}
+
+const DELIVERY_GANTT_STYLES = `
+.delivery-gantt{border:1px solid rgba(226,232,240,.8)}.delivery-gantt-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px 12px;border-bottom:1px solid #eef2f7}.delivery-gantt-title{font-size:15px;line-height:22px;font-weight:700;color:#18181b}.delivery-gantt-head-right{display:flex;align-items:center;gap:14px}.delivery-gantt-legend{display:flex;align-items:center;gap:10px;color:#64748b;font-size:9px;font-weight:600}.delivery-gantt-legend span{display:flex;align-items:center;gap:4px;white-space:nowrap}.delivery-gantt-legend i{width:7px;height:7px;border-radius:50%}.delivery-gantt-legend .done{background:#10b981}.delivery-gantt-legend .delayed{background:#f59e0b}.delivery-gantt-legend .not-started{background:#94a3b8}.delivery-gantt-switch{display:inline-flex;padding:3px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}.delivery-gantt-switch button{border:0;border-radius:6px;padding:5px 12px;background:transparent;color:#64748b;font-size:10px;font-weight:600;cursor:pointer}.delivery-gantt-switch button.on{background:#fff;color:#2563eb;box-shadow:0 1px 3px rgba(15,23,42,.12)}.delivery-gantt-scroll{overflow:auto;max-height:430px}.delivery-gantt-canvas{min-width:1280px}.delivery-gantt-axis,.delivery-gantt-row{display:grid;grid-template-columns:150px 1fr}.delivery-gantt-axis{position:sticky;top:0;z-index:20;height:44px;border-bottom:1px solid #e2e8f0;background:rgba(248,250,252,.96)}.delivery-gantt-axis-label{position:sticky;left:0;z-index:24;display:flex;align-items:center;padding:0 16px;border-right:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:10px;font-weight:700}.delivery-gantt-axis-track,.delivery-gantt-row-track{position:relative}.delivery-gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid #cbd5e1}.delivery-gantt-tick span{position:absolute;top:13px;left:8px;white-space:nowrap;color:#64748b;font-size:10px;font-weight:600}.delivery-gantt-row{min-height:142px;border-bottom:1px solid #eef2f7;background:#fff;transition:background .15s}.delivery-gantt-row:hover{background:#f8fbff}.delivery-gantt-row-label{position:sticky;left:0;z-index:12;padding:16px;border-right:1px solid #e2e8f0;background:inherit}.delivery-gantt-row-title{display:flex;align-items:center;gap:7px;color:#334155;font-size:11px;font-weight:700}.delivery-gantt-row-title i{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 3px #d1fae5}.delivery-gantt-row-sub{margin-top:6px;color:#94a3b8;font-size:9px}.delivery-gantt-row-progress{height:4px;margin-top:10px;overflow:hidden;border-radius:999px;background:#e2e8f0}.delivery-gantt-row-progress span{display:block;height:100%;border-radius:inherit;background:#10b981}.delivery-gantt-grid{position:absolute;inset:0;pointer-events:none}.delivery-gantt-grid i{position:absolute;top:0;bottom:0;border-left:1px dashed #e2e8f0}.delivery-gantt-milestone{position:absolute;width:132px;min-height:35px;transform:translateX(-50%);border:1px solid #a7f3d0;border-radius:7px;padding:5px 7px 4px;background:linear-gradient(180deg,#ecfdf5 0%,#d1fae5 100%);color:#065f46;box-shadow:0 1px 3px rgba(15,23,42,.08);z-index:4}.delivery-gantt-milestone:after{content:"";position:absolute;left:50%;bottom:-6px;width:7px;height:7px;transform:translateX(-50%) rotate(45deg);border-right:1px solid #10b981;border-bottom:1px solid #10b981;background:#d1fae5}.delivery-gantt-milestone.is-delayed{border-color:#fbbf24;background:linear-gradient(180deg,#fffbeb 0%,#fef3c7 100%);color:#92400e}.delivery-gantt-milestone.is-delayed:after{border-color:#f59e0b;background:#fef3c7}.delivery-gantt-milestone.is-not-started{border-color:#cbd5e1;background:linear-gradient(180deg,#f8fafc 0%,#e2e8f0 100%);color:#475569}.delivery-gantt-milestone.is-not-started:after{border-color:#94a3b8;background:#e2e8f0}.delivery-gantt-milestone-head,.delivery-gantt-milestone-dates{display:flex;align-items:center;justify-content:space-between;gap:5px}.delivery-gantt-milestone-head span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;font-weight:700}.delivery-gantt-milestone-head b{font-size:9px;font-weight:800}.delivery-gantt-milestone-dates{margin-top:2px;color:currentColor;opacity:.76;font-size:8px}.delivery-gantt-milestone-progress{height:2px;margin-top:4px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.75)}.delivery-gantt-milestone-progress span{display:block;height:100%;border-radius:inherit;background:currentColor}
+`;
 
 /* ── tiny icons ── */
 const IcSparkle = () => (
@@ -1092,16 +1236,163 @@ function StageProgressTable({ onDrill, embedded = false }: { onDrill?: (k: strin
   );
 }
 
-/** 总计划 + 作业进展 · 融合为单一作业流卡片 */
-function PlanProgressSection({ onDrill }) {
+const DELIVERY_FLOW_STAGES = [
+  { key: 'roomReady', label: '机房 ready' },
+  { key: 'arrival', label: '到货' },
+  { key: 'cabling', label: '综合布线' },
+  { key: 'powerOn', label: '设备上电' },
+  { key: 'online', label: '上线' },
+  { key: 'handover', label: '移交' },
+];
+
+const DELIVERY_TIMELINE_START = new Date('2025-11-20T00:00:00');
+const DELIVERY_TIMELINE_END = addDeliveryDays(currentWeekMonday(), 28);
+const DELIVERY_TIMELINE_TICKS = (() => {
+  const ticks = [];
+  const cursor = new Date(DELIVERY_TIMELINE_START.getFullYear(), DELIVERY_TIMELINE_START.getMonth() + 1, 1);
+  while (cursor <= DELIVERY_TIMELINE_END) {
+    ticks.push({ date: formatLocalDate(cursor), label: `${cursor.getFullYear()}年 ${cursor.getMonth() + 1}月` });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return ticks;
+})();
+
+const deliveryDateLabel = (date) => {
+  if (!date) return '待回填';
+  const [, month, day] = date.split('-');
+  return `${Number(month)}/${Number(day)}`;
+};
+
+const deliveryTimelineLeft = (date) => {
+  const value = new Date(`${date}T00:00:00`).getTime();
+  const start = DELIVERY_TIMELINE_START.getTime();
+  const end = DELIVERY_TIMELINE_END.getTime();
+  return `${Math.max(0, Math.min(100, ((value - start) / (end - start)) * 100))}%`;
+};
+
+const makeBatchRows = (pods) => {
+  const batches = new Map();
+  pods.forEach(pod => {
+    const current = batches.get(pod.batch) || { batch: pod.batch, pods: [] };
+    current.pods.push(pod.pod);
+    current.sourcePods = [...(current.sourcePods || []), pod];
+    batches.set(pod.batch, current);
+  });
+  return Array.from(batches.values()).map(batch => ({
+    batch: batch.batch,
+    pods: batch.pods,
+    stages: Object.fromEntries(DELIVERY_FLOW_STAGES.map(({ key }) => {
+      const stages = batch.sourcePods.map(pod => pod.stages[key]);
+      const allCompleted = stages.every(stage => stage.actualEnd);
+      return [key, {
+        expectedEnd: stages.map(stage => stage.expectedEnd).sort().at(-1),
+        actualEnd: allCompleted ? stages.map(stage => stage.actualEnd).sort().at(-1) : '',
+        progress: Math.min(...stages.map(stage => stage.progress)),
+        owner: stages.find(stage => stage.owner)?.owner || '',
+        common: stages.some(stage => stage.common),
+      }];
+    })),
+  }));
+};
+
+function DeliveryTimelineAxis() {
   return (
-    <div className={`cockpit-plan-flow bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden`}>
-      <div className="flex items-center justify-between px-5 pt-4 pb-2">
-        <span className="text-base font-semibold text-zinc-900">交付作业流</span>
-        <span className="text-[11px] text-zinc-400">计划 · 进展 · K1903</span>
+    <div className="delivery-gantt-axis">
+      <div className="delivery-gantt-axis-label">时间线</div>
+      <div className="delivery-gantt-axis-track">
+        {DELIVERY_TIMELINE_TICKS.map(tick => (
+          <div key={tick.date} className="delivery-gantt-tick" style={{ left: deliveryTimelineLeft(tick.date) }}>
+            <span>{tick.label}</span>
+          </div>
+        ))}
       </div>
-      <SupplyPlanTimeline embedded />
-      <StageProgressTable onDrill={onDrill} embedded />
+    </div>
+  );
+}
+
+const deliveryPodLabel = (pod) => {
+  const match = pod.match(/POD(\d+)$/i);
+  return match ? `PoD${match[1]}` : pod;
+};
+
+function DeliveryGanttRow({ item, kind }) {
+  const id = kind === 'pod' ? deliveryPodLabel(item.pod) : item.batch;
+  const count = kind === 'batch' ? `${item.pods.length} 个 PoD` : item.batch;
+  const stages = DELIVERY_FLOW_STAGES.map(({ key }) => item.stages[key]);
+  const overallProgress = Math.round(stages.reduce((sum, stage) => sum + stage.progress, 0) / stages.length);
+  return (
+    <div className="delivery-gantt-row">
+      <div className="delivery-gantt-row-label">
+        <div className="delivery-gantt-row-title"><i />{id}</div>
+        <div className="delivery-gantt-row-sub">{count} · 整体完成 {overallProgress}%</div>
+        <div className="delivery-gantt-row-progress"><span style={{ width: `${overallProgress}%` }} /></div>
+      </div>
+      <div className="delivery-gantt-row-track">
+        <div className="delivery-gantt-grid">
+          {DELIVERY_TIMELINE_TICKS.map(tick => <i key={tick.date} style={{ left: deliveryTimelineLeft(tick.date) }} />)}
+        </div>
+        {DELIVERY_FLOW_STAGES.map((meta, index) => {
+          const stage = item.stages[meta.key];
+          const notStarted = stage.progress === 0 && !stage.actualEnd;
+          const delayed = !stage.actualEnd && stage.progress > 0 && stage.expectedEnd < formatLocalDate(new Date());
+          const statusClass = notStarted ? ' is-not-started' : delayed ? ' is-delayed' : '';
+          return (
+            <div
+              key={meta.key}
+              className={`delivery-gantt-milestone${statusClass}`}
+              style={{ left: deliveryTimelineLeft(stage.expectedEnd), top: `${8 + (index % 3) * 42}px` }}
+              title={`${meta.label} · 预计结束 ${stage.expectedEnd} · 实际结束 ${stage.actualEnd || '待回填'} · ${stage.progress}%`}
+            >
+              <div className="delivery-gantt-milestone-head">
+                <span>{meta.label}</span>
+                <b>{stage.progress}%</b>
+              </div>
+              <div className="delivery-gantt-milestone-dates">
+                <span>预计 {deliveryDateLabel(stage.expectedEnd)}</span>
+                <span>实际 {deliveryDateLabel(stage.actualEnd)}</span>
+              </div>
+              <div className="delivery-gantt-milestone-progress"><span style={{ width: `${stage.progress}%` }} /></div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PlanProgressSection({ snapshot }) {
+  const [view, setView] = useState('pod');
+
+  const rows = view === 'pod' ? snapshot.pods : makeBatchRows(snapshot.pods);
+  return (
+    <div className={`cockpit-plan-flow delivery-gantt bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden`}>
+      <style>{DELIVERY_GANTT_STYLES}</style>
+      <div className="delivery-gantt-head">
+        <div>
+          <div className="delivery-gantt-title">交付作业流</div>
+        </div>
+        <div className="delivery-gantt-head-right">
+          <div className="delivery-gantt-legend">
+            <span><i className="done" />已完成</span>
+            <span><i className="delayed" />延期</span>
+            <span><i className="not-started" />未开始</span>
+          </div>
+          <div className="delivery-gantt-switch">
+            <button className={view === 'pod' ? 'on' : ''} onClick={() => setView('pod')}>Pod 里程碑</button>
+            <button className={view === 'batch' ? 'on' : ''} onClick={() => setView('batch')}>批次里程碑</button>
+          </div>
+        </div>
+      </div>
+      <div className="delivery-gantt-scroll">
+        <div className="delivery-gantt-canvas">
+          <DeliveryTimelineAxis />
+          <div className="delivery-gantt-rows">
+            {rows.map(item => (
+              <DeliveryGanttRow key={view === 'pod' ? item.pod : item.batch} item={item} kind={view} />
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1116,24 +1407,32 @@ const PROGRESS_LINES = [
   { label: '昨日进展', text: '完成预布线 0PoD、完成到货 0PoD、完成成端&理线 1PoD、完成加电 0PoD、完成压测 0PoD、完成验收 0PoD' },
 ];
 
-/* 总体进展结构化（5.31）：从 PROGRESS_LINES 同源的演示数据拆成「时段 × 工序」网格，
- * 取代 4 行截断长文本。纯展示 mock，不影响任何 state / 业务逻辑。 */
-const PROGRESS_COLS = ['预布线', '到货', '成端&理线', '加电', '压测', '验收'];
-const PROGRESS_MATRIX = [
-  { label: '当前', accent: true,  vals: [37, 37, 37, 32, 8, 8] },
-  { label: '上周', accent: false, vals: [0, 1, 13, 15, 0, 0] },
-  { label: '本周', accent: false, vals: [0, 0, 1, 4, 0, 0] },
-  { label: '昨日', accent: false, vals: [0, 0, 1, 0, 0, 0] },
+const PROGRESS_SUMMARY = [
+  { label: '本周完成', text: '完成 1 个 PoD 的综合布线与成端，并完成 4 个 PoD 的设备上电。' },
+  { label: '上周完成', text: '完成 1 个 PoD 的设备到货、13 个 PoD 的综合布线与成端，以及 15 个 PoD 的设备上电。' },
+  { label: '上月完成', text: '交付工作集中推进至设备上电阶段，累计完成 37 个 PoD 的到货与综合布线、32 个 PoD 的设备上电。' },
 ];
 
-/* 结构化：右侧提取「滞后天数」对齐展示，取代纯省略号截断（5.31，展示 mock）*/
-const DELAY_ITEMS = [
-  { text: 'O1 A3框架_WHYJ 5月12日PoD交付：输出工勘报告实际开始时间已延期（侯克照 00578443）', lag: '滞后 5 天' },
-  { text: 'O1 A3框架_WHYJ 5月12日PoD交付：L1机房准备实际开始时间已延期（王文涛 00664696）', lag: '滞后 3 天' },
-  { text: 'K1903 B2-RM02 配电节点：市电引入审批滞后 9 天，影响上电（李伟 00603554）', lag: '滞后 9 天' },
-];
+const getDelayedActivities = (snapshot) => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return snapshot.pods.flatMap(pod => DELIVERY_FLOW_STAGES.flatMap(meta => {
+    const stage = pod.stages[meta.key];
+    if (!stage || stage.actualEnd || stage.progress <= 0 || stage.expectedEnd >= formatLocalDate(today)) return [];
+    const delayDays = Math.max(1, Math.floor((today.getTime() - new Date(`${stage.expectedEnd}T00:00:00`).getTime()) / 86400000));
+    const item = {
+      pod: deliveryPodLabel(pod.pod),
+      activity: meta.label,
+      owner: stage.owner || '待明确',
+      delayDays,
+      progress: stage.progress,
+      expectedEnd: stage.expectedEnd,
+    };
+    return [item];
+  }));
+};
 
-function ProgressSummaryRow({ onDrill }) {
+function ProgressSummaryRow({ delayItems }) {
   return (
     /* 两列 grid：总体进展(3fr) + 活动延期(2fr)，与原 CSS 比例一致 */
     <div className="grid grid-cols-[3fr_2fr] gap-6">
@@ -1142,68 +1441,57 @@ function ProgressSummaryRow({ onDrill }) {
       <div className={`bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden p-5`}>
         <div className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50">
           <span className="text-base font-semibold text-zinc-900">总体进展</span>
-          <button
-            className="text-[10px] text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
-            onClick={() => onDrill?.('milestone')}
-          >
-            里程碑 →
-          </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full cockpit-data-table" style={{ borderCollapse: 'collapse' }}>
-            <thead>
-              <tr className="border-b border-zinc-100/50 bg-zinc-50/80">
-                <th className="text-left text-[11px] font-medium text-zinc-500 py-1.5 px-2.5 whitespace-nowrap">时段 · PoD</th>
-                {PROGRESS_COLS.map(c => (
-                  <th key={c} className="text-right text-[11px] font-medium text-zinc-500 py-1.5 px-2 whitespace-nowrap">{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {PROGRESS_MATRIX.map((row, i) => (
-                <tr key={i} className={`border-b border-zinc-100/50 last:border-b-0${row.accent ? ' bg-blue-50/50' : ''}`}>
-                  <td className={`text-[11px] py-1.5 px-2.5 whitespace-nowrap ${row.accent ? 'font-medium text-zinc-700' : 'text-zinc-600'}`}>
-                    {row.label}
-                  </td>
-                  {row.vals.map((v, j) => (
-                    <td
-                      key={j}
-                      className={`text-right text-[11px] py-1.5 px-2 tabular-nums ${
-                        v === 0 ? 'text-zinc-300' : row.accent ? 'font-medium text-zinc-700' : 'text-zinc-600'
-                      }`}
-                    >
-                      {v}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-col gap-3">
+          {PROGRESS_SUMMARY.map(item => (
+            <div key={item.label} className="flex items-start gap-3 border-b border-zinc-100/70 pb-3 last:border-b-0 last:pb-0">
+              <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-1 text-[10px] font-semibold text-zinc-600">{item.label}</span>
+              <p className="pt-0.5 text-[11px] leading-5 text-zinc-600">{item.text}</p>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* 右：活动延期 */}
       <div className={`bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden p-5`}>
         <div className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50">
-          <span className="text-base font-semibold text-zinc-900">活动延期</span>
-          <button
-            className="text-[10px] text-zinc-400 hover:text-zinc-600 transition-colors cursor-pointer"
-            onClick={() => onDrill?.('dispatch')}
-          >
-            下发追踪 →
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="text-base font-semibold text-zinc-900">活动延期</span>
+            {delayItems.length > 0 && (
+              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+                {delayItems.length} 项待关注
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-2">
-          {DELAY_ITEMS.map((d, i) => (
+        <div className="flex flex-col gap-3">
+          {delayItems.map(d => (
             <div
-              key={i}
-              className="flex items-center gap-2 border-l-2 border-amber-700/40 pl-2 min-w-0"
-              title={d.text}
+              key={`${d.pod}-${d.activity}`}
+              className="rounded-xl border border-amber-100 bg-gradient-to-r from-amber-50/80 to-white px-3.5 py-3"
             >
-              <span className="text-[11px] text-zinc-600 truncate flex-1 min-w-0">{d.text}</span>
-              <span className="text-[12px] font-semibold text-amber-700 whitespace-nowrap tabular-nums shrink-0">{d.lag}</span>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold text-zinc-800">{d.pod}</span>
+                    <span className="h-3 w-px bg-amber-200" />
+                    <span className="truncate text-[11px] font-medium text-zinc-700">{d.activity}</span>
+                  </div>
+                  <p className="mt-1.5 text-[10px] leading-4 text-zinc-500">
+                    计划于 {deliveryDateLabel(d.expectedEnd)} 完成，目前已完成 {d.progress}%，由 {d.owner} 负责跟进。
+                  </p>
+                </div>
+                <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">
+                  延期 {d.delayDays} 天
+                </span>
+              </div>
             </div>
           ))}
+          {delayItems.length === 0 && (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3.5 py-3 text-[11px] text-emerald-700">
+              当前没有未完成的延期活动，交付节奏正常。
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -1540,11 +1828,11 @@ function ITOTable({ title, subtitle, data, onDrill }) {
 /* 5.31 · 项目体检头条 + 异常聚合（P0）
  * 整体完成度 / 异常数全部用现有展示常量派生，零改 state / 业务逻辑。
  * 异常拆解可点击下钻：延期→dispatch · 超期→risk · 待处理→agent */
-function ProjectHealthHeader({ onDrill }) {
+function ProjectHealthHeader({ onDrill, delayItems = [] }) {
   const totalDone = PROJECT_STAGES.reduce((s, x) => s + x.done, 0);
   const totalAll  = PROJECT_STAGES.reduce((s, x) => s + x.total, 0);
   const overallPct = totalAll > 0 ? Math.round((totalDone / totalAll) * 100) : 0;
-  const delays  = DELAY_ITEMS.length;
+  const delays  = delayItems.length;
   const overdue = RISK_STATS_AGG.overdue;
   const pendingRow = PROB_MULTI.find(x => x.status === '待处理');
   const pending = pendingRow ? pendingRow.high + pendingRow.medium + pendingRow.low : 0;
@@ -1609,6 +1897,17 @@ function ProjectHealthHeader({ onDrill }) {
 
 export default function DashboardScreen() {
   const [searchParams] = useSearchParams();
+  const [deliverySnapshot, setDeliverySnapshot] = useState(DELIVERY_PLAN_FALLBACK);
+  const delayedActivities = useMemo(() => getDelayedActivities(deliverySnapshot), [deliverySnapshot]);
+
+  useEffect(() => {
+    let active = true;
+    fetchDeliveryPlan('K1903').then(data => {
+      if (active) setDeliverySnapshot(data);
+    });
+    return () => { active = false; };
+  }, []);
+
   const view = searchParams.get('view');
   if (view === '底座' || view === 'foundation') {
     return <Navigate to="/twin" replace />;
@@ -1619,8 +1918,8 @@ export default function DashboardScreen() {
   return (
     <>
     <div className="cockpit-page">
-      <PlanProgressSection onDrill={setDrill} />
-      <ProgressSummaryRow onDrill={setDrill} />
+      <PlanProgressSection snapshot={deliverySnapshot} />
+      <ProgressSummaryRow delayItems={delayedActivities} />
 
       <div className="grid grid-cols-3 gap-3">
         <WorkOrderMonthChart onDrill={setDrill} />
