@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { ParticleLogin } from './ParticleLogin';
 import { GlassLogin } from './GlassLogin';
 import { StyleSwitch, type LoginStyle } from './StyleSwitch';
@@ -19,15 +19,24 @@ const DEFAULT_STYLE: LoginStyle = 'glass';
 export function LoginPage() {
   const [style, setStyle] = useState<LoginStyle>(DEFAULT_STYLE);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAidaSession();
+  const from =
+    typeof location.state === 'object' &&
+    location.state &&
+    'from' in location.state &&
+    typeof (location.state as { from?: unknown }).from === 'string'
+      ? (location.state as { from: string }).from
+      : '/landing';
 
   async function handleLogin(account: string, password: string) {
     try {
       await login(account, password, 'K1903');
-      navigate('/landing');
+      navigate(from === '/login' ? '/landing' : from, { replace: true });
     } catch (err) {
-      const message = err instanceof Error ? err.message : '登录失败';
-      window.alert(`AIDA 登录失败：${message}`);
+      const message = err instanceof Error ? err.message : '登录失败，请重试';
+      console.error('[AIDA login] 鉴权失败', { account, message, err });
+      throw new Error(message);
     }
   }
 

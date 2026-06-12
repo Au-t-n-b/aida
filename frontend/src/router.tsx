@@ -1,4 +1,5 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { GuestOnly, RequireAuth, RequireProject, RootRedirect } from '@/lib/auth-guard';
 import LoginPage from '@/routes/login';
 import LandingPage from '@/routes/landing';
 import CockpitPage from '@/routes/cockpit';
@@ -25,31 +26,201 @@ import ChatPage from '@/routes/chat';
 import SduiPreviewPage from '@/routes/sdui-preview';
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/cockpit" replace /> },
-  { path: '/login', element: <LoginPage /> },
-  { path: '/landing', element: <LandingPage /> },
-  { path: '/cockpit', element: <CockpitPage /> },
-  { path: '/assets', element: <AssetsPage /> },
-  { path: '/config', element: <ConfigPage /> },
-  { path: '/design', element: <DesignPage /> },
-  { path: '/twin', element: <TwinPage /> },
-  { path: '/twin/survey', element: <TwinSurveyPage /> },
+  { path: '/', element: <RootRedirect /> },
+  {
+    path: '/login',
+    element: (
+      <GuestOnly>
+        <LoginPage />
+      </GuestOnly>
+    ),
+  },
+  {
+    path: '/landing',
+    element: (
+      <RequireAuth>
+        <LandingPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/cockpit',
+    element: (
+      <RequireAuth>
+        <RequireProject>
+          <CockpitPage />
+        </RequireProject>
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/assets',
+    element: (
+      <RequireAuth>
+        <AssetsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/config',
+    element: (
+      <RequireAuth>
+        <ConfigPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/design',
+    element: (
+      <RequireAuth>
+        <DesignPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/twin',
+    element: (
+      <RequireAuth>
+        <TwinPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/twin/survey',
+    element: (
+      <RequireAuth>
+        <TwinSurveyPage />
+      </RequireAuth>
+    ),
+  },
   { path: '/foundation', element: <Navigate to="/twin" replace /> },
-  { path: '/plan-init', element: <PlanInitPage /> },
-  { path: '/plan-adjust', element: <PlanAdjustPage /> },
-  { path: '/milestones', element: <MilestonesPage /> },
-  { path: '/admin', element: <AdminPage /> },
-  { path: '/commissioning', element: <CommissioningPage /> },
-  { path: '/sandbox', element: <SandboxPage /> },
-  { path: '/proposal', element: <ProposalPage /> },
-  { path: '/preview', element: <PreviewPage /> },
-  { path: '/plan', element: <PlanPage /> },
-  { path: '/onboard', element: <OnboardPage /> },
-  { path: '/journey', element: <JourneyPage /> },
-  { path: '/create', element: <CreatePage /> },
-  { path: '/evals', element: <EvalsPage /> },
-  { path: '/chat', element: <ChatPage /> },
-  { path: '/sdui-preview', element: <SduiPreviewPage /> },
-  { path: '/module/:key', element: <ModuleRoutePage /> },
-  { path: '*', element: <Navigate to="/cockpit" replace /> },
+  {
+    path: '/plan-init',
+    element: (
+      <RequireAuth>
+        <PlanInitPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/plan-adjust',
+    element: (
+      <RequireAuth>
+        <PlanAdjustPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/milestones',
+    element: (
+      <RequireAuth>
+        <MilestonesPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/admin',
+    element: (
+      <RequireAuth>
+        <AdminPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/commissioning',
+    element: (
+      <RequireAuth>
+        <CommissioningPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/sandbox',
+    element: (
+      <RequireAuth>
+        <SandboxPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/proposal',
+    element: (
+      <RequireAuth>
+        <ProposalPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/preview',
+    element: (
+      <RequireAuth>
+        <PreviewPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/plan',
+    element: (
+      <RequireAuth>
+        <PlanPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/onboard',
+    element: (
+      <RequireAuth>
+        <OnboardPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/journey',
+    element: (
+      <RequireAuth>
+        <JourneyPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/create',
+    element: (
+      <RequireAuth>
+        <CreatePage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/evals',
+    element: (
+      <RequireAuth>
+        <EvalsPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/chat',
+    element: (
+      <RequireAuth>
+        <ChatPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/sdui-preview',
+    element: (
+      <RequireAuth>
+        <SduiPreviewPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/module/:key',
+    element: (
+      <RequireAuth>
+        <ModuleRoutePage />
+      </RequireAuth>
+    ),
+  },
+  { path: '*', element: <RootRedirect /> },
 ]);

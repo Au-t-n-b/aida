@@ -3272,7 +3272,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .lp-top-user-name { font-size: 12px; font-weight: 600; }
 .lp-top-user-title { font-size: 10px; color: #94a3b8; }
 .lp-top-user-av { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #c7000a, #8a0007); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 700; }
-.lp-top-logout { font-size: 11px; color: #94a3b8; text-decoration: none; padding: 4px 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; }
+.lp-top-logout { font-size: 11px; color: #94a3b8; text-decoration: none; padding: 4px 8px; border: 1px solid rgba(255,255,255,.1); border-radius: 4px; background: transparent; cursor: pointer; font: inherit; }
 .lp-top-logout:hover { color: #fff; border-color: rgba(255,255,255,.3); }
 
 .lp-main { flex: 1; padding: 28px 32px 16px; max-width: 1280px; margin: 0 auto; width: 100%; }
@@ -5842,12 +5842,17 @@ html { scroll-behavior: smooth; }
 }
 .admin-nav-exit {
   display: block;
+  width: 100%;
   padding: 6px 8px;
   font-size: 11px;
   color: var(--zinc-300);
   border-radius: 4px;
   text-decoration: none;
   background: rgba(255,255,255,0.03);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
 }
 .admin-nav-exit:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .admin-nav-exit.alt   { color: var(--zinc-400); background: transparent; }

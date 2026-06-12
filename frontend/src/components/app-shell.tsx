@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, type ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Link from '@/compat/link';
+import { useLogout } from '@/lib/use-logout';
+import { useCurrentProject } from '@/lib/current-project';
 import { LeftNavFdy } from './left-nav-fdy';
 type AppShellProps = {
   children: ReactNode;
@@ -42,12 +45,11 @@ type ProjectRoleChip = { role: 'PD' | 'TD' | 'PCM' | 'TL' | 'OCC'; name: string 
 type ProjectMini = {
   id: string;
   name: string;
-  current: boolean;
   roles: ProjectRoleChip[];
 };
 const PROJECT_LIST_MINI: ProjectMini[] = [
   {
-    id: 'K1903', name: '京东三期', current: true,
+    id: 'K1903', name: '京东三期',
     roles: [
       { role: 'PD',  name: '李伟' },
       { role: 'TD',  name: '何博' },
@@ -56,7 +58,7 @@ const PROJECT_LIST_MINI: ProjectMini[] = [
     ],
   },
   {
-    id: 'A1',    name: 'A1 智算集群一期', current: false,
+    id: 'A1',    name: 'A1 智算集群一期',
     roles: [
       { role: 'PD',  name: '李伟' },
       { role: 'TD',  name: '王明' },
@@ -64,7 +66,7 @@ const PROJECT_LIST_MINI: ProjectMini[] = [
     ],
   },
   {
-    id: 'B2',    name: 'B2 智算中心', current: false,
+    id: 'B2',    name: 'B2 智算中心',
     roles: [
       { role: 'PD',  name: '李伟' },
       { role: 'TD',  name: '赵丹' },
@@ -72,7 +74,7 @@ const PROJECT_LIST_MINI: ProjectMini[] = [
     ],
   },
   {
-    id: 'C3',    name: 'C3 算力底座扩容', current: false,
+    id: 'C3',    name: 'C3 算力底座扩容',
     roles: [
       { role: 'PD',  name: '周晗' },
       { role: 'TD',  name: '王明' },
@@ -89,25 +91,46 @@ const ROLE_CHIP_TONE: Record<ProjectRoleChip['role'], string> = {
 };
 
 export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
+  const navigate = useNavigate();
+  const doLogout = useLogout();
+  const { project, selectProject } = useCurrentProject();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const unread = WELINK_MSGS.length;
-  const current = PROJECT_LIST_MINI.find((p) => p.current) ?? PROJECT_LIST_MINI[0]!;
+  const currentId = project?.id ?? PROJECT_LIST_MINI[0]!.id;
+  const currentName = project?.name
+    ?? PROJECT_LIST_MINI.find((p) => p.id === currentId)?.name
+    ?? PROJECT_LIST_MINI[0]!.name;
+
+  const switchProject = (p: (typeof PROJECT_LIST_MINI)[number]) => {
+    selectProject({ id: p.id, name: p.name });
+    setProjOpen(false);
+    navigate('/cockpit');
+  };
+
   return (
     <header className="topbar">
       {/* 项目下拉 · G-3 · 当前项目右侧紧贴展示 PD/TD/PCM 多角色 chip */}
       <div className="topbar-project" onClick={() => setProjOpen(o => !o)}>
-        <span className="topbar-project-name">{current.name}</span>
+        <span className="topbar-project-name">{currentName}</span>
         <span className="topbar-project-caret">▾</span>
         {projOpen && (
           <div className="topbar-project-pop" onMouseLeave={() => setProjOpen(false)}>
             {PROJECT_LIST_MINI.map(p => (
-              <Link key={p.id} href="/landing" className={`topbar-project-row${p.current ? ' on' : ''}`}>
+              <button
+                key={p.id}
+                type="button"
+                className={`topbar-project-row${p.id === currentId ? ' on' : ''}`}
+                onClick={() => switchProject(p)}
+              >
                 <span className="topbar-project-row-name">{p.name}</span>
-                {p.current && <span className="topbar-project-check">✓</span>}
-              </Link>
+                {p.id === currentId && <span className="topbar-project-check">✓</span>}
+              </button>
             ))}
+            <Link href="/landing" className="topbar-project-row" onClick={() => setProjOpen(false)}>
+              <span className="topbar-project-row-name">全部项目…</span>
+            </Link>
           </div>
         )}
       </div>
@@ -140,10 +163,18 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
               onMouseLeave={() => setUserOpen(false)}
             >
               <div className="topbar-project-pop-head">何博 · 交付经理 · 智算 Q3</div>
-              <Link href="/login" className="topbar-project-row" onClick={() => setUserOpen(false)}>
+              <button
+                type="button"
+                className="topbar-project-row"
+                style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left' }}
+                onClick={() => {
+                  setUserOpen(false);
+                  void doLogout();
+                }}
+              >
                 <span>退出登录</span>
                 <span style={{ marginLeft: 'auto', color: 'var(--c-text-muted)' }}>⏎</span>
-              </Link>
+              </button>
             </div>
           )}
         </div>
@@ -183,6 +214,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
 }
 
 function DemoWatermark() {
+  const { project } = useCurrentProject();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -215,7 +247,7 @@ function DemoWatermark() {
     >
       <span className="aida-demo-dot" />
       <span className="aida-demo-text">
-        <strong>DEMO</strong> · K1903 · 智算 Q3
+        <strong>DEMO</strong> · {project?.id ?? '—'} · 智算 Q3
       </span>
     </button>
   );

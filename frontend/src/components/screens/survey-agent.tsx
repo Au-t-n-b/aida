@@ -481,9 +481,9 @@ export default function SkillAgentScreen({
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
 }: SkillAgentScreenProps) {
-  // ── 模式检测：有 ClawManager 登录态 → 容器模式 ────────────────────────────
+  // ── 模式检测：仅当 Manager 已分配容器端点走任务 API；普通登录仍直连 AIDA Agent ──
   const { session } = useAidaSession();
-  const useClawMode = !!session;
+  const useClawMode = Boolean(session?.containerEndpoint);
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式

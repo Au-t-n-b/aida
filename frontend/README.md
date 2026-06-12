@@ -44,7 +44,7 @@ npm run sync:from-next
 
 | 路径 | 页面 |
 |------|------|
-| `/` | 重定向到 `/cockpit` |
+| `/` | 未登录 → `/login`；已登录 → `/landing` |
 | `/login` | 登录 |
 | `/landing` | 项目列表 |
 | `/cockpit` | 项目孪生看板 |

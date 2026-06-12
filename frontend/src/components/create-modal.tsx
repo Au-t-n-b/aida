@@ -12,6 +12,8 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { deriveProjectId, useCurrentProject } from '@/lib/current-project';
 import { INITIAL_FIELDS, FieldsStep } from './screens/create';
 
 /** 创建/编辑字段值 —— key/value 任意，运行时由 FieldsStep 维护 */
@@ -48,6 +50,7 @@ export interface CreateProjectModalProps {
   open: boolean;
   mode?: 'create' | 'edit';
   preset?: CreatePreset;
+  projectId?: string | null;
   onClose?: () => void;
 }
 
@@ -55,8 +58,11 @@ export default function CreateProjectModal({
   open,
   mode = 'create',
   preset = null,
+  projectId = null,
   onClose,
 }: CreateProjectModalProps) {
+  const navigate = useNavigate();
+  const { selectProject } = useCurrentProject();
   const [fields, setFields] = useState<CreateFieldDef[]>(INITIAL_FIELDS as CreateFieldDef[]);
 
   /* 打开 / 切换 mode 时重置 */
@@ -74,14 +80,21 @@ export default function CreateProjectModal({
 
   const handleSubmit = () => {
     if (typeof window === 'undefined') return;
+    const obj = fieldsToObj(fields);
     const payload = {
       mode,
-      fields: fieldsToObj(fields),
+      fields: obj,
       ts: Date.now(),
     };
     try { sessionStorage.setItem('aida:just-created', JSON.stringify(payload)); } catch {}
-    /* 跳 /cockpit —— 用原生导航兼容静态导出 */
-    window.location.assign('../cockpit/');
+    const id = projectId ?? deriveProjectId(obj.code, obj.proposal);
+    selectProject({
+      id,
+      name: obj.name || '未命名项目',
+      code: obj.code || obj.proposal || undefined,
+    });
+    onClose?.();
+    navigate('/cockpit');
   };
 
   const title = mode === 'edit' ? '编辑项目空间' : '新建项目空间';

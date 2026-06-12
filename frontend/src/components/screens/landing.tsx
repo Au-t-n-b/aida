@@ -7,7 +7,10 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Link from '@/compat/link';
+import { useLogout } from '@/lib/use-logout';
+import { useCurrentProject } from '@/lib/current-project';
 import {
   LANDING_USER, LANDING_ACTIVE, LANDING_CREATE_HINT,
   STAGE4_LABELS,
@@ -117,11 +120,14 @@ function ProjectCard({ p, onClick, onEdit }) {
 
 /* ── 主屏 ── */
 export default function LandingScreen() {
+  const navigate = useNavigate();
+  const doLogout = useLogout();
+  const { selectProject } = useCurrentProject();
   const [tab, setTab] = useState('active'); // active | archive
 
   /* G-10/G-11 · 创建/编辑共用模态弹窗 */
-  const [modal, setModal] = useState({ open: false, mode: 'create', preset: null });
-  const openCreate = () => setModal({ open: true, mode: 'create', preset: null });
+  const [modal, setModal] = useState({ open: false, mode: 'create', preset: null, projectId: null });
+  const openCreate = () => setModal({ open: true, mode: 'create', preset: null, projectId: null });
   const openEdit = (id) => {
     const p = LANDING_ACTIVE.find(x => x.id === id);
     const preset = p ? {
@@ -134,14 +140,16 @@ export default function LandingScreen() {
       td: '',
       pcm: '',
     } : null;
-    setModal({ open: true, mode: 'edit', preset });
+    setModal({ open: true, mode: 'edit', preset, projectId: id });
   };
   const closeModal = () => setModal(s => ({ ...s, open: false }));
 
-  const openProject = (id) => {
-    if (typeof window !== 'undefined') {
-      window.location.assign('../cockpit/');
+  const openProject = (id: string) => {
+    const p = LANDING_ACTIVE.find(x => x.id === id);
+    if (p) {
+      selectProject({ id: p.id, name: p.name, code: p.code });
     }
+    navigate('/cockpit');
   };
 
   return (
@@ -162,7 +170,9 @@ export default function LandingScreen() {
             <div className="lp-top-user-title">{LANDING_USER.title}</div>
           </div>
           <div className="lp-top-user-av">{LANDING_USER.avatar}</div>
-          <Link href="/login" className="lp-top-logout">退出</Link>
+          <button type="button" className="lp-top-logout" onClick={() => void doLogout()}>
+            退出
+          </button>
         </div>
       </header>
 
@@ -221,6 +231,7 @@ export default function LandingScreen() {
         open={modal.open}
         mode={modal.mode}
         preset={modal.preset}
+        projectId={modal.projectId}
         onClose={closeModal}
       />
     </div>

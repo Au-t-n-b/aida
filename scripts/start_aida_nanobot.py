@@ -5,7 +5,8 @@ AIDA + nanobot 融合启动器。
 1. bootstrap nanobot workspace / config.json
 2. 启动 nanobot serve (:8900) — 自由聊天引擎
 3. 启动 AIDA FastAPI (:7401) — LangGraph + SDUI，聊天代理到 nanobot
-4. 启动前端静态服务 (:8080)
+4. 启动 Manager (:8000) — UX 鉴权，代理数据中心
+5. 启动前端静态服务 (:8080)
 """
 from __future__ import annotations
 
@@ -102,6 +103,26 @@ def start_nanobot_serve() -> subprocess.Popen | None:
         return None
 
 
+def _manager_port() -> str:
+    return os.environ.get("MANAGER_PORT", "8001")
+
+
+def start_manager() -> subprocess.Popen:
+    py = _venv_python()
+    env = os.environ.copy()
+    port = _manager_port()
+    env.setdefault("AIDA_AGENT_BASE_URL", "http://127.0.0.1:7401")
+    env.setdefault("MANAGER_HOST", "0.0.0.0")
+    env.setdefault("MANAGER_PORT", port)
+    cmd = [
+        py, "-m", "uvicorn", "manager.main:app",
+        "--host", env.get("MANAGER_HOST", "0.0.0.0"),
+        "--port", port,
+        "--workers", "1",
+    ]
+    return _popen(cmd, env=env, log_name="aida-manager.log")
+
+
 def start_aida() -> subprocess.Popen:
     py = _venv_python()
     env = os.environ.copy()
@@ -131,6 +152,7 @@ def verify() -> bool:
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     ok = True
     checks = [
+        ("manager", f"http://127.0.0.1:{_manager_port()}/health"),
         ("nanobot", "http://127.0.0.1:8900/health"),
         ("backend", "http://127.0.0.1:7401/healthz"),
         ("frontend", "http://127.0.0.1:8080/"),
@@ -148,6 +170,7 @@ def verify() -> bool:
 
 def stop_old() -> None:
     patterns = [
+        "uvicorn manager.main",
         "uvicorn agent.main",
         "http.server 8080",
         "nanobot serve",
@@ -155,7 +178,7 @@ def stop_old() -> None:
     ]
     for p in patterns:
         subprocess.run(["pkill", "-9", "-f", p], check=False)
-    for port in (8900, 7401, 8080):
+    for port in (8001, 8900, 7401, 8080):
         subprocess.run(
             ["bash", "-c", f"ss -lptn 'sport = :{port}' | grep -oP 'pid=\\K[0-9]+' | xargs -r kill -9"],
             check=False,
@@ -186,6 +209,9 @@ def main() -> int:
 
     procs.append(start_aida())
     time.sleep(3)
+
+    procs.append(start_manager())
+    time.sleep(2)
 
     if not args.no_frontend:
         fe = start_frontend()
