@@ -1,0 +1,229 @@
+{
+    "net_plane_rows": {
+      "demo-project-001": [
+        {
+          "row_id": "np-001",
+          "type": "参数面汇聚交换机",
+          "vendor": "华为",
+          "model": "XH9330-128EO",
+          "ver": "V100R001C020",
+          "qty": 1,
+          "source": "12",
+          "proposal_version": null,
+          "note": "aaa"
+        },
+        {
+          "row_id": "np-002",
+          "type": "参数面接入交换机",
+          "vendor": "华为",
+          "model": "XH9930-128DQ",
+          "ver": "V100R001C020",
+          "qty": 0,
+          "source": "c",
+          "proposal_version": null,
+          "note": "aaa"
+        },
+        {
+          "row_id": "np-003",
+          "type": "样本面-存储接入交换机",
+          "vendor": "华为",
+          "model": "XH9930-128DQ",
+          "ver": "V100R001C020",
+          "qty": 6,
+          "source": "人工录入",
+          "proposal_version": null,
+          "note": ""
+        },
+        {
+          "row_id": "np-004",
+          "type": "样本面-汇聚交换机",
+          "vendor": "华为",
+          "model": "XH9930-128DQ",
+          "ver": "V100R001C020",
+          "qty": 16,
+          "source": "人工录入",
+          "proposal_version": null,
+          "note": ""
+        },
+        {
+          "row_id": "np-005",
+          "type": "样本面-计算接入交换机",
+          "vendor": "华为",
+          "model": "XH9930-128DQ",
+          "ver": "V100R001C020",
+          "qty": 22,
+          "source": "人工录入",
+          "proposal_version": null,
+          "note": ""
+        }
+      ]
+    },
+    "room_rack_rows": {
+      "demo-project-001": [
+        {
+          "row_id": "dfe29866-7e75-4bcc-825b-d68b6df880e5",
+          "pod_name": "POD01",
+          "room_name": "",
+          "compute": "",
+          "bus": "",
+          "param_leaf": "",
+          "biz_leaf": "",
+          "mgmt": "",
+          "sample_leaf": "",
+          "data_source": "自动解析",
+          "proposal_version": null
+        },
+        {
+          "row_id": "6037087a-6903-4ce0-bf8d-edfa0c68a613",
+          "pod_name": "POD02",
+          "room_name": "",
+          "compute": "",
+          "bus": "",
+          "param_leaf": "",
+          "biz_leaf": "",
+          "mgmt": "",
+          "sample_leaf": "",
+          "data_source": "自动解析",
+          "proposal_version": null
+        },
+        {
+          "row_id": "43aed478-6c8b-4e33-9bc1-3a087a696cea",
+          "pod_name": "POD03",
+          "room_name": "",
+          "compute": "",
+          "bus": "",
+          "param_leaf": "",
+          "biz_leaf": "",
+          "mgmt": "",
+          "sample_leaf": "",
+          "data_source": "自动解析",
+          "proposal_version": null
+        },
+        {
+          "row_id": "74c3fb18-0b9d-4657-8150-df3105e6daac",
+          "pod_name": "POD04",
+          "room_name": "",
+          "compute": "",
+          "bus": "",
+          "param_leaf": "",
+          "biz_leaf": "",
+          "mgmt": "",
+          "sample_leaf": "",
+          "data_source": "自动解析",
+          "proposal_version": null
+        }
+      ]
+    },
+    "net_mgmt_rows": {
+      "demo-project-001": []
+    },
+    "cluster_device_rows": {
+      "demo-project-001": [
+        {
+          "row_id": "be3f1638-4e5b-49e0-b6a2-746cf554a335",
+          "source_net_plane_id": "np-001",
+          "max_quantity": 1,
+          "cluster_id": null,
+          "cluster_type": "训练",
+          "super_pod_id": null,
+          "storage_cluster_id": null,
+          "zone_id": null,
+          "ccae_cluster_id": null,
+          "dme_cluster_id": null,
+          "device_type": "",
+          "vendor": "华为",
+          "device_model": "XH9330-128EO",
+          "device_purpose": null,
+          "start_device_name": null,
+          "end_device_name": null,
+          "quantity": 1,
+          "data_source": "人工录入",
+          "proposal_version": null
+        },
+        {
+          "row_id": "6bdf1f4a-afa4-4a60-b7c1-3976a9dc9363",
+          "source_net_plane_id": "np-002",
+          "max_quantity": 0,
+          "cluster_id": null,
+          "cluster_type": "训练",
+          "super_pod_id": null,
+          "storage_cluster_id": null,
+          "zone_id": null,
+          "ccae_cluster_id": null,
+          "dme_cluster_id": null,
+          "device_type": "",
+          "vendor": "华为",
+          "device_model": "XH9930-128DQ",
+          "device_purpose": null,
+          "start_device_name": null,
+          "end_device_name": null,
+          "quantity": 0,
+          "data_source": "人工录入",
+          "proposal_version": null
+        },
+        {
+          "row_id": "38a7ef64-57d1-4151-a708-19d3ff0186ec",
+          "source_net_plane_id": "np-003",
+          "max_quantity": 6,
+          "cluster_id": null,
+          "cluster_type": "训练",
+          "super_pod_id": null,
+          "storage_cluster_id": null,
+          "zone_id": null,
+          "ccae_cluster_id": null,
+          "dme_cluster_id": null,
+          "device_type": "",
+          "vendor": "华为",
+          "device_model": "XH9930-128DQ",
+          "device_purpose": null,
+          "start_device_name": null,
+          "end_device_name": null,
+          "quantity": 6,
+          "data_source": "人工录入",
+          "proposal_version": null
+        },
+        {
+          "row_id": "17b4beba-af2e-46b0-b7d4-7e06b2a4cd48",
+          "source_net_plane_id": "np-004",
+          "max_quantity": 16,
+          "cluster_id": null,
+          "cluster_type": "训练",
+          "super_pod_id": null,
+          "storage_cluster_id": null,
+          "zone_id": null,
+          "ccae_cluster_id": null,
+          "dme_cluster_id": null,
+          "device_type": "",
+          "vendor": "华为",
+          "device_model": "XH9930-128DQ",
+          "device_purpose": null,
+          "start_device_name": null,
+          "end_device_name": null,
+          "quantity": 16,
+          "data_source": "人工录入",
+          "proposal_version": null
+        },
+        {
+          "row_id": "c2a0eff3-45ca-4f99-a495-ba1547b5d338",
+          "source_net_plane_id": "np-005",
+          "max_quantity": 22,
+          "cluster_id": null,
+          "cluster_type": "训练",
+          "super_pod_id": null,
+          "storage_cluster_id": null,
+          "zone_id": null,
+          "ccae_cluster_id": null,
+          "dme_cluster_id": null,
+          "device_type": "",
+          "vendor": "华为",
+          "device_model": "XH9930-128DQ",
+          "device_purpose": null,
+          "start_device_name": null,
+          "end_device_name": null,
+          "quantity": 22,
+          "data_source": "人工录入",
+          "proposal_version": null
+        }
+      ]
+    }
+  }
