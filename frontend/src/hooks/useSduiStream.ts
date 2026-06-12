@@ -92,7 +92,8 @@ export interface StartReq {
   project_code?: string;
   project_name?: string;
   scenario_run?: string;
-  /** 预置意图（zhgk：survey_work/report_gen/supplement/scene_suggest）→ 跳过 intent_select HITL。 */
+
+  /** zhgk：从 3D 机房入口下钻时预选意图（写入 initial project） */
   intent?: string;
 }
 

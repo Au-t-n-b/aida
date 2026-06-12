@@ -11,25 +11,23 @@
  */
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
-import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
-import { HITL_HOLD_MS } from '@/components/sdui/hitlOptimistic';
+import { SduiRuntimeContext, type SduiRuntime, type SduiTableSubmitMeta } from '@/components/sdui/SduiContext';
 
 // 懒加载：预览组件内含 xlsx/mammoth 动态 import，懒加载使其仅在「打开预览」时才被 Vite 转译，
 // 避免未安装这两个库时（如 CI / 首次拉取）解析整棵模块图失败导致白屏。
 const SduiPreviewModal = lazy(() =>
   import('@/components/sdui/SduiPreviewModal').then(m => ({ default: m.SduiPreviewModal })),
 );
-import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace } from '@/hooks/useSduiStream';
-import type { StartReq } from '@/hooks/useSduiStream';
+import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace, type StartReq } from '@/hooks/useSduiStream';
 import { clearRunLog } from '@/lib/runLogStore';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
-import { Button } from '@/components/primitives';
 import { dispatchRailSend } from '@/lib/claw-send';
-import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
+import { Button } from '@/components/primitives';
+import type { SduiAction, SduiDataTableRow, SduiDocument, SduiNode } from '@/lib/sdui';
 
 export interface SkillAgentScreenProps {
   /** 后端 skill_id，决定 /agent/<skillId>/* 端点（如 zhgk / guihua）。 */
@@ -61,32 +59,32 @@ export interface SkillAgentScreenProps {
       height:100%; display:flex; flex-direction:column;
       align-items:center; justify-content:center;
       padding:32px 28px 36px;
-      background:radial-gradient(ellipse at 50% 30%, var(--c-brand-soft) 0%, var(--c-bg-soft) 100%);
+      background:radial-gradient(ellipse at 50% 30%, #f0f4fd 0%, #e8edf6 100%);
       overflow:auto; gap:0;
       animation:skillIdleFadeUp .45s cubic-bezier(.16,1,.3,1) both;
     }
     .skill-idle-emblem {
       width:72px; height:72px; border-radius:18px;
-      background:var(--c-surface); border:1px solid var(--c-border);
-      box-shadow:var(--shadow-md);
+      background:#fff; border:1px solid #dde3ef;
+      box-shadow:0 4px 14px rgba(15,23,42,.06);
       display:grid; place-items:center;
-      color:var(--c-brand); margin-bottom:22px;
+      color:#3551d8; margin-bottom:22px;
       animation:skillEmblemBreathe 3.2s ease-in-out infinite;
       position:relative;
     }
     .skill-idle-emblem::before {
       content:''; position:absolute; inset:-1px; border-radius:19px; padding:1px;
-      background:linear-gradient(135deg,color-mix(in srgb,var(--c-brand) 30%,transparent),transparent 55%);
+      background:linear-gradient(135deg,rgba(53,81,216,.3),transparent 55%);
       -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
       mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
       -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
     }
     .skill-idle-title {
-      font-size:19px; font-weight:660; color:var(--c-text);
+      font-size:19px; font-weight:660; color:#0f172a;
       letter-spacing:-.02em; text-align:center; margin-bottom:7px;
     }
     .skill-idle-desc {
-      font-size:12.5px; color:var(--c-text-muted); text-align:center;
+      font-size:12.5px; color:#64748b; text-align:center;
       line-height:1.6; max-width:300px; margin-bottom:28px;
     }
     /* ── 横向步骤条 ── */
@@ -95,48 +93,43 @@ export interface SkillAgentScreenProps {
       margin-bottom:22px;
     }
     .skill-idle-step { display:flex; flex-direction:column; align-items:center; flex:1; min-width:0; }
-    .skill-idle-step-row {
-      display:grid; grid-template-columns:1fr auto 1fr; align-items:center; width:100%;
-    }
+    .skill-idle-step-row { display:flex; align-items:center; width:100%; }
     .skill-idle-dot {
       width:28px; height:28px; border-radius:50%; flex-shrink:0;
-      background:var(--c-surface); border:1.5px solid var(--c-border-strong);
+      background:#fff; border:1.5px solid #c8d1e6;
       display:flex; align-items:center; justify-content:center;
-      font-size:11px; font-weight:700; color:var(--c-text-faint);
+      font-size:11px; font-weight:700; color:#94a3b8;
       transition:border-color .2s;
-      box-shadow:var(--shadow-sm);
-      grid-column:2;
+      box-shadow:0 1px 3px rgba(15,23,42,.06);
     }
-    .skill-idle-conn { height:1.5px; background:var(--c-border); align-self:center; }
-    .skill-idle-conn--before { grid-column:1; margin-right:-1px; }
-    .skill-idle-conn--after  { grid-column:3; margin-left:-1px; }
-    .skill-idle-conn--hidden { visibility:hidden; }
+    .skill-idle-conn { flex:1; height:1.5px; background:#dde3ef; }
     .skill-idle-step-label {
-      font-size:10px; color:var(--c-text-muted); font-weight:500;
-      margin-top:7px; text-align:center; width:100%;
-      padding:0 2px; line-height:1.35;
+      font-size:10px; color:#64748b; font-weight:500;
+      margin-top:7px; text-align:center; white-space:nowrap;
+      max-width:56px; overflow:hidden; text-overflow:ellipsis;
     }
     .skill-idle-step-sub {
-      font-size:9.5px; color:var(--c-text-faint); margin-top:2px;
-      text-align:center; width:100%; padding:0 2px; line-height:1.35;
+      font-size:9.5px; color:#94a3b8; margin-top:2px;
+      text-align:center; max-width:60px; line-height:1.35;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
     }
     /* ── 文件提示 ── */
     .skill-idle-files {
       width:100%; max-width:420px; margin-bottom:24px;
-      background:var(--c-surface); border:1px solid var(--c-border); border-radius:10px;
+      background:#fff; border:1px solid #dde3ef; border-radius:10px;
       padding:11px 14px; display:flex; gap:10px; align-items:flex-start;
-      box-shadow:var(--shadow-sm);
+      box-shadow:0 1px 3px rgba(15,23,42,.04);
     }
     .skill-idle-files-ic {
       font-size:14px; flex-shrink:0; margin-top:1px; opacity:.75;
     }
     .skill-idle-files-body { flex:1; min-width:0; }
     .skill-idle-files-title {
-      font-size:11px; font-weight:650; color:var(--c-text-2); margin-bottom:5px;
+      font-size:11px; font-weight:650; color:#334155; margin-bottom:5px;
     }
     .skill-idle-file-row {
       display:flex; align-items:center; gap:7px; padding:4px 0;
-      border-top:1px solid var(--c-divider);
+      border-top:1px solid #f0f4fa;
     }
     .skill-idle-file-row:first-of-type { border-top:none; padding-top:0; }
     .skill-idle-file-ext {
@@ -144,29 +137,28 @@ export interface SkillAgentScreenProps {
       padding:1px 5px; border-radius:4px; flex-shrink:0;
       font-family:var(--font-mono);
     }
-    .skill-idle-file-ext.xlsx { background:var(--c-success-soft); color:var(--c-success-text); }
-    .skill-idle-file-ext.docx { background:var(--c-info-soft);    color:var(--c-info-text); }
-    .skill-idle-file-ext.md   { background:var(--c-brand-soft);   color:var(--c-brand-text); }
+    .skill-idle-file-ext.xlsx { background:#e6f4ea; color:#0a7d46; }
+    .skill-idle-file-ext.docx { background:#e8effc; color:#1747b8; }
     .skill-idle-file-name {
-      font-size:10.5px; color:var(--c-text-2); font-family:var(--font-mono);
+      font-size:10.5px; color:#475569; font-family:var(--font-mono);
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     }
     .skill-idle-file-tag {
-      font-size:9px; color:var(--c-text-faint); margin-left:auto; flex-shrink:0;
+      font-size:9px; color:#94a3b8; margin-left:auto; flex-shrink:0;
     }
     /* ── 启动按钮 ── */
     .skill-idle-btn {
       width:100%; max-width:420px;
       padding:12px 0; border-radius:10px; border:none; cursor:pointer;
       font-size:14px; font-weight:650; letter-spacing:.01em;
-      background:var(--c-brand); color:#fff; font-family:var(--font-sans);
-      box-shadow:var(--shadow-sm);
+      background:#3551d8; color:#fff; font-family:var(--font-sans);
+      box-shadow:0 1px 2px rgba(53,81,216,.25),0 4px 14px rgba(53,81,216,.14);
       transition:background .14s,box-shadow .14s,transform .1s;
       display:flex; align-items:center; justify-content:center; gap:8px;
     }
     .skill-idle-btn:hover:not(:disabled) {
-      background:var(--c-brand-hover);
-      box-shadow:var(--shadow-md);
+      background:#2a44c2;
+      box-shadow:0 2px 4px rgba(53,81,216,.3),0 8px 20px rgba(53,81,216,.18);
       transform:translateY(-1px);
     }
     .skill-idle-btn:active:not(:disabled) { transform:translateY(0); }
@@ -182,10 +174,8 @@ export interface SkillAgentScreenProps {
 
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
-  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
+  files: Array<{ name: string; ext: 'xlsx' | 'docx'; optional?: boolean }>;
   icon: React.ReactNode;
-  /** 文件提示区路径说明；默认 zhgk 风格 Template + Input */
-  filesHint?: string;
 }> = {
   zhgk: {
     icon: (
@@ -207,45 +197,6 @@ const SKILL_META: Record<string, {
       { name: 'BOQ.xlsx',                   ext: 'xlsx' },
       { name: '入场评估标准表.xlsx',         ext: 'xlsx' },
       { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
-    ],
-  },
-  guihua: {
-    icon: (
-      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
-        <rect x="7" y="4" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M11 9h12M11 14h12M11 19h12M11 24h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        <circle cx="20" cy="24" r="1.4" fill="currentColor" />
-      </svg>
-    ),
-    steps: [
-      { key: 'adapt_build',  name: '设备适配',   sub: '型号·板卡匹配' },
-      { key: 'data_confirm', name: '数据确认',   sub: '核对适配表' },
-      { key: 'combo_create', name: '创建超节点', sub: '平铺 9 个 POD' },
-      { key: 'cabinet_move', name: '机柜落位',   sub: '162 柜落位' },
-      { key: 'handoff',      name: '移交安装',   sub: '交设备安装' },
-    ],
-    files: [
-      { name: '建模仿真设备信息表.md', ext: 'md' },
-    ],
-  },
-  device_install: {
-    icon: (
-      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
-        <rect x="7" y="5" width="15" height="22" rx="2" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M10.5 10h8M10.5 14h8M10.5 18h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx="25" cy="16" r="5.5" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M25 13.5v5M22.5 16h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    ),
-    filesHint: 'ProjectData/Input/',
-    steps: [
-      { key: 'plan_receive',  name: '接收实施计划', sub: '上游双 Sheet' },
-      { key: 'task_dispatch', name: '计划下发',     sub: '勾选·下发' },
-      { key: 'sn_generate',   name: 'SN扫码表',     sub: '按单元生成' },
-      { key: 'esn_fill',      name: 'ESN填写',      sub: '完工清单' },
-    ],
-    files: [
-      { name: '设备安装实施计划.xlsx', ext: 'xlsx' },
     ],
   },
 };
@@ -276,9 +227,9 @@ function IdleScreen({ skillId, title, description, onStart, loading }: {
             <React.Fragment key={s.key}>
               <div className="skill-idle-step">
                 <div className="skill-idle-step-row">
-                  <div className={`skill-idle-conn skill-idle-conn--before${i === 0 ? ' skill-idle-conn--hidden' : ''}`} />
+                  {i > 0 && <div className="skill-idle-conn" />}
                   <div className="skill-idle-dot">{i + 1}</div>
-                  <div className={`skill-idle-conn skill-idle-conn--after${i === steps.length - 1 ? ' skill-idle-conn--hidden' : ''}`} />
+                  {i < steps.length - 1 && <div className="skill-idle-conn" />}
                 </div>
                 <div className="skill-idle-step-label">{s.name}</div>
                 <div className="skill-idle-step-sub">{s.sub}</div>
@@ -293,9 +244,7 @@ function IdleScreen({ skillId, title, description, onStart, loading }: {
         <div className="skill-idle-files">
           <div className="skill-idle-files-ic">📂</div>
           <div className="skill-idle-files-body">
-            <div className="skill-idle-files-title">
-              启动前确认文件 · {meta?.filesHint ?? 'ProjectData/Template/ · Input/'}
-            </div>
+            <div className="skill-idle-files-title">启动前确认文件 · ProjectData/Template/ · Input/</div>
             {files.map(f => (
               <div key={f.name} className="skill-idle-file-row">
                 <span className={`skill-idle-file-ext ${f.ext}`}>{f.ext.toUpperCase()}</span>
@@ -341,23 +290,39 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   return found;
 }
 
-/** Stepper 中最后一个 done 步骤的下标（resume 冻结时的进度水位）。 */
-function maxDoneStepIndex(doc: SduiDocument): number {
-  let max = -1;
-  walkSduiNodes(doc.root, (node) => {
-    if (node.type !== 'Stepper' || !node.steps) return;
-    node.steps.forEach((s, i) => {
-      if (s.status === 'done') max = Math.max(max, i);
-    });
+/** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
+const HITL_POINTER: SduiNode = {
+  type: 'Alert', id: 'hitl-pointer', tone: 'warning',
+  title: '需要你确认',
+  message: '交互卡片已移至左侧会话框，请在左侧完成选择 / 上传后继续。',
+} as SduiNode;
+
+/** 把 root 下的 hitl-card 替换为只读指引（交互卡渲染到左侧会话，避免左右双份）。
+ *  hitl-card 是 root Stack 的直接子节点（见 zhgk/sdui.py），浅层替换即可。
+ *  editToChat=true（meta.route_hitl_edit === 'chat'）时连 hitl-edit-card 一并移交；
+ *  默认 false：在线编辑 HITL 留在右侧作业大盘（route_hitl_edit 契约 · SDUI.md §HITL-Edit）。*/
+function routeHitlToChat(root: SduiNode, editToChat = false): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  let changed = false;
+  const next = children.map(c => {
+    const id = (c as { id?: string }).id;
+    if (id === 'hitl-card') { changed = true; return HITL_POINTER; }
+    if (editToChat && id === 'hitl-edit-card') {
+      changed = true;
+      return { ...HITL_POINTER, id: 'hitl-edit-pointer' } as SduiNode;
+    }
+    return c;
   });
-  return max;
+  return changed ? ({ ...root, children: next } as SduiNode) : root;
 }
 
-/** full_restart 重放是否已追平/超过冻结时的 Stepper 水位。 */
-function replayCaughtUp(live: SduiDocument, frozenMaxDone: number): boolean {
-  if (findNodeById(live.root, 'task-table-dt')) return true;
-  return maxDoneStepIndex(live) > frozenMaxDone;
-}
+/** 工作台布局策略注册表（meta.workbench_class → 容器样式覆盖）。
+ *  如设备安装 'di'：密排布局（顶部横向 Stepper + 全宽表格，压缩容器留白）。
+ *  未注册的 class 走默认布局；新增 class 在此登记，不要散落条件分支。*/
+const WORKBENCH_LAYOUTS: Record<string, React.CSSProperties> = {
+  di: { padding: 'var(--sp-3, 12px)' },
+};
 
 /** SDUI 是否处于「左侧会话框 HITL」态（root 含 hitl-card）。*/
 function hasLeftRailHitl(doc: SduiDocument): boolean {
@@ -366,7 +331,7 @@ function hasLeftRailHitl(doc: SduiDocument): boolean {
 
 /** 移除 root 下的 hitl-card（交互卡已路由到左侧会话框，避免左右双份）。
  *  hitl-card 是 root Stack 的直接子节点（见各 skill/sdui.py），浅层移除即可；
- *  右侧仅保留顶部轻量引导条 + 正常遥测大盘（见主渲染）。*/
+ *  右侧仅剥 hitl-card，其余 SDUI 正常渲染；交互在左侧 ClawRail。*/
 function stripHitlCard(root: SduiNode): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
@@ -376,56 +341,20 @@ function stripHitlCard(root: SduiNode): SduiNode {
 }
 
 /** 两态导航（总览 ↔ 作业）：按 viewMode 隐藏 root 顶层互斥块，根治滚动过载。
- *  overview 态藏作业仪表盘（dashboard-row）+ 上下文条；work 态藏 3D 总览（machine-room-3d）。
- *  其余（header/宏阶段/KPI/时间条/HITL）两态共存。若机房总览不存在（如某些 run）则不切换。*/
+ *  overview 态：3D 总览；work 态：作业区 + room-contextbar。
+ *  有 3D 驾驶舱时去掉 header，避免与智算 Q3 顶栏重复。
+ *  若机房总览不存在（如某些 run）则不切换。*/
 function applyViewMode(root: SduiNode, mode: 'overview' | 'work'): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
   const has3d = children.some(c => (c as { id?: string }).id === 'machine-room-3d');
-  if (!has3d) return root;
+  if (!has3d) return root;   // 无总览块 → 不做两态裁剪，原样渲染
   const hide = mode === 'overview'
-    ? new Set(['dashboard-row', 'room-contextbar'])
-    : new Set(['machine-room-3d']);
+    ? new Set(['header', 'dashboard-row', 'room-contextbar'])
+    : new Set(['header', 'machine-room-3d']);
   const next = children.filter(c => !hide.has((c as { id?: string }).id ?? ''));
   return { ...root, children: next } as SduiNode;
 }
-
-/** 左侧会话 HITL 等待态：顶部轻量引导（交互在 ClawRail，右侧大盘保持可读）。*/
-function HitlTakeover() {
-  return (
-    <div style={{
-      border: '1px solid var(--c-info-border, rgba(53,81,216,.22))',
-      borderRadius: 'var(--r-md)',
-      background: 'var(--c-info-soft, #eef1fc)',
-      overflow: 'hidden', marginBottom: 'var(--sp-3)',
-      animation: 'sdui-node-in .25s cubic-bezier(.2,.65,.4,1) both',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px var(--sp-4)' }}>
-        <span style={{
-          width: 8, height: 8, borderRadius: '50%', background: 'var(--c-brand, #3551d8)',
-          boxShadow: '0 0 0 3px rgba(53,81,216,.12)', flexShrink: 0, marginTop: 5,
-        }} />
-        <div style={{ minWidth: 0 }}>
-          <div style={{
-            fontSize: 'var(--fs-11)', fontWeight: 700, letterSpacing: '.06em',
-            textTransform: 'uppercase', color: 'var(--c-brand-text, #1e34a8)', marginBottom: 4,
-          }}>
-            等待你的操作
-          </div>
-          <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, letterSpacing: '-.01em', marginBottom: 3 }}>
-            请在左侧会话框完成选择或上传
-          </div>
-          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-text-muted)', lineHeight: 1.5 }}>
-            完成后将自动继续执行
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** 自动执行、无需左栏 HITL 提示的流水线步骤 */
-const AUTO_PIPELINE_STEP_IDS = new Set(['preflight', 'plan_receive', 'sn_generate']);
 
 /** 从 SDUI 文档提取运行阶段信息（供 updateSkillRun 写入）*/
 function extractProgressFromSdui(doc: SduiDocument): {
@@ -435,7 +364,6 @@ function extractProgressFromSdui(doc: SduiDocument): {
   hitlType?: 'file' | 'choice' | 'edit' | null;
   errorMsg?: string;
 } {
-  const editOnWorkbench = doc.meta?.route_hitl_edit === 'workbench';
   const r: {
     phase?: 'running' | 'hitl' | 'done' | 'error';
     progress?: number;
@@ -443,9 +371,6 @@ function extractProgressFromSdui(doc: SduiDocument): {
     hitlType?: 'file' | 'choice' | 'edit' | null;
     errorMsg?: string;
   } = {};
-
-  let autoRunningStepId = '';
-  let autoRunningStepTitle = '';
 
   walkSduiNodes(doc.root, (node) => {
     // DonutChart 中心值 → 整体进度百分比
@@ -468,25 +393,16 @@ function extractProgressFromSdui(doc: SduiDocument): {
       } else if (runStep) {
         r.phase = 'running';
         r.currentStepName = runStep.title;
-        autoRunningStepId = runStep.id ?? '';
-        autoRunningStepTitle = runStep.title;
       }
     }
     // HITL 节点优先级最高（覆盖 Stepper 的阶段判断）
     if (node.type === 'ChoiceCard') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     if (node.type === 'FilePicker') { r.phase = 'hitl'; r.hitlType = 'file';   }
-    // 可编辑表 HITL：route_hitl_edit=workbench 时表格在右侧大盘，左栏不弹「待填表」
-    if (node.type === 'DataTable' && node.editable && node.submitMode === 'resume' && !editOnWorkbench) {
+    // 在线编辑型 HITL：editable DataTable 且提交走 resume（run-patch 表非 HITL，不算）
+    if (node.type === 'DataTable' && node.editable && (node.submitMode ?? 'resume') === 'resume') {
       r.phase = 'hitl'; r.hitlType = 'edit';
     }
   });
-
-  // 预检 / 收计划自动推进中：左栏保持 running，不出现「需要在线填表」兜底卡
-  if (autoRunningStepId && AUTO_PIPELINE_STEP_IDS.has(autoRunningStepId)) {
-    r.phase = 'running';
-    r.currentStepName = autoRunningStepTitle;
-    r.hitlType = null;
-  }
 
   return r;
 }
@@ -498,9 +414,9 @@ export default function SkillAgentScreen({
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
 }: SkillAgentScreenProps) {
-  // ── 模式检测：仅当 Manager 已分配容器端点走任务 API；普通登录仍直连 AIDA Agent ──
+  // ── 模式检测：有 ClawManager 登录态 → 容器模式 ────────────────────────────
   const { session } = useAidaSession();
-  const useClawMode = Boolean(session?.containerEndpoint);
+  const useClawMode = !!session;
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式
@@ -509,10 +425,10 @@ export default function SkillAgentScreen({
   const [error, setError] = useState<string | null>(null);
   // SSE 重订阅令牌：HITL resume 后自增，强制 useSduiStream 对准后端新建的队列（见 hook 注释）
   const [streamEpoch, setStreamEpoch] = useState(0);
-  // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → overview
-  const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
   // 产物预览：open_preview action 触发，存待预览的相对路径（null = 关闭）
   const [previewPath, setPreviewPath] = useState<string | null>(null);
+  // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
+  const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
 
   // ── 左右同步：聊天侧 ZhgkProgressCard 启动 run 后自动接入（本地模式）────────
   // store 里有匹配的 skillId + runId 且本地尚未启动 → 直接接入，跳过 IdleScreen
@@ -541,23 +457,31 @@ export default function SkillAgentScreen({
   const sduiDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { sduiDocRef.current = sduiDoc; }, [sduiDoc]);
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
-  const frozenMaxDoneStepIdxRef = useRef(-1);
+  const frozenProgressRef = useRef(0);
   useEffect(() => {
     if (!frozenDoc || !sduiDoc) return;
-    // 仅当重放 Stepper 水位超过冻结快照时才解冻（避免 SN 重跑时步进条回退）
-    if (replayCaughtUp(sduiDoc, frozenMaxDoneStepIdxRef.current)) {
-      setFrozenDoc(null);
-    }
+    const { progress = 0 } = extractProgressFromSdui(sduiDoc);
+    const hasHitl = !!findNodeById(sduiDoc.root, 'hitl-card')
+      || !!findNodeById(sduiDoc.root, 'hitl-edit-card');
+    // 进度追上冻结水位 → 后端重放完毕；出现新 HITL → 流水线推进到下一交互门
+    if (progress >= frozenProgressRef.current || hasHitl) setFrozenDoc(null);
   }, [sduiDoc, frozenDoc]);
   // resume 期间展示冻结快照，其余时间展示实时文档
   const displayDoc = frozenDoc ?? sduiDoc;
 
-  // Sync SDUI doc → skillRunStore（冻结期间同步展示快照，避免左栏步进条随重放回退）
+  // ── meta 工作台路由协议（SDUI.md §HITL-Edit）────────────────────────────────
+  // route_hitl_edit：在线编辑 HITL 卡归属 —— 'workbench'（默认 · 留在右侧大盘）/ 'chat'（移交左栏）。
+  // workbench_class：工作台布局策略键，查 WORKBENCH_LAYOUTS 注册表得容器样式覆盖。
+  const docMeta = (displayDoc?.meta ?? {}) as Record<string, unknown>;
+  const routeHitlEdit: 'workbench' | 'chat' = docMeta.route_hitl_edit === 'chat' ? 'chat' : 'workbench';
+  const workbenchClass = typeof docMeta.workbench_class === 'string' ? docMeta.workbench_class : '';
+
+  // Sync SDUI doc → skillRunStore（左侧 SkillRunBanner 从 store 读取进度展示）
   useEffect(() => {
-    const doc = frozenDoc ?? sduiDoc;
-    if (!doc || !activeRunId) return;
-    updateSkillRun(extractProgressFromSdui(doc));
-  }, [sduiDoc, frozenDoc, activeRunId]);
+    if (!sduiDoc || !activeRunId) return;
+    const patch = extractProgressFromSdui(sduiDoc);
+    updateSkillRun(patch);
+  }, [sduiDoc, activeRunId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
@@ -576,8 +500,8 @@ export default function SkillAgentScreen({
       } else {
         const id = await startRun(skillId, req);
         setRunId(id);
+        // 通知聊天侧：source='ui' → ClawRail 检测到后自动注入 SkillRunBanner 消息
         setSkillRun(skillId, id, 'ui');
-        setStreamEpoch(e => e + 1);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '启动失败');
@@ -599,16 +523,18 @@ export default function SkillAgentScreen({
       // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
       const curDoc = sduiDocRef.current;
       if (curDoc) {
-        frozenMaxDoneStepIdxRef.current = maxDoneStepIndex(curDoc);
+        frozenProgressRef.current = extractProgressFromSdui(curDoc).progress ?? 0;
         setFrozenDoc(curDoc);
-        updateSkillRun(extractProgressFromSdui(curDoc));
       }
       await resumeRun(skillId, activeRunId, payload);
+      // 立即给左侧 SkillRunBanner 反馈：HITL 已提交，恢复 running
+      updateSkillRun({ phase: 'running', hitlType: null });
       // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
       setStreamEpoch(e => e + 1);
     }
   }, [useClawMode, session, taskId, activeRunId, skillId]);
 
+  // 3D 机房入口「下钻→意图」：在意图 HITL 处用所选意图续跑同一 run；否则以该意图启动 run
   const handleIntent = useCallback(async (intent: string) => {
     const card = sduiDocRef.current ? findNodeById(sduiDocRef.current.root, 'hitl-card') : null;
     const atIntentHitl = !!card && JSON.stringify(card).includes(`"${intent}"`);
@@ -665,7 +591,23 @@ export default function SkillAgentScreen({
     } else if (action.kind === 'reset_session') {
       void handleResetSession();
     }
-  }, [handleStart, doResume, handleResetSession, handleIntent]);
+  }, [handleStart, doResume, handleResetSession, handleIntent, skillId]);
+
+  // ── EditableTable 提交（submitMode 路由 · 对 skill 名零硬编码）──────────────
+  const handleTableSubmit = useCallback(async (rows: SduiDataTableRow[], meta: SduiTableSubmitMeta) => {
+    if (meta.submitMode === 'run-patch') {
+      // 运行时补丁：不重跑 LangGraph，后端 merge_run_patch 落盘后推新 SDUI 树
+      if (!activeRunId) return;
+      await runPatchRun(skillId, activeRunId, {
+        action: meta.patchAction ?? meta.stepId ?? 'table',
+        rows,
+      });
+      return;
+    }
+    // 在线编辑型 HITL：与 choice / upload 同走 resume（full_restart 重跑，
+    // rows 由 skill.apply_resume_payload 写回 project）
+    await doResume({ rows });
+  }, [activeRunId, skillId, doResume]);
 
   const handleUpload = useCallback(async (files: FileList) => {
     const arr = Array.from(files);
@@ -675,38 +617,21 @@ export default function SkillAgentScreen({
       console.error('[SDUI] upload error:', e);
       throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
     }
-    // 上传已完成 → 立即 resolve（组件随即显示「已上传」确认态）；推进延后 HOLD，
-    // 让确认态稳定可见一段时间，再触发 full_restart 重放。
-    setTimeout(() => { void doResume({ uploaded: arr.map(f => f.name) }); }, HITL_HOLD_MS);
+    await doResume({ uploaded: arr.map(f => f.name) });
   }, [skillId, doResume]);
 
   const handleChoiceSubmit = useCallback(async (value: string) => {
-    // 组件已显示「已提交」确认态 → 先 hold 再推进，保证确认态可见一段时间
-    await new Promise(r => setTimeout(r, HITL_HOLD_MS));
     await doResume({ choice: value });
   }, [doResume]);
-
-  // 可编辑 DataTable：/resume 或 /run-patch
-  const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[], stepId?: string) => {
-    if (stepId && activeRunId && ['go_back', 'task_progress'].includes(stepId)) {
-      await runPatchRun(skillId, activeRunId, { action: stepId, stepId, rows });
-      return;
-    }
-    await new Promise(r => setTimeout(r, HITL_HOLD_MS));
-    await doResume({ rows });
-  }, [doResume, activeRunId, skillId]);
-
-  const handleRunPatch = useCallback(async (payload: Record<string, unknown>) => {
-    if (!activeRunId) throw new Error('无活动 run');
-    await runPatchRun(skillId, activeRunId, payload);
-  }, [skillId, activeRunId]);
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
   // sduiDoc 出现 hitl-card → 连同 resume 回调写入 skillHitlStore；
   // 左侧 SkillRunBanner 据此渲染可交互卡。无 HITL / 卸载时清除。
+  // 在线编辑卡（hitl-edit-card）默认留在右侧大盘，仅 meta.route_hitl_edit==='chat' 才移交。
   useEffect(() => {
     if (!sduiDoc || !activeRunId) { clearSkillHitl(skillId); return; }
-    const card = findNodeById(sduiDoc.root, 'hitl-card');
+    const card = findNodeById(sduiDoc.root, 'hitl-card')
+      ?? (routeHitlEdit === 'chat' ? findNodeById(sduiDoc.root, 'hitl-edit-card') : null);
     if (card) {
       setSkillHitl({
         skillId, runId: activeRunId, node: card,
@@ -715,7 +640,7 @@ export default function SkillAgentScreen({
     } else {
       clearSkillHitl(skillId);
     }
-  }, [sduiDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload]);
+  }, [sduiDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, routeHitlEdit]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
 
@@ -725,9 +650,9 @@ export default function SkillAgentScreen({
     onAction: (action) => { void handleAction(action); },
     onUpload: (files) => { void handleUpload(files); },
     onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
-    onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
-    onRunPatch: handleRunPatch,
-    streamEpoch,
+    onTableSubmit: (rows, meta) => {
+      handleTableSubmit(rows, meta).catch(e => console.error('[SDUI] table submit error:', e));
+    },
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────────────
@@ -737,7 +662,7 @@ export default function SkillAgentScreen({
       <div style={{ height: '100%', overflow: 'auto' }}>
         <IdleScreen skillId={skillId} title={title} description={description} onStart={() => { void handleStart(); }} loading={starting} />
         {error && (
-          <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--c-danger-soft)', borderRadius: 'var(--r-md)', color: 'var(--c-danger-text)', fontSize: 'var(--fs-13)', textAlign: 'center' }}>
+          <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--red-50)', borderRadius: 'var(--radius-md)', color: 'var(--red-700)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
             {error}
           </div>
         )}
@@ -746,15 +671,26 @@ export default function SkillAgentScreen({
   }
 
   const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
+  const displayRoot = displayDoc
+    ? applyViewMode(
+        leftRailHitl
+          ? stripHitlCard(displayDoc.root)
+          : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
+        viewMode,
+      )
+    : null;
 
   return (
     <SduiRuntimeContext.Provider value={runtime}>
-      <div style={{ height: '100%', overflow: 'auto', padding: 'var(--pad-panel)' }}>
-        {displayDoc ? (
-          <>
-            {leftRailHitl && <HitlTakeover />}
-            <SduiNodeView node={applyViewMode(leftRailHitl ? stripHitlCard(displayDoc.root) : displayDoc.root, viewMode)} />
-          </>
+      <div
+        data-workbench={workbenchClass || undefined}
+        style={{
+          height: '100%', overflow: 'auto', padding: 'var(--pad-panel)',
+          ...(WORKBENCH_LAYOUTS[workbenchClass] ?? {}),
+        }}
+      >
+        {displayRoot ? (
+          <SduiNodeView node={displayRoot} />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* 骨架屏：正在连接 SSE / 等待第一个 sdui 事件 */}

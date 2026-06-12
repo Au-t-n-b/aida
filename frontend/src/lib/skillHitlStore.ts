@@ -9,7 +9,8 @@
  *   · SkillAgentScreen 从 sduiDoc 抽出 hitl-card 节点 + 暴露 resume 回调 → setSkillHitl()
  *   · 左侧 SkillRunBanner 读 store，用一个本地 SduiRuntimeContext.Provider 复用同一套
  *     SduiNodeView 渲染那张卡，回调直连 store 里的 onChoiceSubmit / onUpload。
- *   · 右侧 SkillAgentScreen strip hitl-card + 顶部轻量引导条，交互在左侧会话框。
+
+ *   · 右侧 SkillAgentScreen strip hitl-card（或替换为只读指引），交互在左侧会话框。
  *
  * 存函数到单例只是「持有最新回调引用」，SkillAgentScreen 在回调变化时刷新即可。
  */
