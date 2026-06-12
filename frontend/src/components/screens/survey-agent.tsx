@@ -339,6 +339,24 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   return found;
 }
 
+/** Stepper 中最后一个 done 步骤的下标（resume 冻结时的进度水位）。 */
+function maxDoneStepIndex(doc: SduiDocument): number {
+  let max = -1;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'Stepper' || !node.steps) return;
+    node.steps.forEach((s, i) => {
+      if (s.status === 'done') max = Math.max(max, i);
+    });
+  });
+  return max;
+}
+
+/** full_restart 重放是否已追平/超过冻结时的 Stepper 水位。 */
+function replayCaughtUp(live: SduiDocument, frozenMaxDone: number): boolean {
+  if (findNodeById(live.root, 'task-table-dt')) return true;
+  return maxDoneStepIndex(live) > frozenMaxDone;
+}
+
 /** 移除 root 下的 hitl-card（交互卡已路由到左侧会话框，避免左右双份）。
  *  hitl-card 是 root Stack 的直接子节点（见 zhgk/sdui.py），浅层移除即可。
  *  右侧此刻由 P4「你的回合」接管态承载（见主渲染）。*/
@@ -497,40 +515,23 @@ export default function SkillAgentScreen({
   const sduiDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { sduiDocRef.current = sduiDoc; }, [sduiDoc]);
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
-  const frozenProgressRef = useRef(0);
+  const frozenMaxDoneStepIdxRef = useRef(-1);
   useEffect(() => {
     if (!frozenDoc || !sduiDoc) return;
-    const { progress = 0 } = extractProgressFromSdui(sduiDoc);
-    const hasHitl = !!findNodeById(sduiDoc.root, 'hitl-card');
-    let runningStepId = '';
-    walkSduiNodes(sduiDoc.root, (node) => {
-      if (node.type === 'Stepper' && !runningStepId) {
-        const rs = node.steps.find(s => s.status === 'running');
-        if (rs?.id) runningStepId = rs.id;
-      }
-    });
-    const autoRunning = runningStepId && AUTO_PIPELINE_STEP_IDS.has(runningStepId);
-    let workbenchEdit = false;
-    if (sduiDoc.meta?.route_hitl_edit === 'workbench') {
-      walkSduiNodes(sduiDoc.root, (node) => {
-        if (!workbenchEdit && node.type === 'DataTable' && node.editable && node.submitMode === 'resume') {
-          workbenchEdit = true;
-        }
-      });
-    }
-    if (progress >= frozenProgressRef.current || hasHitl || autoRunning || workbenchEdit) {
+    // 仅当重放 Stepper 水位超过冻结快照时才解冻（避免 SN 重跑时步进条回退）
+    if (replayCaughtUp(sduiDoc, frozenMaxDoneStepIdxRef.current)) {
       setFrozenDoc(null);
     }
   }, [sduiDoc, frozenDoc]);
   // resume 期间展示冻结快照，其余时间展示实时文档
   const displayDoc = frozenDoc ?? sduiDoc;
 
-  // Sync SDUI doc → skillRunStore（左侧 SkillRunBanner 从 store 读取进度展示）
+  // Sync SDUI doc → skillRunStore（冻结期间同步展示快照，避免左栏步进条随重放回退）
   useEffect(() => {
-    if (!sduiDoc || !activeRunId) return;
-    const patch = extractProgressFromSdui(sduiDoc);
-    updateSkillRun(patch);
-  }, [sduiDoc, activeRunId]);
+    const doc = frozenDoc ?? sduiDoc;
+    if (!doc || !activeRunId) return;
+    updateSkillRun(extractProgressFromSdui(doc));
+  }, [sduiDoc, frozenDoc, activeRunId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
@@ -571,12 +572,11 @@ export default function SkillAgentScreen({
       // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
       const curDoc = sduiDocRef.current;
       if (curDoc) {
-        frozenProgressRef.current = extractProgressFromSdui(curDoc).progress ?? 0;
+        frozenMaxDoneStepIdxRef.current = maxDoneStepIndex(curDoc);
         setFrozenDoc(curDoc);
+        updateSkillRun(extractProgressFromSdui(curDoc));
       }
       await resumeRun(skillId, activeRunId, payload);
-      // 立即给左侧 SkillRunBanner 反馈：HITL 已提交，恢复 running
-      updateSkillRun({ phase: 'running', hitlType: null });
       // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
       setStreamEpoch(e => e + 1);
     }
@@ -595,7 +595,7 @@ export default function SkillAgentScreen({
     setRunId(null);
     setTaskId(null);
     setFrozenDoc(null);
-    frozenProgressRef.current = 0;
+    frozenMaxDoneStepIdxRef.current = -1;
     setStreamEpoch(0);
     setPreviewPath(null);
     setError(null);

@@ -14,7 +14,6 @@ import { stableChildKey } from '@/lib/sduiKeys';
 import { Badge, Button, Panel } from '@/components/primitives';
 import { SduiStepper } from './SduiStepper';
 import { SduiDonutChart } from './SduiDonutChart';
-import { SduiTaskProgressCard } from './SduiTaskProgressCard';
 import { SduiArtifactGrid } from './SduiArtifactGrid';
 import { SduiFilePicker } from './SduiFilePicker';
 import { SduiChoiceCard } from './SduiChoiceCard';
@@ -806,9 +805,6 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
           {headerAction.label}
         </button>
       ) : undefined;
-      if (node.id === 'task-table') {
-        return <SduiTaskProgressCard node={node} />;
-      }
       // 可折叠卡：把次要明细（如 micro-step Stepper）收起，减轻信息墙（需 title）。
       if (node.collapsible && node.title) {
         return (

@@ -106,7 +106,7 @@ export async function startRun(skillId: string, req: StartReq = {}): Promise<str
   return data.run_id;
 }
 
-/** 清空 skill 工作区（Output/RunTime/Input 等），重置会话时调用。 */
+/** 清空 skill 工作区产物与运行态（保留 Input），重置会话时调用。 */
 export async function resetWorkspace(skillId: string): Promise<void> {
   const res = await fetch(`${AGENT_BASE}/agent/${skillId}/reset-workspace`, {
     method: 'POST',

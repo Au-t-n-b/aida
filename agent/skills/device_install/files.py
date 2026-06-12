@@ -112,9 +112,9 @@ def check_project_files(root: Path) -> dict[str, Any]:
 
 
 def reset_workspace(root: Path) -> dict[str, Any]:
-    """重置会话：清空工作区运行态与全部产物（含 Input 副本）。
+    """重置会话：清空工作区运行态与产物，保留 Input/ 输入文件。
 
-    清除 ProjectData 下 Output / RunTime / Start / Images / Input 全部文件。
+    清除 ProjectData 下 Output / RunTime / Start / Images；Input/ 不动。
     上游源目录 DEVICE_INSTALL_SOURCE_ROOT 不在 work_root 内，不受影响。
     """
     root = Path(root).resolve()
@@ -133,14 +133,14 @@ def reset_workspace(root: Path) -> dict[str, Any]:
                 except OSError:
                     pass
 
-    for sub in ("Output", "RunTime", "Start", "Images", "Input"):
+    for sub in ("Output", "RunTime", "Start", "Images"):
         _clear_dir(sub)
 
     return {
         "ok": True,
         "removed_count": len(removed),
         "removed": removed,
-        "message": "已清空工作区运行态与全部产物，可重新启动主建设流程。",
+        "message": "已清空运行态与产物（Input 已保留），可重新启动主建设流程。",
     }
 
 

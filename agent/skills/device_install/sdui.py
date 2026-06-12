@@ -187,41 +187,8 @@ def _donut_progress_color(pct: int) -> Literal["success", "warning", "error"]:
     return "error"
 
 
-def _build_task_progress_overview(rows: list[dict[str, Any]]) -> SduiRowNode:
-    """任务进展概览：DonutChart + StatisticRow（组件库标准组合）。"""
-    total = len(rows)
-    done = sum(1 for r in rows if str(r.get("status")) == "已完成")
-    in_prog = sum(1 for r in rows if str(r.get("status")) == "进行中")
-    pct = int(done / total * 100) if total else 0
-    tone = _donut_progress_color(pct)
-    return SduiRowNode(
-        id="task-progress-overview",
-        align="center",
-        gap="md",
-        children=[  # type: ignore[arg-type]
-            SduiDonutChartNode(
-                id="task-progress-donut",
-                segments=[
-                    SduiDonutSegment(label="已完成", value=pct, color=tone),
-                    SduiDonutSegment(label="剩余", value=max(0, 100 - pct), color="subtle"),
-                ],
-                centerValue=f"{pct}%",
-            ),
-            SduiStatisticRowNode(
-                id="task-progress-kpi",
-                flex=2,
-                items=[
-                    SduiStatisticRowItem(title="任务总数", value=f"{total} 条", color="accent"),
-                    SduiStatisticRowItem(title="已完成", value=f"{done} 条", color="success"),
-                    SduiStatisticRowItem(title="进行中", value=f"{in_prog} 条", color="warning"),
-                ],
-            ),
-        ],
-    )
-
-
-def _build_task_progress_table(state: dict[str, Any]) -> SduiCardNode | None:
-    """任务进展：概览环 + KPI + 只读 DataTable（progress/status 列走组件库单元格）。"""
+def _build_task_progress_table(state: dict[str, Any]) -> SduiDataTableNode | None:
+    """任务进展：组件库 DataTable（Tier B 展示/编辑双模式 · status/progress 列）。"""
     if not _show_task_progress(state):
         return None
     m = collect_metrics(state)
@@ -236,18 +203,19 @@ def _build_task_progress_table(state: dict[str, Any]) -> SduiCardNode | None:
         SduiDataTableColumn(key="status", label="状态", type="status", width=90),
         SduiDataTableColumn(key="progress", label="进度", type="progress", width=140),
     ]
-    children: list[SduiNode] = []
-    if _show_go_back_toolbar(state):
-        children.append(_build_back_toolbar_dt())
-    children.append(SduiDataTableNode(
+    return SduiDataTableNode(
         id="task-table-dt",
-        title=f"计划下发任务明细（{len(rows)} 条）",
+        title="任务进展",
         columns=columns,
         rows=rows,
         editable=False,
+        dualMode=True,
+        patchAction="task_progress",
         rowKey="id",
-    ))
-    return SduiCardNode(id="task-table", title="任务进展", children=children)
+        pageSize=10,
+        backLabel="返回上一步" if _show_go_back_toolbar(state) else None,
+        backStepId="go_back",
+    )
 
 
 def _build_back_toolbar_dt() -> SduiDataTableNode:

@@ -8,7 +8,7 @@
  *     - editable=true 时表头右上角出「backLabel 返回上一步」（run-patch go_back）+「fillLabel 一键填充」+「submitLabel 提交」；提交前按 requiredKeys 校验。
  *     - submitMode='resume' → onRowsSubmit（/resume）；'run-patch' → onRowsSubmit（/run-patch）。
  */
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type { SduiDataTableNode, SduiDataTableColumn } from '@/lib/sdui';
 import { useSduiRuntime } from './SduiContext';
 import { taskProgressFill } from './taskProgressColors';
@@ -33,6 +33,11 @@ const th: React.CSSProperties = {
 };
 const td: React.CSSProperties = { padding: '9px 12px', color: 'var(--text-secondary)', verticalAlign: 'middle' };
 
+function pagerBtn(disabled: boolean): React.CSSProperties {
+  return { padding: '5px 12px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 };
+}
+const primaryBtn: React.CSSProperties = { padding: '6px 16px', fontSize: 13, fontWeight: 500, borderRadius: 'var(--r-md)', border: '1px solid var(--c-brand)', background: 'var(--c-brand)', color: '#fff' };
+
 function StatusBadge({ value }: { value: string }) {
   const v = String(value ?? '');
   const tone =
@@ -54,6 +59,180 @@ function ProgressCell({ value }: { value: unknown }) {
         <div style={{ width: `${pct}%`, height: '100%', borderRadius: 'inherit', background: taskProgressFill(pct), transition: 'width .4s, background .2s' }} />
       </div>
       <span style={{ fontSize: 11, color: 'var(--c-text-muted)', fontVariantNumeric: 'tabular-nums' }}>{pct}%</span>
+    </div>
+  );
+}
+
+function statusFromProgress(pct: number): string {
+  const p = Math.max(0, Math.min(100, Math.round(pct)));
+  if (p >= 100) return '已完成';
+  if (p >= 1) return '进行中';
+  return '未开始';
+}
+
+/** Tier B · 展示/编辑双模式（组件库 DataTable 标准交互）。*/
+function DualModeTable({ node }: { node: SduiDataTableNode }) {
+  const { onRunPatch, streamEpoch } = useSduiRuntime();
+  const columns = node.columns as SduiDataTableColumn[];
+  const rowKey = node.rowKey ?? 'id';
+  const [rows, setRows] = useState<Row[]>(() => (node.rows as Row[]).map(r => ({ ...r })));
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [err, setErr] = useState<string | null>(null);
+  const snapshotRef = useRef<Row[]>([]);
+
+  const rowsSeed = JSON.stringify(node.rows);
+  useEffect(() => {
+    if (editing) return;
+    setRows((node.rows as Row[]).map(r => ({ ...r })));
+    setPage(0);
+  }, [rowsSeed, streamEpoch, editing]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(r =>
+      columns.some(c => String(r[c.key] ?? '').toLowerCase().includes(q)),
+    );
+  }, [rows, search, columns]);
+
+  const pageSize = node.pageSize && node.pageSize > 0 ? node.pageSize : 0;
+  const pageCount = pageSize ? Math.max(1, Math.ceil(filtered.length / pageSize)) : 1;
+  const pageRows = pageSize ? filtered.slice(page * pageSize, page * pageSize + pageSize) : filtered;
+
+  const setProgress = (id: unknown, raw: string) => {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(raw) || 0)));
+    setRows(prev => prev.map(r => {
+      if (r[rowKey] !== id) return r;
+      return { ...r, progress: pct, status: statusFromProgress(pct) };
+    }));
+  };
+
+  const startEdit = () => {
+    snapshotRef.current = rows.map(r => ({ ...r }));
+    setEditing(true);
+    setErr(null);
+  };
+
+  const cancelEdit = () => {
+    setRows(snapshotRef.current.map(r => ({ ...r })));
+    setEditing(false);
+    setErr(null);
+  };
+
+  const saveEdit = async () => {
+    if (!onRunPatch) {
+      setErr('保存未接入');
+      return;
+    }
+    setSaving(true);
+    setErr(null);
+    try {
+      const action = node.patchAction ?? 'task_progress';
+      const payload = rows.map(r => ({ id: r[rowKey], progress: r.progress }));
+      await onRunPatch({ action, stepId: action, rows: payload });
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const headerBtn: React.CSSProperties = {
+    padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 'var(--r-sm)', cursor: 'pointer',
+  };
+
+  const renderCell = (r: Row, col: SduiDataTableColumn) => {
+    if (editing && col.type === 'progress') {
+      return (
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={Number(r[col.key]) || 0}
+            onChange={e => setProgress(r[rowKey], e.target.value)}
+            style={{ width: 52, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 12 }}
+          />
+          <span style={{ color: 'var(--text-tertiary)' }}>%</span>
+        </label>
+      );
+    }
+    if (col.type === 'status') return <StatusBadge value={String(r[col.key] ?? '')} />;
+    if (col.type === 'progress') return <ProgressCell value={r[col.key]} />;
+    const text = col.key === 'principal' ? principalDisplayName(r[col.key]) : String(r[col.key] ?? '');
+    return <span>{text}</span>;
+  };
+
+  return (
+    <div className="sdui-tbl" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', background: 'var(--surface)', boxShadow: 'var(--shadow-xs)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        {node.title && <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</span>}
+        <span style={{ fontSize: 11, color: 'var(--text-tertiary)', background: 'var(--c-bg-soft, #eef2f7)', borderRadius: 999, padding: '1px 8px', fontVariantNumeric: 'tabular-nums' }}>{filtered.length}</span>
+        <span style={{
+          fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '2px 8px',
+          background: editing ? 'var(--c-warning-soft)' : 'var(--c-success-soft)',
+          color: editing ? 'var(--c-warning-text)' : 'var(--c-success-text)',
+        }}>
+          {editing ? '编辑模式' : '展示模式'}
+        </span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <input
+            value={search}
+            onChange={e => { setSearch(e.target.value); setPage(0); }}
+            placeholder="搜索…"
+            style={{ padding: '5px 10px', fontSize: 12, borderRadius: 'var(--r-sm)', border: '1px solid var(--border)', minWidth: 120 }}
+          />
+          {node.backLabel && onRunPatch && !editing && (
+            <button type="button" onClick={() => { void onRunPatch({ action: 'go_back', stepId: node.backStepId ?? 'go_back' }); }}
+              style={{ ...headerBtn, border: '1px solid var(--c-border)', background: 'var(--c-surface)', color: 'var(--c-text-2)' }}>
+              {node.backLabel}
+            </button>
+          )}
+          {editing ? (
+            <>
+              <button type="button" onClick={cancelEdit} disabled={saving} style={{ ...headerBtn, border: '1px solid var(--c-border)', background: 'var(--c-surface)', color: 'var(--c-text-2)' }}>取消</button>
+              <button type="button" onClick={() => { void saveEdit(); }} disabled={saving} style={{ ...headerBtn, border: '1px solid var(--c-brand)', background: 'var(--c-brand)', color: '#fff' }}>
+                {saving ? '保存中…' : '保存'}
+              </button>
+            </>
+          ) : (
+            <button type="button" onClick={startEdit} style={{ ...headerBtn, border: '1px solid var(--c-border)', background: 'var(--c-surface)', color: 'var(--c-text-2)' }}>编辑</button>
+          )}
+        </div>
+      </div>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr>
+              {columns.map((c, i) => <th key={i} style={{ ...th, width: c.width }}>{c.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.map((r, ri) => (
+              <tr key={String(r[rowKey] ?? ri)} style={{ borderBottom: '1px solid var(--border)' }}>
+                {columns.map((c, ci) => <td key={ci} style={td}>{renderCell(r, c)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>共 {filtered.length} 条</span>
+        {pageSize > 0 && pageCount > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button type="button" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={pagerBtn(page === 0)}>上一页</button>
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{page + 1} / {pageCount}</span>
+            <button type="button" onClick={() => setPage(p => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1} style={pagerBtn(page >= pageCount - 1)}>下一页</button>
+          </div>
+        )}
+      </div>
+      {err && (
+        <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--red-600, #dc2626)', borderTop: '1px solid var(--border)' }}>{err}</div>
+      )}
     </div>
   );
 }
@@ -389,11 +568,9 @@ function TypedTable({ node }: { node: SduiDataTableNode }) {
   );
 }
 
-function pagerBtn(disabled: boolean): React.CSSProperties {
-  return { padding: '5px 12px', fontSize: 12, borderRadius: 4, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.5 : 1 };
-}
-const primaryBtn: React.CSSProperties = { padding: '6px 16px', fontSize: 13, fontWeight: 500, borderRadius: 'var(--r-md)', border: '1px solid var(--c-brand)', background: 'var(--c-brand)', color: '#fff' };
-
 export function SduiDataTable({ node }: { node: SduiDataTableNode }) {
+  if (isTypedColumns(node.columns) && node.dualMode && !node.editable) {
+    return <DualModeTable node={node} />;
+  }
   return isTypedColumns(node.columns) ? <TypedTable node={node} /> : <LegacyTable node={node} />;
 }
