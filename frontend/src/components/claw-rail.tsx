@@ -9,6 +9,7 @@ import {
 import { getNavLabel } from '../data/left-nav-items';
 import { refreshEvals } from '@/lib/eval-refresh';
 import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunStore';
+import { useRunLogStore } from '@/lib/runLogStore';
 import { useSkillHitlStore } from '@/lib/skillHitlStore';
 import { startRun } from '@/hooks/useSduiStream';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
@@ -448,7 +449,64 @@ function genConvId(): string {
 const SKILL_LABELS: Record<string, string> = {
   zhgk: '智慧工勘',
   guihua: '规划设计',
+  device_install: '设备安装',
 };
+
+/** 节点日志气泡：每个 step 一组，逐行随 SSE 到达渲染（与右侧步进条同步） */
+function RunLogFeed({ runId }: { runId: string }) {
+  const groups = useRunLogStore(runId);
+  if (!groups.length) return null;
+  return (
+    <div style={{ margin: '2px 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {groups.map((g) => {
+        const icon = g.status === 'done' ? '✓' : g.status === 'failed' ? '✗' : '⟳';
+        const iconColor =
+          g.status === 'done' ? 'var(--green-600, #16a34a)'
+          : g.status === 'failed' ? 'var(--red-600, #dc2626)'
+          : '#1b84ff';
+        return (
+          <div key={g.step} style={{
+            border: '1px solid var(--c-border, rgba(0,0,0,.08))',
+            borderRadius: 6,
+            overflow: 'hidden',
+            background: 'var(--c-bg-soft, rgba(0,0,0,.02))',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 9px',
+              fontSize: 12, fontWeight: 600,
+              color: 'var(--c-text, #18181b)',
+            }}>
+              <span style={{
+                color: iconColor,
+                display: 'inline-block',
+                animation: g.status === 'running' ? 'spin 1s linear infinite' : undefined,
+              }}>{icon}</span>
+              <span>{g.name}</span>
+            </div>
+            {g.lines.length > 0 && (
+              <div style={{
+                padding: '0 9px 7px 22px',
+                fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+                fontSize: 11.5,
+                lineHeight: 1.7,
+                color: 'var(--c-text-muted, #71717a)',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}>
+                {g.lines.map((ln, i) => (
+                  <div key={i} style={{ opacity: i === g.lines.length - 1 && g.status === 'running' ? 1 : 0.78 }}>
+                    {ln}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function SkillRunBanner({
   skillId,
@@ -547,6 +605,9 @@ function SkillRunBanner({
           )}
         </div>
       )}
+
+      {/* 节点日志气泡：转圈时逐条弹出（时序由后端 SSE 节奏驱动）*/}
+      {myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
 
       {/* HITL 交互卡：直接在左侧会话框内可操作（选择 / 上传），回调直连右侧 resume */}
       {phase === 'hitl' && myHitl && (
@@ -731,7 +792,11 @@ export default function ClawRail({
       const ts = msg.ts ?? nowTs();
       setAppendMsgs(prev => [...prev, { role: msg.role ?? 'ai', body: msg.body!, ts, ...msg }]);
     };
-    const onClear = () => setAppendMsgs([]);
+    const onClear = () => {
+      setAppendMsgs([]);
+      setChatMsgs([]);
+      setConvId(genConvId());
+    };
     window.addEventListener('aida:progress', onProgress);
     window.addEventListener('aida:clear', onClear);
     return () => {

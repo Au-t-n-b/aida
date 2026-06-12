@@ -42,6 +42,18 @@ def _load_sn_tables(ctx: SkillContext) -> list[dict]:
     return [t for t in (tables or []) if isinstance(t, dict)]
 
 
+def _device_row_key(row: dict) -> str:
+    """设备行稳定键（full_restart 重生成 sn_tables 后 row id 可能变，用物理位置对齐 ESN）。"""
+    return "|".join([
+        as_str(row.get("所属机房")),
+        as_str(row.get("设备大类")),
+        as_str(row.get("所属机柜")),
+        as_str(row.get("安装起始U位")),
+        as_str(row.get("设备型号")),
+        as_str(row.get("设备名称")),
+    ])
+
+
 def _fresh_rows(tables: list[dict]) -> list[dict]:
     """把 sn_tables 展平为可编辑行（每行携带稳定 id = "<table_id>#<idx>"）。"""
     out: list[dict] = []
@@ -61,16 +73,34 @@ def _fresh_rows(tables: list[dict]) -> list[dict]:
 
 
 def _tables_with_filled(tables: list[dict], esn_rows: list[dict]) -> list[dict]:
-    """把提交的 ESN 按 id 写回原 sn_tables（保留 厂家 / 设备U高 等列），返回分组表。"""
-    esn_map = {as_str(r.get("id")): as_str(r.get("ESN")) for r in esn_rows if isinstance(r, dict)}
+    """把提交的 ESN 写回 sn_tables（先按 row id，再按设备物理键兜底）。"""
+    esn_by_id: dict[str, str] = {}
+    esn_by_dev: dict[str, str] = {}
+    for r in esn_rows:
+        if not isinstance(r, dict):
+            continue
+        esn = as_str(r.get("ESN"))
+        if not esn:
+            continue
+        rid = as_str(r.get("id"))
+        if rid:
+            esn_by_id[rid] = esn
+        dk = _device_row_key(r)
+        if dk.replace("|", "").strip():
+            esn_by_dev[dk] = esn
+
     out: list[dict] = []
     for tbl in tables:
         rows: list[dict] = []
         for ri, row in enumerate(tbl.get("rows", [])):
             row = dict(row)
             rid = f"{as_str(tbl.get('id'))}#{ri}"
-            if rid in esn_map:
-                row["ESN"] = esn_map[rid]
+            if rid in esn_by_id:
+                row["ESN"] = esn_by_id[rid]
+            else:
+                dk = _device_row_key(row)
+                if dk in esn_by_dev:
+                    row["ESN"] = esn_by_dev[dk]
             rows.append(row)
         out.append({
             "id": as_str(tbl.get("id")),
@@ -79,6 +109,35 @@ def _tables_with_filled(tables: list[dict], esn_rows: list[dict]) -> list[dict]:
             "rows": rows,
         })
     return out
+
+
+def _write_sn_tables_meta(ctx: SkillContext, tables: list[dict], *, dispatch_tasks: list | None = None) -> None:
+    """持久化带 ESN 的分组表到 RunTime/sn_tables.json。"""
+    meta_path = ctx.runtime_dir / "sn_tables.json"
+    payload: dict = {"tables": tables}
+    if dispatch_tasks is not None:
+        payload["dispatch_tasks"] = dispatch_tasks
+    else:
+        try:
+            old = json.loads(meta_path.read_text(encoding="utf-8"))
+            if isinstance(old, dict) and old.get("dispatch_tasks"):
+                payload["dispatch_tasks"] = old["dispatch_tasks"]
+        except Exception:
+            pass
+    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_sn_xlsx_artifacts(ctx: SkillContext, tables: list[dict]) -> list[str]:
+    """回写 Output/SN扫码表_*.xlsx（含已填 ESN）。"""
+    from ..services.sn_builder import generate_sn_xlsx
+
+    artifacts: list[str] = []
+    for tbl in tables:
+        out = generate_sn_xlsx(tbl, str(ctx.output_dir))
+        if out:
+            artifacts.append(ctx.rel(out))
+    return artifacts
 
 
 class EsnFillStep(BaseStep):
@@ -185,8 +244,11 @@ class EsnFillStep(BaseStep):
         st["esn_collected_at"] = iso_now()
         save_tasks_state(state_path, st)
 
+        # 持久化 ESN → sn_tables.json + 回写 SN 扫码表 xlsx（作业结果产物含 ESN）
+        _write_sn_tables_meta(ctx, tables)
+        artifacts: list[str] = _write_sn_xlsx_artifacts(ctx, tables)
+
         # 完工清单（按机房+设备大类）+ 完工报告（全项目汇总）
-        artifacts: list[str] = []
         for tbl in tables:
             cl = generate_completion_checklist(tbl, str(ctx.output_dir))
             if cl and os.path.isfile(cl):

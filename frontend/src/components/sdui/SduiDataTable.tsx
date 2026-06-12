@@ -198,8 +198,15 @@ function TypedTable({ node }: { node: SduiDataTableNode }) {
       return;
     }
     if (!node.fillRows) return;
-    const fills = (node.fillRows as Row[]).map(r => ({ ...r }));
-    setRows(fills);
+    const fillMap = new Map(
+      (node.fillRows as Row[]).map(r => [String(r[rowKey] ?? ''), r]),
+    );
+    setRows(prev => prev.map(r => {
+      const f = fillMap.get(String(r[rowKey] ?? ''));
+      if (!f) return r;
+      return { ...r, ...f };
+    }));
+    setErr(null);
   };
 
   const handleSubmit = () => {

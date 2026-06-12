@@ -19,7 +19,8 @@ import { HITL_HOLD_MS } from '@/components/sdui/hitlOptimistic';
 const SduiPreviewModal = lazy(() =>
   import('@/components/sdui/SduiPreviewModal').then(m => ({ default: m.SduiPreviewModal })),
 );
-import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun } from '@/hooks/useSduiStream';
+import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace } from '@/hooks/useSduiStream';
+import { clearRunLog } from '@/lib/runLogStore';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
@@ -581,8 +582,14 @@ export default function SkillAgentScreen({
     }
   }, [useClawMode, session, taskId, activeRunId, skillId]);
 
-  // ── 重置会话 → 回到 idle 启动页（不自动开新 run）────────────────────────────
-  const handleResetSession = useCallback(() => {
+  // ── 重置会话 → 清空工作区产物 + 对话上下文，回到 idle 启动页 ─────────────────
+  const handleResetSession = useCallback(async () => {
+    if (activeRunId) clearRunLog(activeRunId);
+    try {
+      await resetWorkspace(skillId);
+    } catch (e) {
+      console.error('[SDUI] reset-workspace error:', e);
+    }
     clearSkillRun(skillId);
     clearSkillHitl(skillId);
     setRunId(null);
@@ -593,7 +600,10 @@ export default function SkillAgentScreen({
     setPreviewPath(null);
     setError(null);
     setStarting(false);
-  }, [skillId]);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aida:clear'));
+    }
+  }, [skillId, activeRunId]);
 
   // ── 动作处理 ──────────────────────────────────────────────────────────────
   const handleAction = useCallback(async (action: SduiAction) => {
@@ -609,7 +619,7 @@ export default function SkillAgentScreen({
     } else if (action.kind === 'open_preview') {
       setPreviewPath(action.path);
     } else if (action.kind === 'reset_session') {
-      handleResetSession();
+      void handleResetSession();
     }
   }, [handleStart, doResume, handleResetSession]);
 

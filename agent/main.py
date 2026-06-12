@@ -207,6 +207,27 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
     _emit_cnt: dict[str, int] = {}         # step_key → emit 累计次数（节流用）
     # full_restart 重放期间抑制中间 SDUI；sn_generate 与冷启动 preflight 一样需可见 running
     _PACE_VISIBLE_ON_REPLAY = frozenset({"sn_generate"})
+    # 中间对话框日志：跨 resume 持久的「已展示步骤」集合（确保每步日志只在首次真正执行时出现一次：
+    # 冷启动→预检/收计划；点确认下发后→计划下发/SN；点提交ESN后→ESN。避免重放重复刷屏）。
+    _runlog_logged: set[str] = RUNS[run_id].setdefault("_runlog_logged", set())
+    _runlog_shown_pass: set[str] = set()   # 本 pass 实际放行的步骤（保证同一步起止/逐行一致）
+    # 主建设 build 流程末尾会串过辅助只读步，command 不匹配时 run 空转但仍会 step_started；
+    # 中间对话框不展示这类空气泡。
+    _BUILD_AUX_LOG_STEPS = frozenset({
+        "progress_query", "plan_query", "device_overview", "plan_adjust",
+    })
+
+    def _suppress_aux_run_log(step_key: str) -> bool:
+        if step_key not in _BUILD_AUX_LOG_STEPS:
+            return False
+        if skill_id != "device_install":
+            return False
+        project = (RUNS[run_id].get("state") or {}).get("project") or {}
+        try:
+            from agent.skills.device_install.steps._command_guard import should_skip
+            return should_skip(step_key, project)
+        except Exception:
+            return False
 
     def _patched_state_with_running() -> dict:
         """构造带 running 记录的临时 state（不修改原 state）。"""
@@ -226,6 +247,10 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 "log_tail": list(running.get("log_tail") or []),
             }],
         }
+
+    def _push_run_log(payload: dict) -> None:
+        """向中间对话框推一条逐行运行日志事件（线程安全 · 不节流）。"""
+        loop.call_soon_threadsafe(queue.put_nowait, {"event": "run_log", "data": payload})
 
     def _push_sdui_overlay() -> None:
         """用带 running 记录的 patched state 生成 SDUI 并推入队列（线程安全）。"""
@@ -256,6 +281,15 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
+            # 中间对话框：开一个该节点的日志气泡（节点名作标题）。
+            # 冷启动全部放行；重放仅放行尚未展示过的步骤（首次真正执行时）。
+            # build 主流程跳过的辅助只读步不展示。
+            if not _suppress_aux_run_log(d["step"]) and (
+                (not suppress_replay) or (d["step"] not in _runlog_logged)
+            ):
+                _runlog_shown_pass.add(d["step"])
+                _runlog_logged.add(d["step"])
+                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
 
         elif ev == "step_log":
             d = item["data"]
@@ -266,6 +300,14 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 tail.append(d["msg"])
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
+            # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
+            if step_key in _runlog_shown_pass:
+                _push_run_log({
+                    "step": step_key,
+                    "name": (running or {}).get("name", ""),
+                    "msg": d["msg"],
+                    "phase": "log",
+                })
             # 节流：每 5 条 emit 推一次 SDUI（避免高频 LLM step 频繁序列化）
             cnt = _emit_cnt.get(step_key, 0) + 1
             _emit_cnt[step_key] = cnt
@@ -292,6 +334,17 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                         cur.setdefault(k, []).extend(v)
                     else:
                         cur[k] = v
+                # 中间对话框：节点完成 → 收尾对应日志气泡（仅本 pass 已放行的步骤 + 终态）
+                if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
+                    _last_status = ""
+                    _dsteps = diff.get("steps") if isinstance(diff, dict) else None
+                    if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
+                        _last_status = _dsteps[-1].get("status", "")
+                    if _last_status in ("completed", "failed"):
+                        await queue.put({"event": "run_log", "data": {
+                            "step": node_name,
+                            "phase": "done" if _last_status == "completed" else "failed",
+                        }})
                 # 重放期间跳过中间帧；sn_generate 完成帧仍推送（与 preflight 步进条体验一致）
                 if not suppress_replay or node_name in _PACE_VISIBLE_ON_REPLAY:
                     try:
@@ -346,6 +399,18 @@ async def start_run(skill: str, req: StartReq):
     task = asyncio.create_task(_run_graph_streaming(run_id, init_state))
     RUNS[run_id] = {"queue": queue, "state": init_state, "task": task}
     return {"run_id": run_id, "status": "started"}
+
+
+@app.post("/agent/{skill}/reset-workspace")
+async def reset_workspace_endpoint(skill: str):
+    """重置 skill 工作区：清空 ProjectData 运行态与产物（重置会话时调用）。"""
+    skill_obj = _get_skill_or_404(skill)
+    handler = getattr(skill_obj, "file_handler", None)
+    reset_fn = getattr(handler, "reset_workspace", None) if handler else None
+    if not callable(reset_fn):
+        raise HTTPException(404, f"skill {skill} 不支持工作区重置")
+    summary = reset_fn(skill_obj.work_root)
+    return summary
 
 
 # ─── SSE 订阅 ───
