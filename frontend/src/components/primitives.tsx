@@ -110,31 +110,16 @@ export function Panel({ title, subtitle, action, children, padding, as: Tag = 'd
           borderBottom: `1px solid ${t.border}`,
           gap: 8,
         }}>
-          <div style={{ minWidth: 0 }}>
+          <div>
             {title && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 {t.accent && (
                   <span style={{ width: 3, height: 14, borderRadius: 2, background: t.accent, flexShrink: 0 }} />
                 )}
-                <span style={{
-                  fontFamily: 'var(--font-sans)',
-                  fontWeight: 600,
-                  fontSize: 'var(--fs-13)',
-                  letterSpacing: '-.01em',
-                  lineHeight: 1.35,
-                  color: 'var(--c-text)',
-                }}>{title}</span>
+                <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>{title}</span>
               </div>
             )}
-            {subtitle && (
-              <div style={{
-                fontFamily: 'var(--font-sans)',
-                fontSize: 'var(--fs-12)',
-                color: 'var(--c-text-muted)',
-                marginTop: 2,
-                lineHeight: 1.4,
-              }}>{subtitle}</div>
-            )}
+            {subtitle && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 1 }}>{subtitle}</div>}
           </div>
           {action && <div style={{ flexShrink: 0 }}>{action}</div>}
         </div>

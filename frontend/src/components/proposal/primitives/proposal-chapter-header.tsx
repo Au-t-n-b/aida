@@ -16,7 +16,7 @@ export function ProposalChapterHeader({
     <h2
       id={id}
       className={cn(
-        'mb-4 mt-8 scroll-mt-24 text-xl font-bold text-slate-800 first:mt-4',
+        'mb-4 mt-3 scroll-mt-24 text-xl font-bold text-slate-800 first:mt-3',
         className,
       )}
     >

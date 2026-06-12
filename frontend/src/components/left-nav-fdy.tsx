@@ -18,15 +18,6 @@ import {
 import Link from '@/compat/link';
 import { useNavPath } from '@/compat/navigation';
 import { MODULE_STATUS } from '../data/journey-data';
-import {
-  NAV_TWIN,
-  NAV_EARLY,
-  NAV_PLAN,
-  NAV_OPS,
-  NAV_DOCS,
-  isNavSubActive,
-  type NavSubItem,
-} from '../data/left-nav-items';
 import { getLeftNavScrollTop, setLeftNavScrollTop, restoreLeftNavScroll } from '@/lib/left-nav-scroll';
 import {
   type NavExpandedState,
@@ -39,7 +30,10 @@ import brandLogoUrl from '@/assets/brand-logo.svg';
 import brandLogoLightUrl from '@/assets/brand-logo-light.svg';
 import wordmarkUrl from '@/assets/aida-wordmark.svg';
 
-type FdySubItem = NavSubItem & {
+type FdySubItem = {
+  name: string;
+  href?: string;
+  key?: string;
   status?: string;
   statusLabel?: string;
   disabled?: boolean;
@@ -106,8 +100,16 @@ function NavCollapseIcon({ collapsed }: { collapsed: boolean }) {
 }
 
 function isSubActive(navPath: string, s: FdySubItem, hrefPrefix?: string): boolean {
-  if (s.active) return true;
-  return isNavSubActive(navPath, s, hrefPrefix);
+  if (s.href) {
+    if (s.href === '/cockpit') return navPath === '/cockpit' || navPath.startsWith('/cockpit?');
+    if (s.href.includes('?')) return navPath === s.href;
+    return navPath === s.href || navPath.startsWith(`${s.href}/`) || navPath.startsWith(`${s.href}?`);
+  }
+  if (hrefPrefix && s.key) {
+    const base = `${hrefPrefix}/${s.key}`;
+    return navPath === base || navPath.startsWith(`${base}/`) || navPath.startsWith(`${base}?`);
+  }
+  return !!s.active;
 }
 
 const FDY_SUB_ACTIVE_LAYOUT_ID = 'fdyActiveSubIndicator';
@@ -376,56 +378,37 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const isModulePath = pathname.startsWith('/module/') || pathname.startsWith('/commissioning');
   const isEvals = pathname.startsWith('/evals');
 
-  const navTwin: FdySubItem[] = NAV_TWIN.map((item) => ({
-    ...item,
-    ...(item.href === '/twin' ? { status: 'live' as const, statusLabel: '物理 ⇄ 数字' } : {}),
-    ...(item.href === '/cockpit'
-      ? { status: MODULE_STATUS.cockpit?.state, statusLabel: '看板' }
-      : {}),
-    ...(item.href === '/twin/survey' ? { status: 'live' as const, statusLabel: 'SOG 通道' } : {}),
-  }));
-  const navEarly: FdySubItem[] = NAV_EARLY.map((item) => ({
-    ...item,
-    ...(item.href === '/preview' ? { status: 'ok' as const, statusLabel: '在线' } : {}),
-    ...(item.href === '/proposal' ? { status: 'warn' as const, statusLabel: '版本号切换' } : {}),
-  }));
-  const navPlan: FdySubItem[] = NAV_PLAN.map((item) => ({
-    ...item,
-    ...(item.href === '/plan?view=info' ? { status: 'ok' as const } : {}),
-    ...(item.href === '/plan?view=plan'
-      ? { status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label }
-      : {}),
-    ...(item.href === '/plan?view=task' ? { status: 'ok' as const } : {}),
-    ...(item.href === '/plan?view=risk' ? { status: 'alert' as const, statusLabel: '3 红' } : {}),
-    ...(item.href === '/plan?view=assumption' ? { status: 'warn' as const, statusLabel: '3 项' } : {}),
-    ...(item.href === '/plan?view=issue' ? { status: 'warn' as const, statusLabel: '2 项' } : {}),
-    ...(item.href === '/plan?view=change' ? { status: 'ok' as const } : {}),
-    ...(item.href === '/plan-init' ? { status: 'ok' as const } : {}),
-    ...(item.href === '/plan-adjust' ? { status: 'ok' as const } : {}),
-  }));
-  const navOps: FdySubItem[] = NAV_OPS.map((item) => ({
-    ...item,
-    ...(item.key === 'survey'
-      ? { status: MODULE_STATUS.survey?.state, statusLabel: MODULE_STATUS.survey?.label }
-      : {}),
-    ...(item.key === 'modeling'
-      ? { status: MODULE_STATUS.modeling?.state, statusLabel: MODULE_STATUS.modeling?.label }
-      : {}),
-    ...(item.key === 'install'
-      ? { status: MODULE_STATUS.install?.state, statusLabel: MODULE_STATUS.install?.label }
-      : {}),
-    ...(item.href === '/commissioning' ? { status: 'live' as const, statusLabel: '5 步' } : {}),
-  }));
-  const navDocs: FdySubItem[] = NAV_DOCS.map((item) => ({
-    ...item,
-    status: 'ok' as const,
-    statusLabel:
-      item.href === '/assets?cat=mgmt'
-        ? 'PD / TD'
-        : item.href === '/assets?cat=survey'
-          ? 'TL 现场'
-          : 'TL 维护',
-  }));
+  const navTwin: FdySubItem[] = [
+    { name: '算力底座孪生', href: '/twin', status: 'live', statusLabel: '物理 ⇄ 数字' },
+    { name: '项目孪生', href: '/cockpit', status: MODULE_STATUS.cockpit?.state, statusLabel: '看板' },
+    { name: '工勘孪生', href: '/twin/survey', status: 'live', statusLabel: 'SOG 通道' },
+  ];
+  const navEarly: FdySubItem[] = [
+    { name: '合同', href: '/preview', status: 'ok', statusLabel: '在线' },
+    { name: '交付预案', href: '/proposal', status: 'warn', statusLabel: '版本号切换' },
+  ];
+  const navPlan: FdySubItem[] = [
+    { name: '基本信息', href: '/plan?view=info', status: 'ok' },
+    { name: '计划', href: '/plan?view=plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
+    { name: '任务', href: '/plan?view=task', status: 'ok' },
+    { name: '风险', href: '/plan?view=risk', status: 'alert', statusLabel: '3 红' },
+    { name: '假设', href: '/plan?view=assumption', status: 'warn', statusLabel: '3 项' },
+    { name: '问题', href: '/plan?view=issue', status: 'warn', statusLabel: '2 项' },
+    { name: '变更', href: '/plan?view=change', status: 'ok' },
+    { name: '计划排期（初始化）', href: '/plan-init', status: 'ok' },
+    { name: '计划排期（计划调整）', href: '/plan-adjust', status: 'ok' },
+  ];
+  const navOps: FdySubItem[] = [
+    { name: '智慧工勘', key: 'survey', status: MODULE_STATUS.survey?.state, statusLabel: MODULE_STATUS.survey?.label },
+    { name: '规划设计', key: 'modeling', status: MODULE_STATUS.modeling?.state, statusLabel: MODULE_STATUS.modeling?.label },
+    { name: '设备安装', key: 'install', status: MODULE_STATUS.install?.state, statusLabel: MODULE_STATUS.install?.label },
+    { name: '部署调测', href: '/commissioning', status: 'live', statusLabel: '5 步' },
+  ];
+  const navDocs: FdySubItem[] = [
+    { name: '项目管理类', href: '/assets?cat=mgmt', status: 'ok', statusLabel: 'PD / TD' },
+    { name: '工勘类', href: '/assets?cat=survey', status: 'ok', statusLabel: 'TL 现场' },
+    { name: '其他作业类', href: '/assets?cat=ops', status: 'ok', statusLabel: 'TL 维护' },
+  ];
 
   const groups: { key: keyof typeof expanded; config: NavGroupConfig }[] = [
     {

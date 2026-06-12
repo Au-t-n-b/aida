@@ -104,39 +104,42 @@ function ContractTab({ onStateChange }) {
     <>
       {/* SVG 校正：顶部项目信息单行表（机会点编码）*/}
       <div className="jn-panel">
-        <div className="jn-panel-head" style={{ padding: '10px 14px', textAlign: 'left' }}>
+        <div className="jn-panel-head" style={{ padding: '10px 0', textAlign: 'left' }}>
           项目信息
         </div>
-        {/* 列宽与下方合同列表对齐：▶空列(24) + 编码(140) + 名称(flex) + 日期(100) + 日期(100) + 状态(80) + 比例(100) */}
+        {/* 等宽列：▶空列(28) 定宽，其余 5 列在 fixed 布局下均分（不再用像素宽，避免窄屏挤成竖排）*/}
         <table className="vs-table proposal-link-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <colgroup>
-            <col style={{ width: 24 }} />   {/* 对齐▶列 */}
-            <col style={{ width: 140 }} />  {/* Proposal ID */}
-            <col />                         {/* 项目名称（flex 吸收多余空白）*/}
-            <col style={{ width: 220 }} />  {/* 客户 */}
-            <col style={{ width: 110 }} />  {/* 关联合同 */}
+            <col style={{ width: 28 }} />
+            <col />
+            <col />
+            <col />
+            <col />
+            <col />
           </colgroup>
           <thead>
             <tr>
               <th></th>
               <th>Proposal ID</th>
               <th>项目名称</th>
+              <th>项目编码</th>
               <th>客户</th>
-              <th>关联合同</th>
+              <th>待交付合同</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td></td>
-              <td className="num" style={{ fontFamily: 'var(--font-mono)' }}>PROP-2026-K1903</td>
-              <td>京东三期</td>
+              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title="PROP-2026-K1903">PROP-2026-K1903</td>
+              <td title="京东三期">京东三期</td>
+              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title="K1903">K1903</td>
               <td
                 title="客户甲（华东）"
                 style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
               >
                 客户甲（华东）
               </td>
-              <td><span className="text-zinc-900 font-semibold underline underline-offset-4 decoration-zinc-300 hover:decoration-zinc-900 cursor-pointer transition-colors">{CONTRACTS.length}</span></td>
+              <td>{CONTRACTS.length}</td>
             </tr>
           </tbody>
         </table>
@@ -464,7 +467,6 @@ function ContractTab({ onStateChange }) {
                   <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-brand-text)' }}>
                     {previewBoq.boqVersion || '—'}
                   </span>
-                  <span style={{ color: 'var(--c-text-muted)' }}>{previewBoq.fileName} · {previewBoq.size}</span>
                 </div>
               </div>
               <button className="boq-preview-close" onClick={() => setPreviewBoq(null)} title="关闭">✕</button>
@@ -482,9 +484,6 @@ function ContractTab({ onStateChange }) {
                       <div className={`boq-attach-icon ext-${att.ext}`}>{att.ext.toUpperCase()}</div>
                       <div className="boq-attach-meta">
                         <div className="boq-attach-name" title={att.name}>{att.name}</div>
-                        <div className="boq-attach-sub">
-                          {att.kind} · {att.size} · 更新于 {att.updatedAt}
-                        </div>
                       </div>
                       <div className="boq-attach-actions">
                         <button
@@ -508,9 +507,6 @@ function ContractTab({ onStateChange }) {
                     </div>
                   );
                 })}
-              </div>
-              <div className="boq-preview-foot">
-                以上为该 BOQ 关联的全部附件 · 支持在线预览与本地下载。
               </div>
             </div>
           </aside>
@@ -885,7 +881,7 @@ export default function PreviewScreen() {
   const parseDone = boqState.confirmed && boqState.parseProgress === 100;
 
   return (
-    <div className="jn-wrap" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
+    <div className="jn-wrap preview-screen" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
       <div className="main-inner" style={{ flex: 1 }}>
         <div className="page-head">
           <div>
@@ -905,15 +901,12 @@ export default function PreviewScreen() {
           <div className="action-footer-spacer" />
           <button
             type="button"
-            className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-8 py-3 rounded-lg font-normal"
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            onClick={() => {
-              const trigger = document.getElementById('boq-confirm-trigger') as HTMLButtonElement | null;
-              trigger?.click();
-            }}
+            onClick={() => { if (typeof window !== 'undefined') window.location.href = '/proposal'; }}
           >
-            确认并解析 BOQ →
+            进入交付预案 →
           </button>
         </div>
       )}
@@ -927,9 +920,9 @@ export default function PreviewScreen() {
           <div className="action-footer-spacer" />
           <button
             type="button"
-            className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-8 py-3 rounded-lg font-normal"
+            className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
             onClick={() => { if (typeof window !== 'undefined') window.location.href = '/proposal'; }}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >
             进入交付预案 →

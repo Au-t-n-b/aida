@@ -1,8 +1,7 @@
 'use client';
 
-import React, { useState, useEffect, useRef, type ReactNode } from 'react';
+import React, { useState, useEffect, type ReactNode } from 'react';
 import Link from '@/compat/link';
-import { SYSTEM_INTEGRATIONS } from '../data/journey-data';
 import { LeftNavFdy } from './left-nav-fdy';
 type AppShellProps = {
   children: ReactNode;
@@ -19,69 +18,6 @@ const IcBell = () => (
     <path d="M5.5 11.5 C5.5 12.5 6.2 13 7 13 C7.8 13 8.5 12.5 8.5 11.5" stroke="currentColor" strokeWidth="1" fill="none" />
   </svg>
 );
-/* ── 全局系统状态徽章 ──
- * 会议结论"每个模块加断网灯"的全局版：聚合 8 个上游/下游集成的健康度。
- * - overall=ok:   绿点 · "系统在线"
- * - overall=warn: 黄点 · "1 项降级"
- * - overall=down: 红点闪烁 · "X 项离线"
- * 点击展开下拉，逐项显示集成名称 / 方向 / 时延 / 状态。
- */
-function SystemStatusBadge() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: MouseEvent) => {
-      if (ref.current && e.target instanceof Node && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', close);
-    return () => document.removeEventListener('mousedown', close);
-  }, [open]);
-
-  const downs = SYSTEM_INTEGRATIONS.filter(i => i.state === 'down');
-  const warns = SYSTEM_INTEGRATIONS.filter(i => i.state === 'warn');
-  const overall = downs.length ? 'down' : warns.length ? 'warn' : 'ok';
-  const label = overall === 'down' ? `${downs.length} 项离线` : overall === 'warn' ? `${warns.length} 项降级` : '系统在线';
-  const live = SYSTEM_INTEGRATIONS.filter(i => i.state === 'live').length;
-
-  return (
-    <div className="sys-badge-wrap" ref={ref}>
-      <button className={`sys-badge sys-${overall}`} onClick={() => setOpen(v => !v)} title="点击查看 8 个上游/下游集成的健康度">
-        <span className="sys-dot" />
-        <span className="sys-text">{label}</span>
-        <span className="sys-counts">{live} / {SYSTEM_INTEGRATIONS.length}</span>
-      </button>
-      {open && (
-        <div className="sys-pop">
-          <div className="sys-pop-head">
-            <div>
-              <div className="sys-pop-title">系统集成监控</div>
-              <div className="sys-pop-sub">{SYSTEM_INTEGRATIONS.length} 个接入 · 上游 6 / 下游 1 / 双向 1 · 实时心跳</div>
-            </div>
-            <Link href="/admin" className="sys-pop-link">前往系统级配置 →</Link>
-          </div>
-          <div className="sys-pop-list">
-            {SYSTEM_INTEGRATIONS.map(s => (
-              <div key={s.id} className={`sys-row sys-${s.state}`}>
-                <span className={`sys-row-dot sys-${s.state}`} />
-                <div className="sys-row-meta">
-                  <div className="sys-row-name">
-                    <span>{s.name}</span>
-                    <span className="sys-row-dir">{s.dir}</span>
-                  </div>
-                  <div className="sys-row-desc">{s.desc}</div>
-                </div>
-                <div className="sys-row-lat">{s.latencyMs} ms</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* ── TopBar ── */
 /* 5.25 M-022 · WeLink 通知 drawer (N-5)
  * 5.25 反复强调"会通过 WeLink 通知"，5.27 早会也提
@@ -177,7 +113,6 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
       </div>
 
       <div className="topbar-spacer" />
-      <SystemStatusBadge />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <button

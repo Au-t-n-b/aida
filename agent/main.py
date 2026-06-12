@@ -34,6 +34,7 @@ from .state import AgentState
 from .llm import healthcheck as llm_healthcheck, get_langfuse_callbacks
 from .chat_engine import run_chat, run_chat_async, DEFAULT_SYSTEM
 from .sog_routes import router as sog_router
+from .routers.proposal_mock import router as proposal_mock_router
 
 
 def _get_sdui_projector(skill_id: str):
@@ -59,6 +60,7 @@ def _get_skill_or_404(skill_id: str):
 
 app = FastAPI(title="AIDA Agent · zhgk pilot", version="0.1.0")
 app.include_router(sog_router)
+app.include_router(proposal_mock_router)
 
 # 允许前端 (Next.js dev server) 跨域
 app.add_middleware(

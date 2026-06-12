@@ -126,23 +126,9 @@ export function ProposalOutlineRail({
       >
         <div className="proposal-outline-rail-head">
           <span className="proposal-outline-rail-title">章节</span>
-          <span className="proposal-outline-rail-count">{chapters.length}</span>
           <div className="proposal-outline-rail-actions">
             {isOpen ? (
               <>
-                <button
-                  type="button"
-                  className={`${actionBtnClass} proposal-outline-rail-pin${pinned ? ' on' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onPinnedChange?.(!pinned);
-                    if (!pinned) onCollapsedChange?.(false);
-                  }}
-                  title={pinned ? '取消固定' : '固定常驻'}
-                  aria-label={pinned ? '取消固定大纲' : '固定大纲'}
-                >
-                  <IconPin className={pinned ? 'w-4 h-4 text-blue-600' : 'w-4 h-4 text-slate-400 hover:text-slate-700'} />
-                </button>
                 <button
                   type="button"
                   className={`${actionBtnClass} proposal-outline-rail-toggle`}
@@ -253,7 +239,6 @@ export function ProposalOutlineRail({
                   <span className="proposal-outline-rail-name">
                     {isOpen ? c.name : c.name.replace(/^(?:元数据信息|\d+(?:\.\d+)?)\s*/, '')}
                   </span>
-                  {c.note && <span className="proposal-outline-rail-note">{c.note}</span>}
                 </span>
                 {isOpen && (
                   <span
@@ -281,7 +266,7 @@ export function ProposalOutlineRail({
           })}
         </div>
         <div className="proposal-outline-rail-foot">
-          {isOpen ? '点击章节跳转正文 · 固定大纲常驻' : '移入展开大纲'}
+          {isOpen ? '点击章节跳转正文' : '移入展开大纲'}
         </div>
       </aside>
     </ProposalTooltipProvider>

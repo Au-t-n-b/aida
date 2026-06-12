@@ -5,8 +5,8 @@ export const SNAPSHOTS = {
     key: 'dtrb', label: 'DTRB · 解决方案就绪', version: 'v1.0',
     ts: '2026-05-26 14:42', tone: 'blue',
     desc: 'Design-Time Review Board · 解决方案技术评审基线',
-    createdBy: '何博 · TD', createdAt: '2026-05-25 09:12',
-    updatedBy: '李伟 · PD', updatedAt: '2026-05-26 14:42',
+    createdBy: '何博', createdAt: '2026-05-25 09:12',
+    updatedBy: '李伟', updatedAt: '2026-05-26 14:42',
     prevVersion: 'v0.3',
     diffSummary: { added: 2, modified: 3, removed: 0, highlights: [
       '7. 机房信息：新增机柜归位 + 桥架路由',
@@ -18,8 +18,8 @@ export const SNAPSHOTS = {
     key: 'drb', label: 'DRB · 决策评审', version: 'v1.0',
     ts: '2026-05-30 10:15', tone: 'amber',
     desc: 'Decision Review Board · 关键技术决策与里程碑评审 · 里程碑',
-    createdBy: '何博 · TD', createdAt: '2026-05-26 14:42',
-    updatedBy: '何博 · TD', updatedAt: '2026-05-30 10:15',
+    createdBy: '何博', createdAt: '2026-05-26 14:42',
+    updatedBy: '何博', updatedAt: '2026-05-30 10:15',
     prevVersion: 'DTRB v1.0',
     diffSummary: { added: 1, modified: 4, removed: 0, highlights: [
       '7. 机房信息：B2-RM02 配电改造方案确认',
@@ -32,8 +32,8 @@ export const SNAPSHOTS = {
     key: 'contract', label: '合同 · 签署节点', version: 'v1.0',
     ts: '2026-06-02 11:20', tone: 'violet',
     desc: '合同签署时刻冻结 · 与 BOQ / 条款对齐 · 里程碑',
-    createdBy: '李伟 · PD', createdAt: '2026-05-30 10:15',
-    updatedBy: '李伟 · PD', updatedAt: '2026-06-02 11:20',
+    createdBy: '李伟', createdAt: '2026-05-30 10:15',
+    updatedBy: '李伟', updatedAt: '2026-06-02 11:20',
     prevVersion: 'DRB v1.0',
     diffSummary: { added: 1, modified: 2, removed: 0, highlights: [
       '1.2 合同信息：合同附件 BOQ 与系统 BOQ 对齐',
@@ -45,8 +45,8 @@ export const SNAPSHOTS = {
     key: 'exec', label: '可执行合同 · SOW', version: 'v1.0',
     ts: '2026-06-04 17:31', tone: 'green',
     desc: '可执行 SOW 落地 · 冻结基线 · 后续作业唯一依据 · 默认进入',
-    createdBy: '何博 · TD', createdAt: '2026-06-02 11:20',
-    updatedBy: '何博 · TD', updatedAt: '2026-06-04 17:31',
+    createdBy: '何博', createdAt: '2026-06-02 11:20',
+    updatedBy: '何博', updatedAt: '2026-06-04 17:31',
     prevVersion: '合同 v1.0',
     diffSummary: { added: 3, modified: 2, removed: 0, highlights: [
       '5.2 服务器配置：补齐 384 节点网卡带宽',
@@ -84,9 +84,6 @@ export const BASE_CHAPTERS_DTRB = [
   { name: '10. 计划',             state: 'miss'    as const, note: '实施计划联动计划模块' },
   { name: '11. 验收策略',         state: 'miss'    as const, note: '合同签署前暂无' },
   { name: '12. 测试用例',         state: 'ok'      as const },
-  { name: '13. 风险&假设信息',    state: 'partial'  as const, note: '2 项假设待客户回复' },
-  { name: '13.1 风险列表',        state: 'partial'  as const, note: '识别时间 / 关闭时间待补' },
-  { name: '13.2 假设',            state: 'partial'  as const, note: '2 项待客户回复' },
 ];
 export const CHAPTERS_BY_SNAP = {
   dtrb: BASE_CHAPTERS_DTRB,
@@ -194,16 +191,11 @@ export const SOFTWARE_STACK = [
 
 /* 5.1 网络平面配置 */
 export const NETWORK_PLANES = [
-  { type: '参数面（接入）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: '' },
-  { type: '样本面（接入）', vendor: '华为', model: 'CE6881-48S6CQ',     ver: 'CE6881-48S6CQ V200R005C20', qty: 48, source: '人工录入', note: '数量待 BOQ 对齐' },
-  { type: '业务面（接入）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: '' },
-  { type: '存储面（接入）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: '' },
-  { type: '网管面（接入）', vendor: '华为', model: '6857E-48S6CQ',      ver: '6857E-48S6CQ V200R020C10',   qty: 12, source: '人工录入', note: '' },
-  { type: '参数面（汇聚）', vendor: '华为', model: '5855E-48T4S2Q',     ver: '5855E-48T4S2Q V200R020C10',  qty: 8, source: '人工录入', note: '' },
-  { type: '样本面（汇聚）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: 'HLD 待补' },
-  { type: '业务面（汇聚）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: '' },
-  { type: '存储面（汇聚）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: '' },
-  { type: '网管面（汇聚）', vendor: '',     model: '—',                 ver: '—',                   qty: 0, source: '—', note: '' },
+  { type: '参数面汇聚交换机',      vendor: '华为', model: 'XH9330-128EO', ver: 'V100R001C020', qty: 64,  source: '人工录入', note: '' },
+  { type: '参数面接入交换机',      vendor: '华为', model: 'XH9930-128DQ', ver: 'V100R001C020', qty: 174, source: '人工录入', note: '' },
+  { type: '样本面-存储接入交换机', vendor: '华为', model: 'XH9930-128DQ', ver: 'V100R001C020', qty: 6,   source: '人工录入', note: '' },
+  { type: '样本面-汇聚交换机',     vendor: '华为', model: 'XH9930-128DQ', ver: 'V100R001C020', qty: 16,  source: '人工录入', note: '' },
+  { type: '样本面-计算接入交换机', vendor: '华为', model: 'XH9930-128DQ', ver: 'V100R001C020', qty: 22,  source: '人工录入', note: '' },
 ];
 
 /* 5.2 服务器网络配置 */
@@ -316,11 +308,11 @@ export const CONTRACT_LIST = [
 
 /* ── §10 维保与维护策略 ── */
 export const MAINT_STRATEGY = [
-  { seq: 1, model: 'Atlas 900 A3 SuperPoD', warranty: '1 年',  maint: '5 年', maintType: 'NBD+4H',  start: '2026-07-01', end: '2031-06-30', eos: '2033-12-31', overEos: '否', approval: '—' },
-  { seq: 2, model: 'OceanStor A800',         warranty: '1 年',  maint: '3 年', maintType: '7×24H',   start: '2026-07-01', end: '2029-06-30', eos: '2032-12-31', overEos: '否', approval: '—' },
-  { seq: 3, model: 'OceanStor Pacific 9550', warranty: '1 年',  maint: '3 年', maintType: '7×24H',   start: '2026-07-01', end: '2029-06-30', eos: '2032-12-31', overEos: '否', approval: '—' },
-  { seq: 4, model: 'CE6881-48S6CQ 交换机',   warranty: '1 年',  maint: '3 年', maintType: 'NBD+8H',  start: '2026-07-01', end: '2029-06-30', eos: '2030-12-31', overEos: '否', approval: '—' },
-  { seq: 5, model: 'TaiShan 200 服务器',      warranty: '1 年',  maint: '3 年', maintType: 'NBD+4H',  start: '2026-07-01', end: '2029-06-30', eos: '2031-12-31', overEos: '否', approval: '—' },
+  { seq: 1, model: 'Atlas 900 A3 SuperPoD', warranty: '按华为标准保修政策', maint: '5 年', maintType: 'NBD+4H',  start: '2026-07-01', end: '2031-06-30', eos: '2033-12-31', overEos: '否', approval: '—' },
+  { seq: 2, model: 'OceanStor A800',         warranty: '按华为标准保修政策', maint: '3 年', maintType: '7×24H',   start: '2026-07-01', end: '2029-06-30', eos: '2032-12-31', overEos: '否', approval: '—' },
+  { seq: 3, model: 'OceanStor Pacific 9550', warranty: '按华为标准保修政策', maint: '3 年', maintType: '7×24H',   start: '2026-07-01', end: '2029-06-30', eos: '2032-12-31', overEos: '否', approval: '—' },
+  { seq: 4, model: 'CE6881-48S6CQ 交换机',   warranty: '按华为标准保修政策', maint: '3 年', maintType: 'NBD+8H',  start: '2026-07-01', end: '2029-06-30', eos: '2030-12-31', overEos: '否', approval: '—' },
+  { seq: 5, model: 'TaiShan 200 服务器',      warranty: '按华为标准保修政策', maint: '3 年', maintType: 'NBD+4H',  start: '2026-07-01', end: '2029-06-30', eos: '2031-12-31', overEos: '否', approval: '—' },
 ];
 export const SLA_REQUIREMENTS = [
   { level: 'P1 · 紧急', def: '业务中断、严重影响生产', coverage: '7×24 小时', response: '15 分钟', restore: '2 小时', resolve: '8 小时' },
@@ -331,16 +323,75 @@ export const SLA_REQUIREMENTS = [
 
 /* ── §11 责任矩阵 (RACI) ── */
 export const RACI_ROWS = [
-  { stack: '算力底座', cat: '设备安装',  act: 'Atlas 900 A3 SuperPoD 上架与布线',  gts: 'R', hw: 'S',  partner: 'S', customer: 'S' },
-  { stack: '算力底座', cat: '设备安装',  act: '液冷 CDU 安装与压测',               gts: 'R', hw: 'S',  partner: '',  customer: 'S' },
-  { stack: '算力底座', cat: '调测',      act: 'ZTP 开局与网络配置',                gts: 'R', hw: 'S',  partner: 'S', customer: 'S' },
-  { stack: '算力底座', cat: '调测',      act: '集群联调与压测',                    gts: 'R', hw: 'S',  partner: '',  customer: 'S' },
-  { stack: '网络',     cat: '规划设计',  act: '网络平面规划与 IP 分配',            gts: 'S', hw: 'R',  partner: '',  customer: 'S' },
-  { stack: '网络',     cat: '设备安装',  act: '数通设备安装调试',                  gts: 'R', hw: 'S',  partner: 'S', customer: 'S' },
-  { stack: '软件',     cat: '部署',      act: 'OS / k8s / CANN 安装',             gts: 'R', hw: 'S',  partner: '',  customer: 'S' },
-  { stack: '软件',     cat: '部署',      act: 'CCAE 平台集成',                    gts: 'R', hw: 'S',  partner: '',  customer: 'S' },
-  { stack: '验收',     cat: '验收测试',  act: '性能基线测试（RTO/p99）',          gts: 'S', hw: 'R',  partner: '',  customer: 'S' },
-  { stack: '验收',     cat: '验收测试',  act: '客户签收与移交',                   gts: 'S', hw: 'S',  partner: '',  customer: 'R' },
+  /* 公共 */
+  { stack: '公共', cat: '项目管理', act: '计划进度管理、沟通管理、风险管理、变更管理、问题管理、质量管理、采购管理、验收管理等', gts: 'R', hw: '', partner: 'S', customer: 'S' },
+  { stack: '公共', cat: '计算-工程安装', act: '工程勘测',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-工程安装', act: '设备签收',   gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: '公共', cat: '计算-工程安装', act: '硬件部署',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-工程安装', act: '硬件初始化', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-工程安装', act: '固件升级',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-工程安装', act: '硬件压测',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-工程安装', act: '硬件验收',   gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '规划设计',       gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: 'OS安装',         gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '计算服务软件安装', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '单机综合测试',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '单机测试',       gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '管理子系统验收', gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '项目管理',       gts: 'R', hw: '', partner: '', customer: 'R' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '站点工勘',       gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '需求调研',       gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '硬件安装',       gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '公共', cat: '计算-规划设计与实施', act: '系统部署',       gts: 'R', hw: '', partner: '', customer: 'S' },
+  /* 硬件底座 */
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '存储网络连接', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '基础功能配置', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '增值特性配置', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '验收方案',     gts: 'R', hw: '', partner: '', customer: 'R' },
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '验收测试',     gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '项目移交',     gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '硬件底座', cat: '存储-规划设计与集成', act: '存储升级',     gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '硬件底座', cat: '网络-工程安装',       act: '工程安装',     gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '硬件底座', cat: '网络-规划设计与实施', act: '规划设计与实施', gts: 'R', hw: '', partner: '', customer: 'S' },
+  /* 算存网 */
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群系统需求调研',     gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群系统规划设计',     gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群系统对接联网',     gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '参数面集合通信测试',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群性能测试',         gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群稳定性测试（训练）', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群初始化调优（训练）', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群试运行（可选）',   gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '集群验收',             gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '需求环境调研',         gts: '', hw: 'R', partner: '', customer: '' },
+  { stack: '算存网', cat: '算存网-集群集成', act: '云网规划设计',         gts: '', hw: 'R', partner: '', customer: '' },
+  /* AI平台 */
+  { stack: 'AI平台', cat: 'HCS+ModelArts-规划设计与实施', act: '云服务设计',     gts: '', hw: 'R', partner: '', customer: '' },
+  { stack: 'AI平台', cat: 'HCS+ModelArts-规划设计与实施', act: '资源池设计',     gts: '', hw: 'R', partner: '', customer: '' },
+  { stack: 'AI平台', cat: 'HCS+ModelArts-规划设计与实施', act: 'LLD设计',         gts: '', hw: 'R', partner: '', customer: '' },
+  { stack: 'AI平台', cat: 'HCS+ModelArts-规划设计与实施', act: 'HCS安装实施',     gts: '', hw: 'R', partner: '', customer: '' },
+  { stack: 'AI平台', cat: 'HCS+ModelArts-规划设计与实施', act: 'ModelArts安装实施', gts: '', hw: 'R', partner: '', customer: '' },
+  { stack: 'AI平台', cat: 'HCS+ModelArts-规划设计与实施', act: '平台测试与验收支持', gts: '', hw: 'S', partner: '', customer: '' },
+  { stack: 'AI平台', cat: 'DCS-规划设计与实施', act: '需求分析', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: 'AI平台', cat: 'DCS-规划设计与实施', act: '整体规划', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: 'AI平台', cat: 'DCS-规划设计与实施', act: '系统设计', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: 'AI平台', cat: 'DCS-规划设计与实施', act: '集成实施', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: 'AI平台', cat: 'DCS-规划设计与实施', act: '项目验收', gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: 'AI平台', cat: 'DCS-规划设计与实施', act: '系统移交', gts: 'R', hw: '', partner: '', customer: 'S' },
+  /* 模型 */
+  { stack: '模型', cat: 'AI计算使能-模型部署支持', act: '模型部署支持-训练', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '模型', cat: 'AI计算使能-模型部署支持', act: '模型部署支持-推理', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '模型', cat: 'AI计算使能-AI计算软件栈技术支持', act: '问题定位', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '模型', cat: 'AI计算使能-AI计算软件栈技术支持', act: '使用支持', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '模型', cat: 'AI计算使能-模型部署样例演示', act: '人员组织，协调场地环境', gts: 'S', hw: '', partner: '', customer: 'R' },
+  { stack: '模型', cat: 'AI计算使能-模型部署样例演示', act: '开发环境搭建演示', gts: 'R', hw: '', partner: '', customer: 'S' },
+  { stack: '模型', cat: 'AI计算使能-模型部署样例演示', act: '模型部署演示', gts: 'R', hw: '', partner: '', customer: 'S' },
+  /* 应用 */
+  { stack: '应用', cat: '应用', act: '应用', gts: '', hw: '', partner: '', customer: '' },
+  { stack: '应用', cat: '应用', act: '应用', gts: '', hw: '', partner: '', customer: '' },
+  /* 公共 · 验收签发 */
+  { stack: '公共', cat: '初验PAC', act: '签发初验PAC', gts: 'C', hw: '', partner: 'R/A', customer: '' },
+  { stack: '公共', cat: '终验FAC', act: '签发终验FAC', gts: 'C', hw: '', partner: 'R/A', customer: '' },
 ];
 
 /* 9.1 风险列表 · 统一风险表字段 */
@@ -433,6 +484,6 @@ export const PROPOSAL_VERSION_HISTORY: {
   status: 'published' | 'draft';
   tone: 'green' | 'amber';
 }[] = [
-  { snapKey: 'dtrb', label: 'DTRB V1-20250523', status: 'published', tone: 'green' },
-  { snapKey: 'drb', label: 'DRB V2.0-20250528', status: 'draft', tone: 'amber' },
+  { snapKey: 'dtrb', label: 'V1.0_20260526144200_DTRB', status: 'published', tone: 'green' },
+  { snapKey: 'drb', label: 'V1.0_20260530101500_DRB', status: 'draft', tone: 'amber' },
 ];

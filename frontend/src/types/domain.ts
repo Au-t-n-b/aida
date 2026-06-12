@@ -371,3 +371,61 @@ export interface DispatchRun {
   proposalVersion: string;
   dispatchedAt: string;
 }
+
+/* ── 交付预案 · 第 9–12 章 ── */
+export interface RaciRow {
+  stack: string;
+  cat: string;
+  act: string;
+  gts: string;
+  hw: string;
+  partner: string;
+  customer: string;
+}
+
+export interface PlanActivity {
+  name: string;
+  start: string;
+  end: string;
+  actualStart: string;
+  actualEnd: string;
+  owner: string;
+  unit: string;
+  status: string;
+  progress: number;
+  progressTone: 'blue' | 'green';
+}
+
+export interface AcceptanceItem {
+  cat: string;
+  scheme: string;
+  standard: string;
+  milestone: string;
+  doc: string;
+  payment: string;
+  paymentMilestone: string;
+}
+
+export interface AcceptanceTestCase {
+  id: string;
+  l1: string;
+  l2: string;
+  l3: string;
+  purpose: string;
+  topology: string;
+  pre: string;
+  steps: string[];
+  expects: string[];
+  result: string;
+  remark: string;
+}
+
+export interface ProposalTableVersions {
+  raci: number;
+  acceptance: number;
+  testCases: number;
+}
+
+export interface SavedTestCaseRow extends AcceptanceTestCase {
+  selected: boolean;
+}
