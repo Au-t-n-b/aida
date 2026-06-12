@@ -39,21 +39,27 @@ def fill_tasks_rows(rows: list[dict]) -> list[dict]:
 
 
 def fill_dispatch_select_all(rows: list[dict]) -> list[dict]:
-    """计划下发：一键全选待下发条目。"""
-    return [
-        {"id": as_str(r.get("id")), "selected": True}
-        for r in rows
-        if isinstance(r, dict) and as_str(r.get("id"))
-    ]
+    """计划下发：一键全选待下发条目（保留行内其它列，仅改 selected）。"""
+    out: list[dict] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        row = dict(r)
+        row["selected"] = True
+        out.append(row)
+    return out
 
 
 def fill_dispatch_deselect_all(rows: list[dict]) -> list[dict]:
-    """计划下发：一键取消全部勾选。"""
-    return [
-        {"id": as_str(r.get("id")), "selected": False}
-        for r in rows
-        if isinstance(r, dict) and as_str(r.get("id"))
-    ]
+    """计划下发：一键取消全部勾选（保留行内其它列）。"""
+    out: list[dict] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        row = dict(r)
+        row["selected"] = False
+        out.append(row)
+    return out
 
 
 def fill_esn_rows(rows: list[dict]) -> list[dict]:

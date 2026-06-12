@@ -6,7 +6,13 @@ preflight · 环境预检（internal=True，豁免 SKILL.md 契约）
 from __future__ import annotations
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
-from ._io import refresh_task_metrics, tasks_state_path
+from ._io import (
+    refresh_task_metrics,
+    tasks_state_path,
+    staged_cold_start_pace,
+    is_pipeline_replay,
+    PREFLIGHT_PACE_SEC,
+)
 from ..services.source_files import get_source_dir, check_dispatch_plan
 from ..services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
 from ..services.task_store import get_tasks
@@ -27,26 +33,34 @@ class PreflightStep(BaseStep):
         if isinstance(reset_info, dict) and reset_info.get("ok"):
             n = reset_info.get("removed_count", 0)
             emit(f"[preflight] 已重置会话：清除 {n} 个历史产物/运行态文件")
-        emit("[preflight] 扫描设备安装环境与上游实施计划…")
 
-        source_dir = get_source_dir(ctx.work_root)
+        staged_cold_start_pace(
+            ctx.project, emit,
+            total_sec=PREFLIGHT_PACE_SEC,
+            stages=[
+                "[preflight] 正在扫描设备安装环境…",
+                "[preflight] 正在校验上游实施计划文件…",
+            ],
+        )
+        if is_pipeline_replay(ctx.project):
+            emit("[preflight] 扫描设备安装环境与上游实施计划…")
+
+        source_dir = get_source_dir(ctx.work_root, ctx.project)
         chk = check_dispatch_plan(source_dir)
         tasks_n = len(get_tasks(str(tasks_state_path(ctx))))
 
         emit(f"  源文件目录：{source_dir}")
         emit(f"  {'✓' if chk['ok'] else '✗'} 上游·{DISPATCH_PLAN_FILENAME}: "
              f"{'已就绪' if chk['ok'] else '缺失'}")
+        if not chk["ok"]:
+            emit(f"  期望文件：{chk['path']}")
 
         command = (ctx.project or {}).get("command", "") or "build"
         emit(f"[preflight] 当前命令: {command}")
 
         # full_restart 重放（用户已在下游 HITL 交互过）时跳过纯展示用的 LLM 摘要：
         # 该调用约 19s 且无业务作用，重放期间会阻塞整条流水线、让前端冻结数十秒（=「卡住」）。
-        is_replay = bool(
-            ctx.project.get("dispatch_rows")
-            or ctx.project.get("dispatch_confirmed")
-            or ctx.project.get("esn_rows")
-        )
+        is_replay = is_pipeline_replay(ctx.project)
         ai_text = ""
         if is_replay:
             emit("[preflight] 重放续跑，跳过 LLM 预检摘要")

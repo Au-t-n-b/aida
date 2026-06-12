@@ -229,10 +229,18 @@ export type SduiDataTableNode = OptId & {
   rowKey?: string;
   checkKey?: string;
   fillLabel?: string;
+  deselectLabel?: string;
   fillRows?: Record<string, unknown>[];
+  backLabel?: string;
+  backStepId?: string;
   groupKey?: string;
+  groupAsTabs?: boolean;
   pageSize?: number;
   requiredKeys?: string[];
+  /** Tier B 展示/编辑双模式（组件库 DataTable · 编辑/保存/取消） */
+  dualMode?: boolean;
+  /** dualMode 保存时 run-patch 的 action，默认 task_progress */
+  patchAction?: string;
 };
 
 /** TabbedTable — 页签表格，多组表格按页签切换。*/
@@ -358,7 +366,46 @@ export type SduiHitlTextInputNode = OptId & {
   stepId?: string;
 };
 
+export type SduiHitlFormField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  defaultValue?: string;
+};
+
+export type SduiHitlFormNode = OptId & {
+  type: 'HitlForm';
+  title: string;
+  fields: SduiHitlFormField[];
+  payloadKey?: string;
+  repeatable?: boolean;
+  submitLabel?: string;
+  helpText?: string;
+  hitlRequestId?: string;
+  stepId?: string;
+};
+
 // ── Union ─────────────────────────────────────────────────────────────────────
+
+// MachineRoom3D — 3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）
+export interface SduiRoom3DEntry { key: string; label: string; icon?: string; primary?: boolean; action?: SduiAction }
+export interface SduiRoom3DItemStats { surveyed: number; pending: number; unknown: number; na: number }
+export interface SduiMachineRoom {
+  id: string; label: string; code?: string; status?: string; progress?: number;
+  rows?: number; cols?: number; racks?: number; cdu?: number;
+  itemStats: SduiRoom3DItemStats;
+  rackStatuses?: string[];
+  statKey?: string[];
+  entries?: SduiRoom3DEntry[];
+}
+export type SduiMachineRoom3DNode = OptId & {
+  type: 'MachineRoom3D';
+  eyebrow?: string; title?: string; subtitle?: string;
+  headStats?: { value: string; label: string; tone?: string }[];
+  rooms: SduiMachineRoom[]; refreshNote?: string;
+};
+
 
 export type SduiNode =
   | SduiStackNode | SduiCardNode | SduiRowNode | SduiDividerNode | SduiSkeletonNode
@@ -372,7 +419,7 @@ export type SduiNode =
   // v1.1 display nodes
   | SduiAlertNode | SduiTimelineNode | SduiNumberCardNode | SduiPlaneMatrixNode
   // business nodes
-  | SduiRiskListNode
+  | SduiRiskListNode | SduiMachineRoom3DNode
   // tier B (v4)
   | SduiEmptyStateNode | SduiSpinnerNode | SduiProgressBarNode | SduiBannerNode
   | SduiCodeBlockNode | SduiLogStreamNode | SduiChecklistNode | SduiFileTreeNode
@@ -385,7 +432,7 @@ export type SduiNode =
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
   | SduiEmbeddedWebNode
-  | SduiFilePickerNode | SduiChoiceCardNode | SduiHitlTextInputNode;
+  | SduiFilePickerNode | SduiChoiceCardNode | SduiHitlTextInputNode | SduiHitlFormNode;
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
 

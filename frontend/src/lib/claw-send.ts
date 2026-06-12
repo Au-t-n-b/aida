@@ -1,6 +1,9 @@
 /** ClawRail / AIDA 助手 · 统一发送指令（全页面共用） */
 
 export const CLAW_SEND_EVENT = 'aida:send';
+/** 右侧 skill 作业区 → 左侧 ClawRail 技能会话（直连 /agent/chat/stream）。
+ *  与 CLAW_SEND_EVENT（走 manager 助手）区分，由 ClawRail 单独监听，避免双发。 */
+export const RAIL_SEND_EVENT = 'aida:rail-send';
 export const CLAW_REPLY_START_EVENT = 'aida:reply-start';
 export const CLAW_REPLY_DELTA_EVENT = 'aida:reply-delta';
 export const CLAW_REPLY_DONE_EVENT = 'aida:reply-done';
@@ -39,6 +42,16 @@ export function dispatchClawSend(text: string, extra: Partial<ClawSendDetail> = 
     new CustomEvent<ClawSendDetail>(CLAW_SEND_EVENT, {
       detail: { text: trimmed, ...extra },
     }),
+  );
+  return true;
+}
+
+/** 右侧 skill 作业区向左侧 ClawRail 技能会话投递一条用户消息（如 3D 机房入口下钻）。 */
+export function dispatchRailSend(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || typeof window === 'undefined') return false;
+  window.dispatchEvent(
+    new CustomEvent<ClawSendDetail>(RAIL_SEND_EVENT, { detail: { text: trimmed } }),
   );
   return true;
 }

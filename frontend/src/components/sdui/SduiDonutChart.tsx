@@ -23,11 +23,12 @@ function resolveColor(c?: string): string {
 }
 
 export function SduiDonutChart({ segments, centerLabel, centerValue }: Props) {
-  const total = segments.reduce((s, x) => s + (x.value || 0), 0) || 1;
+  const visible = segments.filter(s => (s.value || 0) > 0);
+  const total = visible.reduce((s, x) => s + (x.value || 0), 0) || 1;
   const r = 34, circumference = 2 * Math.PI * r;
 
   let offset = 0;
-  const arcs = segments.map((seg) => {
+  const arcs = visible.map((seg) => {
     const pct = seg.value / total;
     const arc = {
       color: resolveColor(seg.color),
@@ -38,8 +39,8 @@ export function SduiDonutChart({ segments, centerLabel, centerValue }: Props) {
     return arc;
   });
 
-  const mainValue = centerValue ?? `${Math.round((segments[0]?.value ?? 0) / total * 100)}%`;
-  const mainLabel = centerLabel ?? segments[0]?.label ?? '';
+  const mainValue = centerValue ?? `${Math.round((visible[0]?.value ?? 0) / total * 100)}%`;
+  const mainLabel = centerLabel ?? visible[0]?.label ?? '';
 
   return (
     <svg width={92} height={92} viewBox="0 0 92 92" style={{ flexShrink: 0 }}>
@@ -51,18 +52,20 @@ export function SduiDonutChart({ segments, centerLabel, centerValue }: Props) {
           stroke={arc.color} strokeWidth={9}
           strokeDasharray={`${arc.dash} ${circumference - arc.dash}`}
           strokeDashoffset={-arc.offset}
-          strokeLinecap="round"
+          strokeLinecap="butt"
           transform="rotate(-90 46 46)"
           style={{ transition: 'stroke-dasharray .5s ease' }}
         />
       ))}
       {/* key=mainValue：值变化时 SVG text remount，触发弹入动画 */}
-      <text key={mainValue} x={46} y={44} textAnchor="middle" fontSize="18" fontWeight={700}
+      <text key={mainValue} x={46} y={mainLabel ? 44 : 48} textAnchor="middle" fontSize="18" fontWeight={700}
             fill="var(--text-primary)" fontFamily="var(--font-mono)"
             style={{ animation: 'sdui-pop .3s cubic-bezier(.2,.65,.4,1) both' }}>
         {mainValue}
       </text>
-      <text x={46} y={58} textAnchor="middle" fontSize="9" fill="var(--text-tertiary)">{mainLabel}</text>
+      {mainLabel && (
+        <text x={46} y={58} textAnchor="middle" fontSize="9" fill="var(--text-tertiary)">{mainLabel}</text>
+      )}
     </svg>
   );
 }

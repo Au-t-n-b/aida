@@ -18,8 +18,9 @@ from .steps.esn_fill import EsnFillStep
 from .services.task_store import load_tasks_state, save_tasks_state, task_summary
 
 # 主建设流：当前步 → 返回目标步（仅含可交互回退）
-# esn_fill / 流水线完成后不提供回退
-_BACK_TO: dict[str, str] = {}
+_BACK_TO: dict[str, str] = {
+    "esn_fill": "task_dispatch",
+}
 
 
 def _iso_now() -> str:
@@ -200,7 +201,9 @@ def apply_go_back(work_root: Path, run_state: dict[str, Any]) -> dict[str, Any]:
 
     # 刷新聚合 metrics（任务进展表等）
     ts_path = work_root / "ProjectData" / "RunTime" / "tasks_state.json"
-    summary = task_summary(str(ts_path))
+    st = load_tasks_state(str(ts_path))
+    tasks = [t for t in (st.get("tasks") or []) if isinstance(t, dict)]
+    summary = task_summary(tasks, state=st)
     for s in reversed(run_state.get("steps") or []):
         if isinstance(s, dict) and s.get("key") == target:
             s.setdefault("metrics", {}).update(summary)

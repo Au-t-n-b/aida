@@ -1,8 +1,14 @@
 """device_install · 共享小工具（无副作用）。"""
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any
+
+# 责任人末尾工号：「梁贝 WX616744」「张三(w001234)」等
+_PRINCIPAL_ID_TAIL = re.compile(
+    r"(?:\s+[A-Za-z]*\d+[A-Za-z0-9]*|\s*[（(]\s*[A-Za-z]*\d+[A-Za-z0-9]*\s*[）)])\s*$",
+)
 
 
 def as_str(v: Any) -> str:
@@ -11,6 +17,18 @@ def as_str(v: Any) -> str:
         return ""
     return str(v).strip()
 
+
+def principal_display_name(v: Any) -> str:
+    """责任人列展示：只保留姓名，去掉末尾工号。"""
+    s = as_str(v)
+    if not s:
+        return ""
+    while True:
+        n = _PRINCIPAL_ID_TAIL.sub("", s).strip()
+        if n == s:
+            break
+        s = n
+    return s
 
 def col_idx(header: list[str], *names: str) -> int | None:
     """在表头里按候选列名（大小写不敏感）找列下标；找不到返回 None。"""

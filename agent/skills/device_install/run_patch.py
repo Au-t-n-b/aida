@@ -26,14 +26,7 @@ def merge_run_patch(work_root: Path, run_state: dict[str, Any], payload: dict[st
 def _merge_task_progress(work_root: Path, run_state: dict[str, Any], rows: list) -> dict[str, Any]:
     path = work_root / "ProjectData" / "RunTime" / "tasks_state.json"
     metrics = _patch_task_progress(str(path), rows if isinstance(rows, list) else [])
-    steps = run_state.get("steps")
-    if not isinstance(steps, list):
-        return {"ok": True}
-    for s in steps:
-        if isinstance(s, dict) and s.get("key") == "esn_fill":
+    for s in run_state.get("steps") or []:
+        if isinstance(s, dict):
             s.setdefault("metrics", {}).update(metrics)
-            break
-    else:
-        if steps and isinstance(steps[-1], dict):
-            steps[-1].setdefault("metrics", {}).update(metrics)
     return {"ok": True}

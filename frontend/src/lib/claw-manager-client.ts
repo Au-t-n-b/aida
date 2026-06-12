@@ -6,6 +6,12 @@ export type LoginResponse = {
   reused: boolean;
 };
 
+export type RegisterResponse = {
+  user_id: number;
+  username: string;
+  message?: string;
+};
+
 export type ChatAccessResponse = {
   session_id: string;
   endpoint: string;
@@ -59,6 +65,17 @@ export async function loginToClawManager(input: {
   project_code: string;
 }): Promise<LoginResponse> {
   return request<LoginResponse>('/api/v1/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function registerToClawManager(input: {
+  username: string;
+  password: string;
+  email?: string;
+}): Promise<RegisterResponse> {
+  return request<RegisterResponse>('/api/v1/auth/register', {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -234,7 +251,11 @@ export function openChatStream(access: ChatAccessResponse, path: string): EventS
 export function chatUrl(access: ChatAccessResponse, path: string): string {
   const endpoint = normalizeEndpoint(access.endpoint);
   const cleanPath = path.replace(/^\/+/, '');
-  const url = new URL(`/chat/${cleanPath}`, endpoint);
+  const base = endpoint.endsWith('/') ? endpoint : `${endpoint}/`;
+  const url =
+    access.protocol === 'aida'
+      ? new URL(cleanPath, base)
+      : new URL(`/chat/${cleanPath}`, endpoint);
   url.searchParams.set('access_token', access.token);
   return url.toString();
 }
@@ -258,8 +279,18 @@ async function request<T>(
 async function errorMessage(resp: Response): Promise<string> {
   try {
     const data = await resp.json();
-    return data?.detail || `${resp.status} ${resp.statusText}`;
+    if (typeof data?.detail === 'string') return data.detail;
+    if (Array.isArray(data?.detail)) {
+      return data.detail.map((item: { msg?: string }) => item?.msg || String(item)).join('; ');
+    }
+    if (data?.message && data?.code !== undefined && data.code !== 0) {
+      return String(data.message);
+    }
+    if (resp.status === 401) return '用户名或密码错误';
+    if (resp.status === 403) return '无权访问该项目';
+    return `${resp.status} ${resp.statusText}`;
   } catch {
+    if (resp.status === 401) return '用户名或密码错误';
     return `${resp.status} ${resp.statusText}`;
   }
 }

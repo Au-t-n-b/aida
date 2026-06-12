@@ -47,11 +47,11 @@ export function MetaChapter({ snapKey }: { snapKey: SnapKey }) {
             <col style={{ width: 56 }} />
           </colgroup>
           <thead>
-            <tr className="bg-slate-50/90 text-left text-xs text-slate-500">
-              <th className="px-3 py-2 font-normal">序号</th>
-              <th className="px-3 py-2 font-normal">章节</th>
-              <th className="px-3 py-2 font-normal">修改描述</th>
-              <th className="px-3 py-2 font-normal"></th>
+            <tr className="bg-slate-50/90 text-left text-sm text-slate-700">
+              <th className="px-3 py-2.5 font-semibold">序号</th>
+              <th className="px-3 py-2.5 font-semibold">章节</th>
+              <th className="px-3 py-2.5 font-semibold">修改描述</th>
+              <th className="px-3 py-2.5 font-semibold"></th>
             </tr>
           </thead>
           <tbody>

@@ -13,7 +13,8 @@ from __future__ import annotations
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import tasks_state_path, refresh_task_metrics
-from ..services._common import as_str
+from ..path_config import get_output_dir, output_rel
+from ..services._common import as_str, principal_display_name
 from ..services.edit_fill import fill_tasks_rows
 from ..services.table_builder import generate_full_tasks_xlsx
 from ..services.task_store import load_tasks_state, save_tasks_state, get_tasks, iso_now
@@ -37,7 +38,7 @@ def _rows_from_tasks(tasks: list[dict]) -> list[dict]:
             "activity_name": as_str(t.get("activity_name")),
             "start_date": as_str(t.get("start_date")),
             "end_date": as_str(t.get("end_date")),
-            "principal": as_str(t.get("principal") or t.get("owner")),
+            "principal": principal_display_name(t.get("principal") or t.get("owner")),
             "principal_org": as_str(t.get("principal_org")),
         }
         for t in tasks
@@ -60,7 +61,7 @@ class TasksGenerateStep(BaseStep):
             return {"ok": False, "missing": ["ProjectData/Input/*任务计划*.xlsx"]}
         rows = _rows_from_tasks(tasks)
         # 预生成《设备安装全量任务》，作为本步「作业结果」展示（提交后会按编辑结果重生成）
-        out = ctx.output_dir / "设备安装全量任务.xlsx"
+        out = get_output_dir(ctx.project) / "设备安装全量任务.xlsx"
         generate_full_tasks_xlsx(tasks, str(out))
         return {
             "ok": False,
@@ -75,7 +76,7 @@ class TasksGenerateStep(BaseStep):
                 "fillRows": fill_tasks_rows(rows),
                 "rowKey": "id",
                 "submitLabel": "确认并生成",
-                "result_artifacts": [ctx.rel(out)] if out.exists() else [],
+                "result_artifacts": [output_rel(ctx.work_root, out)] if out.exists() else [],
             },
             "note": "请复核全量任务，必要时在线微调后提交确认。",
         }
@@ -106,11 +107,11 @@ class TasksGenerateStep(BaseStep):
             st["tasks_edited_at"] = iso_now()
             save_tasks_state(state_path, st)
 
-        out = ctx.output_dir / "设备安装全量任务.xlsx"
+        out = get_output_dir(ctx.project) / "设备安装全量任务.xlsx"
         generate_full_tasks_xlsx(tasks, str(out))
         emit(f"[tasks_generate] ✓ 已确认全量任务表，共 {len(tasks)} 条（在线微调 {changed} 条）")
 
-        artifacts = [ctx.rel(out)] if out.exists() else []
+        artifacts = [output_rel(ctx.work_root, out)] if out.exists() else []
         metrics = {"full_tasks_rows": len(tasks)}
         metrics.update(refresh_task_metrics(ctx))
         return {"artifacts": artifacts, "metrics": metrics}

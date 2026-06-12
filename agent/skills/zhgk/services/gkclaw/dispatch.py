@@ -27,6 +27,9 @@ def dispatch_task(
     generation_cooling: str = "",
     survey_round: int = 1,
     previous_task_id: str = "",
+    aida_run_id: str = "",
+    aida_skill_id: str = "zhgk",
+    aida_resume_step: str = "wait_survey",
 ) -> dict[str, Any]:
     """下发一个 GKCLAW 任务。返回 {task_id, state, dry_run, zip_path, items_count, send_result}。
 
@@ -71,6 +74,9 @@ def dispatch_task(
         task_id=task_id, task_payload=payload,
         zip_path=f"outbox/{zip_path.name}",
         table_fingerprint=fingerprint, project=payload["project"], dry_run=dry_run,
+        aida_run_id=str(aida_run_id or ""),
+        aida_skill_id=str(aida_skill_id or "zhgk"),
+        aida_resume_step=str(aida_resume_step or "wait_survey"),
     )
     reg.record_package(task_id, {
         "package_id": package_id, "checksum": package.sha256_file(zip_path),

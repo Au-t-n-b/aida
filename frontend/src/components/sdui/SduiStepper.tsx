@@ -18,10 +18,9 @@ function labelColor(status: string): string {
   if (status === 'error')   return 'var(--c-danger)';
   return 'var(--c-text-muted)';
 }
-// 连接线：done=绿 · running=绿→琥珀渐变 · 其余=灰
+// 连接线：仅当前步骤已完成时，其后的线段才变绿；running/pending 之后保持灰
 function connectorColor(status: string): string {
-  if (status === 'done')    return 'var(--c-success)';
-  if (status === 'running') return 'linear-gradient(180deg, var(--c-success), var(--c-warning))';
+  if (status === 'done') return 'var(--c-success)';
   return 'var(--c-border-strong)';
 }
 function dotIcon(status: string, index: number): string {
@@ -33,28 +32,41 @@ function dotIcon(status: string, index: number): string {
 
 /** 圆点样式（按状态）：running 为琥珀转圈环，其余为实心/描边点。size = 直径。 */
 function dotStyle(status: string, size: number): React.CSSProperties {
+  const iconSize = size >= 32 ? 13 : size >= 26 ? 11 : 10;
+  const ring = size >= 32 ? 3 : 2.5;
   const base: React.CSSProperties = {
     width: size, height: size, borderRadius: '50%', flexShrink: 0,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontSize: size <= 22 ? 10 : 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+    fontSize: iconSize, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
     transition: 'background .3s, border-color .3s, box-shadow .3s',
   };
   if (status === 'running') {
     return {
       ...base,
       background: 'var(--c-surface)',
-      border: '2.5px solid var(--c-warning-soft)', borderTopColor: 'var(--c-warning)',
+      border: `${ring}px solid var(--c-warning-soft)`, borderTopColor: 'var(--c-warning)',
       color: 'transparent', animation: 'spin .8s linear infinite',
     };
   }
   if (status === 'done') {
-    return { ...base, background: 'var(--c-success)', border: '1.5px solid var(--c-success)', color: '#fff',
-             boxShadow: '0 0 0 4px var(--c-success-soft)' };
+    const glow = size >= 32 ? 6 : 4;
+    return {
+      ...base,
+      background: 'var(--c-success)',
+      border: `${ring}px solid var(--c-success)`,
+      color: '#fff',
+      boxShadow: `0 0 0 ${glow}px var(--c-success-soft)`,
+    };
   }
   if (status === 'error') {
-    return { ...base, background: 'var(--c-danger)', border: '1.5px solid var(--c-danger)', color: '#fff' };
+    return { ...base, background: 'var(--c-danger)', border: `${ring}px solid var(--c-danger)`, color: '#fff' };
   }
-  return { ...base, background: 'var(--c-surface)', border: '1.5px solid var(--c-border-strong)', color: 'var(--c-text-muted)' };
+  return {
+    ...base,
+    background: 'var(--c-surface)',
+    border: `${ring}px solid var(--c-border-strong)`,
+    color: 'var(--c-text-muted)',
+  };
 }
 
 const STATUS_BADGE: Record<string, { text: string; bg: string; fg: string }> = {
@@ -149,41 +161,75 @@ export function SduiStepper({ steps, orientation = 'horizontal' }: Props) {
     );
   }
 
-  // ── 横向（紧凑头部） ────────────────────────────────────────────────────────
+  // ── 横向：N 等分列 · 圆点/标题同轴 · 连线用绝对定位整段（无列间断点） ──
+  const H_DOT = 32;
+  const H_CONN = 3;
+  const n = steps.length;
+  const colPct = 100 / n;
+  const trackTop = H_DOT / 2 - H_CONN / 2;
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center' }}>
-      {steps.map((s, i) => {
-        const last = i === steps.length - 1;
-        return (
+    <div style={{ width: '100%', padding: '10px 8px 6px' }}>
+      <div
+        style={{
+          position: 'relative',
+          display: 'grid',
+          gridTemplateColumns: `repeat(${n}, minmax(72px, 1fr))`,
+        }}
+      >
+        {steps.slice(0, -1).map((s, i) => (
+          <div
+            key={`conn-${s.id}`}
+            aria-hidden
+            style={{
+              position: 'absolute',
+              top: trackTop,
+              left: `${(i + 0.5) * colPct}%`,
+              width: `${colPct}%`,
+              height: H_CONN,
+              background: connectorColor(s.status),
+              zIndex: 0,
+              pointerEvents: 'none',
+              transition: 'background .4s ease',
+            }}
+          />
+        ))}
+        {steps.map((s, i) => (
           <div
             key={s.id}
-            style={{ display: 'flex', alignItems: 'center', flex: last ? 'none' : 1, minWidth: 0 }}
+            style={{
+              gridColumn: i + 1,
+              position: 'relative',
+              zIndex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+            }}
           >
-            <div
-              style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}
-              title={s.detail?.join(' · ')}
-            >
-              <div style={dotStyle(s.status, 20)}>{dotIcon(s.status, i)}</div>
-              <span style={{
-                fontSize: 'var(--fs-12)',
-                fontWeight: s.status === 'running' ? 600 : 400,
-                color: labelColor(s.status),
-                whiteSpace: 'nowrap',
-              }}>
-                {s.title}
-              </span>
+            <div style={dotStyle(s.status, H_DOT)} title={s.detail?.join(' · ')}>
+              {dotIcon(s.status, i)}
             </div>
-
-            {!last && (
-              <div style={{
-                flex: 1, height: 2, minWidth: 12, maxWidth: 40, margin: '0 6px',
-                background: connectorColor(s.status),
-                borderRadius: 1, transition: 'background .4s ease',
-              }} />
-            )}
+            <span
+              style={{
+                marginTop: 10,
+                width: '100%',
+                padding: '0 4px',
+                fontSize: 'var(--fs-12)',
+                fontWeight: s.status === 'running' ? 650 : 500,
+                color: labelColor(s.status),
+                textAlign: 'center',
+                lineHeight: 1.4,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+              }}
+            >
+              {s.title}
+            </span>
           </div>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }

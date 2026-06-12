@@ -712,6 +712,116 @@ def dispatch_dry_run_creates_task_and_zip():
 
 
 @test
+def dispatch_records_auto_resume_metadata():
+    from agent.skills.zhgk.services.gkclaw import dispatch
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    root = tmpdir()
+    table = _make_survey_xlsx(root / "Output")
+    r = dispatch.dispatch_task(
+        runtime_dir=root / "RunTime", survey_table_path=table,
+        project=_project(), assignees=_ASSIGNEES, dry_run=True,
+        aida_run_id="run-auto-001", aida_skill_id="zhgk", aida_resume_step="wait_survey",
+    )
+    task = TaskRegistry(root / "RunTime").get(r["task_id"])
+    assert task["aida_run_id"] == "run-auto-001"
+    assert task["aida_skill_id"] == "zhgk"
+    assert task["aida_resume_step"] == "wait_survey"
+
+
+@test
+def auto_resume_target_after_final_ingest():
+    from agent.skills.zhgk.services.gkclaw import dispatch
+    from agent.skills.zhgk.services.gkclaw.ingest import ingest_zip
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    from agent.skills.zhgk.services.gkclaw.auto_resume import auto_resume_target
+    root = tmpdir()
+    table = _make_survey_xlsx(root / "Output")
+    r = dispatch.dispatch_task(
+        runtime_dir=root / "RunTime", survey_table_path=table,
+        project=_project(), assignees=_ASSIGNEES, dry_run=True,
+        aida_run_id="run-auto-002", aida_skill_id="zhgk", aida_resume_step="wait_survey",
+    )
+    reg = TaskRegistry(root / "RunTime")
+    inbound = _result_zip(reg.task_payload(r["task_id"]), tmpdir(), status="completed")
+    ingested = ingest_zip(
+        inbound, runtime_dir=root / "RunTime", input_dir=root / "Input",
+        survey_table_path=table,
+    )
+    target = auto_resume_target(runtime_dir=root / "RunTime", ingest_result=ingested)
+    assert target == {
+        "should_resume": True,
+        "run_id": "run-auto-002",
+        "skill_id": "zhgk",
+        "step": "wait_survey",
+        "task_id": r["task_id"],
+    }
+
+
+@test
+def webhook_ingest_returns_auto_resume_target():
+    import asyncio
+    import sys as _sys
+    import types as _types
+    from types import SimpleNamespace
+    from fastapi.testclient import TestClient
+    if "langchain_openai" not in _sys.modules:
+        m = _types.ModuleType("langchain_openai")
+        class _DummyChatOpenAI:
+            def __init__(self, *args, **kwargs):
+                pass
+        m.ChatOpenAI = _DummyChatOpenAI
+        _sys.modules["langchain_openai"] = m
+    from agent import main as main_mod
+    from agent.skills.zhgk.services.gkclaw import dispatch
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+
+    root = tmpdir()
+    work_root = root / "work"
+    runtime_dir = work_root / "ProjectData" / "RunTime"
+    input_dir = work_root / "ProjectData" / "Input"
+    table = _make_survey_xlsx(work_root / "ProjectData" / "Output")
+    r = dispatch.dispatch_task(
+        runtime_dir=runtime_dir, survey_table_path=table,
+        project=_project(), assignees=_ASSIGNEES, dry_run=True,
+        aida_run_id="run-webhook-001", aida_skill_id="zhgk", aida_resume_step="wait_survey",
+    )
+    inbound = _result_zip(TaskRegistry(runtime_dir).task_payload(r["task_id"]), tmpdir(), status="completed")
+
+    old_get_skill = main_mod._get_skill_or_404
+    old_runs = dict(main_mod.RUNS)
+    fake_skill = SimpleNamespace(name="zhgk", work_root=work_root, llm_factory=None, steps=[])
+    main_mod._get_skill_or_404 = lambda skill_id: fake_skill
+    main_mod.RUNS.clear()
+    main_mod.RUNS["run-webhook-001"] = {
+        "queue": asyncio.Queue(),
+        "state": {
+            "run_id": "run-webhook-001",
+            "skill_id": "zhgk",
+            "project": _project(),
+            "hitl": {"step": "wait_survey"},
+        },
+        "task": None,
+    }
+    try:
+        client = TestClient(main_mod.app)
+        with open(inbound, "rb") as f:
+            resp = client.post(
+                "/agent/zhgk/gkclaw/ingest",
+                files={"package": ("result.zip", f, "application/zip")},
+            )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["ingest"]["merged"] is True
+        assert body["auto_resume"]["run_id"] == "run-webhook-001"
+        assert body["auto_resume"]["step"] == "wait_survey"
+        assert body["auto_resume"]["status"] in ("scheduled", "already_running")
+    finally:
+        main_mod._get_skill_or_404 = old_get_skill
+        main_mod.RUNS.clear()
+        main_mod.RUNS.update(old_runs)
+
+
+@test
 def dispatch_real_send_and_supersede():
     from agent.skills.zhgk.services.gkclaw import dispatch
     from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
@@ -1045,13 +1155,48 @@ def step_dispatch_dry_run_idempotent():
 
 
 @test
-def step_missing_assignees_blocks():
+def step_missing_assignees_requests_form_hitl():
     from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
     step = TaskDispatchStep()
     ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch"})  # 无 assignees
     check = step.check_inputs(ctx)
     assert not check["ok"]
-    assert any("assignees.json" in x for x in check["missing"])
+    assert check["missing"] == []
+    need = check["need_inputs"][0]
+    assert need["id"] == "assignees"
+    assert need["type"] == "form"
+    fields = need["fields"]
+    assert [f["key"] for f in fields] == ["surveyor_name", "surveyor_code"]
+    assert need["payload_key"] == "assignees"
+    assert need["repeatable"] is True
+
+
+@test
+def task_dispatch_resume_payload_accepts_assignees_form():
+    import os
+    from agent.skills.zhgk.skill import ZhgkSkill
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+    from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
+    os.environ.pop("AIDA_SEND_EMAIL", None)   # 默认 dry-run
+    step = TaskDispatchStep()
+    ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch"})  # 无 assignees
+    check = step.check_inputs(ctx)
+    assert not check["ok"] and check["need_inputs"][0]["type"] == "form"
+
+    skill = ZhgkSkill(work_root=ctx.work_root)
+    project = skill.apply_resume_payload(
+        ctx.project,
+        {"assignees": [{"surveyor_name": "李四", "surveyor_code": "S099"}]},
+        "task_dispatch",
+    )
+    assert project["assignees"] == [{"surveyor_name": "李四", "surveyor_code": "S099"}]
+
+    ctx = _step_ctx(extra_project=project)
+    assert step.check_inputs(ctx)["ok"]
+    result = step.run(ctx, {}, lambda m: None)
+    tid = result["metrics"]["gkclaw_task_id"]
+    payload = TaskRegistry(ctx.runtime_dir).task_payload(tid)
+    assert payload["assignees"] == [{"surveyor_name": "李四", "surveyor_code": "S099"}]
 
 
 # ─── wait_survey gkclaw 钩子 ───

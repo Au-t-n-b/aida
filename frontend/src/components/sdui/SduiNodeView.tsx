@@ -9,7 +9,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import type { SduiNode, SduiStatisticRowItem } from '@/lib/sdui';
+import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom } from '@/lib/sdui';
 import { stableChildKey } from '@/lib/sduiKeys';
 import { Badge, Button, Panel } from '@/components/primitives';
 import { SduiStepper } from './SduiStepper';
@@ -731,6 +731,184 @@ function HitlTextInput({ node, onSubmit }: HitlTextProps) {
   );
 }
 
+type HitlFormProps = {
+  node: Extract<SduiNode, { type: 'HitlForm' }>;
+  onSubmit?: (payload: Record<string, unknown>, stepId?: string) => void;
+};
+
+function makeHitlFormRow(node: Extract<SduiNode, { type: 'HitlForm' }>): Record<string, string> {
+  const row: Record<string, string> = {};
+  for (const field of node.fields ?? []) {
+    row[field.key] = field.defaultValue ?? '';
+  }
+  return row;
+}
+
+function HitlForm({ node, onSubmit }: HitlFormProps) {
+  const [rows, setRows] = useState<Record<string, string>[]>([makeHitlFormRow(node)]);
+  const [submitted, setSubmitted] = useState(false);
+  const fields = node.fields ?? [];
+  const repeatable = !!node.repeatable;
+
+  const updateCell = (rowIndex: number, key: string, value: string) => {
+    setRows(prev => prev.map((row, i) => i === rowIndex ? { ...row, [key]: value } : row));
+  };
+  const addRow = () => setRows(prev => [...prev, makeHitlFormRow(node)]);
+  const removeRow = (rowIndex: number) => {
+    setRows(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== rowIndex));
+  };
+
+  const cleanedRows = rows
+    .map(row => Object.fromEntries(fields.map(f => [f.key, String(row[f.key] ?? '').trim()])))
+    .filter(row => Object.values(row).some(v => String(v).length > 0));
+  const canSubmit = !!onSubmit && cleanedRows.length > 0 && cleanedRows.every(row =>
+    fields.every(field => !field.required || String(row[field.key] ?? '').trim().length > 0)
+  );
+
+  const handleSubmit = () => {
+    if (!canSubmit || submitted) return;
+    const payloadKey = node.payloadKey ?? node.id ?? 'form';
+    setSubmitted(true);
+    onSubmit?.({ [payloadKey]: repeatable ? cleanedRows : (cleanedRows[0] ?? {}) }, node.stepId);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {(node.title || node.helpText) && (
+        <div style={{
+          borderLeft: '3px solid #3551d8',
+          background: 'var(--c-surface-2)',
+          padding: '10px 12px',
+          borderRadius: '0 6px 6px 0',
+          lineHeight: 1.5,
+        }}>
+          <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }}>
+            {node.title}
+          </div>
+          {node.helpText && (
+            <div style={{ marginTop: 2, fontSize: '11px', color: 'var(--text-tertiary)' }}>
+              {node.helpText}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: submitted ? 0.58 : 1 }}>
+        {rows.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: repeatable ? '1fr auto' : '1fr',
+              gap: 8,
+              alignItems: 'end',
+              padding: 10,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+            }}
+          >
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: fields.length > 1 ? 'repeat(auto-fit, minmax(130px, 1fr))' : '1fr',
+              gap: 8,
+              minWidth: 0,
+            }}>
+              {fields.map(field => (
+                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)' }}>
+                    {field.label}{field.required ? ' *' : ''}
+                  </span>
+                  <input
+                    value={row[field.key] ?? ''}
+                    onChange={(e) => updateCell(rowIndex, field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    disabled={submitted}
+                    style={{
+                      width: '100%',
+                      minWidth: 0,
+                      padding: '8px 10px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      outline: 'none',
+                      fontSize: '12.5px',
+                      color: 'var(--text-primary)',
+                      background: submitted ? 'var(--zinc-50)' : 'var(--surface)',
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            {repeatable && rows.length > 1 && !submitted && (
+              <button
+                type="button"
+                onClick={() => removeRow(rowIndex)}
+                style={{
+                  padding: '8px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                删除
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!submitted ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {repeatable && (
+            <button
+              type="button"
+              onClick={addRow}
+              style={{
+                padding: '6px 12px',
+                fontSize: 'var(--text-sm)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              添加一行
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            style={{
+              padding: '6px 14px',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: canSubmit ? '#3551d8' : 'var(--zinc-200)',
+              color: canSubmit ? '#fff' : 'var(--text-tertiary)',
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {node.submitLabel ?? '提交'}
+          </button>
+        </div>
+      ) : (
+        <span style={{ fontSize: 'var(--text-xs)', color: '#065f46', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
+          </svg>
+          已提交 · 等待处理中…
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── Gap token → px ────────────────────────────────────────────────────────────
 
 const GAP: Record<string, number> = { none: 0, xs: 6, sm: 10, md: 14, lg: 20, xl: 28 };
@@ -749,8 +927,200 @@ const BTN_VARIANT: Record<string, 'primary' | 'secondary' | 'ghost'> = {
 
 type Props = { node: SduiNode; pathPrefix?: string };
 
+function ensureMR3DStyles() {
+  if (typeof document === 'undefined' || document.getElementById('sdui-mr3d-styles')) return;
+  const s = document.createElement('style');
+  s.id = 'sdui-mr3d-styles';
+  s.textContent = `
+  .sdui-mr3d{background:var(--c-surface);border:1px solid var(--border);border-radius:var(--r-xl,12px);padding:24px 28px 28px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm)}
+  .sdui-mr3d .mr-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+  .sdui-mr3d .mr-eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--c-brand-text,#1e34a8);font-weight:600}
+  .sdui-mr3d .mr-title{margin:6px 0 4px;font-size:24px;letter-spacing:-.02em;font-weight:700;color:var(--text-primary)}
+  .sdui-mr3d .mr-sub{font-size:13px;color:var(--text-tertiary)}
+  .sdui-mr3d .mr-stats{display:flex;align-items:center;gap:18px}
+  .sdui-mr3d .mr-stats .v{font-family:var(--font-mono,monospace);font-size:22px;font-weight:700;color:var(--text-primary);letter-spacing:-.01em;text-align:right}
+  .sdui-mr3d .mr-stats .l{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.06em;text-align:right}
+  .sdui-mr3d .iso-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px}
+  .sdui-mr3d .iso-room{background:var(--c-surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg,8px);padding:18px 18px 16px;transition:box-shadow .15s,border-color .15s,transform .15s;display:flex;flex-direction:column}
+  .sdui-mr3d .iso-room:hover{transform:translateY(-1px);box-shadow:var(--shadow-md);border-color:var(--border-strong,#cbd5e1)}
+  .sdui-mr3d .room-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .sdui-mr3d .room-head .name{font-size:14px;font-weight:600;color:var(--text-primary)}
+  .sdui-mr3d .room-head .name .c{font-family:var(--font-mono,monospace);font-size:11px;color:var(--text-tertiary);margin-left:6px;font-weight:500}
+  .sdui-mr3d .status-chip{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--c-brand-soft,#eef1fc);color:var(--c-brand-text,#1e34a8);display:inline-flex;align-items:center;gap:4px}
+  .sdui-mr3d .status-chip .dot{width:5px;height:5px;border-radius:50%;background:var(--c-brand,#3551d8)}
+  .sdui-mr3d .status-chip.pending{background:var(--c-warning-soft,#fdf2dd);color:var(--c-warning-text,#9a5b08)}
+  .sdui-mr3d .status-chip.pending .dot{background:var(--c-warning,#d97706)}
+  .sdui-mr3d .iso-scene{position:relative;width:100%;aspect-ratio:16/10;margin:4px 0 14px;background:radial-gradient(130% 100% at 50% -20%,#fcfdff 0%,#eef3fa 52%,#e6ecf6 100%);border-radius:10px;border:1px solid var(--divider,#eef2f7);overflow:hidden;perspective:720px;perspective-origin:50% 34%}
+  .sdui-mr3d .iso-shadow{position:absolute;left:50%;top:58%;transform:translate(-50%,-50%);background:radial-gradient(ellipse at center,rgba(15,23,42,.20) 0%,rgba(15,23,42,.06) 45%,transparent 72%);filter:blur(7px);pointer-events:none}
+  .sdui-mr3d .iso-stage{position:absolute;left:50%;top:52%;transform:translate(-50%,-50%) rotateX(56deg) rotateZ(45deg) scale(var(--iso-scale,1));transform-style:preserve-3d}
+  .sdui-mr3d .rack3d,.sdui-mr3d .slab{position:absolute;transform-style:preserve-3d;transform:translateZ(var(--base,0px))}
+  .sdui-mr3d .rack3d .face,.sdui-mr3d .slab .face{position:absolute}
+  .sdui-mr3d .rack3d .top,.sdui-mr3d .slab .top{left:0;top:0;width:100%;height:100%;transform:translateZ(var(--h))}
+  .sdui-mr3d .rack3d .front,.sdui-mr3d .slab .front{left:0;top:100%;width:100%;height:var(--h);transform-origin:top center;transform:rotateX(-90deg)}
+  .sdui-mr3d .rack3d .side,.sdui-mr3d .slab .side{left:100%;top:0;width:var(--h);height:100%;transform-origin:left center;transform:rotateY(90deg)}
+  .sdui-mr3d .rack3d .top{background:var(--rk-top,#7d92f2)}
+  .sdui-mr3d .rack3d .front{background:var(--rk-front,#4a63e0)}
+  .sdui-mr3d .rack3d .side{background:var(--rk-side,#2f3f96)}
+  .sdui-mr3d .rack3d.active {--rk-top:#8197f4;--rk-front:#4a63e0;--rk-side:#2f3f96}
+  .sdui-mr3d .rack3d.done   {--rk-top:#5bd49b;--rk-front:#18a25d;--rk-side:#0b6a3e}
+  .sdui-mr3d .rack3d.pending{--rk-top:#cdd6e2;--rk-front:#9aa8bd;--rk-side:#6a788f}
+  .sdui-mr3d .rack3d.risk   {--rk-top:#f79292;--rk-front:#e23b3b;--rk-side:#9d2020}
+  .sdui-mr3d .rack3d.pending .led{background:rgba(255,255,255,.4)}
+  .sdui-mr3d .room-statkey{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 10px;font-size:12px;color:var(--text-tertiary)}
+  .sdui-mr3d .room-statkey .k{font-family:var(--font-mono,monospace);font-weight:600;color:var(--text-secondary)}
+  .sdui-mr3d .rack3d.cdu{--rk-top:#eef3ff;--rk-front:#cbdcfb;--rk-side:#92aee2}
+  .sdui-mr3d .rack3d.cdu .top,.sdui-mr3d .rack3d.cdu .front,.sdui-mr3d .rack3d.cdu .side{border:1px solid rgba(37,99,235,.4)}
+  .sdui-mr3d .rack3d .led{position:absolute;left:50%;top:4px;transform:translateX(-50%);width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.85)}
+  .sdui-mr3d .slab.floor .top{background:repeating-linear-gradient(180deg,rgba(217,119,6,.05) 0 var(--celld,34px),rgba(37,99,235,.05) var(--celld,34px) calc(var(--celld,34px)*2)),linear-gradient(rgba(53,81,216,.13) 1px,transparent 1px) 0 0/var(--cell,30px) var(--celld,34px),linear-gradient(90deg,rgba(53,81,216,.13) 1px,transparent 1px) 0 0/var(--cell,30px) var(--celld,34px),linear-gradient(135deg,#fff 0%,#e9eff7 100%);box-shadow:inset 0 0 0 1px rgba(203,213,225,.8)}
+  .sdui-mr3d .slab.floor .front{background:linear-gradient(180deg,#dde4ee,#c4cedd)}
+  .sdui-mr3d .slab.floor .side{background:linear-gradient(180deg,#ccd5e2,#aeb9cb)}
+  .sdui-mr3d .room-stats{display:flex;gap:10px;margin-bottom:12px}
+  .sdui-mr3d .room-stats .s{flex:1;background:var(--c-bg,#f6f8fb);border-radius:7px;padding:7px 9px}
+  .sdui-mr3d .room-stats .s .v{font-family:var(--font-mono,monospace);font-size:18px;font-weight:700;color:var(--text-primary);letter-spacing:-.01em}
+  .sdui-mr3d .room-stats .s .v.ok{color:var(--c-success-text,#0a7d46)}
+  .sdui-mr3d .room-stats .s .v.warn{color:var(--c-warning-text,#9a5b08)}
+  .sdui-mr3d .room-stats .s .v.muted{color:var(--text-faint,#94a3b8)}
+  .sdui-mr3d .room-stats .s .l{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+  .sdui-mr3d .room-prog{height:6px;background:var(--c-bg-soft,#eef2f7);border-radius:3px;overflow:hidden;margin-bottom:12px}
+  .sdui-mr3d .room-prog .bar{height:100%;border-radius:3px;background:var(--c-brand,#3551d8)}
+  .sdui-mr3d .iso-room.pending .room-prog .bar{background:var(--c-warning,#d97706)}
+  .sdui-mr3d .room-entries{margin-top:auto;display:flex;flex-direction:column;gap:6px;padding-top:12px;border-top:1px dashed var(--divider,#eef2f7)}
+  .sdui-mr3d .room-entry{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-size:12.5px;font-weight:500;color:var(--text-secondary);background:var(--c-bg,#f6f8fb);border:1px solid transparent;border-radius:6px;padding:8px 10px;cursor:pointer;transition:all .14s}
+  .sdui-mr3d .room-entry:hover{background:var(--c-surface,#fff);border-color:var(--border-strong,#cbd5e1)}
+  .sdui-mr3d .room-entry.main{background:var(--text-primary,#0f172a);color:#fff}
+  .sdui-mr3d .room-entry.main:hover{background:var(--c-brand,#3551d8)}
+  .sdui-mr3d .room-entry .re-tx{flex:1}
+  .sdui-mr3d .room-entry .re-ar{opacity:.6}
+  .sdui-mr3d .mr-legend{display:flex;flex-wrap:wrap;gap:14px 18px;align-items:center;margin-top:20px;padding:12px 16px;background:rgba(255,255,255,.6);border-radius:8px;border:1px solid rgba(203,213,225,.5);font-size:12px;color:var(--text-tertiary)}
+  .sdui-mr3d .mr-legend .it{display:inline-flex;align-items:center;gap:6px}
+  .sdui-mr3d .mr-legend .sw{width:12px;height:12px;border-radius:3px}
+  .sdui-mr3d .mr-legend .sw.surveyed{background:var(--c-success,#0f9d58)}
+  .sdui-mr3d .mr-legend .sw.pending{background:var(--text-faint,#94a3b8)}
+  .sdui-mr3d .mr-legend .sw.unknown{background:var(--c-warning,#d97706)}
+  .sdui-mr3d .mr-legend .sw.na{background:var(--c-bg-soft,#eef2f7);border:1px solid var(--border-strong,#cbd5e1)}
+  `;
+  document.head.appendChild(s);
+}
+
+/** 单机房等距 3D 场景：grid(rows×cols) + racks/cdu → 立体长方体（忠实移植 MiniIsoScene）。 */
+function MiniIsoScene({ room }: { room: SduiMachineRoom }) {
+  const cols = room.cols ?? 4, rows = room.rows ?? 3;
+  const cellW = 30, cellD = 34, rackW = 18, rackD = 22, rackH = 46, floorH = 9;
+  const gridW = cols * cellW, gridH = rows * cellD;
+  const cduLane = (room.cdu ?? 0) > 0 ? 34 : 0;
+  const stageW = gridW, stageH = gridH + cduLane;
+  const isoScale = Math.min(1, 168 / stageW);
+
+  // 机柜状态着色：rackStatuses[i] ∈ {done,active,pending,risk}（空=统一品牌色）
+  const statuses = room.rackStatuses ?? [];
+  const racks: { x: number; y: number; key: string; status: string }[] = [];
+  let placed = 0;
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      if (placed >= (room.racks ?? 0)) break;
+      racks.push({
+        x: c * cellW + (cellW - rackW) / 2, y: r * cellD + (cellD - rackD) / 2,
+        key: `${r}-${c}`, status: statuses[placed] ?? '',
+      });
+      placed++;
+    }
+  }
+  const cdus: { x: number; y: number; key: string }[] = [];
+  for (let i = 0; i < (room.cdu ?? 0); i++) cdus.push({ x: i * (cellW * 2.0) + 8, y: gridH + 6, key: `cdu-${i}` });
+
+  const cuboid = (keyStr: string, x: number, y: number, w: number, d: number, h: number, cls: string, led: boolean) => (
+    <div key={keyStr} className={'rack3d ' + cls}
+         style={{ left: x, top: y, width: w, height: d, ['--h' as string]: h + 'px', ['--base' as string]: floorH + 'px' }}>
+      <div className="face side" /><div className="face front" /><div className="face top">{led && <span className="led" />}</div>
+    </div>
+  );
+
+  return (
+    <div className="iso-scene">
+      <div className="iso-shadow" style={{ width: stageW * isoScale * 0.95, height: stageH * isoScale * 0.7 }} />
+      <div className="iso-stage" style={{ width: stageW, height: stageH, ['--iso-scale' as string]: isoScale }}>
+        <div className="slab floor" style={{ left: 0, top: 0, width: stageW, height: stageH,
+             ['--h' as string]: floorH + 'px', ['--cell' as string]: cellW + 'px', ['--celld' as string]: cellD + 'px' }}>
+          <div className="face side" /><div className="face front" /><div className="face top" />
+        </div>
+        {racks.map(rk => cuboid(rk.key, rk.x, rk.y, rackW, rackD, rackH, rk.status, true))}
+        {cdus.map(cd => cuboid(cd.key, cd.x, cd.y, cellW * 1.7, 26, 24, 'cdu', false))}
+      </div>
+    </div>
+  );
+}
+
+function MachineRoom3DView({ node }: { node: SduiMachineRoom3DNode }) {
+  const { onAction } = useSduiRuntime();
+  ensureMR3DStyles();
+  const toneColor = (t?: string) => t === 'danger' ? 'var(--c-danger-text,#a31919)' : t === 'brand' ? 'var(--c-brand-text,#1e34a8)' : 'var(--text-primary)';
+  return (
+    <div className="sdui-mr3d">
+      <div className="mr-head">
+        <div>
+          {node.eyebrow && <div className="mr-eyebrow">{node.eyebrow}</div>}
+          {node.title && <div className="mr-title">{node.title}</div>}
+          {node.subtitle && <div className="mr-sub">{node.subtitle}</div>}
+        </div>
+        {(node.headStats ?? []).length > 0 && (
+          <div className="mr-stats">
+            {node.headStats!.map((s, i) => (
+              <div key={i}><div className="v" style={{ color: toneColor(s.tone) }}>{s.value}</div><div className="l">{s.label}</div></div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="iso-grid">
+        {(node.rooms ?? []).map(room => {
+          const st = room.itemStats;
+          const pending = (room.status ?? 'active') === 'pending';
+          return (
+            <div key={room.id} className={'iso-room ' + (pending ? 'pending' : '')}>
+              <div className="room-head">
+                <div className="name">{room.label}{room.code && <span className="c">{room.code}</span>}</div>
+                <span className={'status-chip ' + (pending ? 'pending' : '')}><span className="dot" />{pending ? '待启动' : '勘测中'}</span>
+              </div>
+              <MiniIsoScene room={room} />
+              {(room.statKey ?? []).length > 0 && (
+                <div className="room-statkey">
+                  {room.statKey!.map((k, i) => <span key={i} className="k">{k}</span>)}
+                </div>
+              )}
+              <div className="room-stats">
+                <div className="s"><div className="v ok">{st.surveyed}</div><div className="l">已勘测</div></div>
+                <div className="s"><div className="v">{st.pending}</div><div className="l">未勘测</div></div>
+                <div className="s"><div className="v warn">{st.unknown}</div><div className="l">无法识别</div></div>
+                <div className="s"><div className="v muted">{st.na}</div><div className="l">不涉及</div></div>
+              </div>
+              <div className="room-prog"><div className="bar" style={{ width: (room.progress ?? 0) + '%' }} /></div>
+              <div className="room-entries">
+                {(room.entries ?? []).map(e => (
+                  <button key={e.key} className={'room-entry ' + (e.primary ? 'main' : '')}
+                          onClick={() => e.action && onAction(e.action)}>
+                    <span className="re-tx">{e.label}</span><span className="re-ar">›</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mr-legend">
+        <span className="it"><span className="sw surveyed" />已勘测 · 完成采集</span>
+        <span className="it"><span className="sw pending" />未勘测 · 尚未开始</span>
+        <span className="it"><span className="sw unknown" />无法识别 · 置信度低</span>
+        <span className="it"><span className="sw na" />不涉及 · 无需勘测</span>
+        {node.refreshNote && <span style={{ marginLeft: 'auto' }}>{node.refreshNote}</span>}
+      </div>
+    </div>
+  );
+}
+
+
 export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
-  const { onAction, onChoiceSubmit } = useSduiRuntime();
+  const { onAction, onChoiceSubmit, onFormSubmit } = useSduiRuntime();
 
   const renderChildren = (children: SduiNode[] | undefined) =>
     children?.map((child, i) => {
@@ -785,6 +1155,26 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       // 依赖 React key 机制：id 稳定的 Card（header/stepper/golden-metrics）不会 remount，
       // 不会重复动画；新出现的 Card（risk-top-alert/hitl-card）会 remount → 触发动画。
       const headerAction = (node as { headerAction?: { label: string; variant?: string; action: import('@/lib/sdui').SduiAction } }).headerAction;
+      const headerActionEl = headerAction ? (
+        <button
+          type="button"
+          onClick={() => onAction(headerAction.action)}
+          style={{
+            padding: '5px 12px',
+            fontFamily: 'var(--font-sans)',
+            fontSize: 'var(--fs-12)',
+            fontWeight: 500,
+            lineHeight: 1.25,
+            borderRadius: 'var(--r-sm)',
+            cursor: 'pointer',
+            border: headerAction.variant === 'primary' ? '1px solid var(--c-brand)' : '1px solid var(--c-border)',
+            background: headerAction.variant === 'primary' ? 'var(--c-brand)' : 'var(--c-surface)',
+            color: headerAction.variant === 'primary' ? '#fff' : 'var(--c-text-2)',
+          }}
+        >
+          {headerAction.label}
+        </button>
+      ) : undefined;
       // 可折叠卡：把次要明细（如 micro-step Stepper）收起，减轻信息墙（需 title）。
       if (node.collapsible && node.title) {
         return (
@@ -794,19 +1184,8 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
         );
       }
       return (
-        <Panel title={node.title ?? undefined} tone={panelTone}
+        <Panel title={node.title ?? undefined} action={headerActionEl} tone={panelTone}
                style={{ animation: 'sdui-node-in .28s cubic-bezier(.2,.65,.4,1) both' }}>
-          {headerAction && (
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-              <button
-                onClick={() => onAction(headerAction.action)}
-                style={{ padding: '5px 12px', fontSize: 12, fontWeight: 500, borderRadius: 4, cursor: 'pointer',
-                  border: headerAction.variant === 'primary' ? '1px solid #3551d8' : '1px solid var(--border)',
-                  background: headerAction.variant === 'primary' ? '#3551d8' : 'var(--surface)',
-                  color: headerAction.variant === 'primary' ? '#fff' : 'var(--text-secondary)' }}
-              >{headerAction.label}</button>
-            </div>
-          )}
           {renderChildren(node.children)}
         </Panel>
       );
@@ -1466,6 +1845,9 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
     }
 
+    case 'MachineRoom3D':
+      return <MachineRoom3DView node={node} />;
+
     case 'RecipientList':
       return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -1844,6 +2226,9 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     case 'HitlTextInput':
       return <HitlTextInput node={node} onSubmit={onChoiceSubmit} />;
+
+    case 'HitlForm':
+      return <HitlForm node={node} onSubmit={onFormSubmit} />;
 
     default:
       return <UnknownNode type={(node as { type?: string }).type ?? '?'} />;

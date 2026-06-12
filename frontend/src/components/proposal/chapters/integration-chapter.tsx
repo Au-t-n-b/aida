@@ -15,7 +15,7 @@ export function IntegrationChapter() {
         <ProposalDataTableHead>
           <tr>
             <th>分类</th>
-            <th>预集成验证需求描述</th>
+            <th>预集成验证需求</th>
             <th>硬件需求</th>
             <th>软件需求</th>
             <th>责任人</th>
@@ -27,13 +27,11 @@ export function IntegrationChapter() {
           {PRE_INTEGRATION.map((p, i) => (
             <tr key={i}>
               <td>{p.cat}</td>
-              <td className="text-xs">{p.desc}</td>
+              <td><div className="proposal-clamp-2" title={p.desc}>{p.desc}</div></td>
               <td className="text-xs">{p.hw}</td>
               <td className="text-xs">{p.sw}</td>
               <td>{p.owner}</td>
-              <td>
-                <span className={`status-pill ${p.state === '已完成' ? 'green' : 'amber'}`}>{p.state}</span>
-              </td>
+              <td>{p.state}</td>
               <td>{p.date}</td>
             </tr>
           ))}

@@ -12,7 +12,8 @@ import json
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
-from ._io import refresh_task_metrics, tasks_state_path
+from ._io import refresh_task_metrics, tasks_state_path, staged_cold_start_pace, SN_GENERATE_PACE_SEC
+from ..path_config import get_output_dir, output_rel
 from ..services._common import as_str
 from ..services.dispatch_plan_parser import load_sn_pool, group_sn_rows_to_tables
 from ..services.sn_builder import generate_sn_xlsx
@@ -39,6 +40,17 @@ class SnGenerateStep(BaseStep):
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         if should_skip(self.key, ctx.project):
             return {}
+
+        # 与 preflight 相同：分阶段 emit + sleep，步进条停留 running；本步仅在下发后重放中执行，故 skip_on_replay=False
+        staged_cold_start_pace(
+            ctx.project, emit,
+            total_sec=SN_GENERATE_PACE_SEC,
+            skip_on_replay=False,
+            stages=[
+                "[sn_generate] 正在按勾选范围过滤 SN 设备…",
+                "[sn_generate] 正在生成 SN 扫码表…",
+            ],
+        )
 
         state_path = str(tasks_state_path(ctx))
         st = load_tasks_state(state_path)
@@ -111,9 +123,9 @@ class SnGenerateStep(BaseStep):
 
         artifacts: list[str] = []
         for tbl in tables:
-            out = generate_sn_xlsx(tbl, str(ctx.output_dir))
+            out = generate_sn_xlsx(tbl, str(get_output_dir(ctx.project)))
             if out:
-                artifacts.append(ctx.rel(out))
+                artifacts.append(output_rel(ctx.work_root, out))
 
         meta_path = ctx.runtime_dir / "sn_tables.json"
         ctx.runtime_dir.mkdir(parents=True, exist_ok=True)

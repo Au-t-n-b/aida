@@ -280,6 +280,6 @@ export const ALL_MODULES = [
   { key: 'modeling', name: '建模仿真', iconName: 'IconTopo', desc: 'BOQ 提取 · 拓扑生成' },
   { key: 'job', name: '作业管理', iconName: 'IconGantt', desc: '进度规划 · CPM 分析' },
   { key: 'design', name: '概要设计', iconName: 'IconDesign', desc: 'HLD · 方案文档' },
-  { key: 'install', name: '设备安装', iconName: 'IconInstall', desc: '施工指导 · 验收' },
+  { key: 'install', name: '设备安装', iconName: 'IconInstall', desc: '计划下发 · SN扫码 · ESN填写' },
   { key: 'deploy', name: '割接部署', iconName: 'IconDeploy', desc: '割接脚本 · 应急预案' },
 ];

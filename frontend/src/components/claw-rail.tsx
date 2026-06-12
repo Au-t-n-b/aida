@@ -9,10 +9,12 @@ import {
 import { getNavLabel } from '../data/left-nav-items';
 import { refreshEvals } from '@/lib/eval-refresh';
 import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunStore';
+import { useRunLogStore } from '@/lib/runLogStore';
 import { useSkillHitlStore } from '@/lib/skillHitlStore';
 import { startRun } from '@/hooks/useSduiStream';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
+import { RAIL_SEND_EVENT } from '@/lib/claw-send';
 
 const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
 
@@ -154,6 +156,8 @@ const PROPOSAL_DOCS = [
   { key: 'maint',   label: '维护建议书',    accept: '.docx,.pdf', required: false },
   { key: 'train',   label: '培训建议书',    accept: '.docx,.pdf', required: false },
   { key: 'service', label: '服务建议书',    accept: '.docx,.pdf', required: false },
+  { key: 'techProposal', label: '技术建议书', accept: '.docx,.pdf', required: false },
+  { key: 'scenarioTc', label: '场景测试用例', accept: '.docx,.pdf', required: false },
   { key: 'rfp',     label: '提资文件',      accept: '.zip,.pdf',  required: false },
 ];
 
@@ -168,7 +172,7 @@ function ProposalUploadPanel() {
   const missingRequired = requiredDocs.filter(d => !uploadedDocs[d.key]);
   const uploadedCount = Object.keys(uploadedDocs).length;
 
-  const handleUpload = (docKey: string, label: string, file: File) => {
+  const handleUpload = async (docKey: string, label: string, file: File) => {
     const size = file.size > 1024 * 1024
       ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
       : `${Math.round(file.size / 1024)} KB`;
@@ -182,7 +186,77 @@ function ProposalUploadPanel() {
         },
       }));
     }
+
+    if (docKey === 'techProposal' && file.name.toLowerCase().endsWith('.docx')) {
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/v1/proposal/parse/tech-proposal', { method: 'POST', body: fd });
+        if (res.ok) {
+          const body = await res.json();
+          const rows = body?.data?.rows ?? [];
+          if (rows.length && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('aida:proposal-acceptance-parsed', { detail: { rows } }));
+            window.dispatchEvent(new CustomEvent('aida:progress', {
+              detail: {
+                role: 'ai',
+                body: `「${label}」解析完成 · 已更新第 11 章验收策略（${rows.length} 条）`,
+                chips: [label, '解析完成'],
+              },
+            }));
+          }
+        }
+      } catch {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aida:progress', {
+            detail: {
+              role: 'ai',
+              body: `「${label}」解析失败 · 请确认 Agent 服务已启动`,
+              chips: [label, '解析失败'],
+            },
+          }));
+        }
+      }
+    }
+
+    if (docKey === 'scenarioTc') {
+      const ext = file.name.toLowerCase();
+      if (!ext.endsWith('.docx') && !ext.endsWith('.pdf')) return;
+      try {
+        const fd = new FormData();
+        fd.append('file', file);
+        const res = await fetch('/api/v1/proposal/parse/testcases', { method: 'POST', body: fd });
+        if (res.ok) {
+          const body = await res.json();
+          const rows = body?.data?.rows ?? [];
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('aida:proposal-testcases-parsed', { detail: { rows } }));
+            window.dispatchEvent(new CustomEvent('aida:progress', {
+              detail: {
+                role: 'ai',
+                body: rows.length
+                  ? `「${label}」解析完成 · 已更新第 12 章测试用例（${rows.length} 条，将按卡规模筛选）`
+                  : `「${label}」已处理 · 未解析到用例，第 12 章保持空状态`,
+                chips: [label, rows.length ? '解析完成' : '无数据'],
+              },
+            }));
+          }
+        }
+      } catch {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('aida:progress', {
+            detail: {
+              role: 'ai',
+              body: `「${label}」解析失败 · 请确认 Agent 服务已启动`,
+              chips: [label, '解析失败'],
+            },
+          }));
+        }
+      }
+    }
   };
+
+
 
   const IcCheck = () => (
     <svg className="upload-ic-check" viewBox="0 0 16 16" fill="none">
@@ -448,7 +522,64 @@ function genConvId(): string {
 const SKILL_LABELS: Record<string, string> = {
   zhgk: '智慧工勘',
   guihua: '规划设计',
+  device_install: '设备安装',
 };
+
+/** 节点日志气泡：每个 step 一组，逐行随 SSE 到达渲染（与右侧步进条同步） */
+function RunLogFeed({ runId }: { runId: string }) {
+  const groups = useRunLogStore(runId);
+  if (!groups.length) return null;
+  return (
+    <div style={{ margin: '2px 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {groups.map((g) => {
+        const icon = g.status === 'done' ? '✓' : g.status === 'failed' ? '✗' : '⟳';
+        const iconColor =
+          g.status === 'done' ? 'var(--green-600, #16a34a)'
+          : g.status === 'failed' ? 'var(--red-600, #dc2626)'
+          : '#1b84ff';
+        return (
+          <div key={g.step} style={{
+            border: '1px solid var(--c-border, rgba(0,0,0,.08))',
+            borderRadius: 6,
+            overflow: 'hidden',
+            background: 'var(--c-bg-soft, rgba(0,0,0,.02))',
+          }}>
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '5px 9px',
+              fontSize: 12, fontWeight: 600,
+              color: 'var(--c-text, #18181b)',
+            }}>
+              <span style={{
+                color: iconColor,
+                display: 'inline-block',
+                animation: g.status === 'running' ? 'spin 1s linear infinite' : undefined,
+              }}>{icon}</span>
+              <span>{g.name}</span>
+            </div>
+            {g.lines.length > 0 && (
+              <div style={{
+                padding: '0 9px 7px 22px',
+                fontFamily: 'var(--font-mono, ui-monospace, monospace)',
+                fontSize: 11.5,
+                lineHeight: 1.7,
+                color: 'var(--c-text-muted, #71717a)',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}>
+                {g.lines.map((ln, i) => (
+                  <div key={i} style={{ opacity: i === g.lines.length - 1 && g.status === 'running' ? 1 : 0.78 }}>
+                    {ln}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function SkillRunBanner({
   skillId,
@@ -548,6 +679,9 @@ function SkillRunBanner({
         </div>
       )}
 
+      {/* 节点日志气泡：转圈时逐条弹出（时序由后端 SSE 节奏驱动）*/}
+      {myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
+
       {/* HITL 交互卡：直接在左侧会话框内可操作（选择 / 上传），回调直连右侧 resume */}
       {phase === 'hitl' && myHitl && (
         <div style={{ margin: '6px 10px 10px' }}>
@@ -557,6 +691,7 @@ function SkillRunBanner({
               onAction: () => {},
               onUpload: myHitl.onUpload,
               onChoiceSubmit: myHitl.onChoiceSubmit,
+              onFormSubmit: myHitl.onFormSubmit,
               // 在线编辑表默认留在右侧大盘（route_hitl_edit 契约），左栏不承接表格提交
               onRowsSubmit: () => {},
             }}
@@ -731,7 +866,11 @@ export default function ClawRail({
       const ts = msg.ts ?? nowTs();
       setAppendMsgs(prev => [...prev, { role: msg.role ?? 'ai', body: msg.body!, ts, ...msg }]);
     };
-    const onClear = () => setAppendMsgs([]);
+    const onClear = () => {
+      setAppendMsgs([]);
+      setChatMsgs([]);
+      setConvId(genConvId());
+    };
     window.addEventListener('aida:progress', onProgress);
     window.addEventListener('aida:clear', onClear);
     return () => {
@@ -976,6 +1115,17 @@ export default function ClawRail({
     setDraft('');
     await sendText(text);
   }, [draft, isStreaming, sendText]);
+
+  // 右侧 skill 作业区下钻（3D 机房入口）→ 作为一条用户消息投递进本会话
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onRailSend = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text?.trim();
+      if (text) void sendText(text);
+    };
+    window.addEventListener(RAIL_SEND_EVENT, onRailSend);
+    return () => window.removeEventListener(RAIL_SEND_EVENT, onRailSend);
+  }, [sendText]);
 
   // ── Resize drag ───────────────────────────────────────────────────────────
 

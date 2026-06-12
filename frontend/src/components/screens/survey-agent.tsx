@@ -19,13 +19,16 @@ import { HITL_HOLD_MS } from '@/components/sdui/hitlOptimistic';
 const SduiPreviewModal = lazy(() =>
   import('@/components/sdui/SduiPreviewModal').then(m => ({ default: m.SduiPreviewModal })),
 );
-import { useSduiStream, startRun, resumeRun, uploadBatch } from '@/hooks/useSduiStream';
+import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace } from '@/hooks/useSduiStream';
+import type { StartReq } from '@/hooks/useSduiStream';
+import { clearRunLog } from '@/lib/runLogStore';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
-import { useSkillRunStore, setSkillRun, updateSkillRun } from '@/lib/skillRunStore';
+import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
 import { Button } from '@/components/primitives';
+import { dispatchRailSend } from '@/lib/claw-send';
 import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
 
 export interface SkillAgentScreenProps {
@@ -92,7 +95,9 @@ export interface SkillAgentScreenProps {
       margin-bottom:22px;
     }
     .skill-idle-step { display:flex; flex-direction:column; align-items:center; flex:1; min-width:0; }
-    .skill-idle-step-row { display:flex; align-items:center; width:100%; }
+    .skill-idle-step-row {
+      display:grid; grid-template-columns:1fr auto 1fr; align-items:center; width:100%;
+    }
     .skill-idle-dot {
       width:28px; height:28px; border-radius:50%; flex-shrink:0;
       background:var(--c-surface); border:1.5px solid var(--c-border-strong);
@@ -100,17 +105,20 @@ export interface SkillAgentScreenProps {
       font-size:11px; font-weight:700; color:var(--c-text-faint);
       transition:border-color .2s;
       box-shadow:var(--shadow-sm);
+      grid-column:2;
     }
-    .skill-idle-conn { flex:1; height:1.5px; background:var(--c-border); }
+    .skill-idle-conn { height:1.5px; background:var(--c-border); align-self:center; }
+    .skill-idle-conn--before { grid-column:1; margin-right:-1px; }
+    .skill-idle-conn--after  { grid-column:3; margin-left:-1px; }
+    .skill-idle-conn--hidden { visibility:hidden; }
     .skill-idle-step-label {
       font-size:10px; color:var(--c-text-muted); font-weight:500;
-      margin-top:7px; text-align:center; white-space:nowrap;
-      max-width:56px; overflow:hidden; text-overflow:ellipsis;
+      margin-top:7px; text-align:center; width:100%;
+      padding:0 2px; line-height:1.35;
     }
     .skill-idle-step-sub {
       font-size:9.5px; color:var(--c-text-faint); margin-top:2px;
-      text-align:center; max-width:60px; line-height:1.35;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+      text-align:center; width:100%; padding:0 2px; line-height:1.35;
     }
     /* ── 文件提示 ── */
     .skill-idle-files {
@@ -176,6 +184,8 @@ const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
   files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
   icon: React.ReactNode;
+  /** 文件提示区路径说明；默认 zhgk 风格 Template + Input */
+  filesHint?: string;
 }> = {
   zhgk: {
     icon: (
@@ -218,6 +228,26 @@ const SKILL_META: Record<string, {
       { name: '建模仿真设备信息表.md', ext: 'md' },
     ],
   },
+  device_install: {
+    icon: (
+      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
+        <rect x="7" y="5" width="15" height="22" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M10.5 10h8M10.5 14h8M10.5 18h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+        <circle cx="25" cy="16" r="5.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M25 13.5v5M22.5 16h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    ),
+    filesHint: 'ProjectData/Input/',
+    steps: [
+      { key: 'plan_receive',  name: '接收实施计划', sub: '上游双 Sheet' },
+      { key: 'task_dispatch', name: '计划下发',     sub: '勾选·下发' },
+      { key: 'sn_generate',   name: 'SN扫码表',     sub: '按单元生成' },
+      { key: 'esn_fill',      name: 'ESN填写',      sub: '完工清单' },
+    ],
+    files: [
+      { name: '设备安装实施计划.xlsx', ext: 'xlsx' },
+    ],
+  },
 };
 
 function IdleScreen({ skillId, title, description, onStart, loading }: {
@@ -246,9 +276,9 @@ function IdleScreen({ skillId, title, description, onStart, loading }: {
             <React.Fragment key={s.key}>
               <div className="skill-idle-step">
                 <div className="skill-idle-step-row">
-                  {i > 0 && <div className="skill-idle-conn" />}
+                  <div className={`skill-idle-conn skill-idle-conn--before${i === 0 ? ' skill-idle-conn--hidden' : ''}`} />
                   <div className="skill-idle-dot">{i + 1}</div>
-                  {i < steps.length - 1 && <div className="skill-idle-conn" />}
+                  <div className={`skill-idle-conn skill-idle-conn--after${i === steps.length - 1 ? ' skill-idle-conn--hidden' : ''}`} />
                 </div>
                 <div className="skill-idle-step-label">{s.name}</div>
                 <div className="skill-idle-step-sub">{s.sub}</div>
@@ -263,7 +293,9 @@ function IdleScreen({ skillId, title, description, onStart, loading }: {
         <div className="skill-idle-files">
           <div className="skill-idle-files-ic">📂</div>
           <div className="skill-idle-files-body">
-            <div className="skill-idle-files-title">启动前确认文件 · ProjectData/Template/ · Input/</div>
+            <div className="skill-idle-files-title">
+              启动前确认文件 · {meta?.filesHint ?? 'ProjectData/Template/ · Input/'}
+            </div>
             {files.map(f => (
               <div key={f.name} className="skill-idle-file-row">
                 <span className={`skill-idle-file-ext ${f.ext}`}>{f.ext.toUpperCase()}</span>
@@ -309,9 +341,32 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   return found;
 }
 
+/** Stepper 中最后一个 done 步骤的下标（resume 冻结时的进度水位）。 */
+function maxDoneStepIndex(doc: SduiDocument): number {
+  let max = -1;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'Stepper' || !node.steps) return;
+    node.steps.forEach((s, i) => {
+      if (s.status === 'done') max = Math.max(max, i);
+    });
+  });
+  return max;
+}
+
+/** full_restart 重放是否已追平/超过冻结时的 Stepper 水位。 */
+function replayCaughtUp(live: SduiDocument, frozenMaxDone: number): boolean {
+  if (findNodeById(live.root, 'task-table-dt')) return true;
+  return maxDoneStepIndex(live) > frozenMaxDone;
+}
+
+/** SDUI 是否处于「左侧会话框 HITL」态（root 含 hitl-card）。*/
+function hasLeftRailHitl(doc: SduiDocument): boolean {
+  return !!findNodeById(doc.root, 'hitl-card');
+}
+
 /** 移除 root 下的 hitl-card（交互卡已路由到左侧会话框，避免左右双份）。
- *  hitl-card 是 root Stack 的直接子节点（见 zhgk/sdui.py），浅层移除即可。
- *  右侧此刻由 P4「你的回合」接管态承载（见主渲染）。*/
+ *  hitl-card 是 root Stack 的直接子节点（见各 skill/sdui.py），浅层移除即可；
+ *  右侧仅保留顶部轻量引导条 + 正常遥测大盘（见主渲染）。*/
 function stripHitlCard(root: SduiNode): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
@@ -320,37 +375,57 @@ function stripHitlCard(root: SduiNode): SduiNode {
   return { ...root, children: next } as SduiNode;
 }
 
-/** P4 · 你的回合（HITL 接管态）：等待用户操作时，把「该你了」抬成主角，
- *  下方遥测整体退后降饱和。交互卡片在左侧会话框，这里是右侧的肯定式引导。*/
+/** 两态导航（总览 ↔ 作业）：按 viewMode 隐藏 root 顶层互斥块，根治滚动过载。
+ *  overview 态藏作业仪表盘（dashboard-row）+ 上下文条；work 态藏 3D 总览（machine-room-3d）。
+ *  其余（header/宏阶段/KPI/时间条/HITL）两态共存。若机房总览不存在（如某些 run）则不切换。*/
+function applyViewMode(root: SduiNode, mode: 'overview' | 'work'): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  const has3d = children.some(c => (c as { id?: string }).id === 'machine-room-3d');
+  if (!has3d) return root;
+  const hide = mode === 'overview'
+    ? new Set(['dashboard-row', 'room-contextbar'])
+    : new Set(['machine-room-3d']);
+  const next = children.filter(c => !hide.has((c as { id?: string }).id ?? ''));
+  return { ...root, children: next } as SduiNode;
+}
+
+/** 左侧会话 HITL 等待态：顶部轻量引导（交互在 ClawRail，右侧大盘保持可读）。*/
 function HitlTakeover() {
   return (
     <div style={{
-      border: '1px solid var(--c-warning)', borderRadius: 'var(--r-lg)',
-      background: 'linear-gradient(180deg, var(--c-warning-soft) 0%, var(--c-surface) 64%)',
-      boxShadow: 'var(--shadow-md)', overflow: 'hidden', marginBottom: 'var(--sp-4)',
-      animation: 'sdui-node-in .3s cubic-bezier(.2,.65,.4,1) both',
+      border: '1px solid var(--c-info-border, rgba(53,81,216,.22))',
+      borderRadius: 'var(--r-md)',
+      background: 'var(--c-info-soft, #eef1fc)',
+      overflow: 'hidden', marginBottom: 'var(--sp-3)',
+      animation: 'sdui-node-in .25s cubic-bezier(.2,.65,.4,1) both',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px var(--sp-5) 0' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px var(--sp-4)' }}>
         <span style={{
-          width: 9, height: 9, borderRadius: '50%', background: 'var(--c-warning)',
-          boxShadow: '0 0 0 4px var(--c-warning-soft)', flexShrink: 0,
+          width: 8, height: 8, borderRadius: '50%', background: 'var(--c-brand, #3551d8)',
+          boxShadow: '0 0 0 3px rgba(53,81,216,.12)', flexShrink: 0, marginTop: 5,
         }} />
-        <span style={{
-          fontSize: 'var(--fs-11)', fontWeight: 700, letterSpacing: '.08em',
-          textTransform: 'uppercase', color: 'var(--c-warning-text)',
-        }}>你的回合 · 需要你的操作</span>
-      </div>
-      <div style={{ padding: '4px var(--sp-5) var(--sp-5)' }}>
-        <div style={{ fontSize: 'var(--fs-16)', fontWeight: 600, letterSpacing: '-.01em', margin: '4px 0 6px' }}>
-          ← 请在左侧会话框完成确认
-        </div>
-        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--c-text-muted)' }}>
-          下方运行面板已暂时退后。交互卡片就在左侧会话框，完成选择 / 上传后将自动继续。
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 'var(--fs-11)', fontWeight: 700, letterSpacing: '.06em',
+            textTransform: 'uppercase', color: 'var(--c-brand-text, #1e34a8)', marginBottom: 4,
+          }}>
+            等待你的操作
+          </div>
+          <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, letterSpacing: '-.01em', marginBottom: 3 }}>
+            请在左侧会话框完成选择或上传
+          </div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-text-muted)', lineHeight: 1.5 }}>
+            完成后将自动继续执行
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+/** 自动执行、无需左栏 HITL 提示的流水线步骤 */
+const AUTO_PIPELINE_STEP_IDS = new Set(['preflight', 'plan_receive', 'sn_generate']);
 
 /** 从 SDUI 文档提取运行阶段信息（供 updateSkillRun 写入）*/
 function extractProgressFromSdui(doc: SduiDocument): {
@@ -360,6 +435,7 @@ function extractProgressFromSdui(doc: SduiDocument): {
   hitlType?: 'file' | 'choice' | 'edit' | null;
   errorMsg?: string;
 } {
+  const editOnWorkbench = doc.meta?.route_hitl_edit === 'workbench';
   const r: {
     phase?: 'running' | 'hitl' | 'done' | 'error';
     progress?: number;
@@ -367,6 +443,9 @@ function extractProgressFromSdui(doc: SduiDocument): {
     hitlType?: 'file' | 'choice' | 'edit' | null;
     errorMsg?: string;
   } = {};
+
+  let autoRunningStepId = '';
+  let autoRunningStepTitle = '';
 
   walkSduiNodes(doc.root, (node) => {
     // DonutChart 中心值 → 整体进度百分比
@@ -389,17 +468,25 @@ function extractProgressFromSdui(doc: SduiDocument): {
       } else if (runStep) {
         r.phase = 'running';
         r.currentStepName = runStep.title;
+        autoRunningStepId = runStep.id ?? '';
+        autoRunningStepTitle = runStep.title;
       }
     }
     // HITL 节点优先级最高（覆盖 Stepper 的阶段判断）
     if (node.type === 'ChoiceCard') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     if (node.type === 'FilePicker') { r.phase = 'hitl'; r.hitlType = 'file';   }
-    // 可编辑表格 HITL（计划下发勾选 / ESN 在线填写）：留在右侧大盘，不路由到左侧，
-    // 但左侧进度卡需据此从 running 切到 hitl，否则会一直转圈不提示「该你操作了」。
-    if (node.type === 'DataTable' && node.editable && node.submitMode === 'resume') {
+    // 可编辑表 HITL：route_hitl_edit=workbench 时表格在右侧大盘，左栏不弹「待填表」
+    if (node.type === 'DataTable' && node.editable && node.submitMode === 'resume' && !editOnWorkbench) {
       r.phase = 'hitl'; r.hitlType = 'edit';
     }
   });
+
+  // 预检 / 收计划自动推进中：左栏保持 running，不出现「需要在线填表」兜底卡
+  if (autoRunningStepId && AUTO_PIPELINE_STEP_IDS.has(autoRunningStepId)) {
+    r.phase = 'running';
+    r.currentStepName = autoRunningStepTitle;
+    r.hitlType = null;
+  }
 
   return r;
 }
@@ -411,9 +498,9 @@ export default function SkillAgentScreen({
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
 }: SkillAgentScreenProps) {
-  // ── 模式检测：有 ClawManager 登录态 → 容器模式 ────────────────────────────
+  // ── 模式检测：仅当 Manager 已分配容器端点走任务 API；普通登录仍直连 AIDA Agent ──
   const { session } = useAidaSession();
-  const useClawMode = !!session;
+  const useClawMode = Boolean(session?.containerEndpoint);
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式
@@ -422,6 +509,8 @@ export default function SkillAgentScreen({
   const [error, setError] = useState<string | null>(null);
   // SSE 重订阅令牌：HITL resume 后自增，强制 useSduiStream 对准后端新建的队列（见 hook 注释）
   const [streamEpoch, setStreamEpoch] = useState(0);
+  // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → overview
+  const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
   // 产物预览：open_preview action 触发，存待预览的相对路径（null = 关闭）
   const [previewPath, setPreviewPath] = useState<string | null>(null);
 
@@ -452,26 +541,27 @@ export default function SkillAgentScreen({
   const sduiDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { sduiDocRef.current = sduiDoc; }, [sduiDoc]);
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
-  const frozenProgressRef = useRef(0);
+  const frozenMaxDoneStepIdxRef = useRef(-1);
   useEffect(() => {
     if (!frozenDoc || !sduiDoc) return;
-    const { progress = 0 } = extractProgressFromSdui(sduiDoc);
-    const hasHitl = !!findNodeById(sduiDoc.root, 'hitl-card');
-    // 进度追上冻结水位 → 后端重放完毕；出现新 HITL → 流水线推进到下一交互门
-    if (progress >= frozenProgressRef.current || hasHitl) setFrozenDoc(null);
+    // 仅当重放 Stepper 水位超过冻结快照时才解冻（避免 SN 重跑时步进条回退）
+    if (replayCaughtUp(sduiDoc, frozenMaxDoneStepIdxRef.current)) {
+      setFrozenDoc(null);
+    }
   }, [sduiDoc, frozenDoc]);
   // resume 期间展示冻结快照，其余时间展示实时文档
   const displayDoc = frozenDoc ?? sduiDoc;
 
-  // Sync SDUI doc → skillRunStore（左侧 SkillRunBanner 从 store 读取进度展示）
+  // Sync SDUI doc → skillRunStore（冻结期间同步展示快照，避免左栏步进条随重放回退）
   useEffect(() => {
-    if (!sduiDoc || !activeRunId) return;
-    const patch = extractProgressFromSdui(sduiDoc);
-    updateSkillRun(patch);
-  }, [sduiDoc, activeRunId]);
+    const doc = frozenDoc ?? sduiDoc;
+    if (!doc || !activeRunId) return;
+    updateSkillRun(extractProgressFromSdui(doc));
+  }, [sduiDoc, frozenDoc, activeRunId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
-  const handleStart = useCallback(async () => {
+  const handleStart = useCallback(async (req: StartReq = {}) => {
+    if (!req.intent) setViewMode('overview');
     setStarting(true);
     setError(null);
     try {
@@ -480,14 +570,14 @@ export default function SkillAgentScreen({
           accessToken: session.accessToken,
           sessionId: session.sessionId,
           kind: skillId,
-          params: {},
+          params: { ...req },
         });
         setTaskId(resp.task_id);
       } else {
-        const id = await startRun(skillId);
+        const id = await startRun(skillId, req);
         setRunId(id);
-        // 通知聊天侧：source='ui' → ClawRail 检测到后自动注入 SkillRunBanner 消息
         setSkillRun(skillId, id, 'ui');
+        setStreamEpoch(e => e + 1);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '启动失败');
@@ -509,16 +599,49 @@ export default function SkillAgentScreen({
       // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
       const curDoc = sduiDocRef.current;
       if (curDoc) {
-        frozenProgressRef.current = extractProgressFromSdui(curDoc).progress ?? 0;
+        frozenMaxDoneStepIdxRef.current = maxDoneStepIndex(curDoc);
         setFrozenDoc(curDoc);
+        updateSkillRun(extractProgressFromSdui(curDoc));
       }
       await resumeRun(skillId, activeRunId, payload);
-      // 立即给左侧 SkillRunBanner 反馈：HITL 已提交，恢复 running
-      updateSkillRun({ phase: 'running', hitlType: null });
       // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
       setStreamEpoch(e => e + 1);
     }
   }, [useClawMode, session, taskId, activeRunId, skillId]);
+
+  const handleIntent = useCallback(async (intent: string) => {
+    const card = sduiDocRef.current ? findNodeById(sduiDocRef.current.root, 'hitl-card') : null;
+    const atIntentHitl = !!card && JSON.stringify(card).includes(`"${intent}"`);
+    setViewMode('work');
+    if (activeRunId && atIntentHitl) {
+      await doResume({ choice: intent });
+    } else {
+      await handleStart({ intent });
+    }
+  }, [activeRunId, doResume, handleStart]);
+
+  // ── 重置会话 → 清空工作区产物 + 对话上下文，回到 idle 启动页 ─────────────────
+  const handleResetSession = useCallback(async () => {
+    if (activeRunId) clearRunLog(activeRunId);
+    try {
+      await resetWorkspace(skillId);
+    } catch (e) {
+      console.error('[SDUI] reset-workspace error:', e);
+    }
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    setRunId(null);
+    setTaskId(null);
+    setFrozenDoc(null);
+    frozenMaxDoneStepIdxRef.current = -1;
+    setStreamEpoch(0);
+    setPreviewPath(null);
+    setError(null);
+    setStarting(false);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('aida:clear'));
+    }
+  }, [skillId, activeRunId]);
 
   // ── 动作处理 ──────────────────────────────────────────────────────────────
   const handleAction = useCallback(async (action: SduiAction) => {
@@ -530,14 +653,19 @@ export default function SkillAgentScreen({
         await doResume({});
       } else if (text.startsWith('/view_')) {
         // TODO: 打开报告预览
+      } else if (text.startsWith('/intent ')) {
+        await handleIntent(text.slice('/intent '.length).trim());
+      } else if (text === '/overview') {
+        setViewMode('overview');
+      } else {
+        dispatchRailSend(text);
       }
     } else if (action.kind === 'open_preview') {
       setPreviewPath(action.path);
     } else if (action.kind === 'reset_session') {
-      // 「重置会话」：重启一条新 run（initial_project 会清运行态）
-      await handleStart();
+      void handleResetSession();
     }
-  }, [handleStart, doResume]);
+  }, [handleStart, doResume, handleResetSession, handleIntent]);
 
   const handleUpload = useCallback(async (files: FileList) => {
     const arr = Array.from(files);
@@ -558,11 +686,25 @@ export default function SkillAgentScreen({
     await doResume({ choice: value });
   }, [doResume]);
 
-  // 可编辑 DataTable（计划下发勾选 / ESN 填写）提交：编辑后的行回传 /resume
-  const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[]) => {
+  const handleFormSubmit = useCallback(async (payload: Record<string, unknown>) => {
+    await new Promise(r => setTimeout(r, HITL_HOLD_MS));
+    await doResume(payload);
+  }, [doResume]);
+
+  // 可编辑 DataTable：/resume 或 /run-patch
+  const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[], stepId?: string) => {
+    if (stepId && activeRunId && ['go_back', 'task_progress'].includes(stepId)) {
+      await runPatchRun(skillId, activeRunId, { action: stepId, stepId, rows });
+      return;
+    }
     await new Promise(r => setTimeout(r, HITL_HOLD_MS));
     await doResume({ rows });
-  }, [doResume]);
+  }, [doResume, activeRunId, skillId]);
+
+  const handleRunPatch = useCallback(async (payload: Record<string, unknown>) => {
+    if (!activeRunId) throw new Error('无活动 run');
+    await runPatchRun(skillId, activeRunId, payload);
+  }, [skillId, activeRunId]);
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
   // sduiDoc 出现 hitl-card → 连同 resume 回调写入 skillHitlStore；
@@ -573,12 +715,12 @@ export default function SkillAgentScreen({
     if (card) {
       setSkillHitl({
         skillId, runId: activeRunId, node: card,
-        onChoiceSubmit: handleChoiceSubmit, onUpload: handleUpload,
+        onChoiceSubmit: handleChoiceSubmit, onFormSubmit: handleFormSubmit, onUpload: handleUpload,
       });
     } else {
       clearSkillHitl(skillId);
     }
-  }, [sduiDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload]);
+  }, [sduiDoc, activeRunId, skillId, handleChoiceSubmit, handleFormSubmit, handleUpload]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
 
@@ -588,7 +730,10 @@ export default function SkillAgentScreen({
     onAction: (action) => { void handleAction(action); },
     onUpload: (files) => { void handleUpload(files); },
     onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
-    onRowsSubmit: (rows) => { void handleRowsSubmit(rows); },
+    onFormSubmit: (payload) => { void handleFormSubmit(payload); },
+    onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
+    onRunPatch: handleRunPatch,
+    streamEpoch,
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────────────
@@ -606,24 +751,16 @@ export default function SkillAgentScreen({
     );
   }
 
-  // P4：待用户操作时（root 含 hitl-card），右侧进入「你的回合」接管态
-  const hasHitl = !!(displayDoc && findNodeById(displayDoc.root, 'hitl-card'));
+  const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
 
   return (
     <SduiRuntimeContext.Provider value={runtime}>
       <div style={{ height: '100%', overflow: 'auto', padding: 'var(--pad-panel)' }}>
         {displayDoc ? (
-          hasHitl ? (
-            /* P4 接管态：「你的回合」抬为主角 + 下方遥测退后降饱和（交互卡在左侧会话框）*/
-            <>
-              <HitlTakeover />
-              <div style={{ filter: 'saturate(.5) opacity(.62)', pointerEvents: 'none', transition: 'filter .35s' }}>
-                <SduiNodeView node={stripHitlCard(displayDoc.root)} />
-              </div>
-            </>
-          ) : (
-            <SduiNodeView node={displayDoc.root} />
-          )
+          <>
+            {leftRailHitl && <HitlTakeover />}
+            <SduiNodeView node={applyViewMode(leftRailHitl ? stripHitlCard(displayDoc.root) : displayDoc.root, viewMode)} />
+          </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* 骨架屏：正在连接 SSE / 等待第一个 sdui 事件 */}

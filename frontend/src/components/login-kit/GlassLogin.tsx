@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { initDecisionGraph } from './anim/decisionGraph.ts';
 import { initGlassIntro } from './anim/glassIntro.ts';
+import { RegisterModal } from './RegisterModal';
 import './glass-login.css';
 
 interface GlassLoginProps {
-  /** 提交账号密码（容器负责真正的鉴权 + 跳转） */
-  onSubmit: (account: string, password: string) => void | Promise<void>;
+  /** 提交账号密码；失败应 throw，成功后再由容器跳转 */
+  onSubmit: (account: string, password: string) => Promise<void>;
 }
 
 /** AIDA 玻璃 logo（内联 SVG）。 */
@@ -34,6 +35,9 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState('');
+  const [registerOpen, setRegisterOpen] = useState(false);
+  const [prefillUser, setPrefillUser] = useState('');
 
   // 挂载入场编排：决策图 + 光晕点/logo 飞入，二者共用一拍
   useEffect(() => {
@@ -55,19 +59,30 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
     };
   }, []);
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (loading || done) return;
-    setLoading(true);
+    if (loading) return;
     const form = e.currentTarget;
-    // 表单的「验证中… → 已进入 ✓」反馈节奏与原版一致
-    window.setTimeout(() => {
-      setLoading(false);
+    const account = (form.elements.namedItem('lg-account') as HTMLInputElement).value.trim();
+    const password = (form.elements.namedItem('lg-pass') as HTMLInputElement).value.trim();
+    if (!account || !password) {
+      setError('请输入账号和密码');
+      return;
+    }
+
+    setError('');
+    setDone(false);
+    setLoading(true);
+    try {
+      await onSubmit(account, password);
       setDone(true);
-      const account = (form.elements.namedItem('lg-account') as HTMLInputElement).value.trim();
-      const password = (form.elements.namedItem('lg-pass') as HTMLInputElement).value.trim();
-      window.setTimeout(() => onSubmit(account, password), 480);
-    }, 1100);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : '登录失败，请重试';
+      setError(message);
+      setDone(false);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -108,7 +123,14 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
               <div className="lg-field">
                 <label htmlFor="lg-account">账号 / 邮箱</label>
                 <div className="lg-input-wrap">
-                  <input id="lg-account" name="lg-account" type="text" placeholder="name@aida.cloud" />
+                  <input
+                    id="lg-account"
+                    name="lg-account"
+                    type="text"
+                    placeholder="name@aida.cloud"
+                    defaultValue={prefillUser}
+                    key={prefillUser || 'lg-account-empty'}
+                  />
                   <span className="ic">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                       <path d="M4 6h16v12H4z" stroke="currentColor" strokeWidth="1.5" />
@@ -136,7 +158,18 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
                 <button type="button" className="lg-link">忘记密码？</button>
               </div>
 
-              <button type="submit" className={`lg-submit${loading ? ' loading' : ''}`} id="lg-submit">
+              {error ? (
+                <div className="lg-error" role="alert">
+                  {error}
+                </div>
+              ) : null}
+
+              <button
+                type="submit"
+                className={`lg-submit${loading ? ' loading' : ''}${error ? ' lg-submit-error' : ''}`}
+                id="lg-submit"
+                disabled={loading}
+              >
                 <span className="spin" />
                 <span className="label">{done ? '已进入 ✓' : loading ? '验证中…' : '登录'}</span>
               </button>
@@ -151,12 +184,23 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
               </button>
 
               <div className="lg-foot">
-                还没有账号？ <button type="button" className="lg-link">申请开通</button>
+                还没有账号？{' '}
+                <button type="button" className="lg-link" onClick={() => setRegisterOpen(true)}>
+                  申请注册
+                </button>
               </div>
             </form>
           </section>
         </div>
       </div>
+      <RegisterModal
+        open={registerOpen}
+        onClose={() => setRegisterOpen(false)}
+        onSuccess={(name) => {
+          setPrefillUser(name);
+          setError('');
+        }}
+      />
     </div>
   );
 }

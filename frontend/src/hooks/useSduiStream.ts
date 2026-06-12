@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SduiDocument } from '@/lib/sdui';
 import { parseSduiDocument } from '@/lib/sdui';
+import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
 
 // 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
 const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
@@ -20,11 +21,19 @@ const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
 export function useSduiStream(skillId: string, runId: string | null, epoch = 0): SduiDocument | null {
   const [doc, setDoc] = useState<SduiDocument | null>(null);
   const esRef = useRef<EventSource | null>(null);
+  // 只在 runId 真正变化时清空日志；epoch 自增（resume/full_restart）保留已有气泡，
+  // 以便下发确认后追加 sn_generate 等新节点的日志。
+  const clearedRunIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!runId) {
       setDoc(null);
       return;
+    }
+
+    if (clearedRunIdRef.current !== runId) {
+      clearRunLog(runId);
+      clearedRunIdRef.current = runId;
     }
 
     let cancelled = false;
@@ -50,7 +59,17 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       }
     };
 
+    const handleRunLog = (e: MessageEvent) => {
+      try {
+        const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+        pushRunLog(runId, raw as RunLogEvent);
+      } catch {
+        // ignore parse errors
+      }
+    };
+
     es.addEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
+    es.addEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
     es.addEventListener('error', () => {
       // connection dropped; SSE will auto-reconnect
     });
@@ -58,6 +77,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
     return () => {
       cancelled = true;
       es.removeEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
+      es.removeEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
       es.close();
       esRef.current = null;
     };
@@ -72,6 +92,8 @@ export interface StartReq {
   project_code?: string;
   project_name?: string;
   scenario_run?: string;
+  /** 预置意图（zhgk：survey_work/report_gen/supplement/scene_suggest）→ 跳过 intent_select HITL。 */
+  intent?: string;
 }
 
 /** 启动一次 run。默认值由后端 skill.initial_project 兜（如 zhgk 的 K1903），前端不写死。 */
@@ -84,6 +106,29 @@ export async function startRun(skillId: string, req: StartReq = {}): Promise<str
   if (!res.ok) throw new Error(`start failed: ${res.status}`);
   const data = await res.json() as { run_id: string };
   return data.run_id;
+}
+
+/** 清空 skill 工作区产物与运行态（保留 Input），重置会话时调用。 */
+export async function resetWorkspace(skillId: string): Promise<void> {
+  const res = await fetch(`${AGENT_BASE}/agent/${skillId}/reset-workspace`, {
+    method: 'POST',
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `reset-workspace failed: ${res.status}`);
+  }
+}
+
+export async function runPatchRun(skillId: string, runId: string, payload: Record<string, unknown> = {}): Promise<void> {
+  const res = await fetch(`${AGENT_BASE}/agent/${skillId}/run-patch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ run_id: runId, payload }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `run-patch failed: ${res.status}`);
+  }
 }
 
 export async function resumeRun(skillId: string, runId: string, payload: Record<string, unknown> = {}): Promise<void> {

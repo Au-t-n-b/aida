@@ -525,10 +525,16 @@ class SduiDataTableNode(BaseModel):
     rowKey: str | None = None
     checkKey: str | None = None          # 勾选列字段名（task_dispatch）
     fillLabel: str | None = None         # 「一键填充」按钮文案
+    deselectLabel: str | None = None     # 勾选型全选后切换为取消（如「一键取消」）
     fillRows: list[dict[str, Any]] | None = None  # 一键填充后的整组行
+    backLabel: str | None = None         # 表头「返回上一步」文案（run-patch go_back）
+    backStepId: str | None = None        # run-patch stepId，默认 go_back
     groupKey: str | None = None          # 分组列（esn 按设备大类）
+    groupAsTabs: bool | None = None      # True → 按 groupKey 分页签切换（替代表内分组头）
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
+    dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
+    patchAction: str | None = None         # dualMode 保存时 run-patch action（默认 task_progress）
 
 
 class SduiTabbedTableTab(BaseModel):
@@ -896,6 +902,82 @@ class SduiHitlTextInputNode(BaseModel):
     stepId: str | None = None
 
 
+class SduiHitlFormField(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+    placeholder: str | None = None
+    required: bool | None = None
+    defaultValue: str | None = None
+
+
+class SduiHitlFormNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["HitlForm"] = "HitlForm"
+    id: str | None = None
+    title: str
+    fields: list[SduiHitlFormField]
+    payloadKey: str | None = None
+    repeatable: bool | None = None
+    submitLabel: str | None = None
+    helpText: str | None = None
+    hitlRequestId: str | None = None
+    stepId: str | None = None
+
+
+
+# ── MachineRoom3D：3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）─────────────────
+
+class SduiRoom3DEntry(BaseModel):
+    """机房卡片底部的作业入口（勘测主线 / 通液电子流 / 液冷湿材质 AI 审核）。"""
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+    icon: str | None = None            # cube | sync | sparkles
+    primary: bool = False
+    action: SduiAction | None = None
+
+
+class SduiRoom3DItemStats(BaseModel):
+    """机房勘测条目四值分布（已勘测 / 未勘测 / 无法识别 / 不涉及）。"""
+    model_config = ConfigDict(extra="ignore")
+    surveyed: int = 0
+    pending: int = 0
+    unknown: int = 0
+    na: int = 0
+
+
+class SduiMachineRoom(BaseModel):
+    """单个机房：grid/racks/cdu 决定 3D 体素体量；itemStats/progress 为状态。"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    label: str
+    code: str | None = None
+    status: str = "active"             # active | pending
+    progress: int = 0
+    rows: int = 3
+    cols: int = 4
+    racks: int = 0
+    cdu: int = 0
+    itemStats: SduiRoom3DItemStats
+    rackStatuses: list[str] = Field(default_factory=list)
+    statKey: list[str] = Field(default_factory=list)
+    entries: list[SduiRoom3DEntry] = Field(default_factory=list)
+
+
+class SduiMachineRoom3DNode(BaseModel):
+    """3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["MachineRoom3D"] = "MachineRoom3D"
+    id: str | None = None
+    eyebrow: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
+    headStats: list[dict[str, Any]] = Field(default_factory=list)
+    rooms: list[SduiMachineRoom] = Field(default_factory=list)
+    refreshNote: str | None = None
+
+
 # ── SduiNode union ────────────────────────────────────────────────────────────
 
 SduiNode = Annotated[
@@ -926,6 +1008,7 @@ SduiNode = Annotated[
         SduiPlaneMatrixNode,
         # Business
         SduiRiskListNode,
+        SduiMachineRoom3DNode,
         # Tier B (v4)
         SduiEmptyStateNode,
         SduiSpinnerNode,
@@ -966,6 +1049,7 @@ SduiNode = Annotated[
         SduiFilePickerNode,
         SduiChoiceCardNode,
         SduiHitlTextInputNode,
+        SduiHitlFormNode,
     ],
     Field(discriminator="type"),
 ]

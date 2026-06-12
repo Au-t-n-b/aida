@@ -92,10 +92,16 @@ idle_screen:
 #   设备安装实施计划.xlsx（双 Sheet：实施计划 + SN扫码表）
 #   未配置时默认 = <work_root>/ProjectData/Input/
 
+# 作业产物输出目录（DEVICE_INSTALL_OUTPUT_ROOT）：
+#   下发后实施计划 / 全量任务 / 责任人表 / SN扫码表 / 完工清单·报告
+#   未配置时默认 = <work_root>/ProjectData/Output/
+#   指向 ProjectData/Output 之外（如数据中心 .../交付作业/设备安装/输出结果）时，
+#   文件按指定目录落盘，但网页端 /artifact 在线下载/预览失效（数据中心直接读盘）。
+
 # 工作区（DEVICE_INSTALL_ROOT）：运行态与产物
 ProjectData/
   Input/    ← plan_receive 同步上游实施计划副本
-  Output/   ← 下发后实施计划 / SN扫码表 / 完工清单·报告
+  Output/   ← 作业产物（DEVICE_INSTALL_OUTPUT_ROOT 未配置时的默认落点）
   RunTime/  ← tasks_state.json / sn_pool.json（全量 SN）/ sn_tables.json（勾选后）
   Images/   ← 现场照片（可选）
 ```

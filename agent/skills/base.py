@@ -82,15 +82,33 @@ class NeedInputOption(TypedDict, total=False):
     description: str
 
 
+class NeedInputField(TypedDict, total=False):
+    """字段型 HITL 的单个表单字段（投影成 HitlForm 的输入框）。"""
+    key: str
+    label: str
+    placeholder: str
+    required: bool
+    defaultValue: str
+
+
 class NeedInput(TypedDict, total=False):
     """确认型 HITL 的一个待确认项（投影成一张 ChoiceCard）。
 
     id 标识该确认门、label 是卡片标题、options 是可选项列表。
     check_inputs 返回 {"ok": False, "missing": [], "need_inputs": [NeedInput, ...]}
-    即触发确认型软中断（区别于 missing 非空的文件型）。"""
+    即触发确认型软中断（区别于 missing 非空的文件型）。
+
+    type="form" 时投影成字段型 HITL，前端通过 /resume 回传
+    {payload_key: [{field_key: value, ...}]}。"""
     id: str
+    type: str
     label: str
     options: list[NeedInputOption]
+    fields: list[NeedInputField]
+    payload_key: str
+    repeatable: bool
+    submit_label: str
+    help_text: str
 
 
 class CheckResult(TypedDict, total=False):
