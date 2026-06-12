@@ -896,6 +896,64 @@ class SduiHitlTextInputNode(BaseModel):
     stepId: str | None = None
 
 
+# ── MachineRoom3D：3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）─────────────────
+
+class SduiRoom3DEntry(BaseModel):
+    """机房卡片底部的作业入口（勘测主线 / 通液电子流 / 液冷湿材质 AI 审核）。"""
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+    icon: str | None = None            # cube | sync | sparkles
+    primary: bool = False
+    action: SduiAction | None = None
+
+
+class SduiRoom3DItemStats(BaseModel):
+    """机房勘测条目四值分布（已勘测 / 未勘测 / 无法识别 / 不涉及）。"""
+    model_config = ConfigDict(extra="ignore")
+    surveyed: int = 0
+    pending: int = 0
+    unknown: int = 0
+    na: int = 0
+
+
+class SduiMachineRoom(BaseModel):
+    """单个机房：grid/racks/cdu 决定 3D 体素体量；itemStats/progress 为状态。"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    label: str
+    code: str | None = None
+    status: str = "active"             # active | pending
+    progress: int = 0
+    rows: int = 3
+    cols: int = 4
+    racks: int = 0
+    cdu: int = 0
+    itemStats: SduiRoom3DItemStats
+    # 每个机柜的状态着色（done 完成/绿 · active 进行/蓝 · pending 未始/灰 · risk 不满足/红）；
+    # 空则统一品牌色。长度≈racks，由投影器按真实五值比例分配。
+    rackStatuses: list[str] = Field(default_factory=list)
+    # 机房卡紧凑扫读行（如 ["124 条目", "7 问题", "R3 轮"]）；空则不渲染。
+    statKey: list[str] = Field(default_factory=list)
+    entries: list[SduiRoom3DEntry] = Field(default_factory=list)
+
+
+class SduiMachineRoom3DNode(BaseModel):
+    """3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。
+
+    给「以机房为单位的勘测态势」一个立体俯视入口（CSS 3D，前端零依赖）。
+    DataTable/PlaneMatrix 只能平铺，无法表达机柜级体量与多入口下钻。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["MachineRoom3D"] = "MachineRoom3D"
+    id: str | None = None
+    eyebrow: str | None = None
+    title: str | None = None
+    subtitle: str | None = None
+    headStats: list[dict[str, Any]] = Field(default_factory=list)   # {value,label,tone}
+    rooms: list[SduiMachineRoom] = Field(default_factory=list)
+    refreshNote: str | None = None
+
+
 # ── SduiNode union ────────────────────────────────────────────────────────────
 
 SduiNode = Annotated[
@@ -926,6 +984,7 @@ SduiNode = Annotated[
         SduiPlaneMatrixNode,
         # Business
         SduiRiskListNode,
+        SduiMachineRoom3DNode,
         # Tier B (v4)
         SduiEmptyStateNode,
         SduiSpinnerNode,

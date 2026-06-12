@@ -27,7 +27,7 @@ Step 4：文档完善 + 开发者地图         ← Step 3 完成后最终落地
 
 | 条件 | 状态 | 说明 |
 |------|------|------|
-| 另一个会话完成 SDUI 改动 | ⏳ 等待 | 见该会话 HANDOFF.md Phase 7 清单 |
+| 另一个会话完成 SDUI 改动 | ✅ 完成 2026-06-12 | SDUI 3D 驾驶舱（对齐 smart_survey_v8），见 §1.4b |
 | 3 个模板文件放置到位 | ❌ **缺失阻断** | 详见下方 §1.1 |
 | `zhgk_files.py` v4 迁移 | ❌ **Bug 阻断** | 详见下方 §1.2（当前代码是 v3 遗留） |
 
@@ -140,6 +140,34 @@ HTML 参考设计的信息布局（将用 SDUI 组件对应实现）：
 | 右侧 · Timeline 事件流 | Timeline node | ❌ 未实现 |
 
 **Note**：SDUI 是单列 Stack，不是双栏布局。右侧面板内容需要折叠进「数据面板」Card 或放在主栏底部。可以用 Row 节点实现左右双栏（DonutChart flex=1 + BarChart flex=2）。
+
+### 1.4b · SDUI 3D 驾驶舱（对齐 smart_survey_v8）— ✅ 已完成 2026-06-12
+
+> 在 §1.4（对标旧 gongkan_workbench.html）之外，本轮按同事最新设计 `smart_survey_v8`
+> 重建了 zhgk 右侧作业台，全程 SDUI-first（注册即得 + 三方契约 lint，零绕过）。
+
+**已交付**：
+
+| 能力 | 实现 | 落点 |
+|---|---|---|
+| 3D 机房俯视总览 | 新增 `MachineRoom3D` SDUI 节点（等距体素，纯 CSS 3D，CSS 作用域 `.sdui-mr3d`） | builder/sdui.ts/SduiNodeView 三方 |
+| 真实数据驱动 | 首卡=当前真实机房（assess 五值/进度/问题/轮次派生），2 张样例陪衬（code 标「样例」） | `zhgk/sdui.py` 投影器 |
+| 机柜状态着色 | 满足→绿/不满足→红/未勘测→灰/无法识别→蓝，按真实比例最大余数分配 | `rackStatuses[]` 字段 |
+| 下钻→意图路由 | 真实房入口=四意图启动盘（`/intent <value>` → start 预置 / 意图 HITL 处 resume） | survey-agent `handleIntent` |
+| 对话驱动（样例房） | 入口投递自然语言到左侧 ClawRail 会话（新增 `aida:rail-send` 事件，避开 manager 桥） | claw-send/claw-rail |
+| 问题详情抽屉 | `Drawer` 投影最高优先级问题（描述/状态/AI整改建议） | `_build_issue_drawer` |
+| 计划vs实际时间条 | `TaskTimelineStrip`，真实 started_at + 逾期天数提醒 | `_build_task_timeline` |
+| 阶段待办清单 | `Checklist`，宏阶段 done/total 真实完成度，自动排除未涉及阶段 | `_build_phase_todo` |
+| 两态导航（总览↔作业） | 客户端 `viewMode` 裁剪 root 顶层互斥块（3D ↔ 作业仪表盘+contextbar），根治滚动过载 | `applyViewMode` |
+
+**守门**：sdui-contract / sdui-gallery / skill-contract / no-naked-llm / no-naked-send / tools / runtime-contract 全绿；前端 typecheck + build + no-ts-nocheck（baseline 36）通过。
+
+**技术债 / 下一步**：
+- ⚠️ **多机房仍是「单真房 + 样例」**：zhgk 后端仍单机房（`project.room_name`），3D 三房中 2 张为样例。真多机房并行需把 `rooms` 提升为 SkillState 一等实体（改 project 模型 + filter_build/assess 按机房分桶），属较大重构。
+- ⚠️ **时间条计划窗口为估算**：`plannedEnd = actualStart + 5d` 标准窗口，非真实排期；接 DC/排期数据后替换。
+- ⚠️ **问题抽屉为内嵌常显**：SDUI `Drawer` 是内嵌节点，非点击弹层；真·点击行弹出需给 DataTable 加行交互。
+- 🔻 **样例数据**：`_ZHGK_SAMPLE_ROOMS` 为演示陪衬，生产接入真实多机房后应移除。
+- 与 §1.4 旧验收清单（gongkan_workbench.html）存在设计取向差异，建议后续统一以 smart_survey_v8 为准、归并 §1.4。
 
 ### 1.5 survey-agent.tsx SKILL_META 更新
 

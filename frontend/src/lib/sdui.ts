@@ -360,6 +360,24 @@ export type SduiHitlTextInputNode = OptId & {
 
 // ── Union ─────────────────────────────────────────────────────────────────────
 
+// MachineRoom3D — 3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）
+export interface SduiRoom3DEntry { key: string; label: string; icon?: string; primary?: boolean; action?: SduiAction }
+export interface SduiRoom3DItemStats { surveyed: number; pending: number; unknown: number; na: number }
+export interface SduiMachineRoom {
+  id: string; label: string; code?: string; status?: string; progress?: number;
+  rows?: number; cols?: number; racks?: number; cdu?: number;
+  itemStats: SduiRoom3DItemStats;
+  rackStatuses?: string[];   // done | active | pending | risk（空=统一品牌色）
+  statKey?: string[];        // 紧凑扫读行，如 ["124 条目","7 问题","R3 轮"]
+  entries?: SduiRoom3DEntry[];
+}
+export type SduiMachineRoom3DNode = OptId & {
+  type: 'MachineRoom3D';
+  eyebrow?: string; title?: string; subtitle?: string;
+  headStats?: { value: string; label: string; tone?: string }[];
+  rooms: SduiMachineRoom[]; refreshNote?: string;
+};
+
 export type SduiNode =
   | SduiStackNode | SduiCardNode | SduiRowNode | SduiDividerNode | SduiSkeletonNode
   | SduiStepperNode
@@ -372,7 +390,7 @@ export type SduiNode =
   // v1.1 display nodes
   | SduiAlertNode | SduiTimelineNode | SduiNumberCardNode | SduiPlaneMatrixNode
   // business nodes
-  | SduiRiskListNode
+  | SduiRiskListNode | SduiMachineRoom3DNode
   // tier B (v4)
   | SduiEmptyStateNode | SduiSpinnerNode | SduiProgressBarNode | SduiBannerNode
   | SduiCodeBlockNode | SduiLogStreamNode | SduiChecklistNode | SduiFileTreeNode

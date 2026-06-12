@@ -13,6 +13,7 @@ import { useSkillHitlStore } from '@/lib/skillHitlStore';
 import { startRun } from '@/hooks/useSduiStream';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
+import { RAIL_SEND_EVENT } from '@/lib/claw-send';
 
 const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
 
@@ -976,6 +977,17 @@ export default function ClawRail({
     setDraft('');
     await sendText(text);
   }, [draft, isStreaming, sendText]);
+
+  // 右侧 skill 作业区下钻（3D 机房入口）→ 作为一条用户消息投递进本会话
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onRailSend = (e: Event) => {
+      const text = (e as CustomEvent<{ text?: string }>).detail?.text?.trim();
+      if (text) void sendText(text);
+    };
+    window.addEventListener(RAIL_SEND_EVENT, onRailSend);
+    return () => window.removeEventListener(RAIL_SEND_EVENT, onRailSend);
+  }, [sendText]);
 
   // ── Resize drag ───────────────────────────────────────────────────────────
 

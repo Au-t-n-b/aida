@@ -20,12 +20,14 @@ const SduiPreviewModal = lazy(() =>
   import('@/components/sdui/SduiPreviewModal').then(m => ({ default: m.SduiPreviewModal })),
 );
 import { useSduiStream, startRun, resumeRun, uploadBatch } from '@/hooks/useSduiStream';
+import type { StartReq } from '@/hooks/useSduiStream';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
 import { Button } from '@/components/primitives';
+import { dispatchRailSend } from '@/lib/claw-send';
 import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
 
 export interface SkillAgentScreenProps {
@@ -320,6 +322,21 @@ function stripHitlCard(root: SduiNode): SduiNode {
   return { ...root, children: next } as SduiNode;
 }
 
+/** 两态导航（总览 ↔ 作业）：按 viewMode 隐藏 root 顶层互斥块，根治滚动过载。
+ *  overview 态藏作业仪表盘（dashboard-row）+ 上下文条；work 态藏 3D 总览（machine-room-3d）。
+ *  其余（header/宏阶段/KPI/时间条/HITL）两态共存。若机房总览不存在（如某些 run）则不切换。*/
+function applyViewMode(root: SduiNode, mode: 'overview' | 'work'): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  const has3d = children.some(c => (c as { id?: string }).id === 'machine-room-3d');
+  if (!has3d) return root;   // 无总览块 → 不做两态裁剪，原样渲染
+  const hide = mode === 'overview'
+    ? new Set(['dashboard-row', 'room-contextbar'])
+    : new Set(['machine-room-3d']);
+  const next = children.filter(c => !hide.has((c as { id?: string }).id ?? ''));
+  return { ...root, children: next } as SduiNode;
+}
+
 /** P4 · 你的回合（HITL 接管态）：等待用户操作时，把「该你了」抬成主角，
  *  下方遥测整体退后降饱和。交互卡片在左侧会话框，这里是右侧的肯定式引导。*/
 function HitlTakeover() {
@@ -422,6 +439,8 @@ export default function SkillAgentScreen({
   const [error, setError] = useState<string | null>(null);
   // SSE 重订阅令牌：HITL resume 后自增，强制 useSduiStream 对准后端新建的队列（见 hook 注释）
   const [streamEpoch, setStreamEpoch] = useState(0);
+  // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → overview
+  const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
   // 产物预览：open_preview action 触发，存待预览的相对路径（null = 关闭）
   const [previewPath, setPreviewPath] = useState<string | null>(null);
 
@@ -471,7 +490,8 @@ export default function SkillAgentScreen({
   }, [sduiDoc, activeRunId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
-  const handleStart = useCallback(async () => {
+  const handleStart = useCallback(async (req: StartReq = {}) => {
+    if (!req.intent) setViewMode('overview');   // 全新启动回到总览（带 intent 的下钻由 handleIntent 置 work）
     setStarting(true);
     setError(null);
     try {
@@ -480,14 +500,15 @@ export default function SkillAgentScreen({
           accessToken: session.accessToken,
           sessionId: session.sessionId,
           kind: skillId,
-          params: {},
+          params: { ...req },
         });
         setTaskId(resp.task_id);
       } else {
-        const id = await startRun(skillId);
+        const id = await startRun(skillId, req);
         setRunId(id);
         // 通知聊天侧：source='ui' → ClawRail 检测到后自动注入 SkillRunBanner 消息
         setSkillRun(skillId, id, 'ui');
+        setStreamEpoch(e => e + 1);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '启动失败');
@@ -520,6 +541,18 @@ export default function SkillAgentScreen({
     }
   }, [useClawMode, session, taskId, activeRunId, skillId]);
 
+  // 3D 机房入口「下钻→意图」：在意图 HITL 处用所选意图续跑同一 run；否则以该意图起新 run。
+  const handleIntent = useCallback(async (intent: string) => {
+    const card = sduiDocRef.current ? findNodeById(sduiDocRef.current.root, 'hitl-card') : null;
+    const atIntentHitl = !!card && JSON.stringify(card).includes(`"${intent}"`);
+    setViewMode('work');   // 进入该意图作业台（两态导航：收起 3D 总览，露出作业区）
+    if (activeRunId && atIntentHitl) {
+      await doResume({ choice: intent });
+    } else {
+      await handleStart({ intent });
+    }
+  }, [activeRunId, doResume, handleStart]);
+
   // ── 动作处理 ──────────────────────────────────────────────────────────────
   const handleAction = useCallback(async (action: SduiAction) => {
     if (action.kind === 'post_user_message') {
@@ -530,6 +563,15 @@ export default function SkillAgentScreen({
         await doResume({});
       } else if (text.startsWith('/view_')) {
         // TODO: 打开报告预览
+      } else if (text.startsWith('/intent ')) {
+        // 3D 机房真实卡入口 → 下钻到意图（start({intent}) 或意图 HITL 处 resume）
+        await handleIntent(text.slice('/intent '.length).trim());
+      } else if (text === '/overview') {
+        // 「返回机房总览」→ 切回总览态（两态导航）
+        setViewMode('overview');
+      } else {
+        // 其它非斜杠指令（如样例机房入口）→ 投递进左侧 ClawRail 技能会话，由对话驱动
+        dispatchRailSend(text);
       }
     } else if (action.kind === 'open_preview') {
       setPreviewPath(action.path);
@@ -537,7 +579,7 @@ export default function SkillAgentScreen({
       // 「重置会话」：重启一条新 run（initial_project 会清运行态）
       await handleStart();
     }
-  }, [handleStart, doResume]);
+  }, [handleStart, doResume, handleIntent]);
 
   const handleUpload = useCallback(async (files: FileList) => {
     const arr = Array.from(files);
@@ -618,11 +660,11 @@ export default function SkillAgentScreen({
             <>
               <HitlTakeover />
               <div style={{ filter: 'saturate(.5) opacity(.62)', pointerEvents: 'none', transition: 'filter .35s' }}>
-                <SduiNodeView node={stripHitlCard(displayDoc.root)} />
+                <SduiNodeView node={applyViewMode(stripHitlCard(displayDoc.root), viewMode)} />
               </div>
             </>
           ) : (
-            <SduiNodeView node={displayDoc.root} />
+            <SduiNodeView node={applyViewMode(displayDoc.root, viewMode)} />
           )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

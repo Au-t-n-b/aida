@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 60 个节点类型 · 32 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 61 个节点类型 · 35 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -80,6 +80,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#HitlTextInput">HitlTextInput</a>
 <h4>Other</h4>
 <a href="#RiskList">RiskList</a>
+<a href="#MachineRoom3D">MachineRoom3D</a>
 <a href="#EmptyState">EmptyState</a>
 <a href="#Spinner">Spinner</a>
 <a href="#ProgressBar">ProgressBar</a>
@@ -127,6 +128,9 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#SduiTimelineEvent">TimelineEvent</a>
 <a href="#SduiPlaneCell">PlaneCell</a>
 <a href="#SduiRiskItem">RiskItem</a>
+<a href="#SduiMachineRoom">MachineRoom</a>
+<a href="#SduiRoom3DItemStats">Room3DItemStats</a>
+<a href="#SduiRoom3DEntry">Room3DEntry</a>
 <a href="#SduiLogLine">LogLine</a>
 <a href="#SduiChecklistItem">ChecklistItem</a>
 <a href="#SduiFileTreeItem">FileTreeItem</a>
@@ -450,6 +454,16 @@ footer code{color:var(--cyan)}</style></head><body>
       &quot;level&quot;: &quot;high&quot;
     }
   ]
+}</pre></section>
+<section id="MachineRoom3D"><h3><code>MachineRoom3D</code> SduiMachineRoom3DNode<span class="tag">Other</span></h3><p class="desc">3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。  给「以机房为单位的勘测态势」一个立体俯视入口（CSS 3D，前端零依赖）。 DataTable/PlaneMatrix 只能平铺，无法表达机柜级体量与多入口下钻。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MachineRoom3D</code></td><td class='req'>—</td><td><code>MachineRoom3D</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>eyebrow</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>subtitle</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>headStats</b></td><td><code>object[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr>
+<tr><td><b>rooms</b></td><td><code>MachineRoom[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr>
+<tr><td><b>refreshNote</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;MachineRoom3D&quot;
 }</pre></section>
 <section id="EmptyState"><h3><code>EmptyState</code> SduiEmptyStateNode<span class="tag">Other</span></h3><p class="desc">空状态 · 无数据 / 待启动时的占位（图标 + 标题 + 副标题）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: EmptyState</code></td><td class='req'>—</td><td><code>EmptyState</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -849,6 +863,28 @@ footer code{color:var(--cyan)}</style></head><body>
 <section id="SduiRiskItem"><h3><code>RiskItem</code></h3><p class="desc">RiskList 的一条风险：标题 + 等级 + 可选明细（场景 / 建议 / 编号）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>level</b></td><td><code>enum: high | mid | low</code></td><td class='req'>✓</td><td><code>high</code> | <code>mid</code> | <code>low</code></td></tr>
 <tr><td><b>detail</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiMachineRoom"><h3><code>MachineRoom</code></h3><p class="desc">单个机房：grid/racks/cdu 决定 3D 体素体量；itemStats/progress 为状态。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>code</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>active</code></td></tr>
+<tr><td><b>progress</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr>
+<tr><td><b>rows</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>3</code></td></tr>
+<tr><td><b>cols</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>4</code></td></tr>
+<tr><td><b>racks</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr>
+<tr><td><b>cdu</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr>
+<tr><td><b>itemStats</b></td><td><code>Room3DItemStats</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>rackStatuses</b></td><td><code>string[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr>
+<tr><td><b>statKey</b></td><td><code>string[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr>
+<tr><td><b>entries</b></td><td><code>Room3DEntry[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr></table></section>
+<section id="SduiRoom3DItemStats"><h3><code>Room3DItemStats</code></h3><p class="desc">机房勘测条目四值分布（已勘测 / 未勘测 / 无法识别 / 不涉及）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>surveyed</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr>
+<tr><td><b>pending</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr>
+<tr><td><b>unknown</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr>
+<tr><td><b>na</b></td><td><code>int</code></td><td class='req'>—</td><td>默认 <code>0</code></td></tr></table></section>
+<section id="SduiRoom3DEntry"><h3><code>Room3DEntry</code></h3><p class="desc">机房卡片底部的作业入口（勘测主线 / 通液电子流 / 液冷湿材质 AI 审核）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>icon</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>primary</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
+<tr><td><b>action</b></td><td><code>PostUserMessage | OpenPreview | ResetSession</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiLogLine"><h3><code>LogLine</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>time</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>level</b></td><td><code>enum: ok | warn | error | info</code></td><td class='req'>—</td><td><code>ok</code> | <code>warn</code> | <code>error</code> | <code>info</code></td></tr></table></section>

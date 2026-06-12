@@ -72,6 +72,8 @@ export interface StartReq {
   project_code?: string;
   project_name?: string;
   scenario_run?: string;
+  /** 预置意图（zhgk：survey_work/report_gen/supplement/scene_suggest）→ 跳过 intent_select HITL。 */
+  intent?: string;
 }
 
 /** 启动一次 run。默认值由后端 skill.initial_project 兜（如 zhgk 的 K1903），前端不写死。 */
