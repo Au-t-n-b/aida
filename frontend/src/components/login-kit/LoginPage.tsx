@@ -31,7 +31,7 @@ export function LoginPage() {
 
   async function handleLogin(account: string, password: string) {
     try {
-      await login(account, password, 'K1903');
+      await login(account, password);
       navigate(from === '/login' ? '/landing' : from, { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : '登录失败，请重试';

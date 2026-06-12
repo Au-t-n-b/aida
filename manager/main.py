@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from manager.config import aida_agent_base, datacenter_base
-from manager.routes import auth, chat
+from manager.routes import auth, chat, projects
 
 logging.basicConfig(
     level=logging.INFO,
@@ -34,6 +34,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(chat.router)
+app.include_router(projects.router)
 
 
 @app.get("/health")
