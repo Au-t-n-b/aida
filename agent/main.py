@@ -131,6 +131,11 @@ def healthz():
             out["ok"] = False
     out["skills"] = skills_health
     out["llm"] = llm_healthcheck()
+    try:
+        from .nanobot_integration.config_bridge import nanobot_status
+        out["nanobot"] = nanobot_status()
+    except Exception as e:  # noqa: BLE001
+        out["nanobot"] = {"enabled": False, "error": str(e)}
     if not out["llm"].get("configured"):
         out["ok"] = False
     code = 200 if out["ok"] else 500
@@ -557,15 +562,29 @@ async def chat_stream_endpoint(req: ChatReq):
 
         async def _chat_task() -> None:
             try:
-                async for ev in run_chat_async(
-                    req.message,
-                    history=req.history or None,
-                    system=_chat_system(ctx),
-                    trace_meta={"scope": "chat", "page": ctx.get("page", "")},
-                    conv_id=conv_id or None,
-                    skill_launch_cb=_skill_launch_cb,
-                    approval_cb=_approval_cb,
-                ):
+                from .nanobot_integration.nanobot_chat import (
+                    _enabled as _nanobot_chat_enabled,
+                    run_nanobot_chat_async,
+                )
+
+                if _nanobot_chat_enabled():
+                    chat_iter = run_nanobot_chat_async(
+                        req.message,
+                        conv_id=conv_id or None,
+                        system=_chat_system(ctx),
+                    )
+                else:
+                    chat_iter = run_chat_async(
+                        req.message,
+                        history=req.history or None,
+                        system=_chat_system(ctx),
+                        trace_meta={"scope": "chat", "page": ctx.get("page", "")},
+                        conv_id=conv_id or None,
+                        skill_launch_cb=_skill_launch_cb,
+                        approval_cb=_approval_cb,
+                    )
+
+                async for ev in chat_iter:
                     if ev.get("type") == "tool_call":
                         flags["had_tools"] = True
                     await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
