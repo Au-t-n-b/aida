@@ -66,12 +66,23 @@ class IssueListStep(BaseStep):
             llm_call=llm,
         )
 
-        emit(f"[issue_list] ✓ 问题清单: {os.path.basename(issue_list_path)}（{len(issue_rows)} 条）")
+        # 全量分级统计（issue_rows 此处是完整列表，截断只发生在写 metrics 预览时）
+        sev_count = {"high": 0, "mid": 0, "low": 0}
+        for r in issue_rows:
+            s = r.get("severity", "mid")
+            if s in sev_count:
+                sev_count[s] += 1
+
+        emit(f"[issue_list] ✓ 问题清单: {os.path.basename(issue_list_path)}"
+             f"（{len(issue_rows)} 条 · 高{sev_count['high']}/中{sev_count['mid']}/低{sev_count['low']}）")
 
         return {
             "metrics": {
                 "issue_list_path": issue_list_path,
                 "issue_count": len(issue_rows),
+                "issue_high": sev_count["high"],
+                "issue_mid": sev_count["mid"],
+                "issue_low": sev_count["low"],
                 # 仅前 10 条进 metrics（SDUI 问题清单 Table 预览）
                 "issue_rows": issue_rows[:10],
             },

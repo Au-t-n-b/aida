@@ -31,18 +31,25 @@ class IssueListError(Exception):
 # ──────────────────────────────────────────────
 
 ISSUE_SYSTEM_PROMPT = """你是一名数据中心工勘问题分析专家。根据勘测检查项的「检查内容」和「检查结果」，
-生成该问题项的描述和整改建议。
+生成该问题项的描述、整改建议，并判定严重度。
 
 输出格式（严格 JSON）：
 {
   "problem_description": "简洁的问题描述（1-2句话，说明什么不满足）",
-  "remediation_suggestion": "具体可操作的整改建议（1-3句话）"
+  "remediation_suggestion": "具体可操作的整改建议（1-3句话）",
+  "severity": "high | mid | low"
 }
+
+严重度判定标准：
+- high（高）：涉及安全、合规、承重、供电/制冷等关键项严重不达标，直接阻断交付或存在安全隐患
+- mid（中）：明确不满足标准、但可通过整改解决，不阻断交付
+- low（低）：轻微偏差，或仅因数据缺失/图片不清「无法识别」需补充确认
 
 注意：
 1. 问题描述应具体，指出实际值与标准值的差距
 2. 整改建议应可操作，包含具体动作而非泛泛而谈
-3. 只输出 JSON"""
+3. severity 必须是 high / mid / low 之一
+4. 只输出 JSON"""
 
 ISSUE_USER_TEMPLATE = (
     "检查内容: {check_content}\n"
@@ -56,11 +63,15 @@ ISSUE_USER_TEMPLATE = (
 # ──────────────────────────────────────────────
 
 ISSUE_TABLE_HEADERS = [
-    "序号", "问题描述", "状态", "整改建议", "责任人", "计划关闭时间", "备注",
+    "序号", "严重度", "问题描述", "状态", "整改建议", "责任人", "计划关闭时间", "备注",
 ]
 
 # 触发问题的评估结论
 ISSUE_TRIGGER_VALUES = {"不满足", "无法识别"}
+
+# 严重度枚举 → 中文（写表 / KPI 展示用；枚举值对齐前端 RiskList 的 high/mid/low）
+_VALID_SEVERITY = ("high", "mid", "low")
+_SEVERITY_CN = {"high": "高", "mid": "中", "low": "低"}
 
 
 # ──────────────────────────────────────────────
@@ -144,15 +155,19 @@ def build_issue_list(
 
     summary_rows: list[dict] = []
     for i, issue in enumerate(issues, 1):
+        sev_cn = _SEVERITY_CN.get(issue.severity, "中")
         ws_out.cell(row=i + 1, column=1, value=i)
-        ws_out.cell(row=i + 1, column=2, value=issue.problem_description)
-        ws_out.cell(row=i + 1, column=3, value=IssueStatus.OPEN.value)
-        ws_out.cell(row=i + 1, column=4, value=issue.remediation_suggestion)
-        ws_out.cell(row=i + 1, column=5, value="")
+        ws_out.cell(row=i + 1, column=2, value=sev_cn)
+        ws_out.cell(row=i + 1, column=3, value=issue.problem_description)
+        ws_out.cell(row=i + 1, column=4, value=IssueStatus.OPEN.value)
+        ws_out.cell(row=i + 1, column=5, value=issue.remediation_suggestion)
         ws_out.cell(row=i + 1, column=6, value="")
         ws_out.cell(row=i + 1, column=7, value="")
+        ws_out.cell(row=i + 1, column=8, value="")
         summary_rows.append({
             "序号": i,
+            "严重度": sev_cn,          # 中文，供 SDUI 问题表首列色点
+            "severity": issue.severity,  # 枚举 high/mid/low，供 step 统计分级
             "问题描述": issue.problem_description,
             "状态": IssueStatus.OPEN.value,
             "整改建议": issue.remediation_suggestion,
@@ -254,7 +269,11 @@ def _generate_issue(item: dict, llm_call: LLMCallable) -> IssueGenResult:
     except json.JSONDecodeError:
         raise IssueListError("SS-IL-E-002", f"LLM 返回无法解析: {text[:200]}")
 
+    sev = str(data.get("severity", "mid")).strip().lower()
+    if sev not in _VALID_SEVERITY:
+        sev = "mid"
     return IssueGenResult(
         problem_description=data.get("problem_description", ""),
         remediation_suggestion=data.get("remediation_suggestion", ""),
+        severity=sev,
     )

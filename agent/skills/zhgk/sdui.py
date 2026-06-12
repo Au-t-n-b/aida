@@ -203,12 +203,8 @@ def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
             title="勘测条目", value=f"{m['filtered_count']} 条", color="subtle"
         ))
 
-    # 细分场景（filter_build 完成后出现）
-    sub_scenes = m.get("sub_scenes")
-    if sub_scenes:
-        items.append(SduiStatisticRowItem(
-            title="勘测场景", value=" / ".join(sub_scenes), color="subtle"
-        ))
+    # 细分场景不再进 KPI —— 多场景拼接值过长，会把整行 KPI 卡撑高数倍；
+    # 已在作业态上下文条第二行 + 阶段摘要展示，此处省去以保持 KPI 卡紧凑等高。
 
     # 客户反馈分流（method_split 完成后出现 · v4 自动邮件）
     cf_count = m.get("customer_feedback_count")
@@ -246,6 +242,20 @@ def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
         满足率 = round(satisfied / asm_total * 100) if asm_total else 0
         items.append(SduiStatisticRowItem(
             title="评估满足率", value=f"{满足率}%（{satisfied}/{asm_total}）", color="accent"))
+    # 问题清单（issue_list 完成后；带高/中/低分级，对齐 smart_survey_v8 Phase3 KPI）
+    if "issue_count" in m:
+        ic = int(m.get("issue_count", 0) or 0)
+        if ic:
+            h = int(m.get("issue_high", 0) or 0)
+            md = int(m.get("issue_mid", 0) or 0)
+            lo = int(m.get("issue_low", 0) or 0)
+            items.append(SduiStatisticRowItem(
+                title="问题清单", value=f"{ic} 条·高{h}中{md}低{lo}",
+                color="error" if h else "warning"))
+        else:
+            items.append(SduiStatisticRowItem(
+                title="问题清单", value="0 条", color="success"))
+
     if "risk_hit" in m:
         hit = m.get("risk_hit", 0)
         items.append(SduiStatisticRowItem(
@@ -385,15 +395,18 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
         done  = sum(1 for s in steps if s.get("status") == "completed")
         kpi_items = [SduiStatisticRowItem(title="已完成步骤", value=f"{done}/{total}")]
 
+    # 进度环包一层无 flex 的 Stack：Row 只为带 flex 的子节点分配弹性宽度，故进度环占自然宽
+    # （≈92px），KPI 区 flex=1 吃满剩余 —— 根治「进度环挤在最左、右侧一大片空白」。
+    donut_col = SduiStackNode(id="metrics-donut", children=[donut])
     right_col = SduiStackNode(
-        id="metrics-right", gap="sm", flex=2,
+        id="metrics-right", gap="sm", flex=1,
         children=[SduiStatisticRowNode(id="kpi-row", items=kpi_items)],
     )
 
     return SduiCardNode(
         id="golden-metrics", title="黄金指标",
         children=[SduiRowNode(id="metrics-row", align="center", gap="lg", children=[
-            donut, right_col,
+            donut_col, right_col,
         ])],
     )
 
@@ -475,9 +488,12 @@ def _build_issue_drawer(state: dict[str, Any]) -> SduiDrawerNode | None:
     status = str(top.get("状态", "") or "待处理")
     fix    = str(top.get("整改建议", "") or "")
     owner  = str(top.get("责任人", "") or "")
+    sev_cn = str(top.get("严重度", "") or "")
+    _SEV_TONE = {"高": "danger", "中": "warning", "低": "default"}
     children: list[SduiNode] = [
         SduiRowNode(id="iss-tags", gap="sm", align="center", children=[
             SduiBadgeNode(text=f"#{seq}", tone="default"),
+            *([SduiBadgeNode(text=f"严重度 {sev_cn}", tone=_SEV_TONE.get(sev_cn, "default"))] if sev_cn else []),
             SduiBadgeNode(text=status, tone="warning"),
             *([SduiBadgeNode(text=f"责任人 {owner}", tone="default")] if owner else []),
         ]),
@@ -540,7 +556,8 @@ def _build_issue_table(state: dict[str, Any]) -> SduiCardNode | None:
     if not rows:
         return None
     total = m.get("issue_count", len(rows))
-    cols = ["序号", "问题描述", "状态", "整改建议"]
+    # 严重度置首列 → 前端 SduiTable 首列「高/中/低」自动渲染等级色点
+    cols = ["严重度", "序号", "问题描述", "状态", "整改建议"]
     table_rows = [[str(r.get(c, "")) for c in cols] for r in rows]
     suffix = f"（共 {total} 项，预览前 {len(rows)} 项）" if total > len(rows) else f"（共 {total} 项）"
     return SduiCardNode(
@@ -557,7 +574,7 @@ def _build_resurvey_history(state: dict[str, Any]) -> SduiCardNode | None:
     history = m.get("survey_round_history") or []
     if len(history) < 2:  # 仅单轮时无「历史」可言，由 KPI「勘测轮次」承载
         return None
-    cols = ["轮次", "本轮填写", "表内条目", "填写率", "较上轮"]
+    cols = ["轮次", "本轮填写", "填写率", "满足", "不满足", "无法识别", "较上轮"]
     table_rows: list[list[str]] = []
     prev_filled: int | None = None
     for h in history:
@@ -565,8 +582,16 @@ def _build_resurvey_history(state: dict[str, Any]) -> SduiCardNode | None:
         filled = h.get("filled", 0)
         total = h.get("total", 0)
         pct = f"{round(filled / total * 100)}%" if total else "—"
+        # 五值由 assess 在该轮评估后补入 history；尚未评估的轮次显示「—」
+        sat, uns, unr = h.get("满足"), h.get("不满足"), h.get("无法识别")
         delta = "—" if prev_filled is None else (f"+{filled - prev_filled}" if filled >= prev_filled else str(filled - prev_filled))
-        table_rows.append([f"第 {rnd} 轮", str(filled), str(total), pct, delta])
+        table_rows.append([
+            f"第 {rnd} 轮", str(filled), pct,
+            str(sat) if sat is not None else "—",
+            str(uns) if uns is not None else "—",
+            str(unr) if unr is not None else "—",
+            delta,
+        ])
         prev_filled = filled
     return SduiCardNode(
         id="resurvey-history", title=f"多轮复勘历史（共 {len(history)} 轮）",
@@ -936,15 +961,33 @@ def _build_room_contextbar(state: dict[str, Any]) -> SduiCardNode:
     前端仅在 work 视图渲染（overview 视图隐藏）；「返回机房总览」投递 /overview
     指令切回总览态，根治「3D 总览 + 作业仪表盘」同屏堆叠的滚动过载。"""
     proj = state.get("project") or {}
+    m = collect_metrics(state)
     room = proj.get("room_name") or "当前机房"
     code = proj.get("project_code") or ""
     intent_label = _ZHGK_INTENT_LABEL.get(proj.get("intent", ""), "作业台")
     head = f"📍 {room} · {intent_label}"
     if code:
         head += f"  ·  {code}"
+
+    # 第二行 meta（对齐 smart_survey_v8 RoomContextBar 信息密度）：负责人 · 勘测窗口 · 勘测场景。
+    # surveyor/survey_date 已在 state.project（determine_gen 写 project_info.json 时即从 project 取），
+    # 故此处纯读 state、不读盘；sub_scenes 由 filter_build 写入 metrics。
+    meta_bits: list[str] = []
+    if proj.get("surveyor"):
+        meta_bits.append(f"负责人 {proj['surveyor']}")
+    if proj.get("survey_date"):
+        meta_bits.append(f"勘测窗口 {proj['survey_date']}")
+    if m.get("sub_scenes"):
+        meta_bits.append(f"勘测场景 {' / '.join(m['sub_scenes'])}")
+
+    info_children: list[SduiNode] = [SduiTextNode(content=head, variant="heading")]
+    if meta_bits:
+        info_children.append(
+            SduiTextNode(content="  ·  ".join(meta_bits), variant="caption", color="subtle"))
+
     return SduiCardNode(id="room-contextbar", density="compact", children=[
         SduiRowNode(gap="sm", align="center", justify="between", children=[
-            SduiTextNode(content=head, variant="heading"),
+            SduiStackNode(id="ctxbar-info", gap="xs", children=info_children),
             SduiButtonNode(id="back-overview", label="← 返回机房总览", variant="ghost",
                            action=SduiPostUserMessage(text="/overview")),
         ]),

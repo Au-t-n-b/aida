@@ -69,10 +69,28 @@ class AssessStep(BaseStep):
             f"无法识别={stats.get('无法识别', 0)}"
         )
 
+        result_metrics: dict = {
+            "assess_total": total,
+            **{f"assess_{k}": v for k, v in stats.items()},
+        }
+
+        # 多轮趋势（survey_work 复勘场景）：把本轮五值并入 survey_round_history 当前轮条目，
+        # 供 SDUI 复勘历史表展示逐轮整改趋势。读写 state["metrics"] 与 wait_survey 同范式；
+        # report_gen 等无 survey_round 的意图自动跳过。
+        flat = state.get("metrics") or {}
+        round_num = flat.get("survey_round")
+        if round_num:
+            history = [dict(h) for h in (flat.get("survey_round_history") or [])]
+            for h in history:
+                if h.get("round") == round_num:
+                    h["满足"] = stats.get("满足", 0)
+                    h["不满足"] = stats.get("不满足", 0)
+                    h["无法识别"] = stats.get("无法识别", 0)
+                    break
+            if history:
+                result_metrics["survey_round_history"] = history
+
         return {
-            "metrics": {
-                "assess_total": total,
-                **{f"assess_{k}": v for k, v in stats.items()},
-            },
+            "metrics": result_metrics,
             "artifacts": [ctx.rel(survey_table)],
         }

@@ -118,6 +118,7 @@ class SurveyResultRow(TypedDict):
 class IssueItem(TypedDict):
     """问题清单表单行"""
     序号: int
+    严重度: str
     问题描述: str
     状态: str
     整改建议: str
@@ -157,6 +158,7 @@ class IssueGenResult:
     """LLM 问题清单生成单条返回"""
     problem_description: str
     remediation_suggestion: str
+    severity: str = "mid"   # high / mid / low —— LLM 按实际值与标准差距判定严重度
 
 
 @dataclass
