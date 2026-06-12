@@ -1,0 +1,94 @@
+{
+    "taskName": "",
+    "collectAllServer": false,
+    "collectAllSwitch": false,
+    "serverDeviceIds": [],
+    "switchesDeviceIds": [],
+    "scenario": "",
+    "configs": [
+        {
+            "key": "npu_optical_rx_power_min",
+            "desc": "NPU光模块接收功率RX最小阈值（mW）",
+            "type": "server",
+            "value": "0.5"
+        },
+        {
+            "key": "server_optical_link_down_num",
+            "desc": "NPU光模块闪断检查次数判断",
+            "type": "server",
+            "value": "1"
+        },
+        {
+            "key": "server_optical_link_down_time",
+            "desc": "NPU光模块闪断检查时间阈值（秒）",
+            "type": "server",
+            "value": "2"
+        },
+        {
+            "key": "server_optical_link_down_time_wind",
+            "desc": "NPU光模块闪断检查时间窗（分钟）",
+            "type": "server",
+            "value": "720"
+        },
+        {
+            "key": "server_optical_temperature_max",
+            "desc": "服务器光模块温度阈值（摄氏度）",
+            "type": "server",
+            "value": "65"
+        },
+        {
+            "key": "switch_optical_pn_02312NPG",
+            "desc": "Leaf到spine 400G SR8",
+            "type": "switch_optical",
+            "value": "-3.2"
+        },
+        {
+            "key": "switch_optical_pn_02312NPJ",
+            "desc": "Leaf到spine 400G FR4",
+            "type": "switch_optical",
+            "value": "-1.9"
+        },
+        {
+            "key": "switch_optical_pn_02313FHB",
+            "desc": "Leaf到服务器200G SR4",
+            "type": "switch_optical",
+            "value": "-3.5"
+        },
+        {
+            "key": "switch_optical_pn_02313URQ",
+            "desc": "Leaf到服务器100G SR4",
+            "type": "switch_optical",
+            "value": "-3.5"
+        },
+        {
+            "key": "switch_optical_rx_diff",
+            "desc": "接收功率差阈值（dB）",
+            "type": "switch",
+            "value": "3"
+        },
+        {
+            "key": "switch_optical_rx_power_200g_100g",
+            "desc": "交换机100G/200G光模块接收功率RX最小阈值（dBm）",
+            "type": "switch",
+            "value": "-3.5"
+        },
+        {
+            "key": "switch_optical_rx_power_400g",
+            "desc": "交换机400G光模块接收功率RX最小阈值（dBm）",
+            "type": "switch",
+            "value": "-3.2"
+        },
+        {
+            "key": "switch_optical_snr",
+            "desc": "交换机信噪比阈值（dB）",
+            "type": "switch",
+            "value": "19"
+        },
+        {
+            "key": "switch_optical_temperature_max",
+            "desc": "交换机光模块温度阈值（摄氏度）",
+            "type": "switch",
+            "value": "70"
+        }
+    ]
+}

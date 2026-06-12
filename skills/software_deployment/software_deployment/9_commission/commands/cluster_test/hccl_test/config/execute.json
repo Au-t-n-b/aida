@@ -1,0 +1,28 @@
+{
+    "taskName": "",
+    "nodeList": [],
+    "groupElementSize": 1,
+    "scenario": "",
+    "hcclBaseParam": {
+        "hcclBuffsize": 2048,
+        "hcclConnectTimeout": 480,
+        "hcclSocketIfname": "",
+        "dataBeginSize": "1G",
+        "dataEndSize": "1G",
+        "iterations": 20,
+        "multiplicationFactor": 10,
+        "testType": "single",
+        "skipFreePass": false,
+        "hours": null,
+        "deletePlog": null,
+        "npus": "",
+        "parameterPlane": "",
+        "hcclAlgo": "",
+        "hcclMethod": "allreduce",
+        "dataType": "fp32",
+        "hcclInterVnicDisable": "",
+        "hcclInterHccsDisable": ""
+    },
+    "hcclThresholds": [],
+    "skipThresholdCheck": true
+}

@@ -15,6 +15,8 @@
 | `zhgk` | 智慧工勘 | 线性 DAG · **意图驱动** | 14 (+preflight) | `intent`（4 意图） | `survey` | [SKILL.md](../../../skills/zhgk/SKILL.md) | ✅ 端到端样板 |
 | `guihua` | 规划设计（建模仿真） | 线性 DAG | 5 | `{}`（顺序执行） | `modeling` | [SKILL.md](../../../skills/guihua/SKILL.md) | ✅ |
 | `xtsj` | 系统设计（网络开局） | **dispatch 分发** | 2 (+路线图) | `command`（菜单命令） | `design` | [SKILL.md](../../../skills/xtsj/SKILL.md) | ✅ PoC |
+| `device_install` | 设备安装 | 线性 DAG | 待定 | 待定 | `install` | [SKILL.md](../../../skills/device_install/SKILL.md) | 🟡 B 层可选注册 |
+| `software_deployment` | 软件部署与调测 | 线性 DAG + **resume 单步调度** | 13 | `entry_mode`（全量 / 直达命令调测） | `deploy` | [SKILL.md](../../../skills/software_deployment/SKILL.md) | ✅ E2E |
 | `delivery` | 交付编排 | 待定 | 待定 | 待定 | 待定 | ❌ 待建 | 🟡 试点目标 |
 
 > **每模块的权威节点表（step.key 逐一）在各自 `SKILL.md` 的「后端节点」列** —— 本图只聚合「数量 + 形态 + 入口」，不复制节点清单（避免第二份会漂移的真相）。要看 zhgk 的 14 个节点，读 [`skills/zhgk/SKILL.md` §A](../../../skills/zhgk/SKILL.md)。
@@ -58,11 +60,13 @@
 
 **依赖矩阵**（行依赖列，✅ 允许 / ❌ 禁止 / — 自身）：
 
-| ↓依赖 \ 被依赖→ | base | llm | tools | mailer | sdui | zhgk | guihua | xtsj |
-|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| **zhgk** | ✅ | ✅ | ✅ | ✅ | ✅ | — | ❌ | ❌ |
-| **guihua** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | — | ❌ |
-| **xtsj** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | — |
+| ↓依赖 \ 被依赖→ | base | llm | tools | mailer | sdui | zhgk | guihua | xtsj | device_install | software_deployment |
+|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| **zhgk** | ✅ | ✅ | ✅ | ✅ | ✅ | — | ❌ | ❌ | ❌ | ❌ |
+| **guihua** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | — | ❌ | ❌ | ❌ |
+| **xtsj** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | — | ❌ | ❌ |
+| **device_install** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | — | ❌ |
+| **software_deployment** | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | — |
 
 > 🚪 **守门**：`lint_module_boundaries.py` 扫 `agent/skills/<A>/` 下任意 `.py` 是否 import 另一个已注册模块 `<B>`，命中即阻断。
 
@@ -146,8 +150,9 @@ ProjectData/  （或数据中心 runs/<runId>/ 三级隔离）
 
 | # | 漂移 | 现状（文件级） | 影响 | 建议 |
 |---|------|--------------|------|------|
-| D1 | 前端 module key ↔ skill 映射不齐 | `MODULE_TO_SKILL` = {survey→zhgk, modeling→guihua, **design**→xtsj}；`MODULE_SCHEMAS` 键 = {survey, modeling, **job**} | `design` 模块跑 xtsj 但无 schema → 标题回退成原始 key「design」；`job` 有 schema 但无 skill → 走 mock 占位 | 统一命名：要么 `design` 补 schema、要么 `job` 接 skill；二选一对齐 |
+| D1 | 前端 module key ↔ skill 映射不齐 | `MODULE_TO_SKILL` = {survey→zhgk, modeling→guihua, design→xtsj, **deploy**→software_deployment, install→device_install}；`MODULE_SCHEMAS` 键 = {survey, modeling, **job**} | `design`/`deploy` 有 skill 但 schema 不全 → 标题走 `MODULE_DISPLAY_NAMES` 回退；`job` 有 schema 无 skill → mock | `deploy` 补 `MODULE_SCHEMAS`；`design`/`job` 二选一对齐 |
 | D2 | `delivery` 尚未建 | 仅前端在合产品 UI（`feat/merge-delivery-frontend`），后端无 `delivery` skill | 试点目标，非缺陷 | 走 Workflow A 生成 `TASK_delivery.md` 后开建 |
+| D3 | `device_install` 前端已映射、B 层未注册 | `module.tsx` 有 install→device_install，但 `__init__.py` 未 register | 设备安装页启动会失败 | B 层合入后补 register + 边界图登记 |
 
 ---
 
@@ -159,3 +164,4 @@ ProjectData/  （或数据中心 runs/<runId>/ 三级隔离）
 | 版本 | 日期 | 变更 |
 |------|------|------|
 | v1.0 | 2026-06-07 | 基线重置：zhgk/guihua/xtsj 三模块边界 + 依赖矩阵 + 高冲突登记 + 红线区 + 漂移 D1/D2 |
+| v1.2 | 2026-06-12 | 登记 software_deployment（deploy）· 依赖矩阵扩列 · 漂移 D3 device_install |

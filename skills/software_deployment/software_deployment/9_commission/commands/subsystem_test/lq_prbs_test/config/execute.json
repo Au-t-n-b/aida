@@ -1,0 +1,9 @@
+{
+	"taskName": "灵衢PRBS压测-测试1",
+	"deviceIds": [],
+    "stressTestConfig": {
+        "stressTestDuration": 5,
+        "bitErrorThreshold": 1
+    },
+    "scenario": ""
+}

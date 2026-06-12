@@ -1,0 +1,64 @@
+{
+    "taskName": "",
+    "nodeList": [],
+    "groupElementSize": 1,
+    "scenario": "",
+    "hcclBaseParam": {
+        "hcclBuffsize": 2048,
+        "hcclConnectTimeout": 480,
+        "hcclSocketIfname": "",
+        "dataBeginSize": "1G",
+        "dataEndSize": "1G",
+        "iterations": 20,
+        "multiplicationFactor": 10,
+        "testType": "single",
+        "skipFreePass": false,
+        "hours": null,
+        "deletePlog": null,
+        "npus": "",
+        "parameterPlane": "",
+        "hcclAlgo": "",
+        "hcclMethod": "allreduce",
+        "dataType": "fp32",
+        "hcclInterVnicDisable": "",
+        "hcclInterHccsDisable": ""
+    },
+    "hcclThresholds": [
+        {
+            "groupNums": 2,
+            "threshold": "96.9",
+            "dataVolume": 1,
+            "bandwidthWaveThreshold": 10,
+            "testResult": null
+        },
+        {
+            "groupNums": 8,
+            "threshold": "95.22",
+            "dataVolume": 1,
+            "bandwidthWaveThreshold": 10,
+            "testResult": null
+        },
+        {
+            "groupNums": 16,
+            "threshold": "95.17",
+            "dataVolume": 1,
+            "bandwidthWaveThreshold": 10,
+            "testResult": null
+        },
+        {
+            "groupNums": 32,
+            "threshold": "94.74",
+            "dataVolume": 1,
+            "bandwidthWaveThreshold": 10,
+            "testResult": null
+        },
+        {
+            "groupNums": 48,
+            "threshold": "94.47",
+            "dataVolume": 1,
+            "bandwidthWaveThreshold": 10,
+            "testResult": null
+        }
+    ],
+    "skipThresholdCheck": true
+}

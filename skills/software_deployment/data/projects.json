@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-06-08T03:35:00.000000Z",
+  "projects": [
+    {
+      "projectId": "p_G_U8EcRJxjafhA",
+      "name": "F1项目 for skill",
+      "ownerUserId": "u_1WY3vyd6bj47OQ",
+      "status": "active",
+      "createdAt": "2026-04-27T07:37:52.048009Z",
+      "updatedAt": "2026-06-08T03:35:00.000000Z",
+      "profile": {
+        "profileSchemaVersion": 2,
+        "projectCode": "001",
+        "productSpecification": "A3",
+        "coolingScene": "液冷",
+        "trainInferScene": "训推",
+        "startDate": "2026-04-25",
+        "siteReadyDate": "2026-06-04",
+        "podScene": "多Pod",
+        "language": "zh"
+      }
+    }
+  ]
+}

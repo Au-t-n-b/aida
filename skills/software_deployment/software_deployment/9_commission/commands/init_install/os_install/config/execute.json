@@ -1,0 +1,10 @@
+{
+    "deviceIds": [],
+    "isoAddr": "D:\\openEuler-22.03-LTS-SP4-aarch64-dvd.iso",
+    "ascendSysPkgPath": "",
+    "networkDriverPath": "",
+    "raidDriverPath": "",
+    "customPluginPath": "",
+    "pcBmcIp": "141.4.154.167",
+    "scenario": ""
+}

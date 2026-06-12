@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "software_deployment",
+  "flow": "software_deployment",
+  "docId": "dashboard:software-deployment",
+  "dataFile": "data/dashboard.json",
+  "label": "软件部署与调测",
+  "description": "十一步主线：计划 1～3、CloudOps 4～6（ZTP/测试参数为步骤 6 的可后补材料）、调测设备 7、Toolkit 联调 8～11；材料在 ProjectData/input/*，产物在 plan/Output。",
+  "capabilities": {
+    "hitl": true,
+    "uploads": true,
+    "taskProgressAutoSync": true,
+    "metrics": ["kpi_cards"]
+  },
+  "uploads": [
+    {
+      "purpose": "sd-plan-receive-tasks",
+      "label": "部署调测二级任务列表",
+      "accept": ".xlsx,.json",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/plan_receive"
+    },
+    {
+      "purpose": "sd-plan-split-testcase",
+      "label": "项目验收用例（Word）",
+      "accept": ".docx",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/plan_split"
+    },
+    {
+      "purpose": "sd-plan-split-pod-map",
+      "label": "机房-Pod 映射（多 Pod 必填）",
+      "accept": ".xlsx",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/plan_split"
+    },
+    {
+      "purpose": "sd-plan-dispatch-lld",
+      "label": "LLD 设计文件（下发）",
+      "accept": ".xlsx",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/plan_dispatch"
+    },
+    {
+      "purpose": "sd-cloudops-manual",
+      "label": "CloudOps 手工补充配置",
+      "accept": ".xlsx",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/cloudops"
+    },
+    {
+      "purpose": "sd-cloudops-checklist",
+      "label": "设备安装完工清单（步骤 6）",
+      "accept": ".xlsx",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/cloudops"
+    },
+    {
+      "purpose": "sd-cloudops-ztp",
+      "label": "灵衢 ZTP 开局文件（步骤 6 材料，可后补）",
+      "accept": ".zip",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/cloudops"
+    },
+    {
+      "purpose": "sd-cloudops-params",
+      "label": "CloudOps 上传测试参数（步骤 6 材料，可后补）",
+      "accept": ".xlsx",
+      "multiple": false,
+      "save_relative_dir": "ProjectData/input/cloudops"
+    }
+  ],
+  "taskProgress": {
+    "moduleId": "software_deployment",
+    "moduleName": "软件部署与调测",
+    "tasks": [
+      "接收二级任务",
+      "拆分调测计划",
+      "下发设备底表",
+      "生成 CloudOps 初始配置",
+      "补充 CloudOps 配置",
+      "生成 CloudOps 完整配置",
+      "配置调测设备",
+      "导入 Toolkit 配置",
+      "初始化与软件安装",
+      "子系统测试",
+      "集群系统测试"
+    ],
+    "actionMapping": {
+      "sd_start": ["接收二级任务"],
+      "sd_continue": ["接收二级任务"],
+      "upstream_check": ["接收二级任务"],
+      "plan_receive": ["接收二级任务"],
+      "plan_receive_invoke": ["接收二级任务"],
+      "plan_split": ["接收二级任务", "拆分调测计划"],
+      "plan_split_invoke": ["接收二级任务", "拆分调测计划"],
+      "plan_regenerate": ["接收二级任务", "拆分调测计划"],
+      "plan_regenerate_invoke": ["接收二级任务", "拆分调测计划"],
+      "plan_dispatch": ["接收二级任务", "拆分调测计划", "下发设备底表"],
+      "plan_dispatch_invoke": ["接收二级任务", "拆分调测计划", "下发设备底表"],
+      "sd_reset": [],
+      "cloudops_init_start": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置"
+      ],
+      "cloudops_init_invoke": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置"
+      ],
+      "cloudops_supplement_start": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置"
+      ],
+      "cloudops_supplement_upload_done": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置"
+      ],
+      "cloudops_full_start": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置"
+      ],
+      "cloudops_full_invoke": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置"
+      ],
+      "cloudops_material_check": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置"
+      ],
+      "cloudops_ztp_upload_done": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置"
+      ],
+      "cloudops_params_upload_done": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置"
+      ],
+      "toolkit_executor_configure": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置",
+        "配置调测设备"
+      ],
+      "toolkit_executor_configured": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置",
+        "配置调测设备"
+      ],
+      "toolkit_import_start": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置",
+        "配置调测设备",
+        "导入 Toolkit 配置"
+      ],
+      "toolkit_import_invoke": [
+        "接收二级任务",
+        "拆分调测计划",
+        "下发设备底表",
+        "生成 CloudOps 初始配置",
+        "补充 CloudOps 配置",
+        "生成 CloudOps 完整配置",
+        "配置调测设备",
+        "导入 Toolkit 配置"
+      ],
+      "connection_check_start": [
+        "接收二级任务", "拆分调测计划", "下发设备底表",
+        "生成 CloudOps 初始配置", "补充 CloudOps 配置", "生成 CloudOps 完整配置",
+        "配置调测设备", "导入 Toolkit 配置", "初始化与软件安装"
+      ],
+      "connection_check_invoke": [
+        "接收二级任务", "拆分调测计划", "下发设备底表",
+        "生成 CloudOps 初始配置", "补充 CloudOps 配置", "生成 CloudOps 完整配置",
+        "配置调测设备", "导入 Toolkit 配置", "初始化与软件安装"
+      ],
+      "lq_connection_check": [
+        "接收二级任务", "拆分调测计划", "下发设备底表",
+        "生成 CloudOps 初始配置", "补充 CloudOps 配置", "生成 CloudOps 完整配置",
+        "配置调测设备", "导入 Toolkit 配置", "初始化与软件安装"
+      ],
+      "commission_run": [
+        "接收二级任务", "拆分调测计划", "下发设备底表",
+        "生成 CloudOps 初始配置", "补充 CloudOps 配置", "生成 CloudOps 完整配置",
+        "配置调测设备", "导入 Toolkit 配置", "初始化与软件安装"
+      ]
+    }
+  },
+  "caseTemplate": {
+    "moduleTitle": "软件部署与调测",
+    "moduleGoal": "本地 Skill 完成计划接收、拆分、下发与 CloudOps 4～6 步；缺材料时会话内 HITL 上传到对应 input 目录。",
+    "strategyPrompt": "当前优先推进哪一步？",
+    "strategyOptions": [
+      { "id": "plan", "label": "先完成计划三步" },
+      { "id": "cloudops", "label": "先推进 CloudOps" },
+      { "id": "materials", "label": "先补齐材料" }
+    ],
+    "metricLabels": {
+      "throughput": "六步贯通度",
+      "quality": "材料齐备度",
+      "risk": "阻塞风险"
+    },
+    "reportLabel": "软件部署与调测说明.md",
+    "reportFileName": "software_deployment_handover.md"
+  }
+}

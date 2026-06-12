@@ -1,0 +1,8 @@
+{
+    "taskName": "",
+    "scenario": "trainingServer",
+    "serviceDeviceIds": [],
+    "switchesDeviceIds": [],
+    "serverTemplateId": "73d43ffd9a7a4998bd274d6cb5bfcbcd",
+    "switchTemplateId": "e8a7f93e8479416a956f1c36c85002d5"
+}

@@ -1,0 +1,195 @@
+{
+  "schemaVersion": 1,
+  "moduleId": "software_deployment",
+  "skillDir": "software_deployment",
+  "intro": "软件部署与调测十一步主线。可在会话中发送抓手词（如「导入Toolkit」「步骤8」）或点击右侧大盘按钮，由 Host 直接触发 skill_runtime_start，不经 LLM 即兴改文件。",
+  "tasks": [
+    {
+      "id": "plan_receive",
+      "displayName": "步骤 ① 接收二级任务",
+      "description": "登记作业管理下发的二级任务列表。",
+      "trigger": "接收二级任务",
+      "aliases": ["接收任务", "步骤1", "开始部署"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "plan_receive",
+        "requestId": "req-sd-plan-receive"
+      }
+    },
+    {
+      "id": "plan_split",
+      "displayName": "步骤 ② 拆分调测计划",
+      "description": "验收用例 + 场景 → 三级任务计划。",
+      "trigger": "拆分调测计划",
+      "aliases": ["拆分计划", "步骤2", "拆三级"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "plan_split",
+        "requestId": "req-sd-plan-split"
+      }
+    },
+    {
+      "id": "plan_dispatch",
+      "displayName": "步骤 ③ 下发设备底表",
+      "description": "LLD 下发设备底表与完工清单宽表。",
+      "trigger": "下发设备底表",
+      "aliases": ["下发计划", "步骤3", "LLD下发"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "plan_dispatch",
+        "requestId": "req-sd-plan-dispatch"
+      }
+    },
+    {
+      "id": "cloudops_init",
+      "displayName": "步骤 ④ CloudOps 初配",
+      "description": "由 LLD 生成 CloudOps 初始配置 xlsx。",
+      "trigger": "CloudOps初配",
+      "aliases": ["步骤4", "生成初配", "CloudOps 初配"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "cloudops_init_start",
+        "requestId": "req-sd-cloudops-init"
+      }
+    },
+    {
+      "id": "cloudops_supplement",
+      "displayName": "步骤 ⑤ CloudOps 补充",
+      "description": "登记手工补充配置表。",
+      "trigger": "CloudOps补充",
+      "aliases": ["步骤5", "补充配置", "手工表"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "cloudops_supplement_start",
+        "requestId": "req-sd-cloudops-supplement"
+      }
+    },
+    {
+      "id": "cloudops_full",
+      "displayName": "步骤 ⑥ CloudOps 完整配置",
+      "description": "合并初配、手工表与完工清单 → 完整 CloudOps xlsx；生成后检查 ZTP / 测试参数（可后补）。",
+      "trigger": "完整配置",
+      "aliases": ["步骤6", "CloudOps完整", "完工清单", "ZTP", "灵衢配置", "测试参数"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "cloudops_full_start",
+        "requestId": "req-sd-cloudops-full"
+      }
+    },
+    {
+      "id": "toolkit_executor",
+      "displayName": "步骤 ⑦ 配置调测设备",
+      "description": "登记 Toolkit 执行机 IP 与 SK。",
+      "trigger": "配置调测设备",
+      "aliases": ["步骤7", "调测设备", "执行机"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "toolkit_executor_configure",
+        "requestId": "req-sd-toolkit-executor"
+      }
+    },
+    {
+      "id": "toolkit_import",
+      "displayName": "步骤 ⑧ 导入 Toolkit 配置",
+      "description": "连接执行机后，将 CloudOps 完整配置导入 Toolkit，并执行 9c 底表初始化刷新。",
+      "steps": [
+        "确认步骤 6 已生成 CloudOps完整配置文件.xlsx",
+        "确认步骤 7 已设置执行机 IP/SK",
+        "确认 ProjectData/plan/RunTime/gateway.json 已填写 APIGW 三件套（或用 CLOUDOPS_* 环境变量覆盖）",
+        "执行 toolkit_import_start，确认后 toolkit_import_invoke"
+      ],
+      "hint": "抓手：「导入Toolkit」「步骤 8」",
+      "trigger": "导入Toolkit",
+      "aliases": ["步骤8", "导入配置", "导入 Toolkit", "导入执行机"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "toolkit_import_start",
+        "requestId": "req-sd-toolkit-import"
+      }
+    },
+    {
+      "id": "sd_continue",
+      "displayName": "继续（执行推荐步骤）",
+      "description": "与右侧大盘橙色「继续」相同：按 deploy_chain 执行推荐下一步（材料齐备时直接 invoke）。",
+      "trigger": "继续",
+      "aliases": ["进入续做", "续做", "下一步"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "sd_continue",
+        "requestId": "req-sd-continue"
+      }
+    },
+    {
+      "id": "sd_resume",
+      "displayName": "查看进度说明",
+      "description": "只刷新引导卡与右侧工作台，不自动执行步骤。",
+      "trigger": "流程说明",
+      "aliases": ["刷新工作台", "刷新进度", "当前进度"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "sd_start",
+        "requestId": "req-sd-start"
+      }
+    },
+    {
+      "id": "plan_regenerate",
+      "displayName": "一键重算",
+      "description": "同套 input 材料覆盖二级快照、三级计划与设备底表。",
+      "trigger": "一键重算",
+      "aliases": ["重算", "重新拆分"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "plan_regenerate",
+        "requestId": "req-sd-plan-regenerate"
+      }
+    },
+    {
+      "id": "sd_reset",
+      "displayName": "演示重置",
+      "description": "联调清空：默认保留 input，清除 state/chain/Output（可传 from_step）。",
+      "trigger": "演示重置",
+      "aliases": ["重置", "重演", "清空进度"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "sd_reset",
+        "requestId": "req-sd-reset"
+      }
+    },
+    {
+      "id": "upstream_check",
+      "displayName": "检查本步材料",
+      "description": "列出当前步骤所需 input 槽位与缺失项（只读）。",
+      "trigger": "检查材料",
+      "aliases": ["缺什么文件", "材料巡检"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "upstream_check",
+        "requestId": "req-sd-check"
+      }
+    },
+    {
+      "id": "report_aggregate",
+      "displayName": "生成调测报告汇总",
+      "description": "遍历全部 Toolkit 命令，汇总已测/未测结果，输出多 sheet xlsx（对标 Agent 报告导出）。",
+      "trigger": "生成调测报告",
+      "aliases": ["报告汇总", "导出报告", "调测报告汇总", "下载调测报告"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "report_aggregate",
+        "requestId": "req-sd-report-aggregate"
+      }
+    },
+    {
+      "id": "download_checklist",
+      "displayName": "下载测试底表",
+      "description": "下载「全量设备完工清单列表_latest.xlsx」（步骤 3 底表宽表，调测后自动回写）。",
+      "trigger": "下载测试底表",
+      "aliases": ["下载底表", "测试底表", "完工清单宽表"],
+      "skillRuntimeStart": {
+        "skillName": "software_deployment",
+        "action": "download_checklist",
+        "requestId": "req-sd-download-checklist"
+      }
+    }
+  ]
+}

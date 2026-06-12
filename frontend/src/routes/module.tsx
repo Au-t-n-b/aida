@@ -13,13 +13,20 @@ const MODULE_TO_SKILL: Record<string, string> = {
   modeling: 'guihua',
   design: 'xtsj',    // 系统设计（a3 智能网络开局）· dispatch 模式 PoC
   install: 'device_install',
+  deploy: 'software_deployment',
+};
+
+/** 已接 LangGraph skill、但尚未写入 MODULE_SCHEMAS 的模块展示名 */
+const MODULE_DISPLAY_NAMES: Record<string, string> = {
+  install: '设备安装',
+  deploy: '部署调测',
 };
 
 function ModuleInner({ moduleKey }: { moduleKey: string }) {
   const { tweaks, setTweak } = useTweaks();
   const schema = MODULE_SCHEMAS[moduleKey as keyof typeof MODULE_SCHEMAS];
   const moduleEntry = ALL_MODULES.find(m => m.key === moduleKey);
-  const name = schema?.name ?? moduleEntry?.name ?? moduleKey;
+  const name = schema?.name ?? moduleEntry?.name ?? MODULE_DISPLAY_NAMES[moduleKey] ?? moduleKey;
   const skillId = MODULE_TO_SKILL[moduleKey];
 
   /* 有后端 skill 的模块走 LangGraph Agent 工作台（SDUI 通用界面）；其它沿用 mock ModuleRoute */

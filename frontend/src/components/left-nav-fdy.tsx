@@ -402,7 +402,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
     { name: '智慧工勘', key: 'survey', status: MODULE_STATUS.survey?.state, statusLabel: MODULE_STATUS.survey?.label },
     { name: '规划设计', key: 'modeling', status: MODULE_STATUS.modeling?.state, statusLabel: MODULE_STATUS.modeling?.label },
     { name: '设备安装', key: 'install', status: MODULE_STATUS.install?.state, statusLabel: MODULE_STATUS.install?.label },
-    { name: '部署调测', href: '/commissioning', status: 'live', statusLabel: '5 步' },
+    { name: '部署调测', key: 'deploy', status: MODULE_STATUS.deploy?.state, statusLabel: MODULE_STATUS.deploy?.label },
   ];
   const navDocs: FdySubItem[] = [
     { name: '项目管理类', href: '/assets?cat=mgmt', status: 'ok', statusLabel: 'PD / TD' },

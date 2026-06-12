@@ -167,6 +167,20 @@ def _resolve_hitl_step(state: dict, explicit: str | None, skill_obj) -> str:
     return stalled or ""
 
 
+def _linear_step_keys(skill) -> tuple[str, ...]:
+    return tuple(getattr(skill, "LINEAR_STEP_KEYS", ()) or ())
+
+
+def _next_linear_step(skill, step_key: str) -> str | None:
+    linear = _linear_step_keys(skill)
+    if step_key not in linear:
+        return None
+    idx = linear.index(step_key)
+    if idx + 1 >= len(linear):
+        return None
+    return linear[idx + 1]
+
+
 def _kick_step_retry(run_id: str, step_key: str) -> None:
     """替换 SSE 队列并异步单步重试（与 /resume step_retry 同路径）。"""
     old_task = RUNS[run_id].get("task")
@@ -397,6 +411,18 @@ async def start_run(skill: str, req: StartReq):
     skill_obj = _get_skill_or_404(skill)
     run_id = f"run-{uuid.uuid4().hex[:10]}"
     project = skill_obj.initial_project(req.model_dump(exclude_none=True))
+
+    if str(project.get("entry_mode") or "").strip() == "commission":
+        builder = getattr(skill_obj, "build_commission_entry_state", None)
+        if callable(builder):
+            built = builder(run_id, project)
+            if built.get("error"):
+                raise HTTPException(400, str(built["error"]))
+            queue: asyncio.Queue = asyncio.Queue()
+            RUNS[run_id] = {"queue": queue, "state": built, "task": None}
+            await _push_sdui_snapshot(run_id)
+            return {"run_id": run_id, "status": "commission_ready", "mode": "commission_entry"}
+
     init_state: AgentState = {
         "run_id": run_id,
         "skill_id": skill,
@@ -1389,12 +1415,38 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
         await queue.put(None)  # sentinel
 
 
+
+async def _push_sdui_snapshot(run_id: str) -> None:
+    """仅推送 SDUI + done（commission 直达等无图场景）。"""
+    queue: asyncio.Queue = RUNS[run_id]["queue"]
+    try:
+        skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
+        _proj = _get_sdui_projector(skill_id)
+        if _proj is not None:
+            await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
+    except Exception:
+        pass
+    await queue.put({"event": "done", "data": {"run_id": run_id}})
+    await queue.put(None)
+
 @app.post("/agent/{skill}/start")
 async def start_run(skill: str, req: StartReq):
     """启动一次工作流（skill 决定跑哪张图）。"""
     skill_obj = _get_skill_or_404(skill)
     run_id = f"run-{uuid.uuid4().hex[:10]}"
     project = skill_obj.initial_project(req.model_dump(exclude_none=True))
+
+    if str(project.get("entry_mode") or "").strip() == "commission":
+        builder = getattr(skill_obj, "build_commission_entry_state", None)
+        if callable(builder):
+            built = builder(run_id, project)
+            if built.get("error"):
+                raise HTTPException(400, str(built["error"]))
+            queue: asyncio.Queue = asyncio.Queue()
+            RUNS[run_id] = {"queue": queue, "state": built, "task": None}
+            await _push_sdui_snapshot(run_id)
+            return {"run_id": run_id, "status": "commission_ready", "mode": "commission_entry"}
+
     init_state: AgentState = {
         "run_id": run_id,
         "skill_id": skill,
@@ -1408,6 +1460,18 @@ async def start_run(skill: str, req: StartReq):
     RUNS[run_id] = {"queue": queue, "state": init_state, "task": task}
     return {"run_id": run_id, "status": "started"}
 
+
+
+@app.post("/agent/{skill}/reset-workspace")
+async def reset_workspace_endpoint(skill: str):
+    """重置 skill 工作区：清空 ProjectData 运行态与产物，保留 Input（重置会话时调用）。"""
+    skill_obj = _get_skill_or_404(skill)
+    handler = getattr(skill_obj, "file_handler", None)
+    reset_fn = getattr(handler, "reset_workspace", None) if handler else None
+    if not callable(reset_fn):
+        raise HTTPException(404, f"skill {skill} 不支持工作区重置")
+    summary = reset_fn(skill_obj.work_root)
+    return summary
 
 # ─── SSE 订阅 ───
 
@@ -1602,7 +1666,7 @@ async def approve_tool(req: ApproveToolReq):
 
 # ─── HITL 续跑 ───
 
-async def _run_single_step_streaming(run_id: str, step_key: str) -> None:
+async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool = True, chain_linear: bool = False) -> None:
     """仅重试单个 step（用于 report_distribute 等：前置产物已在磁盘）。"""
     from .skills.base import SkillContext
 
@@ -1688,33 +1752,56 @@ async def resume_run(skill: str, req: ResumeReq):
     prev = RUNS[req.run_id]["state"]
     skill_id = prev.get("skill_id", skill)
     skill_obj = _get_skill_or_404(skill_id)
-    hitl_step = (req.from_step or "").strip() or (prev.get("hitl") or {}).get("step") or ""
+    hitl_step = _resolve_hitl_step(prev, req.from_step, skill_obj)
+    target_step = (req.from_step or "").strip() or hitl_step
+    dispatch_keys = list(getattr(skill_obj, "dispatch_step_keys", []) or [])
+    retry_keys = set(skill_obj.step_retry_keys or []) | set(dispatch_keys)
 
     old_task = RUNS[req.run_id].get("task")
     if old_task and not old_task.done():
         old_task.cancel()
     RUNS[req.run_id]["queue"] = asyncio.Queue()
 
-    # 该 step 声明支持 step_retry：仅重试本步，避免重跑前序 LLM（如 zhgk report_distribute）
-    if hitl_step and hitl_step in skill_obj.step_retry_keys:
+    if target_step and target_step in retry_keys:
+        project = skill_obj.apply_resume_payload(
+            prev.get("project", {}) or {}, req.payload or {}, target_step
+        )
+        RUNS[req.run_id]["state"] = {**prev, "project": project}
+        if target_step in dispatch_keys and not hitl_step:
+            RUNS[req.run_id]["state"]["hitl"] = {}
+            RUNS[req.run_id]["state"]["error"] = ""
         RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
-        task = asyncio.create_task(_run_single_step_streaming(req.run_id, hitl_step))
+        payload = req.payload or {}
+        linear_keys = _linear_step_keys(skill_obj)
+        chain_linear = (
+            target_step in linear_keys
+            and target_step not in dispatch_keys
+            and payload.get("choice") == "confirm"
+            and not payload.get("rerun")
+        )
+        task = asyncio.create_task(
+            _run_single_step_streaming(req.run_id, target_step, chain_linear=chain_linear)
+        )
         RUNS[req.run_id]["task"] = task
+        mode = "dispatch" if target_step in dispatch_keys else "step_retry"
+        msg = f"仅执行「{target_step}」，不会重跑前序步骤。"
+        if chain_linear:
+            msg = f"从「{target_step}」起沿主线自动推进，遇确认点或缺料时暂停。"
         return {
             "run_id": req.run_id,
             "status": "resumed",
-            "mode": "step_retry",
-            "from_step": hitl_step,
-            "message": f"仅重试「{hitl_step}」，不会重跑前序步骤。",
+            "mode": mode,
+            "from_step": target_step,
+            "chain_linear": chain_linear,
+            "message": msg,
         }
 
-    # 其余 HITL：全量从预检重跑（缺失文件已补齐后一路跑通）
-    RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
-    attempt = RUNS[req.run_id]["attempt"]
-    # 把用户 HITL 回复并入 project（确认型 HITL 据此跨重跑存活）
     project = skill_obj.apply_resume_payload(
         prev.get("project", {}) or {}, req.payload or {}, hitl_step
     )
+    RUNS[req.run_id]["state"] = {**prev, "project": project}
+    RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
+    attempt = RUNS[req.run_id]["attempt"]
     init_state: AgentState = {
         "run_id": req.run_id,
         "skill_id": prev.get("skill_id", "zhgk"),
