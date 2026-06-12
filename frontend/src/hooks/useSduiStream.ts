@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SduiDocument, SduiNode } from '@/lib/sdui';
 import { parseSduiDocument } from '@/lib/sdui';
+import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
 
 function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   visit(node);
@@ -71,10 +72,8 @@ function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocume
   return next;
 }
 
-import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
-
 // 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+export const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
 
 /**
  * @param epoch  重订阅令牌。HITL resume 后后端会新建队列 + 新 task（full_restart），
@@ -131,8 +130,15 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       }
     };
 
+    const handleDone = () => {
+      fetchUiSnapshot(skillId, runId).then(snap => {
+        if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
+      }).catch(() => { /* ignore */ });
+    };
+
     es.addEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
     es.addEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
+    es.addEventListener('done', handleDone as EventListenerOrEventListenerObject);
     es.addEventListener('error', () => {
       // connection dropped; SSE will auto-reconnect
     });
@@ -141,6 +147,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       cancelled = true;
       es.removeEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
       es.removeEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
+      es.removeEventListener('done', handleDone as EventListenerOrEventListenerObject);
       es.close();
       esRef.current = null;
     };
@@ -155,9 +162,10 @@ export interface StartReq {
   project_code?: string;
   project_name?: string;
   scenario_run?: string;
-
   /** zhgk：从 3D 机房入口下钻时预选意图（写入 initial project） */
   intent?: string;
+  /** software_deployment：Toolkit 前置满足时直达命令调测工作台 */
+  entry_mode?: 'commission' | string;
 }
 
 /** 启动一次 run。默认值由后端 skill.initial_project 兜（如 zhgk 的 K1903），前端不写死。 */
@@ -195,11 +203,20 @@ export async function runPatchRun(skillId: string, runId: string, payload: Recor
   }
 }
 
-export async function resumeRun(skillId: string, runId: string, payload: Record<string, unknown> = {}): Promise<void> {
+export async function resumeRun(
+  skillId: string,
+  runId: string,
+  payload: Record<string, unknown> = {},
+  fromStep?: string,
+): Promise<void> {
   await fetch(`${AGENT_BASE}/agent/${skillId}/resume`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ run_id: runId, payload }),
+    body: JSON.stringify({
+      run_id: runId,
+      payload,
+      ...(fromStep ? { from_step: fromStep } : {}),
+    }),
   });
 }
 
@@ -226,4 +243,36 @@ export async function fetchUiSnapshot(skillId: string, runId: string): Promise<S
   } catch {
     return null;
   }
+}
+
+export type RunStatusSnapshot = {
+  error?: string;
+  steps?: Array<{ key?: string; status?: string }>;
+};
+
+export async function fetchRunStatus(
+  skillId: string,
+  runId: string,
+): Promise<RunStatusSnapshot | null> {
+  try {
+    const res = await fetch(`${AGENT_BASE}/agent/${skillId}/status/${runId}`);
+    if (!res.ok) return null;
+    return await res.json() as RunStatusSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+export function runStepOutcome(
+  state: RunStatusSnapshot | null | undefined,
+  stepKey: string,
+): 'pending' | 'running' | 'done' | 'error' {
+  if (!state) return 'pending';
+  if (state.error) return 'error';
+  const rec = (state.steps ?? []).find(s => s.key === stepKey);
+  if (!rec) return 'pending';
+  if (rec.status === 'completed') return 'done';
+  if (rec.status === 'failed') return 'error';
+  if (rec.status === 'running') return 'running';
+  return 'pending';
 }

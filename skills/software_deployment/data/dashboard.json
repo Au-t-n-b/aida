@@ -1,0 +1,866 @@
+{
+  "schemaVersion": 1,
+  "type": "SduiDocument",
+  "meta": {
+    "docId": "dashboard:software-deployment",
+    "provenance": "software_deployment",
+    "role": "dashboard"
+  },
+  "root": {
+    "type": "Stack",
+    "gap": "lg",
+    "children": [
+      {
+        "type": "Card",
+        "id": "sd-overview-card",
+        "title": "软件部署与调测 · 当前进展",
+        "density": "compact",
+        "children": [
+          {
+            "type": "Row",
+            "id": "sd-actions-primary",
+            "gap": "md",
+            "align": "center",
+            "wrap": true,
+            "children": [
+              {
+                "type": "Button",
+                "id": "btn-start-skill",
+                "label": "开始部署调测",
+                "variant": "primary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-sd-start\", \"action\": \"sd_start\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-check-materials",
+                "label": "检查材料",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-upstream-check\", \"action\": \"upstream_check\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-toolkit-import",
+                "label": "导入 Toolkit（步骤 8）",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-toolkit-import-start\", \"action\": \"toolkit_import_start\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "type": "Row",
+            "id": "sd-toolbar",
+            "gap": "sm",
+            "align": "center",
+            "wrap": true,
+            "children": [
+              {
+                "type": "Button",
+                "id": "btn-continue-next",
+                "label": "继续",
+                "variant": "primary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-sd-resume\", \"action\": \"sd_resume\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-refresh-workbench",
+                "label": "流程说明",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-sd-start\", \"action\": \"sd_start\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-plan-regenerate",
+                "label": "一键重算",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-plan-regenerate\", \"action\": \"plan_regenerate\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-demo-reset",
+                "label": "演示重置",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-sd-reset\", \"action\": \"sd_reset\", \"from_step\": 10, \"reset_scope\": \"all\"}}"
+                }
+              }
+            ]
+          },
+          {
+            "type": "Row",
+            "id": "sd-step9-cmds",
+            "gap": "sm",
+            "align": "center",
+            "wrap": true,
+            "children": [
+              {
+                "type": "Button",
+                "id": "btn-conn-check",
+                "label": "服务器连线检查",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-connection-check-start\", \"action\": \"connection_check_start\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-lq-conn-check",
+                "label": "灵衢连线检查（全量）",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-lq-connection-check\", \"action\": \"lq_connection_check\", \"scope\": \"all\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-lq-config-check",
+                "label": "灵衢配置检查",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-commission-run\", \"action\": \"commission_run\", \"command\": \"lq_config_check\", \"scope\": \"all\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-lq-health-check",
+                "label": "灵衢健康检查",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-commission-run\", \"action\": \"commission_run\", \"command\": \"lq_health_check\", \"scope\": \"all\"}}"
+                }
+              },
+              {
+                "type": "Button",
+                "id": "btn-hccs-weak-light",
+                "label": "灵衢光链路检查",
+                "variant": "secondary",
+                "action": {
+                  "kind": "post_user_message",
+                  "text": "{\"type\": \"chat_card_intent\", \"verb\": \"skill_runtime_start\", \"payload\": {\"type\": \"skill_runtime_start\", \"skillName\": \"software_deployment\", \"requestId\": \"req-sd-commission-run\", \"action\": \"commission_run\", \"command\": \"hccs_weak_light\", \"scope\": \"all\"}}"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "type": "Stepper",
+        "id": "stepper-main",
+        "orientation": "horizontal",
+        "orientationOnNarrow": "vertical",
+        "scrollable": true,
+        "linkedTabsId": "sd-stage-tabs",
+        "steps": [
+          {
+            "id": "sd:s1",
+            "title": "① 接收",
+            "tabId": "s1",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s2",
+            "title": "② 拆分",
+            "tabId": "s2",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s3",
+            "title": "③ 下发",
+            "tabId": "s3",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s4",
+            "title": "④ 初配",
+            "tabId": "s4",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s5",
+            "title": "⑤ 补充",
+            "tabId": "s5",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s6",
+            "title": "⑥ 完整",
+            "tabId": "s6",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s7",
+            "title": "⑦ 调测设备",
+            "tabId": "s7",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s8",
+            "title": "⑧ 导入",
+            "tabId": "s8",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s9",
+            "title": "⑨ 部署测试",
+            "tabId": "s9",
+            "status": "completed"
+          },
+          {
+            "id": "sd:s10",
+            "title": "⑩ 子系统",
+            "tabId": "s10",
+            "status": "running"
+          },
+          {
+            "id": "sd:s11",
+            "title": "⑪ 集群",
+            "tabId": "s11",
+            "status": "waiting"
+          }
+        ]
+      },
+      {
+        "type": "Text",
+        "id": "summary-text",
+        "variant": "body",
+        "color": "subtle",
+        "content": "当前进度：**步骤 10/11 · 子系统测试**（已完成 9/11）。 plan 状态 `dispatched`；点击 Stepper 芯片或下方 Tab 查看本步输入/输出件。"
+      },
+      {
+        "type": "Tabs",
+        "id": "sd-stage-tabs",
+        "linkedTabsId": "sd-stage-tabs",
+        "defaultTabId": "s10",
+        "tabs": [
+          {
+            "id": "s1",
+            "label": "① 接收",
+            "icon": "fileText",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-1",
+                "items": [
+                  {
+                    "key": "运行状态",
+                    "value": "dispatched"
+                  },
+                  {
+                    "key": "收件箱",
+                    "value": "有文件"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-1",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "input",
+                "artifacts": [
+                  {
+                    "id": "in1-F1部署调测任务列表_二级.xlsx",
+                    "label": "F1部署调测任务列表_二级.xlsx",
+                    "path": "ProjectData/input/plan_receive/F1部署调测任务列表_二级.xlsx",
+                    "kind": "other",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in1-~$部署调测任务列表.xlsx",
+                    "label": "~$部署调测任务列表.xlsx",
+                    "path": "ProjectData/input/plan_receive/~$部署调测任务列表.xlsx",
+                    "kind": "other",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in1-部署调测任务列表.xlsx",
+                    "label": "部署调测任务列表.xlsx",
+                    "path": "ProjectData/input/plan_receive/部署调测任务列表.xlsx",
+                    "kind": "other",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-second",
+                    "label": "second_level_tasks.json",
+                    "path": "ProjectData/plan/Input/second_level_tasks.json",
+                    "kind": "json",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s2",
+            "label": "② 拆分",
+            "icon": "fileText",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-2",
+                "items": [
+                  {
+                    "key": "运行状态",
+                    "value": "dispatched"
+                  },
+                  {
+                    "key": "验收用例",
+                    "value": "nput\\plan_split\\A3计算子系统测试集群验收用例训练场景20260205.docx"
+                  },
+                  {
+                    "key": "scene.json",
+                    "value": "已生成"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-2",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "input",
+                "artifacts": [
+                  {
+                    "id": "in2-A3计算子系统测试集群验收用例训练场景20260205.docx",
+                    "label": "A3计算子系统测试集群验收用例训练场景20260205.docx",
+                    "path": "ProjectData/input/plan_split/A3计算子系统测试集群验收用例训练场景20260205.docx",
+                    "kind": "other",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in2-F1_Pod映射表.xlsx",
+                    "label": "F1_Pod映射表.xlsx",
+                    "path": "ProjectData/input/plan_split/F1_Pod映射表.xlsx",
+                    "kind": "other",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in2-F1到货表Agent  20251210_20260514_100043.xlsx",
+                    "label": "F1到货表Agent  20251210_20260514_100043.xlsx",
+                    "path": "ProjectData/input/plan_split/F1到货表Agent  20251210_20260514_100043.xlsx",
+                    "kind": "other",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-third_level_tasks.json",
+                    "label": "third_level_tasks.json",
+                    "path": "ProjectData/plan/Output/third_level_tasks.json",
+                    "kind": "json",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-scene",
+                    "label": "scene.json",
+                    "path": "ProjectData/plan/RunTime/scene.json",
+                    "kind": "json",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s3",
+            "label": "③ 下发",
+            "icon": "fileText",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-3",
+                "items": [
+                  {
+                    "key": "运行状态",
+                    "value": "dispatched"
+                  },
+                  {
+                    "key": "LLD",
+                    "value": "已就绪"
+                  },
+                  {
+                    "key": "展开行数",
+                    "value": "12782"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-3",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "input",
+                "artifacts": [
+                  {
+                    "id": "out-全量设备完工清单列表_001.xlsx",
+                    "label": "全量设备完工清单列表_001.xlsx",
+                    "path": "ProjectData/plan/Output/全量设备完工清单列表_001.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-全量设备完工清单列表_latest.xlsx",
+                    "label": "全量设备完工清单列表_latest.xlsx",
+                    "path": "ProjectData/plan/Output/全量设备完工清单列表_latest.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-dispatch-rec",
+                    "label": "dispatch_record.json",
+                    "path": "ProjectData/plan/Output/dispatch_record.json",
+                    "kind": "json",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s4",
+            "label": "④ 初配",
+            "icon": "clipboardCheck",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-4",
+                "items": [
+                  {
+                    "key": "初配时间",
+                    "value": "2026-06-11T10:12:07Z"
+                  },
+                  {
+                    "key": "LLD 来源",
+                    "value": "plan_dispatch:LLD设计"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-4",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "out-co-init",
+                    "label": "CloudOps初始配置.xlsx",
+                    "path": "ProjectData/plan/Output/CloudOps初始配置.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s5",
+            "label": "⑤ 补充",
+            "icon": "clipboardCheck",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-5",
+                "items": [
+                  {
+                    "key": "补充时间",
+                    "value": "2026-06-11T10:12:21Z"
+                  },
+                  {
+                    "key": "完工清单",
+                    "value": "已检测"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-5",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "in5-CloudOps初始配置手工补充新.xlsx",
+                    "label": "CloudOps初始配置手工补充新.xlsx",
+                    "path": "ProjectData/input/cloudops/CloudOps初始配置手工补充新.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in5-CloudOps初始配置手工补充新_20260529_113338.xlsx",
+                    "label": "CloudOps初始配置手工补充新_20260529_113338.xlsx",
+                    "path": "ProjectData/input/cloudops/CloudOps初始配置手工补充新_20260529_113338.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in5-CloudOps配置_手工补充.xlsx",
+                    "label": "CloudOps配置_手工补充.xlsx",
+                    "path": "ProjectData/input/cloudops/CloudOps配置_手工补充.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in5-设备安装完工清单 F1_02_202_S_POD1_20251201加openlab8设备.xlsx",
+                    "label": "设备安装完工清单 F1_02_202_S_POD1_20251201加openlab8设备.xlsx",
+                    "path": "ProjectData/input/cloudops/设备安装完工清单 F1_02_202_S_POD1_20251201加openlab8设备.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-co-manual",
+                    "label": "CloudOps配置_手工补充.xlsx",
+                    "path": "ProjectData/plan/Output/CloudOps配置_手工补充.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s6",
+            "label": "⑥ 完整",
+            "icon": "clipboardCheck",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-6",
+                "items": [
+                  {
+                    "key": "完整配置时间",
+                    "value": "2026-06-11T10:30:25Z"
+                  },
+                  {
+                    "key": "材料检查",
+                    "value": "2026-06-11T10:30:25Z"
+                  },
+                  {
+                    "key": "ZTP",
+                    "value": "已上传"
+                  },
+                  {
+                    "key": "测试参数",
+                    "value": "未上传（可后补）"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-6",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "in6-cl-CloudOps初始配置手工补充新.xlsx",
+                    "label": "CloudOps初始配置手工补充新.xlsx",
+                    "path": "ProjectData/input/cloudops/CloudOps初始配置手工补充新.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in6-cl-CloudOps初始配置手工补充新_20260529_113338.xlsx",
+                    "label": "CloudOps初始配置手工补充新_20260529_113338.xlsx",
+                    "path": "ProjectData/input/cloudops/CloudOps初始配置手工补充新_20260529_113338.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in6-cl-CloudOps配置_手工补充.xlsx",
+                    "label": "CloudOps配置_手工补充.xlsx",
+                    "path": "ProjectData/input/cloudops/CloudOps配置_手工补充.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in6-cl-设备安装完工清单 F1_02_202_S_POD1_20251201加openlab8设备.xlsx",
+                    "label": "设备安装完工清单 F1_02_202_S_POD1_20251201加openlab8设备.xlsx",
+                    "path": "ProjectData/input/cloudops/设备安装完工清单 F1_02_202_S_POD1_20251201加openlab8设备.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-co-full",
+                    "label": "CloudOps完整配置文件.xlsx",
+                    "path": "ProjectData/plan/Output/CloudOps完整配置文件.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-ztp",
+                    "label": "ZTP文件_latest.zip",
+                    "path": "ProjectData/input/cloudops/ZTP文件_latest.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out-ztp-latest",
+                    "label": "ZTP文件_latest.zip",
+                    "path": "ProjectData/input/cloudops/ZTP文件_latest.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in6-ztp-ZTP文件.zip",
+                    "label": "ZTP文件.zip",
+                    "path": "ProjectData/input/cloudops/ZTP文件.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "in6-ztp-ZTP文件_latest.zip",
+                    "label": "ZTP文件_latest.zip",
+                    "path": "ProjectData/input/cloudops/ZTP文件_latest.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s7",
+            "label": "⑦ 调测设备",
+            "icon": "clipboardCheck",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-7",
+                "items": [
+                  {
+                    "key": "执行机 IP",
+                    "value": "100.100.166.137"
+                  },
+                  {
+                    "key": "端口",
+                    "value": "28880"
+                  },
+                  {
+                    "key": "SK",
+                    "value": "sr****dZ"
+                  },
+                  {
+                    "key": "网关服务",
+                    "value": "默认已启动（现场）"
+                  },
+                  {
+                    "key": "配置时间",
+                    "value": "2026-06-11T11:01:09Z"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-7",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "out-executor-json",
+                    "label": "toolkit_executor.json",
+                    "path": "ProjectData/plan/RunTime/toolkit_executor.json",
+                    "kind": "json",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s8",
+            "label": "⑧ 导入",
+            "icon": "clipboardCheck",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-8",
+                "items": [
+                  {
+                    "key": "导入 Toolkit",
+                    "value": "2026-06-11T11:04:12Z"
+                  },
+                  {
+                    "key": "说明",
+                    "value": "对接 deployment_cloudops_workbench"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-8",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "input",
+                "artifacts": [
+                  {
+                    "id": "in-co-full-toolkit",
+                    "label": "→ Toolkit 完整配置",
+                    "path": "ProjectData/plan/Output/CloudOps完整配置文件.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s9",
+            "label": "⑨ 部署测试",
+            "icon": "terminal",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-9",
+                "items": [
+                  {
+                    "key": "服务器连线检查",
+                    "value": "通过 0 / 失败 8"
+                  },
+                  {
+                    "key": "灵衢连线检查",
+                    "value": "通过 16 / 失败 6"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-9",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "out-report-aggregate",
+                    "label": "调测报告汇总_latest.xlsx",
+                    "path": "ProjectData/results/调测报告汇总_latest.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out10-connection_1781176091",
+                    "label": "connection/connection_1781176091",
+                    "path": "ProjectData/results/connection/connection_1781176091/report.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out10-connection_1781178068",
+                    "label": "connection/connection_1781178068",
+                    "path": "ProjectData/results/connection/connection_1781178068/report.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out10-connection_1781178216",
+                    "label": "connection/connection_1781178216",
+                    "path": "ProjectData/results/connection/connection_1781178216/report.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out10-lq_connection_1781142298",
+                    "label": "lq_connection/lq_connection_1781142298",
+                    "path": "ProjectData/results/lq_connection/lq_connection_1781142298/report.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out10-lq_connection_1781163143",
+                    "label": "lq_connection/lq_connection_1781163143",
+                    "path": "ProjectData/results/lq_connection/lq_connection_1781163143/report.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  },
+                  {
+                    "id": "out10-lq_connection_1781163997",
+                    "label": "lq_connection/lq_connection_1781163997",
+                    "path": "ProjectData/results/lq_connection/lq_connection_1781163997/report.zip",
+                    "kind": "zip",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s10",
+            "label": "⑩ 子系统",
+            "icon": "terminal",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-10",
+                "items": [
+                  {
+                    "key": "子系统测试",
+                    "value": "—"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-10",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "out-report-aggregate",
+                    "label": "调测报告汇总_latest.xlsx",
+                    "path": "ProjectData/results/调测报告汇总_latest.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "s11",
+            "label": "⑪ 集群",
+            "icon": "terminal",
+            "children": [
+              {
+                "type": "KeyValueList",
+                "id": "sd-kv-11",
+                "items": [
+                  {
+                    "key": "集群系统测试",
+                    "value": "—"
+                  }
+                ]
+              },
+              {
+                "type": "ArtifactGrid",
+                "id": "sd-art-11",
+                "title": "本步输入/输出（点击预览）",
+                "mode": "output",
+                "artifacts": [
+                  {
+                    "id": "out-report-aggregate",
+                    "label": "调测报告汇总_latest.xlsx",
+                    "path": "ProjectData/results/调测报告汇总_latest.xlsx",
+                    "kind": "xlsx",
+                    "status": "ready"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

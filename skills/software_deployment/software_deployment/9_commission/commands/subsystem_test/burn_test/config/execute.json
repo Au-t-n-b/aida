@@ -1,0 +1,60 @@
+{
+    "taskName": "",
+    "nodeList": [],
+    "scenario": "",
+    "burnTestTaskMeta": {
+        "burnTestTaskConfig": {
+            "operationType": "2",
+            "powerMode": "2"
+        },
+        "operations": [
+            {
+                "DeviceType": "CPU",
+                "Mode": "Full",
+                "DurationMinutes": 120
+            },
+            {
+                "DeviceType": "Memory",
+                "Mode": "Full",
+                "DurationMinutes": 120
+            },
+            {
+                "DeviceType": "NPU",
+                "Mode": "Customized",
+                "DurationMinutes": null,
+                "SubItems": [
+                    {
+                        "ItemName": "SignalQuality",
+                        "ItemDurationMinutes": null,
+                        "ItemExecuteTimes": null
+                    },
+                    {
+                        "ItemName": "HbmStress",
+                        "ItemDurationMinutes": 300,
+                        "ItemExecuteTimes": null
+                    },
+                    {
+                        "ItemName": "EDP",
+                        "ItemDurationMinutes": null,
+                        "ItemExecuteTimes": null
+                    },
+                    {
+                        "ItemName": "Bandwidth",
+                        "ItemDurationMinutes": null,
+                        "ItemExecuteTimes": null
+                    },
+                    {
+                        "ItemName": "Aicore",
+                        "ItemDurationMinutes": null,
+                        "ItemExecuteTimes": 3
+                    }
+                ]
+            },
+            {
+                "DeviceType": "Power",
+                "Mode": "",
+                "DurationMinutes": null
+            }
+        ]
+    }
+}

@@ -770,12 +770,13 @@ class SduiTabPanel(BaseModel):
 class SduiTabGroupNode(BaseModel):
     """页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。
     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导
-    （如执行中切「进度」页）。"""
+    （如执行中切「进度」页）。variant=subnav 时居中底划线样式（交付台作业空间导航）。"""
     model_config = ConfigDict(extra="ignore")
     type: Literal["TabGroup"] = "TabGroup"
     id: str | None = None
     tabs: list[SduiTabPanel]
     activeTab: str | None = None
+    variant: Literal["default", "subnav"] | None = None
 
 
 class SduiInputSlot(BaseModel):
@@ -814,6 +815,50 @@ class SduiTaskTimelineStripNode(BaseModel):
     actualEnd: str | None = None
     remainingDays: int | None = None
     progressPct: float | int | None = None
+
+
+class SduiContextBarGroup(BaseModel):
+    """ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。"""
+    model_config = ConfigDict(extra="ignore")
+    label: str
+    value: str
+    badge: str | None = None
+
+
+class SduiContextBarNode(BaseModel):
+    """项目元信息条 · 批次 / 起止 / 负责人 / 规模（对齐交付台 ctx-bar）。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ContextBar"] = "ContextBar"
+    id: str | None = None
+    groups: list[SduiContextBarGroup]
+    showTimelineArrow: bool | None = None
+
+
+class SduiFlowStepChip(BaseModel):
+    """FlowSteps 卡片下的材料/子步骤芯片。"""
+    model_config = ConfigDict(extra="ignore")
+    text: str
+    status: Literal["ok", "pending", "idle", "running"] | None = None
+
+
+class SduiFlowStepCard(BaseModel):
+    """FlowSteps 横向流程图的一张卡片。"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    num: int
+    title: str
+    status: Literal["done", "current", "future"] | None = None
+    chips: list[SduiFlowStepChip] | None = None
+    stepKey: str | None = None
+
+
+class SduiFlowStepsNode(BaseModel):
+    """横向主线流程图 · 对齐交付台 flow-steps / flow-card（可点击切换焦点步）。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["FlowSteps"] = "FlowSteps"
+    id: str | None = None
+    steps: list[SduiFlowStepCard]
+    currentId: str | None = None
 
 
 class SduiMacroStep(BaseModel):
@@ -902,6 +947,28 @@ class SduiHitlTextInputNode(BaseModel):
     stepId: str | None = None
 
 
+class SduiHitlFormField(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+    placeholder: str | None = None
+    required: bool | None = None
+    defaultValue: str | None = None
+
+
+class SduiHitlFormNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["HitlForm"] = "HitlForm"
+    id: str | None = None
+    title: str
+    fields: list[SduiHitlFormField]
+    payloadKey: str | None = None
+    repeatable: bool | None = None
+    submitLabel: str | None = None
+    helpText: str | None = None
+    hitlRequestId: str | None = None
+    stepId: str | None = None
+
 
 # ── MachineRoom3D：3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）─────────────────
 
@@ -937,20 +1004,26 @@ class SduiMachineRoom(BaseModel):
     racks: int = 0
     cdu: int = 0
     itemStats: SduiRoom3DItemStats
+    # 每个机柜的状态着色（done 完成/绿 · active 进行/蓝 · pending 未始/灰 · risk 不满足/红）；
+    # 空则统一品牌色。长度≈racks，由投影器按真实五值比例分配。
     rackStatuses: list[str] = Field(default_factory=list)
+    # 机房卡紧凑扫读行（如 ["124 条目", "7 问题", "R3 轮"]）；空则不渲染。
     statKey: list[str] = Field(default_factory=list)
     entries: list[SduiRoom3DEntry] = Field(default_factory=list)
 
 
 class SduiMachineRoom3DNode(BaseModel):
-    """3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。"""
+    """3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。
+
+    给「以机房为单位的勘测态势」一个立体俯视入口（CSS 3D，前端零依赖）。
+    DataTable/PlaneMatrix 只能平铺，无法表达机柜级体量与多入口下钻。"""
     model_config = ConfigDict(extra="ignore")
     type: Literal["MachineRoom3D"] = "MachineRoom3D"
     id: str | None = None
     eyebrow: str | None = None
     title: str | None = None
     subtitle: str | None = None
-    headStats: list[dict[str, Any]] = Field(default_factory=list)
+    headStats: list[dict[str, Any]] = Field(default_factory=list)   # {value,label,tone}
     rooms: list[SduiMachineRoom] = Field(default_factory=list)
     refreshNote: str | None = None
 
@@ -1020,12 +1093,15 @@ SduiNode = Annotated[
         SduiTabGroupNode,
         SduiInputSlotListNode,
         SduiTaskTimelineStripNode,
+        SduiContextBarNode,
+        SduiFlowStepsNode,
         SduiMacroStepRailNode,
         SduiEmbeddedWebNode,
         # HITL
         SduiFilePickerNode,
         SduiChoiceCardNode,
         SduiHitlTextInputNode,
+        SduiHitlFormNode,
     ],
     Field(discriminator="type"),
 ]

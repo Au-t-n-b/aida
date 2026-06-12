@@ -1,0 +1,17 @@
+{
+    "taskName": "",
+    "nodeList": [],
+    "uploadMode": "",
+    "localPath": "/home/hwtest/llama2.tar",
+    "filePath": "",
+    "remoteHostInfo": {
+        "localFile": "",
+        "hostIp": "",
+        "userName": "",
+        "passWord": ""
+    },
+    "parameterPlane": "",
+    "npus": "",
+    "imageType": "llama2-7b",
+    "imageSavePath": "/home/hwtest"
+}

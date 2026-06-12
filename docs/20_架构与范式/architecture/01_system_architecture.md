@@ -39,6 +39,8 @@
 | `zhgk` 智慧工勘 | 线性 DAG · 意图驱动 | 14 (+preflight) | `survey` | ✅ 端到端样板 |
 | `guihua` 规划设计 | 线性 DAG | 5 | `modeling` | ✅ |
 | `xtsj` 系统设计 | dispatch 分发 | 2 (+路线图) | `design` | ✅ PoC |
+| `device_install` 设备安装 | 线性 DAG | 待定 | `install` | 🟡 B 层可选注册 |
+| `software_deployment` 部署调测 | 线性 DAG + resume 单步 | 13 | `deploy` | ✅ E2E |
 | `delivery` 交付编排 | 待定 | 待定 | 待定 | 🟡 试点目标（待建） |
 
 ---

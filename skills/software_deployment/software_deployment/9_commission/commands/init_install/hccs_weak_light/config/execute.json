@@ -1,0 +1,13 @@
+{
+  "taskName": "",
+  "collectAllSwitch": false,
+  "switchesDeviceIds": [],
+  "scenario": "",
+  "configs": [
+    { "key": "switch_optical_rx_diff", "desc": "接收功率差阈值（dB）", "type": "switch", "value": "4" },
+    { "key": "switch_optical_rx_power_200g_100g", "desc": "交换机100G/200G光模块接收功率RX最小阈值（dBm）", "type": "switch", "value": "-3.5" },
+    { "key": "switch_optical_rx_power_400g", "desc": "交换机400G光模块接收功率RX最小阈值（dBm）", "type": "switch", "value": "-3.2" },
+    { "key": "switch_optical_snr", "desc": "交换机信噪比阈值（dB）", "type": "switch", "value": "19" },
+    { "key": "switch_optical_temperature_max", "desc": "交换机光模块温度阈值（摄氏度）", "type": "switch", "value": "70" }
+  ]
+}
