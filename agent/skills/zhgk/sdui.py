@@ -969,9 +969,7 @@ def _build_machine_room_3d(state: dict[str, Any]) -> SduiMachineRoom3DNode | Non
     issues = sum(int(s.get("_issues", 0) or 0) for s in rooms_src)
     return SduiMachineRoom3DNode(
         id="machine-room-3d",
-        eyebrow="机房总览 · 3D",
-        title=f"{(state.get('project') or {}).get('project_name', '智慧工勘')} · 机房勘测总览",
-        subtitle="首卡为当前真实机房，入口=四意图启动盘（点击按该意图启动/续跑本机房工勘）· 其余为样例",
+        title="机房总览",
         headStats=[
             {"value": str(total), "label": "勘测条目"},
             {"value": f"{avg}%", "label": "综合完成", "tone": "brand"},
