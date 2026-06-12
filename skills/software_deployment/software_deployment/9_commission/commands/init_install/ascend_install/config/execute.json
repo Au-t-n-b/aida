@@ -1,0 +1,23 @@
+{
+    "deviceIds": [],
+    "scenario": "",
+    "ascendVersion": "7.1.RC1",
+    "installPath": "/home/hwtest/cloudops/bin/ascendinstall/",
+    "localPath": "E:\\data\\openlab\\Ascend\\ascend-deployer-7.1.RC1.zip",
+    "components": [
+        "python",
+        "npu_firmware",
+        "npu_driver",
+        "toolkit",
+        "kernels",
+        "toolbox",
+        "fault_diag"
+    ],
+    "rocePort": "",
+    "pfcBitMap": "",
+    "dscpTc": "",
+    "commonNetwork": "0.0.0.0/0",
+    "hcclPorts": "60000-60015",
+    "limits": "1000000",
+    "groupCount": 50
+}

@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "slots": {
+    "second_level_tasks": {
+      "label": "二级任务列表",
+      "patterns": [
+        "second_level_tasks.json",
+        "*部署调测任务列表*.xlsx",
+        "*交付计划*.xlsx"
+      ],
+      "requiredFor": ["plan_receive", "plan_split", "plan_regenerate"]
+    },
+    "testcase": {
+      "label": "验收用例 Word",
+      "patterns": ["*.docx"],
+      "requiredFor": ["plan_split", "plan_regenerate"]
+    },
+    "pod_map": {
+      "label": "机房-Pod 映射表 / 到货表",
+      "patterns": ["*机柜*架构*.xlsx", "*Pod*.xlsx", "*pod*.xlsx", "*到货表*.xlsx"],
+      "optional": true,
+      "requiredFor": ["plan_split", "plan_regenerate"]
+    },
+    "scene_info": {
+      "label": "场景信息表",
+      "patterns": ["*场景*.xlsx"],
+      "optional": true,
+      "requiredFor": ["plan_split"]
+    },
+    "personnel": {
+      "label": "人员信息表",
+      "patterns": ["*人员*.xlsx"],
+      "optional": true,
+      "requiredFor": ["plan_split"]
+    },
+    "lld_design": {
+      "label": "LLD 设计文档",
+      "patterns": ["*LLD设计*.xlsx", "*LLD*设计*.xlsx", "lld/**/*.xlsx", "lld/*.xlsx"],
+      "requiredFor": ["plan_dispatch", "cloudops_init_start", "plan_regenerate"]
+    },
+    "cloudops_manual": {
+      "label": "CloudOps 手工补充表",
+      "patterns": ["CloudOps*手工*.xlsx", "CloudOps*补充*.xlsx", "*手工*.xlsx"],
+      "requiredFor": ["cloudops_supplement_start", "cloudops_full_start", "cloudops_full_invoke"]
+    },
+    "check_list": {
+      "label": "设备安装完工清单",
+      "patterns": ["*完工清单*.xlsx"],
+      "requiredFor": ["cloudops_full_start", "cloudops_full_invoke"]
+    },
+    "cloudops_params": {
+      "label": "CloudOps 上传测试参数",
+      "patterns": ["*测试参数*.xlsx", "*上传测试参数*.xlsx"],
+      "optional": true,
+      "requiredFor": ["cloudops_material_check"]
+    },
+    "ztp_bundle": {
+      "label": "灵衢 ZTP 配置包",
+      "patterns": ["ZTP*.zip", "*ZTP*.zip"],
+      "optional": true,
+      "requiredFor": ["cloudops_material_check"]
+    }
+  }
+}

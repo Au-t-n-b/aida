@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "slots": {
+    "lld_design": {
+      "history": [],
+      "active": {
+        "path": "ProjectData/input/plan_dispatch/active/LLD设计_latest.xlsx",
+        "originalName": "系统设计输出件文档001-XX项目LLD设计 V2.0 - F1_02_POD1_20251201加openlab8设备 - 灵衢从网络移除 - 改空格.xlsx",
+        "version": 1,
+        "sha256": "a99d6452a8cf185b768a4ae034a0b31f48ed3df802e4340bd7c25eef0cf31c80",
+        "source": "local_upload",
+        "uploadedAt": "2026-06-08T03:33:54Z"
+      }
+    }
+  },
+  "updatedAt": "2026-06-08T03:33:54Z"
+}

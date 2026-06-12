@@ -12,6 +12,7 @@ import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunSto
 import { useRunLogStore } from '@/lib/runLogStore';
 import { useSkillHitlStore } from '@/lib/skillHitlStore';
 import { startRun } from '@/hooks/useSduiStream';
+import { parseCommissionIntent } from '@/lib/commissionCommands';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
 import { RAIL_SEND_EVENT } from '@/lib/claw-send';
@@ -85,16 +86,6 @@ const IcSparkle = () => (
 );
 const IcChevron = () => (
   <svg width={12} height={12} viewBox="0 0 9 9" fill="none">
-    <path d="M3 1 L6 4.5 L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" fill="none" />
-  </svg>
-);
-const IcChevronLeft = () => (
-  <svg width={12} height={12} viewBox="0 0 9 9" fill="none" aria-hidden>
-    <path d="M6 1 L3 4.5 L6 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" fill="none" />
-  </svg>
-);
-const IcChevronRight = () => (
-  <svg width={12} height={12} viewBox="0 0 9 9" fill="none" aria-hidden>
     <path d="M3 1 L6 4.5 L3 8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" fill="none" />
   </svg>
 );
@@ -533,6 +524,7 @@ const SKILL_LABELS: Record<string, string> = {
   zhgk: '智慧工勘',
   guihua: '规划设计',
   device_install: '设备安装',
+  software_deployment: '部署调测',
 };
 
 /** 节点日志气泡：每个 step 一组，逐行随 SSE 到达渲染（与右侧步进条同步） */
@@ -701,6 +693,7 @@ function SkillRunBanner({
               onAction: () => {},
               onUpload: myHitl.onUpload,
               onChoiceSubmit: myHitl.onChoiceSubmit,
+              onFormSubmit: myHitl.onFormSubmit,
               // 在线编辑表默认留在右侧大盘（route_hitl_edit 契约），左栏不承接表格提交
               onRowsSubmit: () => {},
             }}
@@ -811,22 +804,12 @@ export default function ClawRail({
   width = 360,
   onResize,
   onSwap,
-  clawSide = 'left',
-  hideSwap = false,
-  hideSuggests = false,
-  inputPlaceholder = '对当前页面提问 / 下指令 · 支持引用 #PoD #机房 #项目',
 }: {
   collapsed: boolean;
   onToggle: () => void;
   width?: number;
   onResize?: (w: number) => void;
   onSwap?: () => void;
-  /** 与 AppShell 布局一致，用于校正拖拽改宽方向 */
-  clawSide?: 'left' | 'right';
-  /** 用收起/展开按钮替代左右互换 */
-  hideSwap?: boolean;
-  hideSuggests?: boolean;
-  inputPlaceholder?: string;
 }) {
   const [draft, setDraft] = useState('');
   const threadRef = useRef<HTMLDivElement>(null);
@@ -994,6 +977,25 @@ export default function ClawRail({
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
 
+    if (pathname.includes('/module/deploy')) {
+      const intent = parseCommissionIntent(trimmed);
+      if (intent) {
+        setChatMsgs(prev => [
+          ...prev,
+          { role: 'user', body: trimmed, ts: nowTs() },
+          {
+            role: 'ai',
+            body: intent.kind === 'start_commission'
+              ? '已进入命令调测工作台，请在右侧调度面板或继续下指令。'
+              : `已下发调测指令「${trimmed}」，请在右侧查看执行状态。`,
+            ts: nowTs(),
+          },
+        ]);
+        window.dispatchEvent(new CustomEvent('aida:commission', { detail: intent }));
+        return;
+      }
+    }
+
     setChatMsgs(prev => [...prev, { role: 'user', body: trimmed, ts: nowTs() }]);
     setIsStreaming(true);
     setChatMsgs(prev => [...prev, { role: 'ai', body: '', ts: nowTs(), isStreaming: true, toolEvents: [] }]);
@@ -1153,10 +1155,9 @@ export default function ClawRail({
     const startX = e.clientX;
     const startW = width;
     const MIN = 280, MAX = 600;
-    const resizeFromRight = clawSide === 'left';
     let lastW = startW;
     const onMove = (ev: MouseEvent) => {
-      const delta = resizeFromRight ? ev.clientX - startX : startX - ev.clientX;
+      const delta = startX - ev.clientX;
       lastW = Math.max(MIN, Math.min(MAX, startW + delta));
       document.documentElement.style.setProperty('--claw-w', lastW + 'px');
     };
@@ -1185,22 +1186,10 @@ export default function ClawRail({
   return (
     <aside className={`claw-rail${collapsed ? ' claw-rail--collapsed' : ''}`}>
       <div className="claw-rail-resize" onMouseDown={onResizeStart} title="拖拽调整宽度" />
-      {hideSwap ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          title={collapsed ? '展开侧边栏' : '收起侧边栏'}
-          aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
-          className="claw-swap-btn claw-collapse-toolbar-btn"
-        >
-          {collapsed ? <IcChevronRight /> : <IcChevronLeft />}
+      {onSwap && (
+        <button onClick={onSwap} title="左右互换 · 默认放左边" className="claw-swap-btn">
+          <IcSwap />
         </button>
-      ) : (
-        onSwap && (
-          <button onClick={onSwap} title="左右互换 · 默认放左边" className="claw-swap-btn">
-            <IcSwap />
-          </button>
-        )
       )}
       {onResize && (
         <button
@@ -1222,16 +1211,12 @@ export default function ClawRail({
       </div>
 
       {/* header */}
-      <div
-        className="claw-head"
-        onClick={hideSwap ? undefined : onToggle}
-        title={hideSwap ? undefined : collapsed ? '展开 AIDA 助手' : '折叠 AIDA 助手'}
-      >
+      <div className="claw-head" onClick={onToggle} title={collapsed ? '展开 AIDA 助手' : '折叠 AIDA 助手'}>
         <div className="ch-icon"><IcSparkle /></div>
         <div style={{ flex: 1 }}>
           <div className="ch-name">AIDA助手 · <span style={{ color: 'var(--c-text-muted)', fontWeight: 400 }}>{navLabel}</span></div>
         </div>
-        {!hideSwap && <span className="ch-collapse"><IcChevron /></span>}
+        <span className="ch-collapse"><IcChevron /></span>
       </div>
 
       <ModuleControlPanel pathname={pathname} />
@@ -1346,21 +1331,29 @@ export default function ClawRail({
       </div>
 
       {/* suggestion chips */}
-      {!hideSuggests && (
-        <div className="claw-suggests">
-          {suggestsForPath.map((s, i) => (
-            <button key={i} className="sug-chip" onClick={() => setDraft(s)}>
-              <IcSparkle />{s}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="claw-suggests">
+        {suggestsForPath.map((s, i) => (
+          <button
+            key={i}
+            className="sug-chip"
+            onClick={() => {
+              if (pathname.includes('/module/deploy') && parseCommissionIntent(s)) {
+                void sendText(s);
+                return;
+              }
+              setDraft(s);
+            }}
+          >
+            <IcSparkle />{s}
+          </button>
+        ))}
+      </div>
 
       {/* input */}
       <div className="claw-input-wrap">
         <div className="claw-input">
           <textarea
-            placeholder={inputPlaceholder}
+            placeholder="对当前页面提问 / 下指令 · 支持引用 #PoD #机房 #项目"
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={handleKey}

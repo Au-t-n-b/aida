@@ -1,0 +1,40 @@
+{
+  "verdict": "WARN",
+  "findings": [
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "CE9865-4C",
+      "row": 13,
+      "message": "硬件叶子无单价: N1-CE98LIC-AI-OTT"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "CE9865-4C",
+      "row": 14,
+      "message": "硬件叶子无单价: N1-CE98LIC-CFAD-OTT"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "CE9865-4C",
+      "row": 15,
+      "message": "硬件叶子无单价: CE9866-128DQ-B"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "数通工程技术应用支持",
+      "row": 12,
+      "message": "硬件叶子无单价: 8814079907"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "技术支持服务",
+      "row": 13,
+      "message": "硬件叶子无单价: 02356TXY_88134UFD_60(M)"
+    }
+  ]
+}

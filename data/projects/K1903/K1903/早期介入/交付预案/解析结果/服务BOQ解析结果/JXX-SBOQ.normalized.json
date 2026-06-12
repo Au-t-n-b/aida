@@ -1,0 +1,1268 @@
+{
+  "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx, JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx, JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx, JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx, JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx, JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx, JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx",
+  "parsed_at": null,
+  "boq_type": "service",
+  "project": {
+    "customer": "JXX有限公司",
+    "quotation_name": "JXX26年昇腾液冷超节点框架",
+    "branch": "北京政企业务部",
+    "boq_number": "multi"
+  },
+  "sites": [
+    "站点1"
+  ],
+  "products": [
+    {
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "product_id": "147272931",
+      "product_head": "AI计算规划设计与实施服务（训练）(AI计算规划设计与实施服务（训练）(跨站点报价))",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "AI计算规划设计与实施服务（训练）",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1",
+          "name": "SuperPoD规划设计与实施服务",
+          "level": 3,
+          "parent_sort_no": "1",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8814283352",
+          "part_number": "8814283352",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜）- 每个SuperPoD  包含 1、项目管理 2、计算柜（12*Atlas 900 POD）和网络柜（4*天成灵衢交换机柜）工程安装 3、超节点的规划设计 4、超节点内综合布线（2688根HCCS MPO线缆-跨柜） 5、计算柜部署调试 6、HCCS网络柜部署调试 7、超节点测试验证",
+          "total_qty": 10,
+          "site_qty": {
+            "站点1": 10
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "1.1 SuperPoD规划设计与实施服务",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 6,
+          "internal_seq": "0001"
+        }
+      ]
+    },
+    {
+      "sheet": "集群系统集成服务（训练）",
+      "product_id": "147000860",
+      "product_head": "集群系统集成服务（训练）(集群系统集成服务（训练）)",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "集群系统集成服务",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1",
+          "name": "集群系统集成服务（训练）（同构）",
+          "level": 3,
+          "parent_sort_no": "1",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8814341929",
+          "part_number": "8814341929",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "集群系统集成服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜）- 每个SuperPoD 服务内容包含：AI集群系统集成规划设计、AI集群系统集成对接联调、AI集群系统集成验证、AI集群系统集成验收",
+          "total_qty": 10,
+          "site_qty": {
+            "站点1": 10
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "1.1 集群系统集成服务（训练）（同构）",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 6,
+          "internal_seq": "0002"
+        }
+      ]
+    },
+    {
+      "sheet": "计算昇腾备件现场保障服务V00",
+      "product_id": "146973127",
+      "product_head": "计算昇腾备件现场保障服务V00(计算昇腾备件现场保障服务V00)",
+      "product_head_qty": 1,
+      "boq_product_type": "maintenance",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "备件服务",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1",
+          "name": "备件服务",
+          "level": 3,
+          "parent_sort_no": "1",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "88136QDV",
+          "part_number": "88136QDV",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "Atlas 900 A3 SuperPoD 96卡 -备件现场保障服务-36（月）",
+          "total_qty": 40,
+          "site_qty": {
+            "站点1": 40
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "1.1 备件服务",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 6,
+          "internal_seq": "0003"
+        }
+      ]
+    },
+    {
+      "sheet": "技术支持服务",
+      "product_id": "146973127",
+      "product_head": "技术支持服务",
+      "product_head_qty": 1,
+      "boq_product_type": "maintenance",
+      "categories": [
+        {
+          "sort_no": "2",
+          "name": "Atlas 900 A3 SuperPoD",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": 1
+        },
+        {
+          "sort_no": "2.1",
+          "name": "Atlas 900 A3 SuperPoD",
+          "level": 3,
+          "parent_sort_no": "2",
+          "total_qty": null
+        },
+        {
+          "sort_no": "3",
+          "name": "Atlas 900 A3 SuperPoD",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": 1
+        },
+        {
+          "sort_no": "3.1",
+          "name": "Atlas 900 A3 SuperPoD",
+          "level": 3,
+          "parent_sort_no": "3",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "Atlas 900 A3 SuperPoD_站点1",
+          "part_number": "",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "",
+          "total_qty": 0,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "site_marker",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 3,
+          "internal_seq": "0004"
+        },
+        {
+          "sort_no": "",
+          "sales_code": "88136TRJ",
+          "part_number": "88136TRJ",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "Atlas 900 A3 SuperPoD 超节点(96*Ascend910,48*Kunpeng920,384*96GB DDR,12*1823,48*7.68T NVME,12*3.84T NVME)-服务器介质保留服务-RH5288,TaiShan 5280,9016,9032-36(月)",
+          "total_qty": 40,
+          "site_qty": {
+            "站点1": 40
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": 40,
+          "parent_category": "2.1 Atlas 900 A3 SuperPoD",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 6,
+          "internal_seq": "0005"
+        },
+        {
+          "sort_no": "",
+          "sales_code": "Atlas 900 A3 SuperPoD_站点1",
+          "part_number": "",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "",
+          "total_qty": 0,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "site_marker",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "2.1 Atlas 900 A3 SuperPoD",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 7,
+          "internal_seq": "0006"
+        },
+        {
+          "sort_no": "",
+          "sales_code": "88136SCH-682",
+          "part_number": "88136SCH-682",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "Atlas 900 A3 SuperPoD 超节点(96*Ascend910,48*Kunpeng920,384*96GB DDR,12*1823,48*7.68T NVME,12*3.84T NVME)-Hi-Care高级服务金牌+ Atlas 900 A3 SuperPoD 12N-36(月)",
+          "total_qty": 40,
+          "site_qty": {
+            "站点1": 40
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": 40,
+          "parent_category": "3.1 Atlas 900 A3 SuperPoD",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 10,
+          "internal_seq": "0007"
+        }
+      ]
+    },
+    {
+      "sheet": "昇腾计算(A3)驻场服务",
+      "product_id": "147025616",
+      "product_head": "昇腾计算(A3)驻场服务(驻场服务)",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "5*8中级FO服务-计算，服务启动有效时长：2年内，1人48月",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8814344320",
+          "part_number": "8814344320",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "5*8中级FO服务-计算，服务启动有效时长：2年内，1人48月",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "1 5*8中级FO服务-计算，服务启动有效时长：2年内，1人48月",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 5,
+          "internal_seq": "0008"
+        }
+      ]
+    },
+    {
+      "sheet": "昇腾计算(A3)驻场服务",
+      "product_id": "147025616",
+      "product_head": "昇腾计算(A3)驻场服务(算力运维服务-液冷保障1)",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "专项/单次服务",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1",
+          "name": "专项/单次服务",
+          "level": 3,
+          "parent_sort_no": "1",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8828122025",
+          "part_number": "8828122025",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "运维服务，智算，主动预防服务，液冷保障服务（&gt;50P）； 算力：2930（P）； 服务包数量：1； 订阅时长：36个月；",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "1.1 专项/单次服务",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 6,
+          "internal_seq": "0009"
+        },
+        {
+          "sort_no": "",
+          "sales_code": "8828122024",
+          "part_number": "8828122024",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "运维服务，智算，主动预防服务，液冷保障服务（1-50P）； 算力：2930（P）； 服务包数量：1； 订阅时长：36个月；",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "1.1 专项/单次服务",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 7,
+          "internal_seq": "0010"
+        }
+      ]
+    },
+    {
+      "sheet": "卓悦服务-重大事件保障-昇腾计算A3",
+      "product_id": "147028828",
+      "product_head": "卓悦服务-重大事件保障-昇腾计算A3(卓悦服务(跨站点报价))",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "2",
+          "name": "卓悦服务",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "2.1",
+          "name": "事件保障",
+          "level": 3,
+          "parent_sort_no": "2",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "88134UGF",
+          "part_number": "88134UGF",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "现场值守，服务时长为60人天，服务有效期为36个月",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "-",
+          "unit_qty": null,
+          "parent_category": "2.1 事件保障",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 6,
+          "internal_seq": "0011"
+        }
+      ]
+    },
+    {
+      "sheet": "iMaster CCAE V100R025",
+      "product_id": "147555131",
+      "product_head": "iMaster CCAE V100R025(iMaster CCAE_01)",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "CCAE",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1",
+          "name": "软件License和年费(基础+高阶包)",
+          "level": 3,
+          "parent_sort_no": "1",
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1.1",
+          "name": "全场景互联网基础包",
+          "level": 4,
+          "parent_sort_no": "1.1",
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1.2",
+          "name": "AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)",
+          "level": 4,
+          "parent_sort_no": "1.1",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8803015789",
+          "part_number": "8803015789",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CCAE-全场景互联网基础包 -计算节点管理许可-每节点",
+          "total_qty": 480,
+          "site_qty": {
+            "站点1": 480
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": true,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "7",
+          "unit_qty": null,
+          "parent_category": "1.1.1 全场景互联网基础包",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 7,
+          "internal_seq": "0012",
+          "embedded_software_remark": "华为iMaster集群计算管理软件V1.0"
+        },
+        {
+          "sort_no": "",
+          "sales_code": "8803015790",
+          "part_number": "8803015790",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CCAE-AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)-每节点",
+          "total_qty": 480,
+          "site_qty": {
+            "站点1": 480
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": true,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "7",
+          "unit_qty": null,
+          "parent_category": "1.1.2 AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 9,
+          "internal_seq": "0013",
+          "embedded_software_remark": "华为iMaster集群计算管理软件V1.0"
+        }
+      ]
+    },
+    {
+      "sheet": "iMaster CCAE V100R025",
+      "product_id": "147555131",
+      "product_head": "iMaster CCAE V100R025(iMaster CCAE_02_SNS)",
+      "product_head_qty": 1,
+      "boq_product_type": "service",
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "CCAE",
+          "level": 2,
+          "parent_sort_no": null,
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1",
+          "name": "软件License和年费(基础+高阶包)",
+          "level": 3,
+          "parent_sort_no": "1",
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1.1",
+          "name": "全场景互联网基础包",
+          "level": 4,
+          "parent_sort_no": "1.1",
+          "total_qty": null
+        },
+        {
+          "sort_no": "1.1.2",
+          "name": "AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)",
+          "level": 4,
+          "parent_sort_no": "1.1",
+          "total_qty": null
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "88065KVB",
+          "part_number": "88065KVB",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CCAE-全场景互联网基础包 -计算节点管理许可-3年软件订阅与保障年费-每节点(年费实际起止时间：从 \" PO签订+90天 \" 起算 3 年)",
+          "total_qty": 480,
+          "site_qty": {
+            "站点1": 480
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": true,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "7",
+          "unit_qty": null,
+          "parent_category": "1.1.1 全场景互联网基础包",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 7,
+          "internal_seq": "0014",
+          "embedded_software_remark": "华为iMaster集群计算管理软件V1.0"
+        },
+        {
+          "sort_no": "",
+          "sales_code": "88065KVH",
+          "part_number": "88065KVH",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CCAE-AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)-3年软件订阅与保障年费-每节点(年费实际起止时间：从 \" PO签订+90天 \" 起算 3 年)",
+          "total_qty": 480,
+          "site_qty": {
+            "站点1": 480
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "unit": null,
+          "is_software": true,
+          "is_manual": false,
+          "is_virtual": false,
+          "is_offering": false,
+          "is_logistics": false,
+          "row_type": "component",
+          "lead_time": "7",
+          "unit_qty": null,
+          "parent_category": "1.1.2 AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 9,
+          "internal_seq": "0015",
+          "embedded_software_remark": "华为iMaster集群计算管理软件V1.0"
+        }
+      ]
+    }
+  ],
+  "item_summary": [
+    {
+      "_row_number": 6,
+      "part_number": "8814283352",
+      "description": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜）- 每个SuperPoD  包含 1、项目管理 2、计算柜（12*Atlas 900 POD）和网络柜（4*天成灵衢交换机柜）工程安装 3、超节点的规划设计 4、超节点内综合布线（2688根HCCS MPO线缆-跨柜） 5、计算柜部署调试 6、HCCS网络柜部署调试 7、超节点测试验证",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 10,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 6,
+      "part_number": "8814341929",
+      "description": "集群系统集成服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜）- 每个SuperPoD 服务内容包含：AI集群系统集成规划设计、AI集群系统集成对接联调、AI集群系统集成验证、AI集群系统集成验收",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 10,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 6,
+      "part_number": "88136QDV",
+      "description": "Atlas 900 A3 SuperPoD 96卡 -备件现场保障服务-36（月）",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 40,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 6,
+      "part_number": "88136TRJ",
+      "description": "Atlas 900 A3 SuperPoD 超节点(96*Ascend910,48*Kunpeng920,384*96GB DDR,12*1823,48*7.68T NVME,12*3.84T NVME)-服务器介质保留服务-RH5288,TaiShan 5280,9016,9032-36(月)",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 40,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 10,
+      "part_number": "88136SCH-682",
+      "description": "Atlas 900 A3 SuperPoD 超节点(96*Ascend910,48*Kunpeng920,384*96GB DDR,12*1823,48*7.68T NVME,12*3.84T NVME)-Hi-Care高级服务金牌+ Atlas 900 A3 SuperPoD 12N-36(月)",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 40,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 5,
+      "part_number": "8814344320",
+      "description": "5*8中级FO服务-计算，服务启动有效时长：2年内，1人48月",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 1,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 6,
+      "part_number": "8828122025",
+      "description": "运维服务，智算，主动预防服务，液冷保障服务（&gt;50P）； 算力：2930（P）； 服务包数量：1； 订阅时长：36个月；",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 1,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 7,
+      "part_number": "8828122024",
+      "description": "运维服务，智算，主动预防服务，液冷保障服务（1-50P）； 算力：2930（P）； 服务包数量：1； 订阅时长：36个月；",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 1,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 6,
+      "part_number": "88134UGF",
+      "description": "现场值守，服务时长为60人天，服务有效期为36个月",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 1,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "",
+      "unit_price": null
+    },
+    {
+      "_row_number": 7,
+      "part_number": "8803015789",
+      "description": "CCAE-全场景互联网基础包 -计算节点管理许可-每节点",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 480,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "华为iMaster集群计算管理软件V1.0",
+      "unit_price": null
+    },
+    {
+      "_row_number": 9,
+      "part_number": "8803015790",
+      "description": "CCAE-AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)-每节点",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 480,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "华为iMaster集群计算管理软件V1.0",
+      "unit_price": null
+    },
+    {
+      "_row_number": 7,
+      "part_number": "88065KVB",
+      "description": "CCAE-全场景互联网基础包 -计算节点管理许可-3年软件订阅与保障年费-每节点(年费实际起止时间：从 \" PO签订+90天 \" 起算 3 年)",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 480,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "华为iMaster集群计算管理软件V1.0",
+      "unit_price": null
+    },
+    {
+      "_row_number": 9,
+      "part_number": "88065KVH",
+      "description": "CCAE-AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)-3年软件订阅与保障年费-每节点(年费实际起止时间：从 \" PO签订+90天 \" 起算 3 年)",
+      "existing_qty": 0,
+      "new_qty": 0,
+      "total_qty": 480,
+      "unit": null,
+      "city": "站点1",
+      "embedded_software_remark": "华为iMaster集群计算管理软件V1.0",
+      "unit_price": null
+    }
+  ],
+  "item_summary_by_product": [],
+  "model_summary": [
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "AI计算规划设计与实施服务（训练）(跨站点报价)",
+      "数量": "1",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "集群系统集成服务（训练）",
+      "数量": "1",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "Atlas 900 A3 SuperPoD-技术支持服务",
+      "数量": "1",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "Atlas 900 A3 SuperPoD-技术支持服务",
+      "数量": "1",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "序号": "2",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "计算昇腾备件现场保障服务V00",
+      "数量": "1",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "驻场服务",
+      "数量": "1",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "算力运维服务-液冷保障1",
+      "数量": "1",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "卓悦服务(跨站点报价)",
+      "数量": "1",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "iMaster CCAE_01(含华为iMaster集群计算管理软件V1.0)",
+      "数量": "1",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "序号": "1",
+      "配置名称": "站点1",
+      "数量": "",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "序号": "",
+      "配置名称": "iMaster CCAE_02_SNS(含华为iMaster集群计算管理软件V1.0)",
+      "数量": "1",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    }
+  ],
+  "raw_headers": {
+    "AI计算规划设计与实施服务（训练）": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ],
+    "集群系统集成服务（训练）": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ],
+    "计算昇腾备件现场保障服务V00": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ],
+    "技术支持服务": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "单套数量",
+      "数量",
+      ""
+    ],
+    "昇腾计算(A3)驻场服务": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ],
+    "卓悦服务-重大事件保障-昇腾计算A3": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ],
+    "iMaster CCAE V100R025": [
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "优选标识",
+      "含软件备注",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ]
+  },
+  "warnings": [],
+  "sheet_roles": [
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "(配置参数)专业服务",
+      "role": "config_params",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "AI计算规划设计与实施服务（训练）",
+      "role": "l3_service",
+      "source_file": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "(配置参数)专业服务",
+      "role": "config_params",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "集群系统集成服务（训练）",
+      "role": "l3_service",
+      "source_file": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "计算昇腾备件现场保障服务V00",
+      "role": "l3_service",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "技术支持服务",
+      "role": "l3_service",
+      "source_file": "JXX-50POD-维保+介质保留+E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "(配置参数)专业服务",
+      "role": "config_params",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "昇腾计算(A3)驻场服务",
+      "role": "l3_service",
+      "source_file": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "(配置参数)专业服务",
+      "role": "config_params",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "昇腾计算(A3)驻场服务",
+      "role": "l3_service",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "卓悦服务-重大事件保障-昇腾计算A3",
+      "role": "l3_service",
+      "source_file": "JXX-50POD-液冷保障+重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "iMaster CCAE V100R025",
+      "role": "l3_service",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "封面",
+      "role": "cover",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "免责声明",
+      "role": "disclaimer",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "基础信息表",
+      "role": "base_info",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "汇总表",
+      "role": "summary",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    },
+    {
+      "sheet_name": "iMaster CCAE V100R025",
+      "role": "l3_service",
+      "source_file": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx"
+    }
+  ],
+  "_stats": {
+    "service_products": 9,
+    "component_leaves": 13,
+    "offering_leaves": 23,
+    "logistics_rows": 0
+  }
+}

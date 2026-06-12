@@ -20,6 +20,7 @@ import { SduiChoiceCard } from './SduiChoiceCard';
 import { SduiDataTable } from './SduiDataTable';
 import { SduiIoConfirmPanel } from './SduiIoConfirmPanel';
 import { SduiPlaneMatrix } from './SduiPlaneMatrix';
+import { SduiContextBar, SduiFlowSteps } from './SduiWorkbench';
 import { useSduiRuntime } from './SduiContext';
 
 // ── Sub-components (must be real components for hook rules) ────────────────────
@@ -989,6 +990,184 @@ function HitlTextInput({ node, onSubmit }: HitlTextProps) {
   );
 }
 
+type HitlFormProps = {
+  node: Extract<SduiNode, { type: 'HitlForm' }>;
+  onSubmit?: (payload: Record<string, unknown>, stepId?: string) => void;
+};
+
+function makeHitlFormRow(node: Extract<SduiNode, { type: 'HitlForm' }>): Record<string, string> {
+  const row: Record<string, string> = {};
+  for (const field of node.fields ?? []) {
+    row[field.key] = field.defaultValue ?? '';
+  }
+  return row;
+}
+
+function HitlForm({ node, onSubmit }: HitlFormProps) {
+  const [rows, setRows] = useState<Record<string, string>[]>([makeHitlFormRow(node)]);
+  const [submitted, setSubmitted] = useState(false);
+  const fields = node.fields ?? [];
+  const repeatable = !!node.repeatable;
+
+  const updateCell = (rowIndex: number, key: string, value: string) => {
+    setRows(prev => prev.map((row, i) => i === rowIndex ? { ...row, [key]: value } : row));
+  };
+  const addRow = () => setRows(prev => [...prev, makeHitlFormRow(node)]);
+  const removeRow = (rowIndex: number) => {
+    setRows(prev => prev.length <= 1 ? prev : prev.filter((_, i) => i !== rowIndex));
+  };
+
+  const cleanedRows = rows
+    .map(row => Object.fromEntries(fields.map(f => [f.key, String(row[f.key] ?? '').trim()])))
+    .filter(row => Object.values(row).some(v => String(v).length > 0));
+  const canSubmit = !!onSubmit && cleanedRows.length > 0 && cleanedRows.every(row =>
+    fields.every(field => !field.required || String(row[field.key] ?? '').trim().length > 0)
+  );
+
+  const handleSubmit = () => {
+    if (!canSubmit || submitted) return;
+    const payloadKey = node.payloadKey ?? node.id ?? 'form';
+    setSubmitted(true);
+    onSubmit?.({ [payloadKey]: repeatable ? cleanedRows : (cleanedRows[0] ?? {}) }, node.stepId);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {(node.title || node.helpText) && (
+        <div style={{
+          borderLeft: '3px solid #3551d8',
+          background: 'var(--c-surface-2)',
+          padding: '10px 12px',
+          borderRadius: '0 6px 6px 0',
+          lineHeight: 1.5,
+        }}>
+          <div style={{ fontWeight: 600, fontSize: '12px', color: 'var(--text-secondary)' }}>
+            {node.title}
+          </div>
+          {node.helpText && (
+            <div style={{ marginTop: 2, fontSize: '11px', color: 'var(--text-tertiary)' }}>
+              {node.helpText}
+            </div>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: submitted ? 0.58 : 1 }}>
+        {rows.map((row, rowIndex) => (
+          <div
+            key={rowIndex}
+            style={{
+              display: 'grid',
+              gridTemplateColumns: repeatable ? '1fr auto' : '1fr',
+              gap: 8,
+              alignItems: 'end',
+              padding: 10,
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--surface)',
+            }}
+          >
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: fields.length > 1 ? 'repeat(auto-fit, minmax(130px, 1fr))' : '1fr',
+              gap: 8,
+              minWidth: 0,
+            }}>
+              {fields.map(field => (
+                <label key={field.key} style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)' }}>
+                    {field.label}{field.required ? ' *' : ''}
+                  </span>
+                  <input
+                    value={row[field.key] ?? ''}
+                    onChange={(e) => updateCell(rowIndex, field.key, e.target.value)}
+                    placeholder={field.placeholder}
+                    disabled={submitted}
+                    style={{
+                      width: '100%',
+                      minWidth: 0,
+                      padding: '8px 10px',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-md)',
+                      outline: 'none',
+                      fontSize: '12.5px',
+                      color: 'var(--text-primary)',
+                      background: submitted ? 'var(--zinc-50)' : 'var(--surface)',
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
+            {repeatable && rows.length > 1 && !submitted && (
+              <button
+                type="button"
+                onClick={() => removeRow(rowIndex)}
+                style={{
+                  padding: '8px 10px',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--surface)',
+                  color: 'var(--text-tertiary)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                }}
+              >
+                删除
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!submitted ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {repeatable && (
+            <button
+              type="button"
+              onClick={addRow}
+              style={{
+                padding: '6px 12px',
+                fontSize: 'var(--text-sm)',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border)',
+                background: 'var(--surface)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+              }}
+            >
+              添加一行
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            style={{
+              padding: '6px 14px',
+              fontSize: 'var(--text-sm)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              background: canSubmit ? '#3551d8' : 'var(--zinc-200)',
+              color: canSubmit ? '#fff' : 'var(--text-tertiary)',
+              cursor: canSubmit ? 'pointer' : 'not-allowed',
+            }}
+          >
+            {node.submitLabel ?? '提交'}
+          </button>
+        </div>
+      ) : (
+        <span style={{ fontSize: 'var(--text-xs)', color: '#065f46', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
+          </svg>
+          已提交 · 等待处理中…
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ── Gap token → px ────────────────────────────────────────────────────────────
 
 const GAP: Record<string, number> = { none: 0, xs: 6, sm: 10, md: 14, lg: 20, xl: 28 };
@@ -1027,6 +1206,9 @@ function SduiHitlButton({ node }: { node: Extract<SduiNode, { type: 'Button' }> 
 // ── Main dispatcher ────────────────────────────────────────────────────────────
 
 type Props = { node: SduiNode; pathPrefix?: string };
+
+// ── MachineRoom3D · 3D 机房俯视总览（等距体素，纯 CSS 3D，零依赖）─────────────────
+// CSS 忠实移植自 smart_survey_v8/app.css 的 .iso-* / .rack3d / .slab，作用域收敛在 .sdui-mr3d。
 
 function ensureMR3DStyles() {
   if (typeof document === 'undefined' || document.getElementById('sdui-mr3d-styles')) return;
@@ -1219,9 +1401,8 @@ function MachineRoom3DView({ node }: { node: SduiMachineRoom3DNode }) {
   );
 }
 
-
 export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
-  const { onAction, onChoiceSubmit } = useSduiRuntime();
+  const { onAction, onChoiceSubmit, onFormSubmit, commissionExecuting = null } = useSduiRuntime();
 
   const renderChildren = (children: SduiNode[] | undefined) =>
     children?.map((child, i) => {
@@ -1409,8 +1590,36 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     // ── Interactive ──
 
-    case 'Button':
-      return <SduiHitlButton node={node} />;
+    case 'Button': {
+      const v = BTN_VARIANT[node.variant ?? 'primary'] ?? 'primary';
+      const btnId = node.id ?? '';
+      const stepKey = btnId === 'sd-cmd-report'
+        ? 'commission_report'
+        : (btnId.startsWith('sd-cmd-') ? btnId.slice('sd-cmd-'.length) : '');
+      const isThis = Boolean(
+        commissionExecuting && stepKey && commissionExecuting.stepKey === stepKey,
+      );
+      return (
+        <Button
+          variant={v}
+          size="sm"
+          disabled={isThis}
+          onClick={() => onAction(node.action)}
+          style={isThis ? { minWidth: 120 } : undefined}
+        >
+          {isThis ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <i style={{
+                width: 12, height: 12, borderRadius: '50%',
+                border: '2px solid currentColor', borderTopColor: 'transparent',
+                display: 'inline-block', animation: 'spin .8s linear infinite',
+              }} />
+              执行中…
+            </span>
+          ) : node.label}
+        </Button>
+      );
+    }
 
     case 'Link': {
       const href = node.href;
@@ -2077,8 +2286,72 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'TabGroup':
       return <SduiTabGroup node={node} pathPrefix={pathPrefix} />;
 
-    case 'InputSlotList':
-      return <SduiInputSlotList node={node} />;
+    case 'ContextBar':
+      return <SduiContextBar node={node} />;
+
+    case 'FlowSteps':
+      return <SduiFlowSteps node={node} />;
+
+    case 'InputSlotList': {
+      const slots = node.slots ?? [];
+      const btnGhost: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' };
+      const btnPrimary: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid #3551d8', background: '#3551d8', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' };
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {node.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</div>}
+          {slots.map((s, i) => {
+            const ready = !!s.ready;
+            const isAuto = s.source === 'auto';
+            // 缺件高亮：必需缺件红，自动检查中/可选缺件琥珀，就绪绿
+            const accent = ready ? '#10b981' : isAuto ? '#d97706' : s.required ? '#dc2626' : '#d97706';
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
+                border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
+                background: !ready && !isAuto ? 'var(--c-surface-2)' : 'var(--surface)',
+                animation: `sdui-stagger .18s ease-out ${Math.min(i, 8) * 0.04}s both`,
+              }}>
+                <span style={{
+                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: accent,
+                  boxShadow: ready ? '0 0 0 3px rgba(16,185,129,.14)' : 'none',
+                  animation: !ready && isAuto ? 'clawStepperPulse 1.4s ease-in-out infinite' : 'none',
+                }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{s.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: s.required ? '#b45309' : 'var(--text-tertiary)', background: s.required ? '#fdf2dd' : 'var(--c-bg-soft, #eef2f7)' }}>
+                      {s.required ? '必需' : '可选'}
+                    </span>
+                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: isAuto ? 'var(--c-brand-text, #1e34a8)' : 'var(--text-tertiary)', background: isAuto ? 'var(--c-brand-soft, #eef1fc)' : 'var(--c-bg-soft, #eef2f7)' }}>
+                      {isAuto ? '自动 · 仿真' : '手动 · 上传'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3, fontFamily: ready ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {ready ? (s.fileName ?? '已就绪') : isAuto ? '检查中…（等待仿真产出）' : '缺失 · 待上传'}
+                  </div>
+                </div>
+                <div style={{ flexShrink: 0 }}>
+                  {ready ? (
+                    s.previewPath ? (
+                      <button onClick={() => { const p = s.previewPath; if (p) onAction({ kind: 'open_preview', path: p }); }} style={btnGhost}>预览</button>
+                    ) : (
+                      <span style={{ fontSize: 11, color: '#0a7350', fontWeight: 600 }}>✓ 就绪</span>
+                    )
+                  ) : isAuto ? (
+                    <span style={{ fontSize: 11, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <i style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid var(--zinc-100)', borderTopColor: '#d97706', display: 'block', animation: 'spin .8s linear infinite' }} />
+                      检查中
+                    </span>
+                  ) : (
+                    <button onClick={() => onAction({ kind: 'post_user_message', text: `上传${s.label}` })} style={btnPrimary}>上传</button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
 
     case 'TaskTimelineStrip':
       return <SduiTaskTimelineStrip node={node} />;
@@ -2176,6 +2449,9 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     case 'HitlTextInput':
       return <HitlTextInput node={node} onSubmit={onChoiceSubmit} />;
+
+    case 'HitlForm':
+      return <HitlForm node={node} onSubmit={onFormSubmit} />;
 
     default:
       return <UnknownNode type={(node as { type?: string }).type ?? '?'} />;

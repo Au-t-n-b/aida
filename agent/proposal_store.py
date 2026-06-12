@@ -206,6 +206,83 @@ class ProposalStore:
             },
         }
         self._path().write_text(json.dumps(payload, ensure_ascii=False, indent=2), "utf-8")
+        self._auto_export_excel()
+
+    def _auto_export_excel(self) -> None:
+        """每次 _save() 后自动同步到 Excel 文件"""
+        try:
+            from openpyxl import Workbook
+        except ImportError:
+            return
+
+        output_dir = self._get_data_dir() / "delivery"
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        for pid, rows in self.net_plane_rows.items():
+            if not rows:
+                continue
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "共平面类型"
+            ws.append(["设备角色", "设备型号", "设备厂家", "设备版本", "数量", "来源", "备注"])
+            for r in rows:
+                d = r.model_dump()
+                ws.append([d.get("type", ""), d.get("model", ""), d.get("vendor", ""),
+                           d.get("ver", ""), d.get("qty", 0), d.get("source", ""), d.get("note") or ""])
+            for col, w in zip("ABCDEFG", [28, 24, 16, 24, 10, 18, 32]):
+                ws.column_dimensions[col].width = w
+            wb.save(output_dir / "共平面类型表.xlsx")
+
+        for pid, rows in self.net_mgmt_rows.items():
+            if not rows:
+                continue
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "网管服务器"
+            ws.append(["服务器类型", "厂家", "型号", "数量", "操作系统", "备注"])
+            for r in rows:
+                d = r.model_dump()
+                ws.append([d.get("server_type", ""), d.get("vendor", ""), d.get("model", ""),
+                           d.get("qty", 0), d.get("os", ""), d.get("note") or ""])
+            for col, w in zip("ABCDEF", [24, 16, 24, 10, 20, 32]):
+                ws.column_dimensions[col].width = w
+            wb.save(output_dir / "网管服务器表.xlsx")
+
+        for pid, rows in self.cluster_device_rows.items():
+            if not rows:
+                continue
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "集群设备"
+            ws.append(["集群类型", "SuperPod", "存储集群", "Zone", "CCAE集群", "DME集群",
+                        "设备类型", "厂家", "型号", "用途", "起始设备名", "结束设备名", "数量", "来源"])
+            for r in rows:
+                d = r.model_dump()
+                ws.append([d.get("cluster_type", ""), d.get("super_pod_id", ""),
+                           d.get("storage_cluster_id", ""), d.get("zone_id", ""),
+                           d.get("ccae_cluster_id", ""), d.get("dme_cluster_id", ""),
+                           d.get("device_type", ""), d.get("vendor", ""), d.get("device_model", ""),
+                           d.get("device_purpose", ""), d.get("start_device_name", ""),
+                           d.get("end_device_name", ""), d.get("quantity", 0), d.get("data_source", "")])
+            for col, w in zip("ABCDEFGHIJKLMN", [14, 14, 14, 10, 14, 14, 14, 14, 20, 14, 20, 20, 10, 14]):
+                ws.column_dimensions[col].width = w
+            wb.save(output_dir / "集群设备配置表.xlsx")
+
+        for pid, rows in self.room_rack_rows.items():
+            if not rows:
+                continue
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "机房信息"
+            ws.append(["PoD名称", "机房名称", "计算柜", "总线柜", "参数面Leaf柜", "业务面Leaf柜", "管理面柜", "样本面Leaf柜"])
+            for r in rows:
+                d = r.model_dump()
+                ws.append([d.get("pod_name", ""), d.get("room_name", ""), d.get("compute", ""),
+                           d.get("bus", ""), d.get("param_leaf", ""), d.get("biz_leaf", ""),
+                           d.get("mgmt", ""), d.get("sample_leaf", "")])
+            for col, w in zip("ABCDEFGH", [18, 20, 14, 14, 18, 18, 16, 18]):
+                ws.column_dimensions[col].width = w
+            wb.save(output_dir / "机房信息表.xlsx")
 
     # ─── 5.1 网络平面配置 ────────────────────────────────────────────────────
 
@@ -297,6 +374,9 @@ class ProposalStore:
         )
         source_index = rows.index(source)
         rows.insert(source_index + 1, new_row)
+
+        self._auto_create_cluster_device(project_id, new_row)
+
         self._save()
         return new_row
 
@@ -307,19 +387,23 @@ class ProposalStore:
         if not row:
             raise ValueError(f"行 {row_id} 不存在")
 
-        if "vendor" in data and data["vendor"] is not None:
+        qty_changed = "qty" in data and data["qty"] is not None
+        vendor_changed = "vendor" in data and data["vendor"] is not None
+        model_changed = "model" in data and data["model"] is not None
+
+        if vendor_changed:
             row.vendor = data["vendor"]
 
         if "type" in data and data["type"] is not None:
             row.type = data["type"]
 
-        if "model" in data and data["model"] is not None:
+        if model_changed:
             row.model = data["model"]
 
         if "ver" in data and data["ver"] is not None:
             row.ver = data["ver"]
 
-        if "qty" in data and data["qty"] is not None:
+        if qty_changed:
             row.qty = data["qty"]
 
         if "source" in data and data["source"] is not None:
@@ -328,8 +412,61 @@ class ProposalStore:
         if "note" in data:
             row.note = data["note"]
 
+        if qty_changed or vendor_changed or model_changed:
+            self._propagate_to_cluster_devices(project_id, row_id, row, qty_changed, vendor_changed, model_changed)
+
         self._save()
         return row, []
+
+    def _propagate_to_cluster_devices(
+        self,
+        project_id: str,
+        source_row_id: str,
+        source_row: "NetPlaneRow",
+        qty_changed: bool,
+        vendor_changed: bool,
+        model_changed: bool,
+    ) -> None:
+        """5.1 变更时同步到 5.3 集群设备父行（不动已拆分的子行）；若 5.3 行不存在则自动创建"""
+        cd_rows = self.cluster_device_rows.get(project_id, [])
+
+        parent_row = next((r for r in cd_rows if r.source_net_plane_id == source_row_id), None)
+        if not parent_row:
+            self._auto_create_cluster_device(project_id, source_row)
+            return
+
+        if qty_changed:
+            parent_row.max_quantity = source_row.qty
+            parent_row.quantity = source_row.qty
+        if vendor_changed:
+            parent_row.vendor = source_row.vendor
+        if model_changed:
+            parent_row.device_model = source_row.model
+
+    def _auto_create_cluster_device(self, project_id: str, np_row: "NetPlaneRow") -> None:
+        """从 5.1 行自动创建对应的 5.3 集群设备行"""
+        cd_rows = self.cluster_device_rows.setdefault(project_id, [])
+        new_cd = ClusterDeviceRow(
+            row_id=str(uuid.uuid4()),
+            source_net_plane_id=np_row.row_id,
+            max_quantity=np_row.qty,
+            cluster_id=None,
+            cluster_type="训练",
+            super_pod_id=None,
+            storage_cluster_id=None,
+            zone_id=None,
+            ccae_cluster_id=None,
+            dme_cluster_id=None,
+            device_type="",
+            vendor=np_row.vendor,
+            device_model=np_row.model,
+            device_purpose=None,
+            start_device_name=None,
+            end_device_name=None,
+            quantity=np_row.qty,
+            data_source="人工录入",
+        )
+        cd_rows.append(new_cd)
 
     def delete_net_plane(self, project_id: str, row_id: str, confirm: bool = False) -> None:
         rows = self.net_plane_rows.get(project_id, [])

@@ -315,7 +315,40 @@ export type SduiDrawerNode = OptId & { type: 'Drawer'; title: string; children?:
 export type SduiTabPanel = { id: string; label: string; badge?: string | number; children?: SduiNode[] };
 /** TabGroup — 页签容器，子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。
  *  badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导（如执行中切「进度」页）。*/
-export type SduiTabGroupNode = OptId & { type: 'TabGroup'; tabs: SduiTabPanel[]; activeTab?: string; focusToken?: number };
+export type SduiTabGroupNode = OptId & {
+  type: 'TabGroup';
+  tabs: SduiTabPanel[];
+  activeTab?: string;
+  /** focusToken 递增时前端强制同步选中（即使用户曾手动切页） */
+  focusToken?: number;
+  /** default=卡片页签；subnav=交付台居中底划线导航 */
+  variant?: 'default' | 'subnav';
+};
+
+export type SduiContextBarGroup = { label: string; value: string; badge?: string };
+export type SduiContextBarNode = OptId & {
+  type: 'ContextBar';
+  groups: SduiContextBarGroup[];
+  showTimelineArrow?: boolean;
+};
+
+export type SduiFlowStepChip = {
+  text: string;
+  status?: 'ok' | 'pending' | 'idle' | 'running';
+};
+export type SduiFlowStepCard = {
+  id: string;
+  num: number;
+  title: string;
+  status?: 'done' | 'current' | 'future';
+  chips?: SduiFlowStepChip[];
+  stepKey?: string;
+};
+export type SduiFlowStepsNode = OptId & {
+  type: 'FlowSteps';
+  steps: SduiFlowStepCard[];
+  currentId?: string;
+};
 
 /** InputSlotList 的一行输入件槽位。source=auto 仿真产出 / manual 人工上传。*/
 export type SduiInputSlot = { label: string; source: 'auto' | 'manual'; required?: boolean; ready?: boolean; fileName?: string; previewPath?: string; slotTag?: string };
@@ -387,6 +420,26 @@ export type SduiHitlTextInputNode = OptId & {
   stepId?: string;
 };
 
+export type SduiHitlFormField = {
+  key: string;
+  label: string;
+  placeholder?: string;
+  required?: boolean;
+  defaultValue?: string;
+};
+
+export type SduiHitlFormNode = OptId & {
+  type: 'HitlForm';
+  title: string;
+  fields: SduiHitlFormField[];
+  payloadKey?: string;
+  repeatable?: boolean;
+  submitLabel?: string;
+  helpText?: string;
+  hitlRequestId?: string;
+  stepId?: string;
+};
+
 // ── Union ─────────────────────────────────────────────────────────────────────
 
 // MachineRoom3D — 3D 机房俯视总览（等距体素 + 机房卡片 + 多入口）
@@ -396,8 +449,8 @@ export interface SduiMachineRoom {
   id: string; label: string; code?: string; status?: string; progress?: number;
   rows?: number; cols?: number; racks?: number; cdu?: number;
   itemStats: SduiRoom3DItemStats;
-  rackStatuses?: string[];
-  statKey?: string[];
+  rackStatuses?: string[];   // done | active | pending | risk（空=统一品牌色）
+  statKey?: string[];        // 紧凑扫读行，如 ["124 条目","7 问题","R3 轮"]
   entries?: SduiRoom3DEntry[];
 }
 export type SduiMachineRoom3DNode = OptId & {
@@ -406,7 +459,6 @@ export type SduiMachineRoom3DNode = OptId & {
   headStats?: { value: string; label: string; tone?: string }[];
   rooms: SduiMachineRoom[]; refreshNote?: string;
 };
-
 
 export type SduiNode =
   | SduiStackNode | SduiCardNode | SduiRowNode | SduiDividerNode | SduiSkeletonNode
@@ -432,8 +484,77 @@ export type SduiNode =
   | SduiDashboardLayoutNode | SduiDrawerNode
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
-  | SduiEmbeddedWebNode
-  | SduiFilePickerNode | SduiChoiceCardNode | SduiIoConfirmPanelNode | SduiHitlTextInputNode;
+  | SduiContextBarNode | SduiFlowStepsNode | SduiEmbeddedWebNode
+  | SduiFilePickerNode | SduiChoiceCardNode | SduiIoConfirmPanelNode | SduiHitlTextInputNode | SduiHitlFormNode;
+
+// ── Tree walk / lookup（TabGroup 等嵌套容器需下钻 tabs，不能只走 children）────────
+
+/** 列出节点的直接子节点（各容器类型字段不同）。 */
+export function sduiChildNodes(node: SduiNode): SduiNode[] {
+  const out: SduiNode[] = [];
+  const raw = node as {
+    children?: SduiNode[];
+    main?: SduiNode[];
+    side?: SduiNode[];
+    tabs?: SduiTabPanel[];
+  };
+  if (Array.isArray(raw.children)) out.push(...raw.children);
+  if (node.type === 'TabGroup' && Array.isArray(raw.tabs)) {
+    for (const tab of raw.tabs) {
+      if (Array.isArray(tab.children)) out.push(...tab.children);
+    }
+  }
+  if (node.type === 'DashboardLayout') {
+    if (Array.isArray(raw.main)) out.push(...raw.main);
+    if (Array.isArray(raw.side)) out.push(...raw.side);
+  }
+  return out;
+}
+
+/** 深度优先遍历整棵 SDUI 树。 */
+export function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
+  visit(node);
+  for (const child of sduiChildNodes(node)) walkSduiNodes(child, visit);
+}
+
+/** 按 id 查找节点（含 TabGroup / DashboardLayout 内嵌）。 */
+export function findNodeById(root: SduiNode, id: string): SduiNode | null {
+  let found: SduiNode | null = null;
+  walkSduiNodes(root, (n) => {
+    if (!found && (n as { id?: string }).id === id) found = n;
+  });
+  return found;
+}
+
+function remapSduiChildren(node: SduiNode, mapChild: (n: SduiNode) => SduiNode): SduiNode {
+  const raw = node as { children?: SduiNode[]; main?: SduiNode[]; side?: SduiNode[]; tabs?: SduiTabPanel[] };
+  if (Array.isArray(raw.children)) {
+    return { ...node, children: raw.children.map(mapChild) } as SduiNode;
+  }
+  if (node.type === 'TabGroup' && Array.isArray(raw.tabs)) {
+    return {
+      ...node,
+      tabs: raw.tabs.map(tab => ({
+        ...tab,
+        children: Array.isArray(tab.children) ? tab.children.map(mapChild) : tab.children,
+      })),
+    };
+  }
+  if (node.type === 'DashboardLayout') {
+    return {
+      ...node,
+      main: Array.isArray(raw.main) ? raw.main.map(mapChild) : raw.main,
+      side: Array.isArray(raw.side) ? raw.side.map(mapChild) : raw.side,
+    } as SduiNode;
+  }
+  return node;
+}
+
+/** 深度替换指定 id 的节点（用于 HITL 卡路由到左侧会话）。 */
+export function replaceNodeById(root: SduiNode, id: string, replacement: SduiNode): SduiNode {
+  if ((root as { id?: string }).id === id) return replacement;
+  return remapSduiChildren(root, child => replaceNodeById(child, id, replacement));
+}
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
 

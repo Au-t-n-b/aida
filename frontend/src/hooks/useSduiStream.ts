@@ -21,6 +21,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { SduiDocument, SduiNode } from '@/lib/sdui';
 import { parseSduiDocument } from '@/lib/sdui';
+import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
 
 function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   visit(node);
@@ -84,15 +85,13 @@ function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocume
   return next;
 }
 
-import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
-
 import { ensureAgentBase } from '@/lib/agentBase';
 
-
+// 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
+// system_design 走 ensureAgentBase（可探测 7402+）；其余 skill / 旧调用点用此常量。
+export const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
 
 const RUN_LOG_SKILLS = new Set(['device_install']);
-
-
 
 export function useSduiStream(skillId: string, runId: string | null, epoch = 0): SduiDocument | null {
 
@@ -278,6 +277,15 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
       }
 
+      // run 正常结束（done）后补拉一次快照，避免错过末尾增量（software_deployment）
+      const handleDone = () => {
+        fetchUiSnapshot(skillId, runId, base).then(snap => {
+          if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
+        }).catch(() => { /* ignore */ });
+      };
+
+      es.addEventListener('done', handleDone as EventListenerOrEventListenerObject);
+
       es.addEventListener('error', handleStreamError as EventListenerOrEventListenerObject);
 
       es.addEventListener('close', handleClose as EventListenerOrEventListenerObject);
@@ -289,7 +297,6 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       };
 
     })();
-
 
 
     return () => {
@@ -323,16 +330,14 @@ export interface StartReq {
   project_name?: string;
 
   scenario_run?: string;
-
   /** zhgk：从 3D 机房入口下钻时预选意图（写入 initial project） */
   intent?: string;
-
+  /** system_design：NL 命令 / 自由文本 / 动作 */
   command?: string;
-
   text?: string;
-
   action?: string;
-
+  /** software_deployment：Toolkit 前置满足时直达命令调测工作台 */
+  entry_mode?: 'commission' | string;
 }
 
 
@@ -400,9 +405,12 @@ export async function runPatchRun(skillId: string, runId: string, payload: Recor
 
 }
 
-
-
-export async function resumeRun(skillId: string, runId: string, payload: Record<string, unknown> = {}): Promise<void> {
+export async function resumeRun(
+  skillId: string,
+  runId: string,
+  payload: Record<string, unknown> = {},
+  fromStep?: string,
+): Promise<void> {
 
   const base = await ensureAgentBase(skillId);
 
@@ -412,8 +420,11 @@ export async function resumeRun(skillId: string, runId: string, payload: Record<
 
     headers: { 'Content-Type': 'application/json' },
 
-    body: JSON.stringify({ run_id: runId, payload }),
-
+    body: JSON.stringify({
+      run_id: runId,
+      payload,
+      ...(fromStep ? { from_step: fromStep } : {}),
+    }),
   });
 
 }
@@ -484,4 +495,34 @@ export async function fetchUiSnapshot(skillId: string, runId: string, base?: str
 
 }
 
+export type RunStatusSnapshot = {
+  error?: string;
+  steps?: Array<{ key?: string; status?: string }>;
+};
 
+export async function fetchRunStatus(
+  skillId: string,
+  runId: string,
+): Promise<RunStatusSnapshot | null> {
+  try {
+    const res = await fetch(`${AGENT_BASE}/agent/${skillId}/status/${runId}`);
+    if (!res.ok) return null;
+    return await res.json() as RunStatusSnapshot;
+  } catch {
+    return null;
+  }
+}
+
+export function runStepOutcome(
+  state: RunStatusSnapshot | null | undefined,
+  stepKey: string,
+): 'pending' | 'running' | 'done' | 'error' {
+  if (!state) return 'pending';
+  if (state.error) return 'error';
+  const rec = (state.steps ?? []).find(s => s.key === stepKey);
+  if (!rec) return 'pending';
+  if (rec.status === 'completed') return 'done';
+  if (rec.status === 'failed') return 'error';
+  if (rec.status === 'running') return 'running';
+  return 'pending';
+}

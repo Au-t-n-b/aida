@@ -1,0 +1,37 @@
+{
+    "taskName": "",
+    "nodeList": [],
+    "groupElementSize" : 0,
+    "trainConfigParam" : {
+        "numLayers" : "32",
+        "tp" : "8",
+        "saveInterval" : "500000",
+        "pp" : "1",
+        "microBatchSize":"1",
+        "globalBatchSize": "32",
+        "evalInterval" : "1000",
+        "trainIters" : "2000",
+        "seqLength" : 4096,
+        "testType" : "single",
+        "hours" : 12,
+        "collectIndicate" : "0",
+        "hcclAlgo" : "",
+        "npus" : "",
+        "parameterPlane" : "",
+        "imagePath" : ""
+    },
+    "storageConfigParam": {
+        "imageType" : "llama2-13b",
+        "aiFramework" : "Pytorch",
+        "mirrorType" : "0",
+        "imagePath": "",
+        "imageSavePath" : "",
+        "remoteHostInfo" : {
+            "localFile": "",
+            "hostIp": "",
+            "userName": "",
+            "passWord": ""
+        },
+        "localPath" : ""
+    }
+}

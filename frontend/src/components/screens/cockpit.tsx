@@ -28,7 +28,7 @@ const TIMELINE_TASKS = [
   { name: '作业规划', start: 10, dur: 8, progress: 45 },
   { name: '概要设计', start: 16, dur: 8, progress: 0 },
   { name: '安装施工', start: 22, dur: 10, progress: 0, critical: true },
-  { name: '割接部署', start: 30, dur: 6, progress: 0, critical: true },
+  { name: '部署调测', start: 30, dur: 6, progress: 0, critical: true },
 ];
 const TOTAL_DAYS = 40;
 const TODAY_DAY = 16;

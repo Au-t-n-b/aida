@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { ProposalChapterCard } from '../primitives';
-import { useProposalData, tcKey } from '@/hooks/useProposalData';
-import type { AcceptanceTestCase } from '@/types/domain';
+import { ACCEPTANCE_TEST_CASES, type AcceptanceTestCase } from '../proposal-testcases';
 
 type KeyedCase = AcceptanceTestCase & { key: string };
 const CB = 'h-4 w-4 shrink-0 cursor-pointer accent-blue-600';
@@ -68,15 +67,10 @@ function CaseDetail({ c, selected, onToggle }: { c: KeyedCase; selected: boolean
 }
 
 export function TestCaseChapter() {
-  const { testCases, selectedTcKeys, setSelectedTc, loading, cardScale } = useProposalData();
-
   const cases = useMemo<KeyedCase[]>(
-    () => testCases.map((c, i) => ({ ...c, key: tcKey(c, i) })),
-    [testCases],
+    () => ACCEPTANCE_TEST_CASES.map((c, i) => ({ ...c, key: `tc${i}` })),
+    [],
   );
-
-  const selected = selectedTcKeys;
-
   const groups = useMemo(() => {
     const m = new Map<string, Map<string, KeyedCase[]>>();
     for (const c of cases) {
@@ -92,33 +86,20 @@ export function TestCaseChapter() {
     }));
   }, [cases]);
 
-  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set());
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(cases.map((c) => c.key)));
+  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set(groups.map((g) => g.l1)));
   // 默认：一级展开、二级全部折叠（三级隐藏）——用户单击二级三角再展开其用例
   const [openL2, setOpenL2] = useState<Set<string>>(() => new Set());
-  const [active, setActive] = useState<string>('');
+  const [active, setActive] = useState<string>(() => cases[0]?.key ?? '');
   const [query, setQuery] = useState('');
-
-  useEffect(() => {
-    if (cases.length && !active) setActive(cases[0]?.key ?? '');
-    setOpenL1((s) => {
-      if (s.size > 0) return s;
-      return new Set(groups.map((g) => g.l1));
-    });
-  }, [cases, groups, active]);
 
   const q = query.trim();
   const hit = (c: KeyedCase) => !q || c.id.includes(q) || c.l3.includes(q) || c.purpose.includes(q);
 
-  const toggleSel = (k: string) => {
-    const n = new Set(selected);
-    if (n.has(k)) n.delete(k); else n.add(k);
-    setSelectedTc(n);
-  };
-  const setMany = (keys: string[], on: boolean) => {
-    const n = new Set(selected);
-    keys.forEach((k) => (on ? n.add(k) : n.delete(k)));
-    setSelectedTc(n);
-  };
+  const toggleSel = (k: string) =>
+    setSelected((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const setMany = (keys: string[], on: boolean) =>
+    setSelected((s) => { const n = new Set(s); keys.forEach((k) => (on ? n.add(k) : n.delete(k))); return n; });
   const toggleL1 = (l1: string) =>
     setOpenL1((s) => { const n = new Set(s); if (n.has(l1)) n.delete(l1); else n.add(l1); return n; });
   const toggleL2 = (key: string) =>
@@ -126,24 +107,8 @@ export function TestCaseChapter() {
 
   const activeCase = cases.find((c) => c.key === active) ?? null;
 
-  if (!loading && cases.length === 0) {
-    return (
-      <ProposalChapterCard id="panel-testcase" title="12. 测试用例">
-        <div className="flex h-32 items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-          暂无测试用例（解析失败或未上传测试用例文件）
-        </div>
-      </ProposalChapterCard>
-    );
-  }
-
   return (
     <ProposalChapterCard id="panel-testcase" title="12. 测试用例">
-      {loading && <p className="mb-2 text-xs text-slate-400">正在加载测试用例…</p>}
-      {!loading && cardScale > 0 && (
-        <p className="mb-2 text-xs text-slate-400">
-          已按项目卡规模 {cardScale} 卡筛选集合通信 / 训练性能类用例
-        </p>
-      )}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* 左：用例树 */}
         <div className="lg:w-[340px] lg:shrink-0">

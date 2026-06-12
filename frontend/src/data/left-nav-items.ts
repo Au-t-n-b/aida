@@ -40,7 +40,7 @@ export const NAV_OPS: NavSubItem[] = [
   { name: '智慧工勘', key: 'survey' },
   { name: '规划设计', key: 'modeling' },
   { name: '设备安装', key: 'install' },
-  { name: '部署调测', href: '/commissioning' },
+  { name: '部署调测', key: 'deploy' },
 ];
 
 export const NAV_DOCS: NavSubItem[] = [

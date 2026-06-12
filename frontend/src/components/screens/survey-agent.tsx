@@ -10,7 +10,6 @@
  * 两种模式下 SduiNodeView / HITL / 文件上传的 UI 完全一致，零代码差异。
  */
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
 
@@ -19,17 +18,38 @@ import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiCont
 const SduiPreviewModal = lazy(() =>
   import('@/components/sdui/SduiPreviewModal').then(m => ({ default: m.SduiPreviewModal })),
 );
-import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace, isIdleLikeSduiDoc, fetchUiSnapshot, type StartReq } from '@/hooks/useSduiStream';
-import { resolveUploadSlotTag } from '@/lib/systemDesignUpload';
-import { ensureAgentBase, staleSystemDesignUploadMessage } from '@/lib/agentBase';
+import {
+  useSduiStream,
+  startRun,
+  resumeRun,
+  uploadBatch,
+  runPatchRun,
+  resetWorkspace,
+  isIdleLikeSduiDoc,
+  fetchUiSnapshot,
+  fetchRunStatus,
+  runStepOutcome,
+  AGENT_BASE,
+  type StartReq,
+} from '@/hooks/useSduiStream';
 import { clearRunLog } from '@/lib/runLogStore';
+import type { CommissionIntent } from '@/lib/commissionCommands';
+import {
+  commissionStepLabel,
+  emitCommissionProgress,
+  formatCommissionScope,
+  isCommissionStepSettledInDoc,
+  readCommissionKpi,
+  readReportArtifactPath,
+} from '@/lib/commissionCommands';
+import type { CommissionExecuting } from '@/components/sdui/SduiContext';
+import { persistSkillRunId, readSkillRunId, clearPersistedSkillRun } from '@/lib/skillRunPersist';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
 import { dispatchRailSend } from '@/lib/claw-send';
-import { setSkillConversation, clearSkillConversation } from '@/lib/skillConversationStore';
 import { Button } from '@/components/primitives';
 import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
 
@@ -43,9 +63,6 @@ export interface SkillAgentScreenProps {
   /** 模块衔接：完成后可一键进入下一模块（如建模仿真 → 进入系统设计并 autostart）。 */
   nextModule?: { label: string; to: string };
 }
-
-/** HITL 提交后保留「已提交」确认态的最短可见时长（ms），随后再推进 resume。 */
-const HITL_HOLD_MS = 650;
 
 // ── 空状态（尚未启动时的引导界面）────────────────────────────────────────────
 
@@ -183,9 +200,8 @@ const HITL_HOLD_MS = 650;
 
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
-  files: Array<{ name: string; ext: string; optional?: boolean }>;
+  files: Array<{ name: string; ext: 'xlsx' | 'docx'; optional?: boolean }>;
   icon: React.ReactNode;
-  filesHint?: string;
 }> = {
   zhgk: {
     icon: (
@@ -209,89 +225,13 @@ const SKILL_META: Record<string, {
       { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
     ],
   },
-  guihua: {
-    icon: (
-      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
-        <rect x="7" y="4" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M11 9h12M11 14h12M11 19h12M11 24h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-        <circle cx="20" cy="24" r="1.4" fill="currentColor" />
-      </svg>
-    ),
-    steps: [
-      { key: 'adapt_build',  name: '设备适配',   sub: '型号·板卡匹配' },
-      { key: 'data_confirm', name: '数据确认',   sub: '核对适配表' },
-      { key: 'combo_create', name: '创建超节点', sub: '平铺 9 个 POD' },
-      { key: 'cabinet_move', name: '机柜落位',   sub: '162 柜落位' },
-      { key: 'handoff',      name: '移交安装',   sub: '交设备安装' },
-    ],
-    files: [
-      { name: '建模仿真设备信息表.md', ext: 'md' },
-    ],
-  },
-  device_install: {
-    icon: (
-      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
-        <rect x="7" y="5" width="15" height="22" rx="2" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M10.5 10h8M10.5 14h8M10.5 18h8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-        <circle cx="25" cy="16" r="5.5" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M25 13.5v5M22.5 16h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    ),
-    filesHint: 'ProjectData/Input/',
-    steps: [
-      { key: 'plan_receive',  name: '接收实施计划', sub: '上游双 Sheet' },
-      { key: 'task_dispatch', name: '计划下发',     sub: '勾选·下发' },
-      { key: 'sn_generate',   name: 'SN扫码表',     sub: '按单元生成' },
-      { key: 'esn_fill',      name: 'ESN填写',      sub: '完工清单' },
-    ],
-    files: [
-      { name: '设备安装实施计划.xlsx', ext: 'xlsx' },
-    ],
-  },
-  xtsj: {
-    icon: (
-      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
-        <circle cx="17" cy="17" r="11" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M11 17h12M17 11v12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    ),
-    filesHint: 'ProjectData/Input/',
-    steps: [
-      { key: 'input_check',  name: '输入件检查', sub: '001/004/007' },
-      { key: 'address_plan', name: '地址批规划', sub: 'CSM/CC-GLM/…' },
-    ],
-    files: [
-      { name: '建模仿真输出文档001-设备信息表.xlsx', ext: 'xlsx' },
-      { name: '建模仿真输出文档004-设备位置表.xlsx', ext: 'xlsx' },
-      { name: '建模仿真输出文档007-端口连线表.xlsx', ext: 'xlsx' },
-    ],
-  },
-  system_design: {
-    icon: (
-      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
-        <rect x="6" y="6" width="22" height="22" rx="3" stroke="currentColor" strokeWidth="1.6" />
-        <path d="M11 12h12M11 17h8M11 22h10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-      </svg>
-    ),
-    filesHint: 'ProjectData/Input/',
-    steps: [
-      { key: 'intent_recognition', name: '意图识别',   sub: 'NL → 标准命令' },
-      { key: 'input_check',        name: '输入件检查', sub: '4 件必需' },
-      { key: 'plane_planning',     name: '平面规划',   sub: '地址/互联' },
-      { key: 'lld_integrate',      name: 'LLD 融合',   sub: '去重合并' },
-      { key: 'publish',            name: '发布完成',   sub: '产物汇总' },
-    ],
-    files: [
-      { name: '项目信息收集表.xlsx', ext: 'xlsx' },
-      { name: '建模仿真输出文档001-设备信息表.xlsx', ext: 'xlsx' },
-      { name: '建模仿真输出文档004-设备位置表.xlsx', ext: 'xlsx' },
-      { name: '建模仿真输出文档007-端口连线表.xlsx', ext: 'xlsx' },
-    ],
-  },
 };
 
-function IdleScreen({ skillId, title, description, onStart, loading }: {
-  skillId: string; title: string; description: string; onStart: () => void; loading: boolean;
+function IdleScreen({ skillId, title, description, onStart, onCommissionStart, loading }: {
+  skillId: string; title: string; description: string;
+  onStart: () => void;
+  onCommissionStart?: () => void;
+  loading: boolean;
 }) {
   const meta = SKILL_META[skillId];
   const steps = meta?.steps ?? [];
@@ -355,6 +295,18 @@ function IdleScreen({ skillId, title, description, onStart, loading }: {
         <span className="skill-idle-btn-icon">▶</span>
         {loading ? '启动中…' : `启动${title}`}
       </button>
+      {onCommissionStart && (
+        <button
+          type="button"
+          className="skill-idle-btn"
+          style={{ marginTop: 10, background: '#0f766e', boxShadow: '0 1px 2px rgba(15,118,110,.25),0 4px 14px rgba(15,118,110,.14)' }}
+          onClick={onCommissionStart}
+          disabled={loading}
+        >
+          <span className="skill-idle-btn-icon">⚡</span>
+          {loading ? '进入中…' : '前置已满足 · 直接进入命令调测'}
+        </button>
+      )}
     </div>
   );
 }
@@ -450,84 +402,6 @@ function applyViewMode(root: SduiNode, mode: 'overview' | 'work'): SduiNode {
   return { ...root, children: next } as SduiNode;
 }
 
-/** 使用「左栏会话 + 右栏面板」交付台布局的 skill（系统设计完整交付流）。 */
-const DELIVERY_WORKBENCH_SKILLS = new Set(['system_design']);
-
-function conversationHasDangerBubble(conv: SduiNode): boolean {
-  let found = false;
-  walkSduiNodes(conv, (n) => {
-    if (n.type !== 'Card') return;
-    const id = (n as { id?: string }).id;
-    const tone = (n as { tone?: string }).tone;
-    if (id === 'cv-bubble-error' || (id === 'cv-bubble' && tone === 'danger') || tone === 'danger') {
-      found = true;
-    }
-  });
-  return found;
-}
-
-/** step_retry 完成后左栏应出现「输入件检查完成」气泡（id=cv-input-done）。 */
-function sduiHasInputCheckDone(doc: SduiDocument): boolean {
-  const conv = findNodeById(doc.root, 'sd-conversation');
-  if (!conv) return false;
-  let found = false;
-  walkSduiNodes(conv, (n) => {
-    if ((n as { id?: string }).id === 'cv-input-done') found = true;
-  });
-  return found;
-}
-
-function sanitizeErrorText(raw: string): string {
-  const lines = raw.split('\n').filter((line) => {
-    const l = line.toLowerCase();
-    return !(l.includes('userwarning') || l.includes('openpyxl') || l.includes('stylesheet.py'));
-  });
-  return (lines.join('\n').trim() || raw.trim());
-}
-
-function ensureConversationErrorBubble(conv: SduiNode, doc: SduiDocument): SduiNode {
-  const err = sanitizeErrorText(String(doc.meta?.error ?? '').trim());
-  if (!err || conversationHasDangerBubble(conv)) return conv;
-  const logHint = String(doc.meta?.exec_log_path ?? '').trim();
-  let body = err;
-  if (logHint && !body.includes(logHint)) body += `\n\n详细日志：${logHint}`;
-  const bubble: SduiNode = {
-    type: 'Card',
-    id: 'cv-bubble-error',
-    density: 'compact',
-    tone: 'danger',
-    children: [
-      { type: 'Text', content: '执行失败', variant: 'heading' },
-      { type: 'Text', content: body, variant: 'body' },
-    ],
-  } as SduiNode;
-  if (conv.type !== 'Stack') return conv;
-  const children = [...((conv as { children?: SduiNode[] }).children ?? []), bubble];
-  return { ...conv, children } as SduiNode;
-}
-
-function dropConversationFromPanel(root: SduiNode): SduiNode {
-  const children = (root as { children?: SduiNode[] }).children;
-  if (!Array.isArray(children)) return root;
-  const next = children.filter(c => (c as { id?: string }).id !== 'sd-conversation');
-  if (next.length === children.length) return root;
-  return { ...root, children: next } as SduiNode;
-}
-
-function dropHitlFromPanel(root: SduiNode): SduiNode {
-  const children = (root as { children?: SduiNode[] }).children;
-  if (!Array.isArray(children)) return root;
-  const next = children.filter(c => {
-    const id = (c as { id?: string }).id;
-    return id !== 'hitl-card' && id !== 'hitl-pointer';
-  });
-  if (next.length === children.length) return root;
-  return { ...root, children: next } as SduiNode;
-}
-
-/** 自动执行、无需左栏 HITL 提示的流水线步骤 */
-const AUTO_PIPELINE_STEP_IDS = new Set(['preflight', 'plan_receive', 'sn_generate']);
-
 /** 从 SDUI 文档提取运行阶段信息（供 updateSkillRun 写入）*/
 function extractProgressFromSdui(doc: SduiDocument): {
   phase?: 'running' | 'hitl' | 'done' | 'error';
@@ -544,23 +418,24 @@ function extractProgressFromSdui(doc: SduiDocument): {
     errorMsg?: string;
   } = {};
 
-  if (doc.meta?.phase === 'error' || doc.meta?.error) {
-    r.phase = 'error';
-    r.errorMsg = String(doc.meta.error ?? '执行失败');
-    return r;
-  }
-
   walkSduiNodes(doc.root, (node) => {
     // DonutChart 中心值 → 整体进度百分比
     if (node.type === 'DonutChart' && node.centerValue) {
       const p = parseInt(node.centerValue);
       if (!isNaN(p)) r.progress = p;
     }
-    if (node.type === 'TaskTimelineStrip' && typeof node.progressPct === 'number' && r.progress == null) {
-      r.progress = Math.max(0, Math.min(100, Math.round(node.progressPct)));
+    if (node.type === 'StatisticRow') {
+      const total = node.items.find(i => i.title === '总进度');
+      if (total) {
+        const p = parseInt(String(total.value));
+        if (!isNaN(p)) r.progress = p;
+      }
+    }
+    if (node.type === 'ProgressBar' && typeof node.value === 'number') {
+      r.progress = node.value;
     }
     // Stepper → 当前步骤名 + 阶段
-    if (node.type === 'Stepper' && !r.phase) {
+    if (node.type === 'Stepper' && r.phase !== 'hitl') {
       const errStep  = node.steps.find(s => s.status === 'error');
       const runStep  = node.steps.find(s => s.status === 'running');
       const allDone  = node.steps.length > 0 && node.steps.every(s => s.status === 'done');
@@ -576,34 +451,39 @@ function extractProgressFromSdui(doc: SduiDocument): {
         r.currentStepName = runStep.title;
       }
     }
-    if (node.type === 'MacroStepRail' && !r.phase) {
+    if (node.type === 'FlowSteps' && r.phase !== 'hitl') {
       const steps = node.steps ?? [];
-      const runStep = steps.find(s => s.status === 'running');
-      const allDone = steps.length > 0 && steps.every(s => (s.status ?? 'pending') === 'done');
+      const current = steps.find(s => s.status === 'current');
+      const allDone = steps.length > 0 && steps.every(s => s.status === 'done');
       if (allDone) {
         r.phase = 'done';
         r.progress = 100;
         r.currentStepName = '';
-      } else if (runStep) {
+      } else if (current) {
         r.phase = 'running';
-        r.currentStepName = runStep.title;
+        r.currentStepName = current.title;
       }
     }
-    // HITL 节点优先级最高（覆盖 Stepper 的阶段判断）
+    // HITL 节点优先级最高（覆盖 Stepper / FlowSteps 的阶段判断）
     if (node.type === 'ChoiceCard') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     if (node.type === 'FilePicker') { r.phase = 'hitl'; r.hitlType = 'file';   }
-    // system_design 专用 HITL 节点类型
-    if (node.type === 'IoConfirmPanel') { r.phase = 'hitl'; r.hitlType = 'choice'; }
-    if (node.type === 'InputSlotList') { r.phase = 'hitl'; r.hitlType = 'file'; }
-    if (node.type === 'Card' && (node as { id?: string }).id === 'hitl-card') {
-      r.phase = 'hitl';
-      if (!r.hitlType) r.hitlType = 'file';
-    }
     // 在线编辑型 HITL：editable DataTable 且提交走 resume（run-patch 表非 HITL，不算）
     if (node.type === 'DataTable' && node.editable && (node.submitMode ?? 'resume') === 'resume') {
       r.phase = 'hitl'; r.hitlType = 'edit';
     }
   });
+
+  if (r.phase !== 'hitl' && r.phase !== 'error') {
+    walkSduiNodes(doc.root, (node) => {
+      if (node.type !== 'StatisticRow') return;
+      const report = node.items.find(i => i.title === '调测报告');
+      if (report && String(report.value).includes('已生成')) {
+        r.phase = 'done';
+        r.progress = 100;
+        r.currentStepName = '调测完成';
+      }
+    });
+  }
 
   return r;
 }
@@ -614,13 +494,10 @@ export default function SkillAgentScreen({
   skillId,
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
-  nextModule,
 }: SkillAgentScreenProps) {
   // ── 模式检测：仅当 Manager 分配了容器 endpoint 时走任务 API；本地登录无容器仍直连 Agent
   const { session } = useAidaSession();
   const useClawMode = !!session?.containerEndpoint;
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式
@@ -631,40 +508,63 @@ export default function SkillAgentScreen({
   const [streamEpoch, setStreamEpoch] = useState(0);
   // 产物预览：open_preview action 触发，存待预览的相对路径（null = 关闭）
   const [previewPath, setPreviewPath] = useState<string | null>(null);
+  const [bootDoc, setBootDoc] = useState<SduiDocument | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [commissionExecuting, setCommissionExecuting] = useState<CommissionExecuting | null>(null);
+  const [commissionPollDoc, setCommissionPollDoc] = useState<SduiDocument | null>(null);
+  const commissionExecStartedAt = useRef(0);
+  const commissionPollGenRef = useRef(0);
   // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
   const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
-  /** 上传成功后主动拉 /ui 快照，避免 SSE 未及时推送时槽位仍显示「缺失」 */
-  const [postUploadDoc, setPostUploadDoc] = useState<SduiDocument | null>(null);
-  const postUploadEpochRef = useRef(0);
 
   // ── 左右同步：聊天侧 ZhgkProgressCard 启动 run 后自动接入（本地模式）────────
   // store 里有匹配的 skillId + runId 且本地尚未启动 → 直接接入，跳过 IdleScreen
   const storeRun = useSkillRunStore();
   useEffect(() => {
-    if (useClawMode) return;               // 容器模式自有 taskId，不走 store
-    if (runId) return;                     // 本地已有 run，无需覆盖
+    if (useClawMode) return;
+    if (runId) return;
     if (storeRun?.skillId === skillId && storeRun.runId) {
       setRunId(storeRun.runId);
+      return;
     }
+    const saved = readSkillRunId(skillId);
+    if (!saved) return;
+    void fetchUiSnapshot(skillId, saved).then(snap => {
+      if (snap) {
+        setBootDoc(snap);
+        setRunId(saved);
+        setSkillRun(skillId, saved, 'ui');
+      } else {
+        clearPersistedSkillRun(skillId);
+      }
+    });
   }, [storeRun, skillId, useClawMode, runId]);
 
   // ── SDUI 订阅（按模式选择数据源，另一侧传 null 不订阅）──────────────────
   const clawTask = useClawTaskSdui(useClawMode ? taskId : null, session?.accessToken ?? '');
   const directDoc = useSduiStream(skillId, useClawMode ? null : runId, streamEpoch);
   const sduiDoc = useClawMode ? clawTask.doc : directDoc;
-  const effectiveSduiDoc = postUploadDoc ?? sduiDoc;
+
   useEffect(() => {
-    if (!sduiDoc || postUploadEpochRef.current === 0) return;
-    postUploadEpochRef.current = 0;
-    setPostUploadDoc(null);
+    if (sduiDoc) {
+      setBootDoc(null);
+      setLoadError(null);
+    }
   }, [sduiDoc]);
+
+  useEffect(() => {
+    if (!runId || sduiDoc || bootDoc || starting) return;
+    const timer = window.setTimeout(() => {
+      setLoadError('工作台加载超时，请重新启动或刷新页面。');
+    }, 12000);
+    return () => window.clearTimeout(timer);
+  }, [runId, sduiDoc, bootDoc, starting]);
   // 容器模式：用容器内 aida/agent 的 run_id 做文件上传（clawTask.runId 由 payload 携带）
   const activeRunId = useClawMode ? (clawTask.runId ?? null) : runId;
-  const usesDeliveryWorkbench = DELIVERY_WORKBENCH_SKILLS.has(skillId);
 
   // ── resume 冻结窗口：与后端 display_state 双保险，防 full_restart 闪回 idle ───
   const sduiDocRef = useRef<SduiDocument | null>(null);
-  useEffect(() => { sduiDocRef.current = effectiveSduiDoc; }, [effectiveSduiDoc]);
+  useEffect(() => { sduiDocRef.current = sduiDoc; }, [sduiDoc]);
   const frozenSnapshotRef = useRef<SduiDocument | null>(null);
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
   const frozenProgressRef = useRef(0);
@@ -682,8 +582,7 @@ export default function SkillAgentScreen({
       setFrozenDoc(null);
     }
   }, [sduiDoc, frozenDoc]);
-  // resume 期间展示冻结快照（frozenSnapshotRef/frozenDoc），其余时间展示实时文档
-  const displayDoc = frozenSnapshotRef.current ?? frozenDoc ?? effectiveSduiDoc;
+  const displayDoc = commissionPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc ?? bootDoc;
 
   // ── meta 工作台路由协议（SDUI.md §HITL-Edit）────────────────────────────────
   // route_hitl_edit：在线编辑 HITL 卡归属 —— 'workbench'（默认 · 留在右侧大盘）/ 'chat'（移交左栏）。
@@ -715,8 +614,10 @@ export default function SkillAgentScreen({
       } else {
         const id = await startRun(skillId, req);
         setRunId(id);
-        // 通知聊天侧：source='ui' → ClawRail 检测到后自动注入 SkillRunBanner 消息
         setSkillRun(skillId, id, 'ui');
+        persistSkillRunId(skillId, id);
+        const snap = await fetchUiSnapshot(skillId, id);
+        if (snap) setBootDoc(snap);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : '启动失败');
@@ -725,52 +626,225 @@ export default function SkillAgentScreen({
     }
   }, [skillId, useClawMode, session]);
 
-  // ── autostart：从上一模块「进入系统设计」跳转而来时（?autostart=1）自动开始 ──
-  const autostartedRef = useRef(false);
-  useEffect(() => {
-    if (autostartedRef.current) return;
-    if (searchParams.get('autostart') !== '1') return;
-    const isIdleNow = useClawMode ? !taskId : !runId;
-    if (!isIdleNow || starting) return;
-    autostartedRef.current = true;
-    void handleStart();
-    const next = new URLSearchParams(searchParams);
-    next.delete('autostart');
-    setSearchParams(next, { replace: true });
-  }, [searchParams, useClawMode, taskId, runId, starting, handleStart, setSearchParams]);
-
   // ── resume（两种模式统一入口）────────────────────────────────────────────
-  const doResume = useCallback(async (payload: Record<string, unknown>) => {
-    const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
-    const isUploadResume = Array.isArray(payload.uploaded) && payload.uploaded.length > 0;
+  const doResume = useCallback(async (payload: Record<string, unknown>, fromStep?: string) => {
     if (useClawMode && session && taskId) {
       await resumeClawTask({
         accessToken: session.accessToken,
         sessionId: session.sessionId,
         taskId,
-        payload,
+        payload: { ...payload, ...(fromStep ? { from_step: fromStep } : {}) },
       });
-    } else if (rid) {
-      // 上传后 step_retry 不重放全流程，无需冻结快照（冻结会挡住 sync_inputs 的即时刷新）
+    } else if (activeRunId) {
+      // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
       const curDoc = sduiDocRef.current;
-      if (curDoc && !isUploadResume) {
+      if (curDoc) {
         frozenProgressRef.current = extractProgressFromSdui(curDoc).progress ?? 0;
         frozenSnapshotRef.current = curDoc;
         setFrozenDoc(curDoc);
         updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
       }
-      await resumeRun(skillId, rid, payload);
-      // 立即给左侧 SkillRunBanner 反馈：HITL 已提交，恢复 running
-      updateSkillRun({ phase: 'running', hitlType: null });
-      // 上传 step_retry 走同 run 队列切换，后端 SSE 可无缝续订；勿 bump epoch 以免错过 sdui 推送
-      // 其余 full_restart 会新建队列，旧 EventSource 追不上 → bump epoch 强制重订阅
-      if (!isUploadResume) {
-        setStreamEpoch(e => e + 1);
-      }
-    } else {
-      throw new Error('无活动 run，无法提交');
+      await resumeRun(skillId, activeRunId, payload, fromStep);
+      // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
+      setStreamEpoch(e => e + 1);
     }
-  }, [useClawMode, session, taskId, activeRunId, skillId, storeRun]);
+  }, [useClawMode, session, taskId, activeRunId, skillId]);
+
+  const resolveCommissionScope = useCallback((explicit?: string): string => {
+    if (explicit?.trim()) return explicit.trim().toLowerCase();
+    const meta = displayDoc?.meta?.commission_scope;
+    if (typeof meta === 'string' && meta.trim()) return meta.trim().toLowerCase();
+    return 'all';
+  }, [displayDoc]);
+
+  const finishCommissionExec = useCallback((
+    stepKey: string,
+    label: string,
+    doc: SduiDocument | null,
+    isError: boolean,
+  ) => {
+    setCommissionExecuting(null);
+    setCommissionPollDoc(null);
+    const kpi = doc ? readCommissionKpi(doc) : null;
+    if (isError) {
+      emitCommissionProgress(`「${label}」执行失败，请查看右侧红色错误条。`);
+      updateSkillRun({ phase: 'error', errorMsg: `${label} 失败` });
+      return;
+    }
+    const kpiHint = kpi ? `命令调测 ${kpi}。` : '';
+    if (stepKey === 'commission_report') {
+      const rel = doc ? readReportArtifactPath(doc) : null;
+      const dlHint = rel ? '请在右侧调度区「下载 · 调测报告」保存 xlsx。' : '报告已生成，请在右侧查看。';
+      emitCommissionProgress(`调测报告已生成。${dlHint}`);
+      updateSkillRun({
+        phase: 'done',
+        progress: 100,
+        currentStepName: '调测完成',
+        hitlType: null,
+        errorMsg: '',
+      });
+      return;
+    }
+    const allDone = kpi === '4/4';
+    emitCommissionProgress(
+      `「${label}」已完成。${kpiHint}${allDone ? '四条命令均已执行，可点「生成调测报告」。' : '对应按钮应显示「重新执行」。'}`,
+    );
+    updateSkillRun({
+      phase: allDone ? 'done' : 'running',
+      progress: allDone ? 100 : undefined,
+      currentStepName: allDone ? '待生成报告' : label,
+      hitlType: null,
+      errorMsg: '',
+    });
+  }, []);
+
+  const pollCommissionUntilSettled = useCallback(async (
+    rid: string,
+    stepKey: string,
+    label: string,
+    gen: number,
+  ) => {
+    const deadline = Date.now() + 20 * 60 * 1000;
+    while (Date.now() < deadline) {
+      if (commissionPollGenRef.current !== gen) return;
+      await new Promise<void>(resolve => { window.setTimeout(resolve, 2500); });
+      const [st, snap] = await Promise.all([
+        fetchRunStatus(skillId, rid),
+        fetchUiSnapshot(skillId, rid),
+      ]);
+      if (commissionPollGenRef.current !== gen) return;
+      if (snap) setCommissionPollDoc(snap);
+      const outcome = runStepOutcome(st, stepKey);
+      const settled = snap ? isCommissionStepSettledInDoc(snap, stepKey) : false;
+      if (settled || outcome === 'done' || outcome === 'error') {
+        finishCommissionExec(stepKey, label, snap, Boolean(st?.error || outcome === 'error'));
+        return;
+      }
+    }
+    if (commissionPollGenRef.current !== gen) return;
+    setCommissionExecuting(null);
+    emitCommissionProgress(
+      `「${label}」等待超过 20 分钟仍未返回；可能仍在 Toolkit 执行，请查右侧日志或稍后刷新。`,
+    );
+  }, [skillId, finishCommissionExec]);
+
+  const executeCommissionStep = useCallback(async (
+    stepKey: string,
+    opts?: { rerun?: boolean; scope?: string },
+  ) => {
+    const scope = resolveCommissionScope(opts?.scope);
+    const label = commissionStepLabel(stepKey);
+    setLoadError(null);
+    const pollGen = commissionPollGenRef.current + 1;
+    commissionPollGenRef.current = pollGen;
+    setCommissionPollDoc(null);
+    setCommissionExecuting({ stepKey, label, scope });
+    commissionExecStartedAt.current = Date.now();
+    emitCommissionProgress(`正在执行 · ${label}（范围：${formatCommissionScope(scope)}）…`);
+    updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
+
+    try {
+      if (useClawMode && session && taskId) {
+        await resumeClawTask({
+          accessToken: session.accessToken,
+          sessionId: session.sessionId,
+          taskId,
+          payload: {
+            choice: 'confirm',
+            rerun: !!opts?.rerun,
+            ...(scope !== 'all' ? { scope } : {}),
+            from_step: stepKey,
+          },
+        });
+      } else {
+        let rid = activeRunId;
+        if (!rid) {
+          rid = await startRun(skillId, { entry_mode: 'commission' });
+          setRunId(rid);
+          setSkillRun(skillId, rid, 'ui');
+          persistSkillRunId(skillId, rid);
+        }
+        if (!rid) throw new Error('无法启动调测 run');
+        await resumeRun(
+          skillId,
+          rid,
+          { choice: 'confirm', rerun: !!opts?.rerun, ...(scope !== 'all' ? { scope } : {}) },
+          stepKey,
+        );
+        setStreamEpoch(e => e + 1);
+        void pollCommissionUntilSettled(rid, stepKey, label, pollGen);
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '执行失败';
+      setCommissionExecuting(null);
+      emitCommissionProgress(`「${label}」执行失败：${msg}`);
+      setLoadError(msg);
+    }
+  }, [
+    resolveCommissionScope,
+    useClawMode,
+    session,
+    taskId,
+    activeRunId,
+    handleStart,
+    skillId,
+    pollCommissionUntilSettled,
+  ]);
+
+  const runCommissionStep = useCallback(async (
+    stepKey: string,
+    rerun: boolean,
+    scope?: string,
+  ) => {
+    await executeCommissionStep(stepKey, { rerun, scope });
+  }, [executeCommissionStep]);
+
+  const handleCommissionIntent = useCallback(async (intent: CommissionIntent) => {
+    if (intent.kind === 'start_commission') {
+      await handleStart({ entry_mode: 'commission' });
+      return;
+    }
+    await executeCommissionStep(intent.step, {
+      rerun: intent.rerun,
+      scope: intent.scope,
+    });
+  }, [handleStart, executeCommissionStep]);
+
+  // SSE 推新 SDUI 且步骤已落地时结束「执行中」（running 中间态不会误停）
+  useEffect(() => {
+    if (!commissionExecuting || !sduiDoc) return;
+    if (Date.now() - commissionExecStartedAt.current < 400) return;
+    if (!isCommissionStepSettledInDoc(sduiDoc, commissionExecuting.stepKey)) return;
+    const { stepKey, label } = commissionExecuting;
+    const hasErr = Boolean(findNodeById(sduiDoc.root, 'sd-error-banner'));
+    commissionPollGenRef.current += 1;
+    finishCommissionExec(stepKey, label, sduiDoc, hasErr);
+  }, [sduiDoc, commissionExecuting, finishCommissionExec]);
+
+  // 刷新后若 UI 已落地但 executing 状态残留，自动解锁调度按钮
+  useEffect(() => {
+    if (!commissionExecuting || !displayDoc) return;
+    if (!isCommissionStepSettledInDoc(displayDoc, commissionExecuting.stepKey)) return;
+    commissionPollGenRef.current += 1;
+    finishCommissionExec(
+      commissionExecuting.stepKey,
+      commissionExecuting.label,
+      displayDoc,
+      Boolean(findNodeById(displayDoc.root, 'sd-error-banner')),
+    );
+  }, [displayDoc, commissionExecuting, finishCommissionExec]);
+
+  useEffect(() => {
+    if (skillId !== 'software_deployment') return;
+    const onCommission = (e: Event) => {
+      const intent = (e as CustomEvent<CommissionIntent>).detail;
+      if (!intent) return;
+      void handleCommissionIntent(intent);
+    };
+    window.addEventListener('aida:commission', onCommission);
+    return () => window.removeEventListener('aida:commission', onCommission);
+  }, [skillId, handleCommissionIntent]);
+
 
   // 3D 机房入口「下钻→意图」：在意图 HITL 处用所选意图续跑同一 run；否则以该意图启动 run
   const handleIntent = useCallback(async (intent: string) => {
@@ -795,7 +869,12 @@ export default function SkillAgentScreen({
       console.error('[SDUI] reset-workspace error:', e);
     }
     clearSkillRun(skillId);
+    clearPersistedSkillRun(skillId);
     clearSkillHitl(skillId);
+    setBootDoc(null);
+    setLoadError(null);
+    setCommissionExecuting(null);
+    setCommissionPollDoc(null);
     setRunId(null);
     setTaskId(null);
     frozenSnapshotRef.current = null;
@@ -811,75 +890,42 @@ export default function SkillAgentScreen({
 
   // ── 动作处理 ──────────────────────────────────────────────────────────────
   const handleAction = useCallback(async (action: SduiAction) => {
-    try {
-      if (action.kind === 'post_user_message') {
-        const text = action.text;
-        if (text.startsWith('/start_') || text.startsWith('/retry_')) {
-          await handleStart();
-        } else if (text.startsWith('/resume_')) {
-          await doResume({});
-        } else if (text.startsWith('/view_')) {
-          // TODO: 打开报告预览
-        } else if (text.startsWith('/intent ')) {
-          // zhgk：3D 机房下钻预选意图
-          await handleIntent(text.slice('/intent '.length).trim());
-        } else if (text === '/work') {
-          setViewMode('work');
-        } else if (text === '/overview') {
-          setViewMode('overview');
-        } else if (skillId === 'system_design') {
-          // system_design：根据当前态路由自由文本（启动 / 重试 / HITL 续跑 / full_restart 携带指令）
-          const isIdleNow = useClawMode ? !taskId : !runId;
-          const prog = sduiDocRef.current ? extractProgressFromSdui(sduiDocRef.current) : {};
-          const hasHitl = sduiDocRef.current ? !!findNodeById(sduiDocRef.current.root, 'hitl-card') : false;
-          if (isIdleNow) {
-            await handleStart();
-          } else if (prog.phase === 'error') {
-            await doResume({ text, choice: text });
-          } else if (hasHitl) {
-            await doResume({ choice: text, text });
-          } else {
-            // input_check 完成后无 HITL 卡（step_retry 仅重跑检查步）· 仍须 full_restart 携带用户指令
-            await doResume({ text, choice: text });
-            const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
-            if (rid) {
-              void (async () => {
-                for (let i = 0; i < 12; i++) {
-                  await new Promise(r => setTimeout(r, i === 0 ? 300 : 450));
-                  const snap = await fetchUiSnapshot(skillId, rid);
-                  if (!snap) continue;
-                  const hitl = findNodeById(snap.root, 'hitl-card');
-                  const conv = findNodeById(snap.root, 'sd-conversation');
-                  const hasExecConfirm = !!hitl && String((hitl as { title?: string }).title || '').includes('确认执行');
-                  let hasUnderstood = false;
-                  if (conv) walkSduiNodes(conv, n => {
-                    if ((n as { id?: string }).id === 'cv-understood') hasUnderstood = true;
-                  });
-                  if (hasExecConfirm || hasUnderstood) {
-                    postUploadEpochRef.current = Date.now();
-                    setPostUploadDoc(snap);
-                    break;
-                  }
-                }
-              })();
-            }
-          }
-        } else {
-          // zhgk / guihua / device_install：非命令的自由文本交给左栏会话框
-          dispatchRailSend(text);
-        }
-      } else if (action.kind === 'open_preview') {
-        setPreviewPath(action.path);
-      } else if (action.kind === 'reset_session') {
-        void handleResetSession();
+    if (action.kind === 'post_user_message') {
+      const text = action.text;
+      const runStep = text.match(/^\/run_step_([\w_]+?)(_rerun)?$/);
+      if (runStep) {
+        await runCommissionStep(runStep[1]!, !!runStep[2]);
+        return;
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : '操作失败';
-      console.error('[SDUI] action error:', e);
-      updateSkillRun({ phase: 'error', errorMsg: msg });
-      setError(msg);
+      if (text.startsWith('/download_')) {
+        const rel = text.slice('/download_'.length).replace(/^\//, '');
+        if (rel) {
+          const url = `${AGENT_BASE}/agent/${skillId}/artifact?path=${encodeURIComponent(rel)}`;
+          window.open(url, '_blank', 'noopener,noreferrer');
+        }
+        return;
+      }
+      if (text.startsWith('/start_') || text.startsWith('/retry_')) {
+        await handleStart();
+      } else if (text.startsWith('/resume_')) {
+        await doResume({});
+      } else if (text.startsWith('/view_')) {
+        // TODO: 打开报告预览
+      } else if (text.startsWith('/intent ')) {
+        await handleIntent(text.slice('/intent '.length).trim());
+      } else if (text === '/work') {
+        setViewMode('work');
+      } else if (text === '/overview') {
+        setViewMode('overview');
+      } else {
+        dispatchRailSend(text);
+      }
+    } else if (action.kind === 'open_preview') {
+      setPreviewPath(action.path);
+    } else if (action.kind === 'reset_session') {
+      void handleResetSession();
     }
-  }, [handleStart, doResume, handleResetSession, handleIntent, useClawMode, taskId, runId, skillId, activeRunId, storeRun]);
+  }, [handleStart, doResume, handleResetSession, handleIntent, runCommissionStep, skillId]);
 
   // ── 在线编辑型 HITL 提交（resume · rows 由 skill.apply_resume_payload 写回 project）──
   const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[], _stepId?: string) => {
@@ -892,96 +938,18 @@ export default function SkillAgentScreen({
     await runPatchRun(skillId, activeRunId, payload);
   }, [activeRunId, skillId]);
 
-  useEffect(() => {
-    if (skillId === 'system_design') void ensureAgentBase(skillId);
-  }, [skillId]);
-
-  const handleUpload = useCallback(async (
-    files: FileList,
-    _purpose?: string,
-    _stepId?: string,
-    slotTag?: string,
-    slotLabel?: string,
-  ) => {
+  const handleUpload = useCallback(async (files: FileList) => {
     const arr = Array.from(files);
-    const kinds = arr.map(f => resolveUploadSlotTag(slotTag, slotLabel, f.name));
-    const labels = arr.map(() => (slotLabel?.trim() ? slotLabel.trim() : ''));
-    if (kinds.some(k => !k)) {
-      throw new Error('无法识别输入件类型，请从对应槽位（如「项目信息收集表」）点击「上传」');
-    }
-    const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
     try {
-      const result = await uploadBatch(skillId, arr, [], kinds, rid, labels);
-      if (skillId === 'system_design') {
-        const staleMsg = staleSystemDesignUploadMessage(result);
-        if (staleMsg) throw new Error(staleMsg);
-      }
-      const failed = (result.uploaded ?? []).filter(u => u.ok === false);
-      if (failed.length) {
-        const msg = failed.map(f => String(f.error || f.filename || '未知文件')).join('；');
-        throw new Error(`上传失败：${msg}`);
-      }
-      const saved = (result.uploaded ?? []).filter(u => u.ok !== false && u.path);
-      const uploadDir = String(result.upload_dir || result.data_root || result.system_design_root || '');
-      if (saved.length && uploadDir) {
-        console.info('[SDUI] uploaded to', uploadDir, saved.map(u => u.path).join(', '));
-      }
-      if (!saved.length && (result.uploaded ?? []).length) {
-        throw new Error('上传未落盘，请确认 Agent 已重启并加载最新 system_design 配置');
-      }
-      // 双保险：run-patch sync 推送 SDUI（upload/batch 已 sync 时幂等）
-      if (rid) {
-        try {
-          await runPatchRun(skillId, rid, { action: 'sync_inputs' });
-        } catch {
-          // upload/batch 可能已 sync；忽略
-        }
-        const snap = await fetchUiSnapshot(skillId, rid);
-        if (snap) {
-          postUploadEpochRef.current = Date.now();
-          setPostUploadDoc(snap);
-        }
-      } else if (saved.length) {
-        // 无 run_id 时至少提示落盘路径（文件已在 upload_dir）
-        console.warn('[SDUI] uploaded without run_id — 请启动 run 后刷新页面以更新槽位状态');
-      }
+      await uploadBatch(skillId, arr);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : '上传失败，请检查文件格式或网络连接';
       console.error('[SDUI] upload error:', e);
-      setError(msg);
-      throw e instanceof Error ? e : new Error(msg);
+      throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
     }
-    setError(null);
-    // 仅「输入件准备」HITL 卡内上传后自动重试 input_check；输入件页签上传只 sync 不续跑
-    const doc = sduiDocRef.current;
-    const hitlCard = doc ? findNodeById(doc.root, 'hitl-card') : null;
-    const isInputPrepareHitl = !!hitlCard && String((hitlCard as { title?: string }).title || '') === '输入件准备';
-    if (isInputPrepareHitl && rid) {
-      setTimeout(() => {
-        void (async () => {
-          await doResume({ uploaded: arr.map(f => f.name) });
-          // step_retry 异步完成后再拉 /ui，刷新左栏「输入件检查完成 / 选择规划任务」会话气泡
-          for (let i = 0; i < 10; i++) {
-            await new Promise(r => setTimeout(r, i === 0 ? 250 : 400));
-            const snap = await fetchUiSnapshot(skillId, rid);
-            if (snap && sduiHasInputCheckDone(snap)) {
-              postUploadEpochRef.current = Date.now();
-              setPostUploadDoc(snap);
-              break;
-            }
-          }
-        })();
-      }, HITL_HOLD_MS);
-    }
-    // zhgk / guihua / device_install：上传后统一续跑；system_design 仅在「输入件准备」HITL 内续跑（上方已处理），其余只 sync
-    if (skillId !== 'system_design') {
-      await doResume({ uploaded: arr.map(f => f.name) });
-    }
-  }, [skillId, doResume, activeRunId, storeRun]);
+    await doResume({ uploaded: arr.map(f => f.name) });
+  }, [skillId, doResume]);
 
-  const handleChoiceSubmit = useCallback(async (value: string, _stepId?: string) => {
-    // 组件已显示「已提交」确认态 → 先 hold 再推进，保证确认态可见一段时间
-    await new Promise(r => setTimeout(r, HITL_HOLD_MS));
+  const handleChoiceSubmit = useCallback(async (value: string) => {
     await doResume({ choice: value });
   }, [doResume]);
 
@@ -990,57 +958,31 @@ export default function SkillAgentScreen({
   // 左侧 SkillRunBanner 据此渲染可交互卡。无 HITL / 卸载时清除。
   // 在线编辑卡（hitl-edit-card）默认留在右侧大盘，仅 meta.route_hitl_edit==='chat' 才移交。
   useEffect(() => {
-    if (!effectiveSduiDoc || !activeRunId) { clearSkillHitl(skillId); return; }
-    const card = findNodeById(effectiveSduiDoc.root, 'hitl-card')
-      ?? (routeHitlEdit === 'chat' ? findNodeById(effectiveSduiDoc.root, 'hitl-edit-card') : null);
+    if (!displayDoc || !activeRunId) { clearSkillHitl(skillId); return; }
+    const card = findNodeById(displayDoc.root, 'hitl-card')
+      ?? (routeHitlEdit === 'chat' ? findNodeById(displayDoc.root, 'hitl-edit-card') : null);
     if (card) {
       setSkillHitl({
         skillId, runId: activeRunId, node: card,
-        onChoiceSubmit: handleChoiceSubmit,
-        onUpload: handleUpload,
-        onAction: (action) => { void handleAction(action); },
+        onChoiceSubmit: handleChoiceSubmit, onUpload: handleUpload,
       });
     } else if (!frozenDoc && !frozenSnapshotRef.current) {
       clearSkillHitl(skillId);
     }
-  }, [effectiveSduiDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, handleAction, routeHitlEdit]);
+  }, [displayDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, routeHitlEdit]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
-
-  // ── 会话流（AIDA 助手）提升到左侧会话框（system_design 交付台）────────────
-  useEffect(() => {
-    if (!usesDeliveryWorkbench) { clearSkillConversation(skillId); return; }
-    if (!effectiveSduiDoc || !activeRunId) { clearSkillConversation(skillId); return; }
-    const conv = findNodeById(effectiveSduiDoc.root, 'sd-conversation');
-    if (conv) {
-      setSkillConversation({
-        skillId, runId: activeRunId,
-        node: ensureConversationErrorBubble(conv, effectiveSduiDoc),
-        runtime: {
-          runId: activeRunId,
-          skillId,
-          onAction: (action) => { void handleAction(action); },
-          onUpload: handleUpload,
-          onChoiceSubmit: handleChoiceSubmit,
-        },
-      });
-    } else {
-      clearSkillConversation(skillId);
-    }
-  }, [usesDeliveryWorkbench, effectiveSduiDoc, sduiDoc, activeRunId, skillId, handleAction, handleUpload, handleChoiceSubmit]);
-
-  useEffect(() => () => clearSkillConversation(skillId), [skillId]);
 
   // ── SDUI 运行时 ──────────────────────────────────────────────────────────
   const runtime: SduiRuntime = {
     runId: activeRunId,
-    skillId,
     onAction: (action) => { void handleAction(action); },
-    onUpload: handleUpload,
-    onChoiceSubmit: handleChoiceSubmit,
+    onUpload: (files) => { void handleUpload(files); },
+    onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
     onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
     onRunPatch: handleRunPatch,
     streamEpoch,
+    commissionExecuting,
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────────────
@@ -1048,8 +990,14 @@ export default function SkillAgentScreen({
   if (isIdle && !starting) {
     return (
       <div style={{ height: '100%', overflow: 'auto' }}>
-        <IdleScreen skillId={skillId} title={title} description={description} onStart={() => { void handleStart(); }} loading={starting} />
-        {nextModule && <NextModuleButton label={nextModule.label} onClick={() => navigate(nextModule.to)} />}
+        <IdleScreen
+          skillId={skillId}
+          title={title}
+          description={description}
+          onStart={() => { void handleStart(); }}
+          onCommissionStart={skillId === 'software_deployment' ? () => { void handleStart({ entry_mode: 'commission' }); } : undefined}
+          loading={starting}
+        />
         {error && (
           <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--red-50)', borderRadius: 'var(--radius-md)', color: 'var(--red-700)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
             {error}
@@ -1060,19 +1008,14 @@ export default function SkillAgentScreen({
   }
 
   const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
-  // 交付台 skill（system_design）不走 3D 两态；其它 skill 保留总览 ↔ 作业切换
-  const showOverviewBar = !usesDeliveryWorkbench && viewMode === 'overview' && !!displayDoc && hasMachineRoom3d(displayDoc.root);
+  const showOverviewBar = viewMode === 'overview' && !!displayDoc && hasMachineRoom3d(displayDoc.root);
   const displayRoot = displayDoc
-    ? (usesDeliveryWorkbench
-        // 交付台：右栏面板剥离左栏会话与 HITL 卡（它们已提升到左侧 ClawRail）
-        ? dropConversationFromPanel(dropHitlFromPanel(displayDoc.root))
-        // 其它 skill：HITL 路由到左栏 + 两态视图裁剪
-        : applyViewMode(
-            leftRailHitl
-              ? stripHitlCard(displayDoc.root)
-              : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
-            viewMode,
-          ))
+    ? applyViewMode(
+        leftRailHitl
+          ? stripHitlCard(displayDoc.root)
+          : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
+        viewMode,
+      )
     : null;
 
   return (
@@ -1084,16 +1027,30 @@ export default function SkillAgentScreen({
           ...(WORKBENCH_LAYOUTS[workbenchClass] ?? {}),
         }}
       >
-        {usesDeliveryWorkbench && !!displayDoc?.meta?.error && (
-          <div style={{ marginBottom: 12, padding: 12, background: 'var(--c-danger-soft)', borderRadius: 'var(--r-md)', color: 'var(--c-danger-text)', fontSize: 'var(--fs-13)' }}>
-            {String(displayDoc.meta.error)}
+        {commissionExecuting ? (
+          <div style={{
+            marginBottom: 12, padding: '10px 14px', borderRadius: 8,
+            background: '#eef1fc', border: '1px solid #c7d2fe',
+            fontSize: 13, color: '#1e34a8', display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <i style={{
+              width: 14, height: 14, borderRadius: '50%',
+              border: '2px solid #3551d8', borderTopColor: 'transparent',
+              display: 'inline-block', flexShrink: 0, animation: 'spin .8s linear infinite',
+            }} />
+            正在执行 · {commissionExecuting.label}（范围：{formatCommissionScope(commissionExecuting.scope)}）
           </div>
-        )}
-        {error && (
-          <div style={{ marginBottom: 12, padding: 12, background: 'var(--c-danger-soft)', borderRadius: 'var(--r-md)', color: 'var(--c-danger-text)', fontSize: 'var(--fs-13)' }}>
-            {error}
+        ) : null}
+        {loadError ? (
+          <div style={{ padding: 24, textAlign: 'center', color: 'var(--red-700)', fontSize: 'var(--text-sm)', marginBottom: 12 }}>
+            {loadError}
+            <div style={{ marginTop: 12 }}>
+              <Button variant="secondary" size="sm" onClick={() => { clearPersistedSkillRun(skillId); setRunId(null); setLoadError(null); setBootDoc(null); }}>
+                返回启动页
+              </Button>
+            </div>
           </div>
-        )}
+        ) : null}
         {showOverviewBar && (
           <div
             style={{
@@ -1136,30 +1093,6 @@ export default function SkillAgentScreen({
           <SduiPreviewModal skillId={skillId} path={previewPath} onClose={() => setPreviewPath(null)} />
         </Suspense>
       )}
-      {nextModule && <NextModuleButton label={nextModule.label} onClick={() => navigate(nextModule.to)} />}
     </SduiRuntimeContext.Provider>
-  );
-}
-
-function NextModuleButton({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        position: 'fixed', right: 28, bottom: 28, zIndex: 40,
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        padding: '11px 20px', borderRadius: 999, border: 'none', cursor: 'pointer',
-        color: '#fff', fontSize: 14, fontWeight: 600, letterSpacing: '.01em',
-        background: 'linear-gradient(118deg, #3551d8 0%, #5b3ce0 52%, #7c3aed 100%)',
-        boxShadow: '0 14px 34px -12px rgba(53,81,216,.6)',
-      }}
-    >
-      {label}
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M5 12h14M13 6l6 6-6 6" />
-      </svg>
-    </button>
   );
 }

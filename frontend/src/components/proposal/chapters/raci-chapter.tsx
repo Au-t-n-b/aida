@@ -1,20 +1,23 @@
 'use client';
 
+import { useState } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { useProposalData } from '@/hooks/useProposalData';
-import type { RaciRow } from '@/types/domain';
+import { RACI_ROWS } from '../proposal-data';
 
+type RaciRow = (typeof RACI_ROWS)[number];
 type RoleField = 'gts' | 'hw' | 'partner' | 'customer';
 
 const ROLE_INPUT =
   'w-full cursor-pointer rounded border border-transparent bg-transparent px-1 py-0.5 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
+/* RACI 取值枚举（下拉，防止填错）·空值显示「—」 */
 const ROLE_OPTIONS = ['', 'R', 'A', 'S', 'C', 'I', 'R/A'];
 
+/** 连续相同 key 的行合并：首行返回跨度，其余返回 0 */
 function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[] {
   return rows.map((row, i) => {
     const prev = rows[i - 1];
@@ -30,11 +33,9 @@ function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[
 }
 
 export function RaciChapter() {
-  const { raciRows, updateRaci, loading } = useProposalData();
-  const rows = raciRows;
-
+  const [rows, setRows] = useState<RaciRow[]>(() => RACI_ROWS.map((r) => ({ ...r })));
   const update = (i: number, key: RoleField, value: string) =>
-    updateRaci(rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
 
   const stackSpans = spans(rows, (r) => r.stack);
   const catSpans = spans(rows, (r) => `${r.stack}||${r.cat}`);
@@ -51,7 +52,6 @@ export function RaciChapter() {
 
   return (
     <ProposalChapterCard id="panel-raci" title="9. 责任矩阵信息">
-      {loading && <p className="mb-2 text-xs text-slate-400">正在加载责任矩阵…</p>}
       <div className="overflow-x-auto">
         <ProposalDataTable leftAlign className="min-w-[920px] table-fixed proposal-table-aligned">
           <colgroup>

@@ -24,17 +24,18 @@ def _register_all():
     单个 skill 缺目录 / 导入失败时**只跳过它**，不拖垮整个注册表——
     否则一个未提交的可选 skill（如 device_install）会让全部 skill 不可用。
     """
+    import importlib
     import sys
 
     # (skill 名, "模块路径:工厂函数名")
     _specs = [
-        ("zhgk",           ".zhgk.skill:get_zhgk_skill"),
-        ("guihua",         ".guihua.skill:get_guihua_skill"),
-        ("xtsj",           ".xtsj.skill:get_xtsj_skill"),
-        ("system_design",  ".system_design.skill:get_system_design_skill"),
-        ("device_install", ".device_install.skill:get_device_install_skill"),
+        ("zhgk",                ".zhgk.skill:get_zhgk_skill"),
+        ("guihua",              ".guihua.skill:get_guihua_skill"),
+        ("xtsj",                ".xtsj.skill:get_xtsj_skill"),
+        ("system_design",       ".system_design.skill:get_system_design_skill"),
+        ("device_install",      ".device_install.skill:get_device_install_skill"),
+        ("software_deployment", ".software_deployment.skill:get_software_deployment_skill"),
     ]
-    import importlib
     for name, target in _specs:
         mod_path, factory_name = target.split(":")
         try:

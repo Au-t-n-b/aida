@@ -1,0 +1,241 @@
+{
+  "source_file": "JXX项目网络设备_76pcsCE9866_拆分_年费_0R00Hc00847542202511200004_不含价格.xlsx",
+  "parsed_at": "2026-06-11T15:36:06+08:00",
+  "project": {},
+  "sites": [
+    "站点1"
+  ],
+  "products": [
+    {
+      "sheet": "CE9865-4C",
+      "product_id": "",
+      "product_head": "CE9865-4C",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "CloudEngine 9800 & XH9000 TOR 交换机",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "1.1",
+          "name": "CloudEngine 9800 主设备",
+          "level": 2,
+          "parent_sort_no": "1"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "N1-CE98CFAD-OTT-SnS1Y",
+          "part_number": "88064ERA",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "N1-CE9800交换机CloudFabric Advanced软件包(OTT)-Subscription and Support-1年",
+          "total_qty": 76,
+          "site_qty": {
+            "站点1": 76
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 CloudEngine 9800 主设备",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 13
+        },
+        {
+          "sort_no": "",
+          "sales_code": "N1-CE98AI-OTT-SnS1Y",
+          "part_number": "88064ERC",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "N1-CloudEngine 9800交换机AI场景增值包(OTT)-Subscription and Support-1年",
+          "total_qty": 76,
+          "site_qty": {
+            "站点1": 76
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 CloudEngine 9800 主设备",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 14
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "优选标识",
+        "含软件备注",
+        "总数",
+        "参考备货周期\n(天)",
+        "站点1"
+      ]
+    }
+  ],
+  "item_summary": [],
+  "item_summary_by_product": [],
+  "model_summary": [],
+  "raw_headers": {
+    "CE9865-4C": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "优选标识",
+      "含软件备注",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ]
+  },
+  "warnings": [
+    {
+      "level": "info",
+      "sheet": "汇总表",
+      "row": 0,
+      "code": "summary_table_skipped",
+      "message": "汇总表（配置名称-数量）已识别，不抽取为设备清单"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='CE9865-4C')"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 'N1-CE98CFAD-OTT-SnS1Y' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: N1-CE98CFAD-OTT-SnS1Y"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 14,
+      "code": "unknown_product",
+      "message": "型号 'N1-CE98AI-OTT-SnS1Y' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 14,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: N1-CE98AI-OTT-SnS1Y"
+    }
+  ],
+  "sheet_roles": [
+    {
+      "sheet": "封面",
+      "role": "ignore",
+      "signals": {
+        "title": "封面",
+        "n_rows": 15,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:封面"
+      }
+    },
+    {
+      "sheet": "免责声明",
+      "role": "ignore",
+      "signals": {
+        "title": "免责声明",
+        "n_rows": 24,
+        "n_cols": 3,
+        "reason": "blacklist_keyword:免责声明"
+      }
+    },
+    {
+      "sheet": "基础信息表",
+      "role": "ignore",
+      "signals": {
+        "title": "基础信息表",
+        "n_rows": 22,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:基础信息表"
+      }
+    },
+    {
+      "sheet": "汇总表",
+      "role": "summary_table",
+      "signals": {
+        "title": "汇总表",
+        "n_rows": 11,
+        "n_cols": 5,
+        "meta": {
+          "any_meta": 2,
+          "partnumber": 0,
+          "partnumber_nested": 0,
+          "productid": 1,
+          "isquoteleaf": 1,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 2,
+        "has_device_headers": false,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "统计",
+      "role": "ignore",
+      "signals": {
+        "title": "统计",
+        "n_rows": 14,
+        "n_cols": 11,
+        "reason": "blacklist_keyword:统计"
+      }
+    },
+    {
+      "sheet": "CE9865-4C",
+      "role": "l3_device",
+      "signals": {
+        "title": "CE9865-4C",
+        "n_rows": 14,
+        "n_cols": 11,
+        "meta": {
+          "any_meta": 5,
+          "partnumber": 2,
+          "partnumber_nested": 0,
+          "productid": 5,
+          "isquoteleaf": 2,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 5,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    }
+  ],
+  "_stats": {
+    "cluster_expanded": 0
+  }
+}

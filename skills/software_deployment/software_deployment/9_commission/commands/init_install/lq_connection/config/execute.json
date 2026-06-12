@@ -1,0 +1,7 @@
+{
+  "taskName": "",
+  "scenario": "trainingServer",
+  "serviceDeviceIds": [],
+  "switchesDeviceIds": [],
+  "checkType": "hccsSwitch"
+}

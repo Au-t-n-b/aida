@@ -14,6 +14,13 @@ const MODULE_TO_SKILL: Record<string, string> = {
   modeling: 'guihua',
   design: designSkillId,
   install: 'device_install',
+  deploy: 'software_deployment',
+};
+
+/** 已接 LangGraph skill、但尚未写入 MODULE_SCHEMAS 的模块展示名 */
+const MODULE_DISPLAY_NAMES: Record<string, string> = {
+  install: '设备安装',
+  deploy: '部署调测',
 };
 
 /* 模块衔接：建模仿真 → 系统设计（xtsj PoC 模式下禁用 autostart） */
@@ -25,7 +32,7 @@ function ModuleInner({ moduleKey }: { moduleKey: string }) {
   const { tweaks, setTweak } = useTweaks();
   const schema = MODULE_SCHEMAS[moduleKey as keyof typeof MODULE_SCHEMAS];
   const moduleEntry = ALL_MODULES.find(m => m.key === moduleKey);
-  const name = schema?.name ?? moduleEntry?.name ?? moduleKey;
+  const name = schema?.name ?? moduleEntry?.name ?? MODULE_DISPLAY_NAMES[moduleKey] ?? moduleKey;
   const skillId = MODULE_TO_SKILL[moduleKey];
   const nextModule = MODULE_NEXT[moduleKey];
 
