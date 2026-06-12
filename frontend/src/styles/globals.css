@@ -2172,8 +2172,12 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .app-shell.claw-collapsed .claw-mini,
 .claw-rail.claw-rail--collapsed .claw-mini { display: flex; }
-.app-shell.claw-collapsed .claw-rail > *:not(.claw-mini):not(.claw-rail-resize),
-.claw-rail.claw-rail--collapsed > *:not(.claw-mini):not(.claw-rail-resize) { display: none; }
+.app-shell.claw-collapsed .claw-rail > *:not(.claw-mini):not(.claw-rail-resize):not(.claw-collapse-toolbar-btn),
+.claw-rail.claw-rail--collapsed > *:not(.claw-mini):not(.claw-rail-resize):not(.claw-collapse-toolbar-btn) { display: none; }
+.claw-rail.claw-rail--collapsed > .claw-collapse-toolbar-btn,
+.app-shell.claw-collapsed .claw-rail > .claw-collapse-toolbar-btn {
+  display: grid;
+}
 
 .claw-context { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 12px 8px; border-bottom: 1px solid var(--c-divider); font-size: 10px; color: var(--c-text-faint); letter-spacing: .4px; }
 .ctx-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 3px; background: var(--c-brand-soft); color: var(--c-brand-text); font-size: 10px; border: 1px solid transparent; }

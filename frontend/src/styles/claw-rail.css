@@ -111,8 +111,12 @@
 }
 .app-shell.claw-collapsed .claw-mini,
 .claw-rail.claw-rail--collapsed .claw-mini { display: flex; }
-.app-shell.claw-collapsed .claw-rail > *:not(.claw-mini):not(.claw-rail-resize),
-.claw-rail.claw-rail--collapsed > *:not(.claw-mini):not(.claw-rail-resize) { display: none; }
+.app-shell.claw-collapsed .claw-rail > *:not(.claw-mini):not(.claw-rail-resize):not(.claw-collapse-toolbar-btn),
+.claw-rail.claw-rail--collapsed > *:not(.claw-mini):not(.claw-rail-resize):not(.claw-collapse-toolbar-btn) { display: none; }
+.claw-rail.claw-rail--collapsed > .claw-collapse-toolbar-btn,
+.app-shell.claw-collapsed .claw-rail > .claw-collapse-toolbar-btn {
+  display: grid;
+}
 
 
 .claw-thread { flex: 1; overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }

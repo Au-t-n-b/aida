@@ -17,6 +17,9 @@ function ProposalInner() {
           onToggle={() => setTweak('clawCollapsed', !tweaks.clawCollapsed)}
           width={tweaks.clawWidth}
           onResize={(w) => setTweak('clawWidth', w)}
+          hideSwap
+          hideSuggests
+          inputPlaceholder=""
         />
       }
     >

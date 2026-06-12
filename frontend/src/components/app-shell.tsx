@@ -251,8 +251,8 @@ export function AppShell({ children, breadcrumbs = [], withClaw = false, clawRai
   };
 
   const enrichedClawRail =
-    clawRail && React.isValidElement<{ onSwap?: () => void; onResize?: (w: number) => void }>(clawRail)
-      ? React.cloneElement(clawRail, { onSwap: swapSide, onResize: setClawWidth })
+    clawRail && React.isValidElement<{ onSwap?: () => void; onResize?: (w: number) => void; clawSide?: 'left' | 'right' }>(clawRail)
+      ? React.cloneElement(clawRail, { onSwap: swapSide, onResize: setClawWidth, clawSide })
       : clawRail;
 
   return (
