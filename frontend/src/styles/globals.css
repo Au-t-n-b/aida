@@ -5960,11 +5960,6 @@ html { scroll-behavior: smooth; }
   background: var(--c-bg-soft);
 }
 .boq-preview-title { font-size: 15px; font-weight: 700; color: var(--c-text); }
-.boq-preview-sub {
-  display: flex; align-items: center; gap: 8px;
-  margin-top: 6px;
-  font-size: 11px; color: var(--c-text-muted);
-}
 .boq-preview-close {
   width: 28px; height: 28px; border-radius: 4px;
   background: transparent; color: var(--c-text-muted);
@@ -5998,6 +5993,7 @@ html { scroll-behavior: smooth; }
   transition: border-color .15s, box-shadow .15s;
 }
 .boq-attach-row:hover { border-color: #93c5fd; box-shadow: 0 2px 8px rgba(15,23,42,0.06); }
+.boq-attach-row.active { border-color: #2563eb; box-shadow: 0 0 0 1px rgba(37,99,235,0.12); }
 .boq-attach-icon {
   flex: none;
   width: 38px; height: 38px; border-radius: 6px;
@@ -6007,6 +6003,8 @@ html { scroll-behavior: smooth; }
 }
 .boq-attach-icon.ext-pdf  { background: #ef4444; }
 .boq-attach-icon.ext-xlsx { background: #16a34a; }
+.boq-attach-icon.ext-xls,
+.boq-attach-icon.ext-csv { background: #15803d; }
 .boq-attach-icon.ext-docx { background: #2563eb; }
 .boq-attach-icon.ext-png,
 .boq-attach-icon.ext-jpg,
@@ -6023,11 +6021,105 @@ html { scroll-behavior: smooth; }
   font-size: 12px; cursor: pointer;
   border: 1px solid var(--c-border); background: var(--c-surface); color: var(--c-text-2);
   transition: background .15s, color .15s, border-color .15s;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
 }
 .boq-attach-btn:hover:not(:disabled) { background: var(--c-bg-soft); color: var(--c-text); }
 .boq-attach-btn.primary { border-color: #2563eb; background: #2563eb; color: #fff; }
 .boq-attach-btn.primary:hover { background: #1d4ed8; border-color: #1d4ed8; }
 .boq-attach-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.boq-current-file-card {
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-surface);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+.boq-current-file-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-bg-soft);
+}
+.boq-current-file-meta { flex: 1; min-width: 0; }
+.boq-current-file-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.boq-current-file-actions { flex: none; display: flex; gap: 8px; }
+.boq-file-preview {
+  min-height: 260px;
+  max-height: 46vh;
+  overflow: auto;
+  background: #fff;
+}
+.boq-file-preview-empty {
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+.boq-sheet-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 8px 10px 0;
+  border-bottom: 1px solid var(--c-border);
+  overflow-x: auto;
+}
+.boq-sheet-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 7px 12px;
+  color: var(--c-text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.boq-sheet-tab.on {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  font-weight: 700;
+}
+.boq-xlsx-preview { padding: 12px; overflow: auto; }
+.boq-xlsx-preview table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+  font-size: 12px;
+}
+.boq-xlsx-preview td,
+.boq-xlsx-preview th {
+  border: 1px solid var(--c-border);
+  padding: 5px 8px;
+  white-space: nowrap;
+  color: var(--c-text-2);
+}
+.boq-xlsx-preview tr:first-child td {
+  position: sticky;
+  top: 0;
+  background: var(--c-bg-soft);
+  color: var(--c-text);
+  font-weight: 700;
+}
+.boq-text-preview {
+  margin: 0;
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: var(--c-text-2);
+}
 
 .boq-attach-toast {
   position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%);

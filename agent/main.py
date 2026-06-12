@@ -18,16 +18,18 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sse_starlette.sse import EventSourceResponse
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from .graph import get_graph_async, close_graph_async
 from .state import AgentState
@@ -107,9 +109,27 @@ class ResumeReq(BaseModel):
     from_step: str | None = None  # 如 report_distribute：仅重试该步，不全量重跑
 
 
-class RunPatchReq(BaseModel):
-    run_id: str
-    payload: dict = {}
+class PreviewBoqUploadResp(BaseModel):
+    ok: bool
+    proposal_id: str
+    filename: str | None = None
+    path: str | None = None
+    size: int = 0
+    uploaded: list[dict[str, Any]] = Field(default_factory=list)
+    boq_files: list[dict[str, Any]]
+
+
+class PreviewBoqListResp(BaseModel):
+    ok: bool
+    proposal_id: str
+    boq_files: list[dict[str, Any]]
+
+
+class PreviewContractListResp(BaseModel):
+    ok: bool
+    proposal_id: str
+    contracts: list[dict[str, Any]]
+
 
 # ─── 健康检查 ───
 
@@ -134,21 +154,8 @@ def healthz():
             out["ok"] = False
     out["skills"] = skills_health
     out["llm"] = llm_healthcheck()
-    try:
-        from .nanobot_integration.config_bridge import nanobot_status
-        out["nanobot"] = nanobot_status()
-    except Exception as e:  # noqa: BLE001
-        out["nanobot"] = {"enabled": False, "error": str(e)}
     if not out["llm"].get("configured"):
         out["ok"] = False
-    try:
-        from agent.skills.zhgk import sdui as _zhgk_sdui
-        out["zhgk_sdui"] = {
-            "file": _zhgk_sdui.__file__,
-            "has_3d_cockpit": hasattr(_zhgk_sdui, "_build_machine_room_3d"),
-        }
-    except Exception as e:  # noqa: BLE001
-        out["zhgk_sdui"] = {"error": str(e)}
     code = 200 if out["ok"] else 500
     return JSONResponse(status_code=code, content=out)
 
@@ -186,14 +193,9 @@ def get_skill(skill_name: str):
 
 # ─── 工作流启动 ───
 
-async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None,
-                               suppress_replay: bool = False):
+async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None):
     """后台跑 LangGraph，所有 update 推到 run_id 对应 queue。
-    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。
-
-    suppress_replay=True（full_restart 重放专用）：重放期间抑制所有中间 SDUI 帧
-    （overlay + 逐节点），仅在重放结束（HITL 暂停 / 完成）后补推一帧最终树——
-    避免右侧界面「回退到环境准备再逐帧爬回当前」的闪烁。/ui 快照期间由 display_state 兜底。"""
+    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。"""
     from .skills.base import register_run_push, unregister_run_push
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
@@ -223,29 +225,6 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
     loop = asyncio.get_running_loop()
     RUNS[run_id]["_running_step"] = None   # {key, name, log_tail} | None
     _emit_cnt: dict[str, int] = {}         # step_key → emit 累计次数（节流用）
-    # full_restart 重放期间抑制中间 SDUI；sn_generate 与冷启动 preflight 一样需可见 running
-    _PACE_VISIBLE_ON_REPLAY = frozenset({"sn_generate"})
-    # 中间对话框日志：跨 resume 持久的「已展示步骤」集合（确保每步日志只在首次真正执行时出现一次：
-    # 冷启动→预检/收计划；点确认下发后→计划下发/SN；点提交ESN后→ESN。避免重放重复刷屏）。
-    _runlog_logged: set[str] = RUNS[run_id].setdefault("_runlog_logged", set())
-    _runlog_shown_pass: set[str] = set()   # 本 pass 实际放行的步骤（保证同一步起止/逐行一致）
-    # 主建设 build 流程末尾会串过辅助只读步，command 不匹配时 run 空转但仍会 step_started；
-    # 中间对话框不展示这类空气泡。
-    _BUILD_AUX_LOG_STEPS = frozenset({
-        "progress_query", "plan_query", "device_overview", "plan_adjust",
-    })
-
-    def _suppress_aux_run_log(step_key: str) -> bool:
-        if step_key not in _BUILD_AUX_LOG_STEPS:
-            return False
-        if skill_id != "device_install":
-            return False
-        project = (RUNS[run_id].get("state") or {}).get("project") or {}
-        try:
-            from agent.skills.device_install.steps._command_guard import should_skip
-            return should_skip(step_key, project)
-        except Exception:
-            return False
 
     def _patched_state_with_running() -> dict:
         """构造带 running 记录的临时 state（不修改原 state）。"""
@@ -266,16 +245,8 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             }],
         }
 
-    def _push_run_log(payload: dict) -> None:
-        """向中间对话框推一条逐行运行日志事件（线程安全 · 不节流）。"""
-        loop.call_soon_threadsafe(queue.put_nowait, {"event": "run_log", "data": payload})
-
     def _push_sdui_overlay() -> None:
         """用带 running 记录的 patched state 生成 SDUI 并推入队列（线程安全）。"""
-        if suppress_replay:
-            running = RUNS[run_id].get("_running_step") or {}
-            if running.get("key") not in _PACE_VISIBLE_ON_REPLAY:
-                return
         try:
             _proj = _get_sdui_projector(skill_id)
             if _proj is None:
@@ -299,15 +270,6 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
-            # 中间对话框：开一个该节点的日志气泡（节点名作标题）。
-            # 冷启动全部放行；重放仅放行尚未展示过的步骤（首次真正执行时）。
-            # build 主流程跳过的辅助只读步不展示。
-            if not _suppress_aux_run_log(d["step"]) and (
-                (not suppress_replay) or (d["step"] not in _runlog_logged)
-            ):
-                _runlog_shown_pass.add(d["step"])
-                _runlog_logged.add(d["step"])
-                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
 
         elif ev == "step_log":
             d = item["data"]
@@ -318,18 +280,10 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 tail.append(d["msg"])
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
-            # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
-            if step_key in _runlog_shown_pass:
-                _push_run_log({
-                    "step": step_key,
-                    "name": (running or {}).get("name", ""),
-                    "msg": d["msg"],
-                    "phase": "log",
-                })
             # 节流：每 5 条 emit 推一次 SDUI（避免高频 LLM step 频繁序列化）
             cnt = _emit_cnt.get(step_key, 0) + 1
             _emit_cnt[step_key] = cnt
-            if (suppress_replay and step_key in _PACE_VISIBLE_ON_REPLAY) or cnt % 5 == 0:
+            if cnt % 5 == 0:
                 _push_sdui_overlay()
 
     register_run_push(run_id, _thread_push)
@@ -352,36 +306,14 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                         cur.setdefault(k, []).extend(v)
                     else:
                         cur[k] = v
-                # 中间对话框：节点完成 → 收尾对应日志气泡（仅本 pass 已放行的步骤 + 终态）
-                if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
-                    _last_status = ""
-                    _dsteps = diff.get("steps") if isinstance(diff, dict) else None
-                    if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
-                        _last_status = _dsteps[-1].get("status", "")
-                    if _last_status in ("completed", "failed"):
-                        await queue.put({"event": "run_log", "data": {
-                            "step": node_name,
-                            "phase": "done" if _last_status == "completed" else "failed",
-                        }})
-                # 重放期间跳过中间帧；sn_generate 完成帧仍推送（与 preflight 步进条体验一致）
-                if not suppress_replay or node_name in _PACE_VISIBLE_ON_REPLAY:
-                    try:
-                        _proj = _get_sdui_projector(skill_id)
-                        if _proj is not None:
-                            sdui_doc = _proj(RUNS[run_id]["state"])
-                            await queue.put({"event": "sdui", "data": sdui_doc})
-                    except Exception:
-                        pass
-
-        # 重放结束：补推一帧最终树（暂停态 / 完成态），并解除 display_state 兜底
-        if suppress_replay:
-            try:
-                _proj = _get_sdui_projector(skill_id)
-                if _proj is not None:
-                    await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
-            except Exception:
-                pass
-            RUNS[run_id]["display_state"] = RUNS[run_id]["state"]
+                # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）
+                try:
+                    _proj = _get_sdui_projector(skill_id)
+                    if _proj is not None:
+                        sdui_doc = _proj(RUNS[run_id]["state"])
+                        await queue.put({"event": "sdui", "data": sdui_doc})
+                except Exception:
+                    pass
 
         final_state = RUNS[run_id]["state"]
         hitl = final_state.get("hitl") or {}
@@ -419,18 +351,6 @@ async def start_run(skill: str, req: StartReq):
     return {"run_id": run_id, "status": "started"}
 
 
-@app.post("/agent/{skill}/reset-workspace")
-async def reset_workspace_endpoint(skill: str):
-    """重置 skill 工作区：清空 ProjectData 运行态与产物，保留 Input（重置会话时调用）。"""
-    skill_obj = _get_skill_or_404(skill)
-    handler = getattr(skill_obj, "file_handler", None)
-    reset_fn = getattr(handler, "reset_workspace", None) if handler else None
-    if not callable(reset_fn):
-        raise HTTPException(404, f"skill {skill} 不支持工作区重置")
-    summary = reset_fn(skill_obj.work_root)
-    return summary
-
-
 # ─── SSE 订阅 ───
 
 async def _sse_generator(run_id: str) -> AsyncIterator[dict]:
@@ -439,15 +359,13 @@ async def _sse_generator(run_id: str) -> AsyncIterator[dict]:
         return
 
     async def _send_snapshot() -> AsyncIterator[dict]:
-        """快照辅助：发 snapshot + sdui，供首连和 resume 无缝切换时复用。
-        full_restart 重放期间用 display_state（重放前旧态）兜底，避免快照回退到「环境准备」。"""
-        snap_state = RUNS[run_id].get("display_state") or RUNS[run_id]["state"]
-        yield {"event": "snapshot", "data": json.dumps(snap_state, ensure_ascii=False, default=str)}
+        """快照辅助：发 snapshot + sdui，供首连和 resume 无缝切换时复用。"""
+        yield {"event": "snapshot", "data": json.dumps(RUNS[run_id]["state"], ensure_ascii=False, default=str)}
         try:
-            _skill_id = snap_state.get("skill_id", "zhgk")
+            _skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
             _proj = _get_sdui_projector(_skill_id)
             if _proj is not None:
-                sdui_snap = _proj(snap_state)
+                sdui_snap = _proj(RUNS[run_id]["state"])
                 yield {"event": "sdui", "data": json.dumps(sdui_snap, ensure_ascii=False, default=str)}
         except Exception:
             pass
@@ -573,29 +491,15 @@ async def chat_stream_endpoint(req: ChatReq):
 
         async def _chat_task() -> None:
             try:
-                from .nanobot_integration.nanobot_chat import (
-                    _enabled as _nanobot_chat_enabled,
-                    run_nanobot_chat_async,
-                )
-
-                if _nanobot_chat_enabled():
-                    chat_iter = run_nanobot_chat_async(
-                        req.message,
-                        conv_id=conv_id or None,
-                        system=_chat_system(ctx),
-                    )
-                else:
-                    chat_iter = run_chat_async(
-                        req.message,
-                        history=req.history or None,
-                        system=_chat_system(ctx),
-                        trace_meta={"scope": "chat", "page": ctx.get("page", "")},
-                        conv_id=conv_id or None,
-                        skill_launch_cb=_skill_launch_cb,
-                        approval_cb=_approval_cb,
-                    )
-
-                async for ev in chat_iter:
+                async for ev in run_chat_async(
+                    req.message,
+                    history=req.history or None,
+                    system=_chat_system(ctx),
+                    trace_meta={"scope": "chat", "page": ctx.get("page", "")},
+                    conv_id=conv_id or None,
+                    skill_launch_cb=_skill_launch_cb,
+                    approval_cb=_approval_cb,
+                ):
                     if ev.get("type") == "tool_call":
                         flags["had_tools"] = True
                     await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
@@ -761,13 +665,9 @@ async def resume_run(skill: str, req: ResumeReq):
         "logs": [f"[resume] 补齐文件后全量重跑（attempt {attempt}）"],
         "overall_progress": 0,
     }
-    # 重放前保留旧 state：重放期间 /ui 快照据此返回，避免回退到「环境准备」
-    RUNS[req.run_id]["display_state"] = prev
     RUNS[req.run_id]["state"] = init_state
     new_tid = f"{req.run_id}-r{attempt}"
-    task = asyncio.create_task(
-        _run_graph_streaming(req.run_id, init_state, thread_id=new_tid, suppress_replay=True)
-    )
+    task = asyncio.create_task(_run_graph_streaming(req.run_id, init_state, thread_id=new_tid))
     RUNS[req.run_id]["task"] = task
     return {
         "run_id": req.run_id,
@@ -777,30 +677,6 @@ async def resume_run(skill: str, req: ResumeReq):
         "from_step": None,
         "message": "将从环境预检重新执行全流程（含场景筛选、勘测汇总、评估报告等）。",
     }
-
-
-@app.post("/agent/{skill}/run-patch")
-async def run_patch(skill: str, req: RunPatchReq):
-    """运行时轻量补丁（不重跑图）：任务进展改百分比、返回上一步等。"""
-    if req.run_id not in RUNS:
-        raise HTTPException(404, "run_id not found")
-    state = RUNS[req.run_id]["state"]
-    skill_id = state.get("skill_id", skill)
-    skill_obj = _get_skill_or_404(skill_id)
-    fh = skill_obj.file_handler
-    if fh is None or not hasattr(fh, "merge_run_patch"):
-        raise HTTPException(status_code=501, detail=f"skill '{skill_id}' 未实现 run-patch")
-    result = fh.merge_run_patch(skill_obj.work_root, state, req.payload or {})
-    if not result.get("ok"):
-        raise HTTPException(400, result.get("error") or "run-patch failed")
-    queue = RUNS[req.run_id].get("queue")
-    proj_fn = _get_sdui_projector(skill_id)
-    if queue is not None and proj_fn is not None:
-        try:
-            await queue.put({"event": "sdui", "data": proj_fn(RUNS[req.run_id]["state"])})
-        except Exception:
-            pass
-    return {"ok": True, **{k: v for k, v in result.items() if k != "ok"}}
 
 
 # ─── 文件上传 / HITL 齐备检查 ───
@@ -855,6 +731,172 @@ async def upload_batch(
             results.append({"ok": False, "filename": f.filename, "error": str(e)})
     check = fh.check_need_files(root, need) if need else fh.check_project_files(root)
     return {"uploaded": results, "check": check}
+
+
+# ─── Preview 页面 · BOQ 上传 ───
+
+ASSETS_ROOT = Path(__file__).resolve().parent / "assets"
+PREVIEW_BOQ_DIR = ASSETS_ROOT / "boq"
+PREVIEW_BOQ_MAP = ASSETS_ROOT / "boq-map.json"
+PREVIEW_CONTRACT_MAP = ASSETS_ROOT / "contract-map.json"
+ALLOWED_PREVIEW_BOQ_EXTS = {".xlsx", ".xls", ".csv"}
+
+
+def _safe_upload_filename(raw_name: str | None, fallback: str) -> str:
+    """清洗上传文件名，确保只落到 assets 子目录内。"""
+    basename = Path(raw_name or fallback).name
+    cleaned = re.sub(r"[^0-9A-Za-z.\-_()\u4e00-\u9fff]+", "_", basename).strip("._")
+    return cleaned or fallback
+
+
+def _unique_asset_path(dest_dir: Path, filename: str) -> Path:
+    candidate = dest_dir / filename
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    return dest_dir / f"{stem}-{uuid.uuid4().hex[:8]}{suffix}"
+
+
+def _read_preview_boq_map() -> dict[str, list[dict[str, Any]]]:
+    if not PREVIEW_BOQ_MAP.is_file():
+        return {}
+    try:
+        data = json.loads(PREVIEW_BOQ_MAP.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, list[dict[str, Any]]] = {}
+    for key, value in data.items():
+        if isinstance(key, str) and isinstance(value, list):
+            out[key] = [item for item in value if isinstance(item, dict)]
+    return out
+
+
+def _read_preview_contract_map() -> dict[str, list[dict[str, Any]]]:
+    if not PREVIEW_CONTRACT_MAP.is_file():
+        return {}
+    try:
+        data = json.loads(PREVIEW_CONTRACT_MAP.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    out: dict[str, list[dict[str, Any]]] = {}
+    for key, value in data.items():
+        if isinstance(key, str) and isinstance(value, list):
+            out[key] = [item for item in value if isinstance(item, dict)]
+    return out
+
+
+def _write_preview_boq_map(data: dict[str, list[dict[str, Any]]]) -> None:
+    PREVIEW_BOQ_MAP.parent.mkdir(parents=True, exist_ok=True)
+    PREVIEW_BOQ_MAP.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _preview_boq_asset_path(path: str) -> Path:
+    """Resolve a preview BOQ asset path recorded relative to agent/assets/boq/."""
+    raw = (path or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="path 不能为空")
+    full = (ASSETS_ROOT / raw).resolve()
+    try:
+        full.relative_to(PREVIEW_BOQ_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="path outside preview BOQ assets")
+    if not full.exists() or not full.is_file():
+        raise HTTPException(status_code=404, detail="not found")
+    return full
+
+
+async def _save_preview_boq_file(file: UploadFile) -> dict[str, Any]:
+    filename = _safe_upload_filename(file.filename, "uploaded_BOQ.xlsx")
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_PREVIEW_BOQ_EXTS:
+        raise HTTPException(status_code=400, detail=f"{filename} 不是支持的 BOQ 格式（仅支持 .xlsx / .xls / .csv）")
+
+    PREVIEW_BOQ_DIR.mkdir(parents=True, exist_ok=True)
+    dest = _unique_asset_path(PREVIEW_BOQ_DIR, filename)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail=f"{filename} 为空文件")
+    dest.write_bytes(content)
+    return {
+        "filename": dest.name,
+        "path": str(dest.relative_to(ASSETS_ROOT)),
+        "size": len(content),
+        "uploaded_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@app.post("/agent/preview/boq/upload", response_model=PreviewBoqUploadResp)
+async def upload_preview_boq(
+    request: Request,
+    proposal_id: str = Form(..., description="项目 Proposal ID"),
+):
+    """Preview 页面上传 BOQ，保存到 agent/assets/boq/。支持 files 多文件，兼容 file 单文件。"""
+    normalized_proposal_id = proposal_id.strip()
+    if not normalized_proposal_id:
+        raise HTTPException(status_code=400, detail="proposal_id 不能为空")
+
+    form = await request.form()
+    upload_items = [item for item in [*form.getlist("files"), *form.getlist("file")] if hasattr(item, "filename")]
+    if not upload_items:
+        raise HTTPException(status_code=400, detail="未选择 BOQ 文件")
+
+    uploaded = [await _save_preview_boq_file(file) for file in upload_items]
+    boq_map = _read_preview_boq_map()
+    files = boq_map.setdefault(normalized_proposal_id, [])
+    files.extend(uploaded)
+    _write_preview_boq_map(boq_map)
+    first = uploaded[0]
+    return {
+        "ok": True,
+        "proposal_id": normalized_proposal_id,
+        "filename": first["filename"],
+        "path": first["path"],
+        "size": first["size"],
+        "uploaded": uploaded,
+        "boq_files": files,
+    }
+
+
+@app.get("/agent/preview/contracts", response_model=PreviewContractListResp)
+async def list_preview_contracts(proposal_id: str = Query(..., description="项目 Proposal ID")):
+    """按 Proposal ID 查询 Preview 页面合同列表（读取 agent/assets/contract-map.json）。"""
+    normalized_proposal_id = proposal_id.strip()
+    if not normalized_proposal_id:
+        raise HTTPException(status_code=400, detail="proposal_id 不能为空")
+
+    contract_map = _read_preview_contract_map()
+    return {
+        "ok": True,
+        "proposal_id": normalized_proposal_id,
+        "contracts": contract_map.get(normalized_proposal_id, []),
+    }
+
+
+@app.get("/agent/preview/boq", response_model=PreviewBoqListResp)
+async def list_preview_boq(proposal_id: str = Query(..., description="项目 Proposal ID")):
+    """按 Proposal ID 查询 Preview 页面已上传 BOQ 列表。"""
+    normalized_proposal_id = proposal_id.strip()
+    if not normalized_proposal_id:
+        raise HTTPException(status_code=400, detail="proposal_id 不能为空")
+
+    boq_map = _read_preview_boq_map()
+    return {
+        "ok": True,
+        "proposal_id": normalized_proposal_id,
+        "boq_files": boq_map.get(normalized_proposal_id, []),
+    }
+
+
+@app.get("/agent/preview/boq/file")
+async def preview_boq_file(path: str = Query(..., description="agent/assets/boq 下的 BOQ 相对路径")):
+    """Preview 页面 BOQ 文件预览/下载流，仅允许读取已上传 BOQ 目录。"""
+    full = _preview_boq_asset_path(path)
+    return FileResponse(str(full), filename=full.name)
 
 
 # ─── 状态快照 ───
@@ -1097,39 +1139,6 @@ def _eval_subprocess_run(
     }
 
 
-def _run_evals_bundle(
-    *,
-    live: bool = True,
-    fixture: bool = False,
-    run_id: str = "",
-    conv_id: str = "",
-) -> dict:
-    """跑评测脚本组合。仅 conv_id 时只跑 tools；有 run_id 时 zhgk 带 --run-id。"""
-    tools_extra: list[str] = []
-    if live and not fixture:
-        tools_extra = ["--days", "7"]
-    if conv_id:
-        tools_extra.extend(["--conv-id", conv_id])
-    if run_id:
-        tools_extra.extend(["--run-id", run_id])
-
-    out: dict = {"live": live, "fixture": fixture, "run_id": run_id or None, "conv_id": conv_id or None}
-
-    run_zhgk = not conv_id or bool(run_id)
-    if run_zhgk:
-        zhgk_extra: list[str] = []
-        if run_id:
-            zhgk_extra.extend(["--run-id", run_id])
-        out["zhgk"] = _eval_subprocess_run("eval_zhgk.py", zhgk_extra or None, fixture=fixture)
-    else:
-        out["zhgk"] = {"ok": True, "skipped": True, "reason": "conv_id only"}
-
-    out["tools"] = _eval_subprocess_run("eval_tools.py", tools_extra or None, fixture=fixture)
-    if not fixture:
-        out["export"] = _eval_subprocess_run("export_deviations.py", fixture=fixture)
-    return out
-
-
 def _excel_date(value) -> str:
     if not value:
         return ""
@@ -1218,6 +1227,57 @@ def get_delivery_plan_excel(project_id: str):
         filename="delivery-plan.xlsx",
         headers={"Cache-Control": "no-store"},
     )
+
+
+async def _trigger_eval_background(*, run_id: str = "", conv_id: str = "", skill_id: str = "zhgk") -> None:
+    """skill run 完成 / 会话工具结束后后台跑评测（不阻塞 SSE）。
+    当前评测脚本（eval_zhgk.py）仅对 zhgk；其他 skill 暂跳过自动评测，
+    待各自 eval_<skill>.py 落地后再放开（见 evals/eval_skill.template.py）。"""
+    if skill_id != "zhgk":
+        return
+    try:
+        await asyncio.to_thread(
+            _run_evals_bundle,
+            live=True,
+            fixture=False,
+            run_id=run_id,
+            conv_id=conv_id,
+        )
+    except Exception:
+        pass
+
+
+def _run_evals_bundle(
+    *,
+    live: bool = True,
+    fixture: bool = False,
+    run_id: str = "",
+    conv_id: str = "",
+) -> dict:
+    """跑评测脚本组合。仅 conv_id 时只跑 tools；有 run_id 时 zhgk 带 --run-id。"""
+    tools_extra: list[str] = []
+    if live and not fixture:
+        tools_extra = ["--days", "7"]
+    if conv_id:
+        tools_extra.extend(["--conv-id", conv_id])
+    if run_id:
+        tools_extra.extend(["--run-id", run_id])
+
+    out: dict = {"live": live, "fixture": fixture, "run_id": run_id or None, "conv_id": conv_id or None}
+
+    run_zhgk = not conv_id or bool(run_id)
+    if run_zhgk:
+        zhgk_extra: list[str] = []
+        if run_id:
+            zhgk_extra.extend(["--run-id", run_id])
+        out["zhgk"] = _eval_subprocess_run("eval_zhgk.py", zhgk_extra or None, fixture=fixture)
+    else:
+        out["zhgk"] = {"ok": True, "skipped": True, "reason": "conv_id only"}
+
+    out["tools"] = _eval_subprocess_run("eval_tools.py", tools_extra or None, fixture=fixture)
+    if not fixture:
+        out["export"] = _eval_subprocess_run("export_deviations.py", fixture=fixture)
+    return out
 
 
 async def _trigger_eval_background(*, run_id: str = "", conv_id: str = "", skill_id: str = "zhgk") -> None:

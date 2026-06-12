@@ -1,10 +1,10 @@
 // @ts-nocheck
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { JOURNEY_STAGES } from '../../data/journey-data';
 import {
-  CONTRACTS, BOQS, PARSED_DEVICES, PARSED_SERVICES,
+  PARSED_DEVICES, PARSED_SERVICES,
   SERVICE_CATEGORY_TONE, PART_TONE,
 } from '../../data/contract-data';
 import VersionBar, { bumpVersion } from '../version-bar';
@@ -15,20 +15,194 @@ function readUrlParam(key) {
   return new URLSearchParams(window.location.search).get(key);
 }
 
-/* BOQ 关联附件清单（mock）：主清单 + 技术/报价/配置/拓扑等支撑文件，支持预览与下载 */
+/* BOQ 当前文件清单：预览抽屉只展示用户点击的这一个文件 */
 function boqAttachments(b) {
   if (!b) return [];
   const base = b.id.replace('BOQ-', '');
   return [
-    { name: b.fileName || `${base}.xlsx`, ext: 'xlsx', size: b.size || '184 KB', updatedAt: b.updatedAt || '2026-05-25', kind: 'BOQ 清单' },
-    { name: `${base} · 技术规格清单.xlsx`, ext: 'xlsx', size: '420 KB', updatedAt: '2026-05-20', kind: '技术清单' },
-    { name: `${base} · 商务报价单.xlsx`, ext: 'xlsx', size: '96 KB', updatedAt: '2026-05-18', kind: '商务' },
-    { name: `${base} · 配置明细.xlsx`, ext: 'xlsx', size: '312 KB', updatedAt: '2026-05-16', kind: '配置' },
-    { name: `${base} · 组网清单.xlsx`, ext: 'xlsx', size: '188 KB', updatedAt: '2026-05-14', kind: '拓扑' },
+    { name: b.fileName || `${base}.xlsx`, ext: fileExt(b.fileName || b.name || `${base}.xlsx`) || 'xlsx', size: b.size || '184 KB', updatedAt: b.updatedAt || '2026-05-25', kind: 'BOQ 清单', path: b.sourcePath || '' },
   ];
 }
 
-const ATTACH_PREVIEWABLE = ['pdf', 'png', 'jpg', 'jpeg', 'xlsx', 'docx'];
+const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
+const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+const PREVIEW_PROPOSAL_ID = 'PROP-2026-K1903';
+const UNLINKED_CONTRACT_NO = '未关联合同';
+
+function fileExt(name) {
+  const value = String(name || '');
+  if (!value.includes('.')) return '';
+  return value.split('.').pop()?.toLowerCase() || '';
+}
+
+function previewBoqFileUrl(path) {
+  return `${AGENT_BASE}/agent/preview/boq/file?path=${encodeURIComponent(path)}`;
+}
+
+function PreviewAssetPane({ asset }) {
+  const [status, setStatus] = useState('idle');
+  const [sheets, setSheets] = useState([]);
+  const [activeSheet, setActiveSheet] = useState(0);
+  const [textPreview, setTextPreview] = useState('');
+  const [errMsg, setErrMsg] = useState('');
+
+  useEffect(() => {
+    if (!asset?.path) {
+      setStatus('idle');
+      setSheets([]);
+      setTextPreview('');
+      setErrMsg('');
+      return;
+    }
+
+    let cancelled = false;
+    setStatus('loading');
+    setSheets([]);
+    setActiveSheet(0);
+    setTextPreview('');
+    setErrMsg('');
+
+    void (async () => {
+      try {
+        const resp = await fetch(previewBoqFileUrl(asset.path));
+        if (!resp.ok) throw new Error(await errorMessage(resp));
+
+        const ext = fileExt(asset.name);
+        if (ext === 'xlsx' || ext === 'xls') {
+          const buf = await resp.arrayBuffer();
+          const XLSX = await import('xlsx');
+          const wb = XLSX.read(buf, { type: 'array' });
+          const out = wb.SheetNames.map((name) => ({
+            name,
+            html: XLSX.utils.sheet_to_html(wb.Sheets[name]),
+          }));
+          if (!cancelled) {
+            setSheets(out);
+            setStatus('ready');
+          }
+        } else if (ext === 'csv') {
+          const text = await resp.text();
+          if (!cancelled) {
+            setTextPreview(text.split(/\r?\n/).slice(0, 80).join('\n'));
+            setStatus('ready');
+          }
+        } else {
+          if (!cancelled) setStatus('unsupported');
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setStatus('error');
+          setErrMsg(err instanceof Error ? err.message : String(err));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [asset?.path, asset?.name]);
+
+  if (!asset) {
+    return (
+      <div className="boq-file-preview-empty">
+        选择一个 BOQ 文件后，将在这里展示当前文件预览。
+      </div>
+    );
+  }
+
+  if (!asset.path) {
+    return (
+      <div className="boq-file-preview-empty">
+        该附件还没有接入文件源，暂不能在线预览或下载。
+      </div>
+    );
+  }
+
+  return (
+    <div className="boq-file-preview">
+      {status === 'loading' && <div className="boq-file-preview-empty">正在加载预览…</div>}
+      {status === 'error' && <div className="boq-file-preview-empty">预览失败：{errMsg}</div>}
+      {status === 'unsupported' && <div className="boq-file-preview-empty">该格式暂不支持在线预览，请直接下载查看。</div>}
+      {status === 'ready' && sheets.length > 0 && (
+        <>
+          {sheets.length > 1 && (
+            <div className="boq-sheet-tabs">
+              {sheets.map((sheet, i) => (
+                <button
+                  key={sheet.name}
+                  type="button"
+                  className={`boq-sheet-tab${activeSheet === i ? ' on' : ''}`}
+                  onClick={() => setActiveSheet(i)}
+                >
+                  {sheet.name}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="boq-xlsx-preview" dangerouslySetInnerHTML={{ __html: sheets[activeSheet]?.html || '' }} />
+        </>
+      )}
+      {status === 'ready' && textPreview && (
+        <pre className="boq-text-preview">{textPreview}</pre>
+      )}
+    </div>
+  );
+}
+
+const CONTRACT_MAP = {
+  [PREVIEW_PROPOSAL_ID]: [
+    {
+      contract_no: '1Y01012602830P',
+      contract_name: '京东26年昇腾液冷超节点框架-宝德',
+      order_version: 'V1.0',
+      order_status: '已发布',
+      created_date: '2026-02-06',
+      published_date: '2026-06-12',
+      revenue_trigger_ratio: 100,
+    },
+  ],
+};
+
+function revenueRatioLabel(ratio) {
+  if (ratio === null || ratio === undefined || ratio === '') return '—';
+  const value = Number(ratio);
+  if (!Number.isFinite(value)) return String(ratio);
+  return `${value}%`;
+}
+
+function formatUploadSize(size) {
+  if (!Number.isFinite(size)) return '0 B';
+  if (size >= 1024 * 1024) return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  if (size >= 1024) return `${Math.round(size / 1024)} KB`;
+  return `${size} B`;
+}
+
+function toPreviewBoq(record, index) {
+  const filename = record?.filename || record?.path || `uploaded-${index + 1}.xlsx`;
+  const sourceStatus = record?.status || '';
+  return {
+    id: record?.path || filename,
+    name: filename,
+    fileName: filename,
+    size: formatUploadSize(Number(record?.size ?? 0)),
+    updatedAt: record?.uploaded_at ? String(record.uploaded_at).slice(0, 10) : '—',
+    boqVersion: record?.version || '手工上传',
+    saleType: record?.sales_type || '上传文件',
+    version: sourceStatus === '草稿' ? 'draft' : sourceStatus === '已发布' ? 'published' : 'uploaded',
+    status: sourceStatus || '已上传',
+    contractNo: record?.contract_no || UNLINKED_CONTRACT_NO,
+    sourcePath: record?.path || '',
+  };
+}
+
+async function errorMessage(resp) {
+  try {
+    const data = await resp.json();
+    return data?.detail || `${resp.status} ${resp.statusText}`;
+  } catch {
+    return `${resp.status} ${resp.statusText}`;
+  }
+}
 
 /* ── 起手式：合同+预案的"今天到底要做啥" ── */
 function PreviewFocus({ tab }) {
@@ -49,56 +223,164 @@ function PreviewFocus({ tab }) {
 
 /* ── 合同 / BOQ tab（5.27 重做：合同列表 + 小三角下拉 + BOQ 默认全选 + 上传按钮） ── */
 function ContractTab({ onStateChange }) {
-  /* 折叠状态：默认所有合同展开 */
-  /* 默认全部收缩，点击三角才展开 BOQ 列表 */
-  const [openContracts, setOpenContracts] = useState(() =>
-    Object.fromEntries(CONTRACTS.map(c => [c.id, false]))
-  );
+  const boqUploadInputRef = useRef(null);
+  const [openContracts, setOpenContracts] = useState({});
   /* BOQ 选中状态：默认全选 (AM-27) */
-  const [selectedBoqs, setSelectedBoqs] = useState(() =>
-    Object.fromEntries(Object.keys(BOQS).map(id => [id, true]))
-  );
+  const [selectedBoqs, setSelectedBoqs] = useState({});
   /* 切换确认后展示 BOQ 解析结果 */
   const [confirmed, setConfirmed] = useState(false);
   /* G-B · BOQ 预览抽屉（点行内"预览"按钮打开，不再就地展开子节） */
   const [previewBoq, setPreviewBoq] = useState(null);
+  const [previewAsset, setPreviewAsset] = useState(null);
   /* 解析结果双表当前 tab */
   const [resultTab, setResultTab] = useState('device'); // device | service
   /* NEW-4 · 解析进度条（进度 0→100，同步 ClawRail 4 拍消息） */
   const [parseProgress, setParseProgress] = useState(0); // 0-100
   const [parseStage, setParseStage] = useState('');      // 当前阶段名
-  /* P2 · 收入触发比例列排序 */
-  const [revSort, setRevSort] = useState('desc'); // desc | asc | none
   /* P1 · 上传 BOQ 兜底 */
   const [uploadToast, setUploadToast] = useState(null);
+  const [isUploadingBoq, setIsUploadingBoq] = useState(false);
+  const [contractRecords, setContractRecords] = useState(() => CONTRACT_MAP[PREVIEW_PROPOSAL_ID] || []);
+  const [uploadedBoqs, setUploadedBoqs] = useState([]);
   /* BOQ 附件预览 / 下载操作提示 */
   const [attachToast, setAttachToast] = useState(null);
+  const fireUploadToast = (msg, delay = 5200) => {
+    setUploadToast(msg);
+    window.clearTimeout(fireUploadToast._t);
+    fireUploadToast._t = window.setTimeout(() => setUploadToast(null), delay);
+  };
   const fireAttachToast = (msg) => {
     setAttachToast(msg);
     window.clearTimeout(fireAttachToast._t);
     fireAttachToast._t = window.setTimeout(() => setAttachToast(null), 2400);
   };
 
-  const selectedCount = Object.values(selectedBoqs).filter(Boolean).length;
+  const queriedBoqs = uploadedBoqs.map(toPreviewBoq);
+  const usingQueriedBoqs = queriedBoqs.length > 0;
+  const activeBoqs = queriedBoqs;
+  const activeBoqById = Object.fromEntries(activeBoqs.map(b => [b.id, b]));
+  const contractSeeds = contractRecords;
+  const contractNos = new Set(contractSeeds.map(c => c.contract_no));
+  const orphanBoqs = activeBoqs.filter(b => !contractNos.has(b.contractNo));
+  const activeContracts = [
+    ...contractSeeds.map(c => ({
+      id: c.contract_no,
+      name: c.contract_name,
+      orderVersion: c.order_version,
+      orderStatus: c.order_status,
+      createdAt: c.created_date,
+      publishedAt: c.published_date,
+      revenueTriggerRatio: c.revenue_trigger_ratio,
+      boqs: activeBoqs.filter(b => b.contractNo === c.contract_no),
+    })),
+    ...(orphanBoqs.length ? [{
+      id: UNLINKED_CONTRACT_NO,
+      name: '手工上传 / 未关联合同 BOQ',
+      orderVersion: '—',
+      orderStatus: '待关联',
+      createdAt: '—',
+      publishedAt: '—',
+      revenueTriggerRatio: null,
+      boqs: orphanBoqs,
+    }] : []),
+  ].filter(c => c.boqs.length > 0 || c.id !== UNLINKED_CONTRACT_NO);
+  const totalContracts = activeContracts.length;
+  const totalBoqs = activeBoqs.length;
+  const selectedCount = activeBoqs.filter(b => selectedBoqs[b.id]).length;
   const parseDone = confirmed && parseProgress === 100;  // 派生：解析完成后悬浮条让位给「进入交付预案」
 
   /* 把解析状态提升给父组件，驱动底部悬浮条 */
   useEffect(() => {
-    onStateChange?.({ confirmed, parseProgress, selectedCount });
-  }, [confirmed, parseProgress, selectedCount]);
+    onStateChange?.({ confirmed, parseProgress, selectedCount, totalBoqs });
+  }, [confirmed, parseProgress, selectedCount, totalBoqs]);
 
-  const toggleContract = (id) =>
-    setOpenContracts(s => ({ ...s, [id]: !s[id] }));
   const toggleBoq = (id) =>
     setSelectedBoqs(s => ({ ...s, [id]: !s[id] }));
+  const toggleContract = (id) =>
+    setOpenContracts(s => ({ ...s, [id]: !s[id] }));
+  const openBoqPreview = (boq) => {
+    const firstAsset = boqAttachments(boq)[0] || null;
+    setPreviewBoq(boq);
+    setPreviewAsset(firstAsset);
+  };
+  const closeBoqPreview = () => {
+    setPreviewBoq(null);
+    setPreviewAsset(null);
+  };
+  const previewAttachment = (asset) => {
+    if (!asset?.path) {
+      fireAttachToast('该附件暂无可预览文件源');
+      return;
+    }
+    setPreviewAsset(asset);
+  };
 
-  const totalBoqs = Object.keys(BOQS).length;
+  useEffect(() => {
+    let cancelled = false;
+    const params = new URLSearchParams({ proposal_id: PREVIEW_PROPOSAL_ID });
+    fetch(`${AGENT_BASE}/agent/preview/contracts?${params}`)
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error(await errorMessage(resp));
+        return resp.json();
+      })
+      .then((data) => {
+        if (!cancelled && Array.isArray(data.contracts)) {
+          setContractRecords(data.contracts);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setContractRecords(CONTRACT_MAP[PREVIEW_PROPOSAL_ID] || []);
+      });
+    fetch(`${AGENT_BASE}/agent/preview/boq?${params}`)
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error(await errorMessage(resp));
+        return resp.json();
+      })
+      .then((data) => {
+        if (!cancelled) setUploadedBoqs(Array.isArray(data.boq_files) ? data.boq_files : []);
+      })
+      .catch(() => {
+        if (!cancelled) setUploadedBoqs([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const sortedContracts = [...CONTRACTS].sort((a, b) => {
-    if (revSort === 'none') return 0;
-    const diff = (a.revenueTriggerPct ?? 0) - (b.revenueTriggerPct ?? 0);
-    return revSort === 'desc' ? -diff : diff;
-  });
+  useEffect(() => {
+    if (!usingQueriedBoqs) return;
+    setSelectedBoqs(Object.fromEntries(queriedBoqs.map(b => [b.id, true])));
+  }, [usingQueriedBoqs, uploadedBoqs]);
+
+  const uploadBoqFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    setIsUploadingBoq(true);
+    fireUploadToast(files.length === 1 ? `正在上传 ${files[0].name}…` : `正在上传 ${files.length} 份 BOQ…`, 120000);
+    try {
+      const form = new FormData();
+      form.append('proposal_id', PREVIEW_PROPOSAL_ID);
+      files.forEach(file => form.append('files', file));
+      const resp = await fetch(`${AGENT_BASE}/agent/preview/boq/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      if (!resp.ok) {
+        throw new Error(await errorMessage(resp));
+      }
+      const data = await resp.json();
+      setUploadedBoqs(Array.isArray(data.boq_files) ? data.boq_files : []);
+      const uploadedCount = Array.isArray(data.uploaded) ? data.uploaded.length : files.length;
+      fireUploadToast(`已上传 ${uploadedCount} 份 BOQ · ${data.proposal_id} 已关联 ${data.boq_files?.length ?? uploadedCount} 份 BOQ`);
+    } catch (err) {
+      fireUploadToast(`上传失败：${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setIsUploadingBoq(false);
+      if (boqUploadInputRef.current) {
+        boqUploadInputRef.current.value = '';
+      }
+    }
+  };
 
   return (
     <>
@@ -139,43 +421,53 @@ function ContractTab({ onStateChange }) {
               >
                 客户甲（华东）
               </td>
-              <td>{CONTRACTS.length}</td>
+              <td>{totalContracts}</td>
             </tr>
           </tbody>
         </table>
       </div>
 
-      {/* 合同列表卡（SVG 校正：列加项目编码 / 中标日期 / 合同状态 / 备注；BOQ 列改成 checkbox 选择）*/}
+      {/* 合同章节：contract-map 驱动合同头，boq-map 驱动关联 BOQ */}
       <div className="jn-panel">
         <div className="jn-panel-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
             <span>合同列表</span>
+            <span style={{ fontSize: 12, color: 'var(--c-text-muted)' }}>合同 {totalContracts} 个</span>
+            <span style={{ fontSize: 12, color: 'var(--c-text-muted)' }}>BOQ {totalBoqs} 份</span>
+            <span style={{ fontSize: 12, color: selectedCount ? 'var(--c-brand, #1b84ff)' : 'var(--c-text-muted)' }}>
+              已选 {selectedCount} 份
+            </span>
           </div>
           <button
+            type="button"
             className="inline-flex items-center gap-1.5 bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2 rounded-lg text-sm font-normal"
             onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; }}
             title="没有关联合同时手动上传 BOQ（含草稿）"
-            onClick={() => {
-              const name = `BOQ-K1903-手工-${Date.now().toString(36).slice(-4)}.xlsx`;
-              setUploadToast(`已上传 ${name} · 解析任务已挂起`);
-              setTimeout(() => setUploadToast(null), 3200);
-            }}
+            disabled={isUploadingBoq}
+            onClick={() => boqUploadInputRef.current?.click()}
           >
-            ↑ 上传 BOQ
+            {isUploadingBoq ? '上传中…' : '↑ 上传 BOQ'}
           </button>
+          <input
+            ref={boqUploadInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(event) => uploadBoqFiles(event.target.files)}
+          />
         </div>
 
         <table className="vs-table contract-table" style={{ tableLayout: 'fixed', width: '100%' }}>
-          {/* ▶ 与「选择」列定宽，中间 7 个业务列等宽（table-layout:fixed 平分剩余空间）*/}
           <colgroup>
             <col style={{ width: 28 }} />
             <col />
             <col />
-            <col />
-            <col />
-            <col />
-            <col />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 100 }} />
+            <col style={{ width: 110 }} />
+            <col style={{ width: 110 }} />
             <col />
             <col style={{ width: 56 }} />
           </colgroup>
@@ -188,104 +480,122 @@ function ContractTab({ onStateChange }) {
               <th>订单状态</th>
               <th>创建日期</th>
               <th>发布日期</th>
+              <th>收入触发比例</th>
               <th>
-                <button
-                  type="button"
-                  className="th-sort-btn"
-                  style={{ fontWeight: 400 }}
-                  onClick={() => setRevSort(s => (s === 'desc' ? 'asc' : s === 'asc' ? 'none' : 'desc'))}
-                  title="按收入触发比例排序"
-                >
-                  收入触发比例
-                </button>
+                <input
+                  type="checkbox"
+                  checked={totalBoqs > 0 && selectedCount === totalBoqs}
+                  disabled={totalBoqs === 0 || confirmed}
+                  onChange={() => {
+                    const next = !(totalBoqs > 0 && selectedCount === totalBoqs);
+                    setSelectedBoqs(Object.fromEntries(activeBoqs.map(b => [b.id, next])));
+                  }}
+                  title="全选 / 取消全选"
+                />
               </th>
-              <th>选择</th>
             </tr>
           </thead>
           <tbody>
-            {sortedContracts.flatMap(c => {
-              const open = !!openContracts[c.id];
-              const boqs = c.boqs.map(id => BOQS[id]).filter(Boolean);
-              const selectedHere = boqs.filter(b => selectedBoqs[b.id]).length;
-              const allSelected = selectedHere === boqs.length;
-              const out = [
-                <tr key={c.id} className="contract-row">
+            {activeContracts.length === 0 ? (
+              <tr>
+                <td colSpan={9} style={{ padding: '18px 12px', color: 'var(--c-text-muted)', textAlign: 'center' }}>
+                  暂无合同或 BOQ
+                </td>
+              </tr>
+            ) : activeContracts.flatMap((contract) => {
+              const open = !!openContracts[contract.id];
+              const selectedHere = contract.boqs.filter(b => selectedBoqs[b.id]).length;
+              const allSelected = contract.boqs.length > 0 && selectedHere === contract.boqs.length;
+              const rows = [
+                <tr key={contract.id} className="contract-row">
                   <td>
                     <button
                       type="button"
                       className={`tri${open ? ' open' : ''}`}
-                      onClick={() => toggleContract(c.id)}
+                      onClick={() => toggleContract(contract.id)}
                       title="展开 / 收起关联 BOQ"
                     >
                       ▶
                     </button>
                   </td>
-                  <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={c.id}>{c.id}</td>
-                  <td title={c.name}>{c.name}</td>
-                  <td className="num" style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-text-muted)' }} title={c.orderVersion}>{c.orderVersion}</td>
-                  <td title={c.orderStatus}>{c.orderStatus}</td>
-                  <td className="num" title={c.createdAt}>{c.createdAt}</td>
-                  <td className="num" title={c.publishedAt}>{c.publishedAt}</td>
-                  <td className="num" style={{ fontVariantNumeric: 'tabular-nums' }} title={`${c.revenueTriggerPct}%`}>{c.revenueTriggerPct}%</td>
+                  <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={contract.id}>{contract.id}</td>
+                  <td title={contract.name}>{contract.name}</td>
+                  <td className="num" style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-text-muted)' }} title={contract.orderVersion}>{contract.orderVersion}</td>
+                  <td title={contract.orderStatus}>{contract.orderStatus}</td>
+                  <td className="num" title={contract.createdAt}>{contract.createdAt}</td>
+                  <td className="num" title={contract.publishedAt}>{contract.publishedAt}</td>
+                  <td className="num" title={revenueRatioLabel(contract.revenueTriggerRatio)}>{revenueRatioLabel(contract.revenueTriggerRatio)}</td>
                   <td>
                     <input
                       type="checkbox"
                       checked={allSelected}
+                      disabled={confirmed || contract.boqs.length === 0}
                       onChange={() => {
                         const next = !allSelected;
                         setSelectedBoqs(s => {
                           const ns = { ...s };
-                          boqs.forEach(b => { ns[b.id] = next; });
+                          contract.boqs.forEach(b => { ns[b.id] = next; });
                           return ns;
                         });
                       }}
-                      title={`合同级选择 · ${selectedHere}/${boqs.length} BOQ 已选`}
+                      title={`合同级选择 · ${selectedHere}/${contract.boqs.length} BOQ 已选`}
                     />
                   </td>
-                </tr>
+                </tr>,
               ];
               if (open) {
-                /* BOQ 展开行：colSpan=8 从第一列起，与父表 colgroup 完全对齐 */
-                out.push(
-                  <tr key={c.id + '-expand'} className="contract-expand">
+                rows.push(
+                  <tr key={`${contract.id}-boqs`} className="contract-expand">
                     <td colSpan={9} style={{ padding: '2px 0 6px 0', borderLeft: '2px solid #e4e4e7' }}>
                       <table className="vs-table boq-hier-table" style={{ background: 'transparent', tableLayout: 'fixed', width: '100%' }}>
-                        {/* colgroup：选列定宽，名称 / 版本号 / 销售类型 / 状态 4 列等宽 */}
                         <colgroup>
-                          <col style={{ width: 28 }} />
+                          <col style={{ width: 40 }} />
                           <col />
-                          <col />
-                          <col />
-                          <col />
+                          <col style={{ width: 150 }} />
+                          <col style={{ width: 110 }} />
+                          <col style={{ width: 110 }} />
+                          <col style={{ width: 110 }} />
+                          <col style={{ width: 100 }} />
+                          <col style={{ width: 110 }} />
                         </colgroup>
                         <thead>
                           <tr>
-                            <th></th>
-                            <th>名称</th>
+                            <th>选择</th>
+                            <th>BOQ 文件</th>
+                            <th>合同号</th>
                             <th>版本号</th>
                             <th>销售类型</th>
                             <th>状态</th>
+                            <th>大小</th>
+                            <th>上传日期</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {boqs.map((b) => {
+                          {contract.boqs.map((b) => {
                             const checked = !!selectedBoqs[b.id];
+                            const statusText = confirmed
+                              ? (parseProgress === 100 ? '已解析' : parseStage || '解析中')
+                              : checked ? b.status || '待解析' : '未选择';
+                            const statusColor = confirmed
+                              ? (parseProgress === 100 ? 'var(--c-success, #0f9d58)' : 'var(--c-brand, #1b84ff)')
+                              : checked ? 'var(--c-warning, #d97706)' : 'var(--c-text-muted)';
                             return (
-                              <tr key={b.id} className="boq-hier-l1" style={{ background: 'transparent' }}>
+                              <tr key={b.id} className="boq-hier-l1" style={{ background: checked ? 'rgba(27,132,255,.035)' : 'transparent' }}>
                                 <td>
                                   <input
                                     type="checkbox"
                                     checked={checked}
+                                    disabled={confirmed}
                                     onChange={() => toggleBoq(b.id)}
                                   />
                                 </td>
                                 <td title={b.name}>
                                   <button
                                     type="button"
-                                    onClick={() => setPreviewBoq(b)}
+                                    onClick={() => openBoqPreview(b)}
                                     style={{
                                       padding: 0, border: 'none', background: 'none',
-                                      color: '#60a5fa', cursor: 'pointer', textAlign: 'left',
+                                      color: '#2563eb', cursor: 'pointer', textAlign: 'left',
                                       font: 'inherit', maxWidth: '100%',
                                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                     }}
@@ -294,13 +604,12 @@ function ContractTab({ onStateChange }) {
                                     {b.name}
                                   </button>
                                 </td>
-                                <td className="num" style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-text-muted)' }} title={b.boqVersion || '—'}>
-                                  {b.boqVersion || '—'}
-                                </td>
-                                <td style={{ fontSize: 12, color: 'var(--c-text-muted)' }} title={b.saleType}>{b.saleType}</td>
-                                <td style={{ fontSize: 12, color: 'var(--c-text-muted)' }} title={b.version === 'draft' ? '草稿' : '已发布'}>
-                                  {b.version === 'draft' ? '草稿' : '已发布'}
-                                </td>
+                                <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={b.contractNo}>{b.contractNo}</td>
+                                <td className="num" style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-text-muted)' }}>{b.boqVersion || '—'}</td>
+                                <td title={b.saleType}>{b.saleType}</td>
+                                <td style={{ color: statusColor, fontSize: 12 }}>{statusText}</td>
+                                <td className="num">{b.size}</td>
+                                <td className="num">{b.updatedAt}</td>
                               </tr>
                             );
                           })}
@@ -310,10 +619,27 @@ function ContractTab({ onStateChange }) {
                   </tr>
                 );
               }
-              return out;
+              return rows;
             })}
           </tbody>
         </table>
+
+        {confirmed && (
+          <div style={{ marginTop: 12 }}>
+            <div style={{ height: 6, background: '#eef2f7', borderRadius: 999, overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${parseProgress}%`,
+                background: parseProgress === 100 ? 'var(--c-success, #0f9d58)' : 'var(--c-brand, #1b84ff)',
+                transition: 'width .35s ease',
+              }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: 'var(--c-text-muted)' }}>
+              <span>{parseStage || '解析中'}</span>
+              <span>{parseProgress}%</span>
+            </div>
+          </div>
+        )}
 
         {!parseDone && (
         <div style={{ display: 'none' }}>
@@ -345,7 +671,7 @@ function ContractTab({ onStateChange }) {
               }, delay);
               const selectedNames = Object.entries(selectedBoqs)
                 .filter(([, v]) => v)
-                .map(([id]) => BOQS[id]?.name)
+                .map(([id]) => activeBoqById[id]?.name)
                 .filter(Boolean);
               fire(0, {
                 role: 'user',
@@ -417,7 +743,7 @@ function ContractTab({ onStateChange }) {
       )}
 
       {/* BOQ 双表：设备 / 服务 卡片切换（AM-30） */}
-      {confirmed && (
+      {parseDone && (
         <div className="jn-panel">
           <div className="jn-panel-head" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span>BOQ 解析结果</span>
@@ -447,6 +773,25 @@ function ContractTab({ onStateChange }) {
             </span>
           </div>
 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+            borderBottom: '1px solid var(--c-border, #e5e7eb)',
+            margin: '0 -1px 12px',
+          }}>
+            {[
+              ['解析文件', `${selectedCount} 份`],
+              ['设备条目', `${PARSED_DEVICES.length} 项`],
+              ['服务条目', `${PARSED_SERVICES.length} 项`],
+              ['待确认冲突', `${PARSED_DEVICES.filter(d => d.conflict).length} 项`],
+            ].map(([k, v]) => (
+              <div key={k} style={{ padding: '12px 14px', borderRight: '1px solid var(--c-border, #e5e7eb)' }}>
+                <div style={{ fontSize: 11, color: 'var(--c-text-muted)' }}>{k}</div>
+                <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: 'var(--c-text)' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+
           {resultTab === 'device' && <DeviceTable />}
           {resultTab === 'service' && <ServiceTable />}
         </div>
@@ -454,55 +799,86 @@ function ContractTab({ onStateChange }) {
 
       {/* G-B · BOQ 预览抽屉（点行内"预览"按钮触发，分级展示子项与配套软件） */}
       {previewBoq && (
-        <div className="boq-preview-mask" onClick={() => setPreviewBoq(null)}>
+        <div className="boq-preview-mask" onClick={closeBoqPreview}>
           <aside className="boq-preview-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="boq-preview-head">
               <div>
                 <div className="boq-preview-title">{previewBoq.name}</div>
-                <div className="boq-preview-sub">
-                  <span style={{ fontFamily: 'var(--font-mono)' }}>{previewBoq.id}</span>
-                  <span className={`status-pill ${previewBoq.version === 'draft' ? 'amber' : 'green'}`}>
-                    {previewBoq.version === 'draft' ? '草稿' : '已发布'}
-                  </span>
-                  <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--c-brand-text)' }}>
-                    {previewBoq.boqVersion || '—'}
-                  </span>
-                </div>
               </div>
-              <button className="boq-preview-close" onClick={() => setPreviewBoq(null)} title="关闭">✕</button>
+              <button className="boq-preview-close" onClick={closeBoqPreview} title="关闭">✕</button>
             </div>
             <div className="boq-preview-body">
+              <div className="boq-current-file-card">
+                <div className="boq-current-file-head">
+                  <div className={`boq-attach-icon ext-${previewAsset?.ext || fileExt(previewBoq.name) || 'file'}`}>
+                    {(previewAsset?.ext || fileExt(previewBoq.name) || 'FILE').toUpperCase()}
+                  </div>
+                  <div className="boq-current-file-meta">
+                    <div className="boq-current-file-title" title={previewAsset?.name || previewBoq.name}>
+                      {previewAsset?.name || previewBoq.name}
+                    </div>
+                    <div className="boq-attach-sub">
+                      {previewAsset?.kind || 'BOQ 文件'} · {previewAsset?.size || previewBoq.size || '—'} · {previewAsset?.updatedAt || previewBoq.updatedAt || '—'}
+                    </div>
+                  </div>
+                  <div className="boq-current-file-actions">
+                    {previewAsset?.path ? (
+                      <a
+                        className="boq-attach-btn primary"
+                        href={previewBoqFileUrl(previewAsset.path)}
+                        download={previewAsset.name}
+                      >
+                        下载
+                      </a>
+                    ) : (
+                      <button type="button" className="boq-attach-btn primary" disabled>
+                        下载
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <PreviewAssetPane asset={previewAsset} />
+              </div>
+
               <div className="boq-attach-listhead">
-                <span>BOQ 附件清单</span>
+                <span>BOQ 文件与附件</span>
                 <span className="boq-attach-count">{boqAttachments(previewBoq).length} 个文件</span>
               </div>
               <div className="boq-attach-list">
                 {boqAttachments(previewBoq).map((att, i) => {
-                  const canPreview = ATTACH_PREVIEWABLE.includes(att.ext);
+                  const canPreview = ATTACH_PREVIEWABLE.includes(att.ext) && !!att.path;
+                  const selected = previewAsset?.name === att.name && previewAsset?.path === att.path;
                   return (
-                    <div key={i} className="boq-attach-row">
+                    <div key={i} className={`boq-attach-row${selected ? ' active' : ''}`}>
                       <div className={`boq-attach-icon ext-${att.ext}`}>{att.ext.toUpperCase()}</div>
                       <div className="boq-attach-meta">
                         <div className="boq-attach-name" title={att.name}>{att.name}</div>
+                        <div className="boq-attach-sub">{att.kind} · {att.size} · {att.updatedAt}</div>
                       </div>
                       <div className="boq-attach-actions">
                         <button
                           type="button"
                           className="boq-attach-btn"
                           disabled={!canPreview}
-                          title={canPreview ? '在线预览' : '该格式暂不支持预览'}
-                          onClick={() => fireAttachToast(`正在预览：${att.name}`)}
+                          title={canPreview ? '在线预览' : '该附件暂无可预览文件源'}
+                          onClick={() => previewAttachment(att)}
                         >
-                          预览
+                          {selected ? '预览中' : '预览'}
                         </button>
-                        <button
-                          type="button"
-                          className="boq-attach-btn primary"
-                          title="下载到本地"
-                          onClick={() => fireAttachToast(`开始下载：${att.name}`)}
-                        >
-                          下载
-                        </button>
+                        {att.path ? (
+                          <a
+                            className="boq-attach-btn primary"
+                            href={previewBoqFileUrl(att.path)}
+                            download={att.name}
+                            title="下载到本地"
+                          >
+                            下载
+                          </a>
+                        ) : (
+                          <button type="button" className="boq-attach-btn primary" title="该附件暂无可下载文件源" disabled>
+                            下载
+                          </button>
+                        )}
                       </div>
                     </div>
                   );
@@ -877,7 +1253,7 @@ function LLDTab() {
 
 /* SVG 校正：/preview 只承载合同条线；DTRB/DRB/LLD 三快照拆到 /proposal 路由 */
 export default function PreviewScreen() {
-  const [boqState, setBoqState] = useState({ confirmed: false, parseProgress: 0, selectedCount: 0 });
+  const [boqState, setBoqState] = useState({ confirmed: false, parseProgress: 0, selectedCount: 0, totalBoqs: 0 });
   const parseDone = boqState.confirmed && boqState.parseProgress === 100;
 
   return (
@@ -896,7 +1272,7 @@ export default function PreviewScreen() {
       {!boqState.confirmed && boqState.selectedCount > 0 && (
         <div className="action-footer">
           <span className="action-footer-hint">
-            已选 <strong style={{ color: 'var(--c-text)' }}>{boqState.selectedCount}</strong> / {Object.keys(BOQS).length} BOQ
+            已选 <strong style={{ color: 'var(--c-text)' }}>{boqState.selectedCount}</strong> / {boqState.totalBoqs} BOQ
           </span>
           <div className="action-footer-spacer" />
           <button

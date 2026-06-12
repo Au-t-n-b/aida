@@ -26,21 +26,16 @@ def _register_all():
     """
     import sys
 
-    # (skill 名, "模块路径:工厂函数名")
-    _specs = [
-        ("zhgk",           ".zhgk.skill:get_zhgk_skill"),
-        ("guihua",         ".guihua.skill:get_guihua_skill"),
-        ("xtsj",           ".xtsj.skill:get_xtsj_skill"),
-        ("device_install", ".device_install.skill:get_device_install_skill"),
-    ]
-    import importlib
-    for name, target in _specs:
-        mod_path, factory_name = target.split(":")
-        try:
-            mod = importlib.import_module(mod_path, package=__name__)
-            registry.register(name, getattr(mod, factory_name))
-        except Exception as e:  # noqa: BLE001 — 缺件/语法错都不应阻断其余 skill
-            sys.stderr.write(f"[skills] 跳过 {name}：{type(e).__name__}: {e}\n")
+    from .xtsj.skill import get_xtsj_skill
+    registry.register("xtsj", get_xtsj_skill)
+
+    try:
+        from .device_install.skill import get_device_install_skill
+    except ModuleNotFoundError as exc:
+        if exc.name != f"{__name__}.device_install":
+            raise
+    else:
+        registry.register("device_install", get_device_install_skill)
 
 
 _register_all()
