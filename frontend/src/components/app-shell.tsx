@@ -260,7 +260,7 @@ function DemoWatermark() {
  * 该偏好仍可从 localStorage 读取（历史用户） */
 export function AppShell({ children, breadcrumbs = [], withClaw = false, clawRail }: AppShellProps) {
   const [navCollapsed, setNavCollapsed] = useState(false);
-  const [clawSide, setClawSide] = useState('left'); // 'left' | 'right'
+  const [clawSide, setClawSide] = useState<'left' | 'right'>('left');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

@@ -11,7 +11,7 @@
  */
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
-import { SduiRuntimeContext, type SduiRuntime, type SduiTableSubmitMeta } from '@/components/sdui/SduiContext';
+import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
 
 // 懒加载：预览组件内含 xlsx/mammoth 动态 import，懒加载使其仅在「打开预览」时才被 Vite 转译，
 // 避免未安装这两个库时（如 CI / 首次拉取）解析整棵模块图失败导致白屏。
@@ -27,7 +27,7 @@ import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
 import { dispatchRailSend } from '@/lib/claw-send';
 import { Button } from '@/components/primitives';
-import type { SduiAction, SduiDataTableRow, SduiDocument, SduiNode } from '@/lib/sdui';
+import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
 
 export interface SkillAgentScreenProps {
   /** 后端 skill_id，决定 /agent/<skillId>/* 端点（如 zhgk / guihua）。 */
@@ -286,6 +286,15 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   let found: SduiNode | null = null;
   walkSduiNodes(root, (n) => {
     if (!found && (n as { id?: string }).id === id) found = n;
+  });
+  return found;
+}
+
+function findDataTableByStepId(root: SduiNode, stepId?: string): SduiNode | null {
+  let found: SduiNode | null = null;
+  walkSduiNodes(root, (n) => {
+    if (found || n.type !== 'DataTable' || !n.editable) return;
+    if (!stepId || n.stepId === stepId) found = n;
   });
   return found;
 }
@@ -594,20 +603,19 @@ export default function SkillAgentScreen({
   }, [handleStart, doResume, handleResetSession, handleIntent, skillId]);
 
   // ── EditableTable 提交（submitMode 路由 · 对 skill 名零硬编码）──────────────
-  const handleTableSubmit = useCallback(async (rows: SduiDataTableRow[], meta: SduiTableSubmitMeta) => {
-    if (meta.submitMode === 'run-patch') {
-      // 运行时补丁：不重跑 LangGraph，后端 merge_run_patch 落盘后推新 SDUI 树
+  const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[], stepId?: string) => {
+    const tableNode = sduiDoc ? findDataTableByStepId(sduiDoc.root, stepId) : null;
+    const submitMode = (tableNode as { submitMode?: string } | null)?.submitMode ?? 'resume';
+    if (submitMode === 'run-patch') {
       if (!activeRunId) return;
       await runPatchRun(skillId, activeRunId, {
-        action: meta.patchAction ?? meta.stepId ?? 'table',
+        action: (tableNode as { patchAction?: string } | null)?.patchAction ?? stepId ?? 'table',
         rows,
       });
       return;
     }
-    // 在线编辑型 HITL：与 choice / upload 同走 resume（full_restart 重跑，
-    // rows 由 skill.apply_resume_payload 写回 project）
     await doResume({ rows });
-  }, [activeRunId, skillId, doResume]);
+  }, [sduiDoc, activeRunId, skillId, doResume]);
 
   const handleUpload = useCallback(async (files: FileList) => {
     const arr = Array.from(files);
@@ -650,9 +658,14 @@ export default function SkillAgentScreen({
     onAction: (action) => { void handleAction(action); },
     onUpload: (files) => { void handleUpload(files); },
     onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
-    onTableSubmit: (rows, meta) => {
-      handleTableSubmit(rows, meta).catch(e => console.error('[SDUI] table submit error:', e));
+    onRowsSubmit: (rows, stepId) => {
+      handleRowsSubmit(rows, stepId).catch(e => console.error('[SDUI] table submit error:', e));
     },
+    onRunPatch: async (payload) => {
+      if (!activeRunId) return;
+      await runPatchRun(skillId, activeRunId, payload);
+    },
+    streamEpoch,
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────────────
