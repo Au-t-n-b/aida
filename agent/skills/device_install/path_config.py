@@ -6,6 +6,7 @@ bridge.py 提供根目录定位，本模块负责子路径组合。
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from .bridge import get_device_install_root, get_data_dir
@@ -21,10 +22,31 @@ def get_input_dir() -> Path:
 
 
 def get_output_dir() -> Path:
-    """Output/  ← 产物（责任人模板、全量任务、实施计划、SN 扫码表、完工清单/报告）"""
-    p = get_data_dir("Output")
+    """作业产物输出目录（责任人表、全量任务、实施计划、SN 扫码表、完工清单/报告）。
+
+    优先级：
+      1. 环境变量 DEVICE_INSTALL_OUTPUT_ROOT（绝对路径 · 服务器/数据中心落点，
+         如 .../交付作业/设备安装/输出结果）
+      2. 默认 <work_root>/ProjectData/Output（本地开发/评测，/artifact 可下载）
+    """
+    raw = os.environ.get("DEVICE_INSTALL_OUTPUT_ROOT", "").strip()
+    p = Path(raw) if raw else get_data_dir("Output")
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+def output_rel(work_root: Path | str, path: Path | str) -> str:
+    """产物路径 → 相对 work_root 字符串（供 /artifact 下载）。
+
+    输出目录被 DEVICE_INSTALL_OUTPUT_ROOT 指到 work_root 之外时，
+    回退为绝对路径，避免 SkillContext.rel 抛 ValueError 而中断 step
+    （此时 /artifact 端点无法下载该产物，文件仍按要求落盘到指定目录）。
+    """
+    p = Path(path).resolve()
+    try:
+        return str(p.relative_to(Path(work_root).resolve()))
+    except ValueError:
+        return str(p)
 
 
 def get_runtime_dir() -> Path:
