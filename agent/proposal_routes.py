@@ -95,11 +95,11 @@ def list_available_devices(project_id: str) -> ApiResponse:
 
 @router.post("/chapters/5.1/net-plane/export")
 def export_net_plane(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """将当前网络平面配置保存到项目 data/delevery/共平面类型表.xlsx。"""
+    """将当前网络平面配置保存到项目 data/delivery/共平面类型表.xlsx。"""
     from openpyxl import Workbook
 
     rows = payload.get("rows") or [row.model_dump() for row in _store.list_net_plane(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delevery"
+    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "共平面类型表.xlsx"
 
@@ -222,11 +222,11 @@ def delete_net_mgmt(project_id: str, row_id: str) -> None:
 
 @router.post("/chapters/5.2/net-mgmt/export")
 def export_net_mgmt(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """保存网管服务器配置表到 data/delevery。"""
+    """保存网管服务器配置表到 data/delivery。"""
     from openpyxl import Workbook
 
     rows = payload.get("rows") or [row.model_dump() for row in _store.list_net_mgmt(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delevery"
+    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "网管服务器配置表.xlsx"
     workbook = Workbook()
@@ -314,11 +314,11 @@ def delete_cluster_device(
 
 @router.post("/chapters/5.3/cluster-device-list/export")
 def export_cluster_device(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """保存集群设备清单表到 data/delevery。"""
+    """保存集群设备清单表到 data/delivery。"""
     from openpyxl import Workbook
 
     rows = payload.get("rows") or [row.model_dump() for row in _store.list_cluster_device(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delevery"
+    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "集群设备清单表.xlsx"
     workbook = Workbook()
@@ -378,11 +378,11 @@ def create_room_rack(project_id: str, req: RoomRackCreateReq, source_row_id: str
 
 @router.post("/chapters/7.1/room-rack/export")
 def export_room_rack(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """将当前机房信息保存到项目 data/delevery/机房信息表.xlsx。"""
+    """将当前机房信息保存到项目 data/delivery/机房信息表.xlsx。"""
     from openpyxl import Workbook
 
     rows = payload.get("rows") or [row.model_dump() for row in _store.list_room_rack(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delevery"
+    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / "机房信息表.xlsx"
 

@@ -100,6 +100,7 @@ export function NetworkPlanesChapter() {
         if (sourceIndex < 0) return [...rs, data.row];
         return [...rs.slice(0, sourceIndex + 1), data.row, ...rs.slice(sourceIndex + 1)];
       });
+      window.dispatchEvent(new CustomEvent('net-plane-updated', { detail: { rowId: data.row.row_id } }));
     } catch (e) {
       setToast({ type: 'error', message: e instanceof Error ? e.message : '新增失败' });
     }
@@ -137,6 +138,9 @@ export function NetworkPlanesChapter() {
         setRows((rs) => rs.map((r) => (r.row_id === rowId ? data.row : r)));
         if (data.warnings.length > 0) {
           setToast({ type: 'warning', message: data.warnings.map((w) => w.message).join('\n') });
+        }
+        if ('qty' in accumulated || 'vendor' in accumulated || 'model' in accumulated) {
+          window.dispatchEvent(new CustomEvent('net-plane-updated', { detail: { rowId } }));
         }
       } catch (e) {
         setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
@@ -465,18 +469,32 @@ export function MgmtServerChapter() {
       </div>
       <div className="mt-3 flex items-center justify-between">
         <div className="text-xs text-slate-500">{loading ? '正在读取目录…' : `共识别 ${rows.length} 类网管服务器`}</div>
-        <button
-          type="button"
-          onClick={handleExport}
-          disabled={exporting || rows.length === 0}
-          className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
-            exporting || rows.length === 0
-              ? 'cursor-not-allowed border-slate-200 text-slate-300'
-              : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
-          }`}
-        >
-          {exporting ? '保存中…' : '导出 Excel'}
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
+              loading
+                ? 'cursor-not-allowed border-slate-200 text-slate-300'
+                : 'border-blue-300 text-blue-600 hover:border-blue-400 hover:bg-blue-50'
+            }`}
+          >
+            {loading ? '扫描中…' : '重新扫描'}
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || rows.length === 0}
+            className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
+              exporting || rows.length === 0
+                ? 'cursor-not-allowed border-slate-200 text-slate-300'
+                : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
+            }`}
+          >
+            {exporting ? '保存中…' : '导出 Excel'}
+          </button>
+        </div>
       </div>
     </ProposalChapterCard>
   );
@@ -552,6 +570,12 @@ export function ClusterDeviceChapter() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    const handler = () => { load(); };
+    window.addEventListener('net-plane-updated', handler);
+    return () => window.removeEventListener('net-plane-updated', handler);
+  }, [load]);
 
   const handleAdd = async (sourceNetPlaneId: string) => {
     try {

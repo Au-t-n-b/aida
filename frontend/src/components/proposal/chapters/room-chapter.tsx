@@ -5,9 +5,11 @@ import { ProposalChapterCard } from '../primitives';
 import { roomRackApi, type RoomRackRow } from '@/lib/proposal-api';
 
 const INPUT_CLS =
-  'w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 outline-none transition-colors focus:border-blue-400 focus:ring-1 focus:ring-blue-100';
+  'w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
 const DEL_BTN_CLS =
-  'grid h-5 w-5 place-items-center rounded text-xs text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500';
+  'rounded p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500';
+const TH_CLS = 'px-3 py-2.5 font-semibold';
+const HEAD_TR_CLS = 'bg-slate-50/90 text-left text-sm text-slate-700';
 
 const COLS: { key: keyof RoomRackRow; label: string }[] = [
   { key: 'pod_name', label: 'PoD名称' },
@@ -117,21 +119,21 @@ export function RoomChapter() {
       <div className="overflow-x-auto rounded-md border border-slate-100">
         <table className="w-full min-w-[1080px] border-collapse text-sm">
           <thead>
-            <tr className="bg-slate-50/90 text-left text-sm text-slate-700">
-              <th className="w-8 px-1 py-2.5" />
-              {COLS.map((column) => <th key={column.key} className="px-2 py-2.5 font-semibold">{column.label}</th>)}
-              <th className="w-8 px-1 py-2.5" />
+            <tr className={HEAD_TR_CLS}>
+              <th className="w-8 px-1"></th>
+              {COLS.map((column) => <th key={column.key} className={TH_CLS}>{column.label}</th>)}
+              <th className="w-8 px-1"></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={row.row_id} className="border-t border-slate-100 align-middle">
-                <td className="px-1 py-1.5 text-center">
+                <td className="w-8 px-1 text-center">
                   <button
                     type="button"
                     title="在当前行下方新增"
                     onClick={() => handleAdd(row.row_id)}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-xs text-slate-500 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600"
+                    className="grid h-5 w-5 place-items-center rounded text-xs text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
                   >＋</button>
                 </td>
                 {COLS.map((column) => (
@@ -143,15 +145,21 @@ export function RoomChapter() {
                     />
                   </td>
                 ))}
-                <td className="px-1 py-1.5 text-center">
+                <td className="w-8 px-1 text-center">
                   <button type="button" onClick={() => handleDelete(row.row_id)} title="删除此行" className={DEL_BTN_CLS}>✕</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+        {!loading && rows.length === 0 && (
+          <div className="border-t border-slate-100 px-4 py-8 text-center text-sm text-slate-400">
+            暂无机房信息，请确认设备信息表已解析或手动新增 PoD 行。
+          </div>
+        )}
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex items-center justify-between">
+        <div className="text-xs text-slate-500">{loading ? '加载中…' : `共 ${rows.length} 个 PoD`}</div>
         <button
           type="button"
           onClick={handleExport}
