@@ -6,7 +6,7 @@ import {
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { useProposalData } from '@/hooks/useProposalData';
+import { PLAN_ACTIVITIES } from '../proposal-data';
 
 function PlanProgress({ value, tone }: { value: number; tone: 'blue' | 'green' }) {
   return (
@@ -18,11 +18,8 @@ function PlanProgress({ value, tone }: { value: number; tone: 'blue' | 'green' }
 }
 
 export function PlanChapter() {
-  const { planRows, loading } = useProposalData();
-
   return (
     <ProposalChapterCard id="panel-plan" title="10. 计划">
-      {loading && <p className="mb-2 text-xs text-slate-400">正在加载计划…</p>}
       <ProposalDataTable equalCols leftAlign>
         <ProposalDataTableHead>
           <tr>
@@ -38,7 +35,7 @@ export function PlanChapter() {
           </tr>
         </ProposalDataTableHead>
         <ProposalDataTableBody>
-          {planRows.map((row, i) => (
+          {PLAN_ACTIVITIES.map((row, i) => (
             <tr key={i}>
               <td>{row.name}</td>
               <td>{row.start}</td>

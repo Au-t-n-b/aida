@@ -1,0 +1,296 @@
+{
+  "source_file": "JXX项目2025昇腾超节点下单-三期-2-2_0000Hw00478677202512170028_不含价格-POD06.xlsx",
+  "parsed_at": "2026-06-11T15:34:56+08:00",
+  "project": {},
+  "sites": [
+    "站点1"
+  ],
+  "products": [
+    {
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "product_id": "",
+      "product_head": "Atlas 900 A3 SuperPoD(空白模块)",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "Atlas 900 A3 SuperPoD",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "1.1",
+          "name": "Atlas 900 A3 SuperPoD",
+          "level": 2,
+          "parent_sort_no": "1"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "Atlas 900 A3 SuperPoD-A9US-33-HCZSC2A0L06",
+          "part_number": "02315KEE",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "功能模块-Atlas 900 A3 SuperPoD-A9US-33-HCZSC2A0L06-Atlas 900 A3 SuperPoD 384超节点(384*Ascend910,192*Kunpeng920,1536*96GB DDR,96*1823,96*7.68T NVME,48*3.84T NVME)",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 Atlas 900 A3 SuperPoD",
+          "remark": "",
+          "cluster_expansion": {
+            "source": "功能模块-Atlas 900 A3 SuperPoD-A9US-33-HCZSC2A0L06-Atlas 900 A3 SuperPoD 384超节点(384*Ascend910,192*Kunpeng920,1536*96GB DDR,96*1823,96*7.68T NVME,48*3.84T NVME)",
+            "container_qty": 1,
+            "components": [
+              {
+                "model": "Ascend910",
+                "qty_per_unit": 384,
+                "total_qty": 384
+              },
+              {
+                "model": "Kunpeng920",
+                "qty_per_unit": 192,
+                "total_qty": 192
+              },
+              {
+                "model": "96GB DDR",
+                "qty_per_unit": 1536,
+                "total_qty": 1536
+              },
+              {
+                "model": "7.68T NVME",
+                "qty_per_unit": 96,
+                "total_qty": 96
+              },
+              {
+                "model": "3.84T NVME",
+                "qty_per_unit": 48,
+                "total_qty": 48
+              }
+            ],
+            "decomposition_source": "description_regex"
+          },
+          "_row_number": 13
+        },
+        {
+          "sort_no": "",
+          "sales_code": "X21208992",
+          "part_number": "21208992",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "33KW Busbar 防护罩",
+          "total_qty": 4,
+          "site_qty": {
+            "站点1": 4
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 Atlas 900 A3 SuperPoD",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 14
+        },
+        {
+          "sort_no": "",
+          "sales_code": "X21208993",
+          "part_number": "21208993",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "66KW Busbar 防护罩",
+          "total_qty": 12,
+          "site_qty": {
+            "站点1": 12
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 Atlas 900 A3 SuperPoD",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 15
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "优选标识",
+        "总数",
+        "参考备货周期\n(天)",
+        "站点1"
+      ]
+    }
+  ],
+  "item_summary": [],
+  "item_summary_by_product": [],
+  "model_summary": [],
+  "raw_headers": {
+    "Atlas 900 A3 SuperPoD(空白模块)": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "优选标识",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1"
+    ]
+  },
+  "warnings": [
+    {
+      "level": "info",
+      "sheet": "汇总表",
+      "row": 0,
+      "code": "summary_table_skipped",
+      "message": "汇总表（配置名称-数量）已识别，不抽取为设备清单"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='Atlas 900 A3 SuperPoD(空白模块)')"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 'Atlas 900 A3 SuperPoD-A9US-33-HCZSC2A0L06' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: Atlas 900 A3 SuperPoD-A9US-33-HCZSC2A0L06"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 14,
+      "code": "unknown_product",
+      "message": "型号 'X21208992' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 14,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: X21208992"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 15,
+      "code": "unknown_product",
+      "message": "型号 'X21208993' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 15,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: X21208993"
+    }
+  ],
+  "sheet_roles": [
+    {
+      "sheet": "封面",
+      "role": "ignore",
+      "signals": {
+        "title": "封面",
+        "n_rows": 15,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:封面"
+      }
+    },
+    {
+      "sheet": "免责声明",
+      "role": "ignore",
+      "signals": {
+        "title": "免责声明",
+        "n_rows": 24,
+        "n_cols": 3,
+        "reason": "blacklist_keyword:免责声明"
+      }
+    },
+    {
+      "sheet": "基础信息表",
+      "role": "ignore",
+      "signals": {
+        "title": "基础信息表",
+        "n_rows": 22,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:基础信息表"
+      }
+    },
+    {
+      "sheet": "汇总表",
+      "role": "summary_table",
+      "signals": {
+        "title": "汇总表",
+        "n_rows": 11,
+        "n_cols": 5,
+        "meta": {
+          "any_meta": 2,
+          "partnumber": 0,
+          "partnumber_nested": 0,
+          "productid": 1,
+          "isquoteleaf": 1,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 2,
+        "has_device_headers": false,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "role": "l3_device",
+      "signals": {
+        "title": "Atlas 900 A3 SuperPoD(空白模块)",
+        "n_rows": 15,
+        "n_cols": 10,
+        "meta": {
+          "any_meta": 6,
+          "partnumber": 3,
+          "partnumber_nested": 0,
+          "productid": 6,
+          "isquoteleaf": 3,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    }
+  ],
+  "_stats": {
+    "cluster_expanded": 1
+  }
+}

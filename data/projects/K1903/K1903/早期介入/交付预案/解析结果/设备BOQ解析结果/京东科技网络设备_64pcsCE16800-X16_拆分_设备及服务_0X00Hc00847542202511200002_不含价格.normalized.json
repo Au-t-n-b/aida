@@ -1,0 +1,656 @@
+{
+  "source_file": "京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.xlsx",
+  "parsed_at": "2026-06-11T15:35:54+08:00",
+  "project": {},
+  "sites": [
+    "站点1"
+  ],
+  "products": [
+    {
+      "sheet": "CE16800-X16 V300R024",
+      "product_id": "",
+      "product_head": "CE16800-X16 V300R024",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "CloudEngine 16800 & XH16800 核心交换机",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "1.1",
+          "name": "X-主设备",
+          "level": 2,
+          "parent_sort_no": "1"
+        },
+        {
+          "sort_no": "1.1.1",
+          "name": "X-基本配置",
+          "level": 3,
+          "parent_sort_no": "1.1"
+        },
+        {
+          "sort_no": "1.1.2",
+          "name": "X-400G以太网光接口板",
+          "level": 3,
+          "parent_sort_no": "1.1"
+        },
+        {
+          "sort_no": "1.2",
+          "name": "软件",
+          "level": 2,
+          "parent_sort_no": "1"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "CE16800-X16A-DH-B02",
+          "part_number": "02356FQH",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "基本配置-CloudEngine 16800-CE16800-X16A-DH-B02-CE16800-X16交流组合配置2(含交流/高压直流总装机箱,2*主控板D,7*交换网板G-H,20*3000W交流&高压直流电源模块,满配风机盒)",
+          "total_qty": 64,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1.1 X-基本配置",
+          "remark": "",
+          "cluster_expansion": {
+            "source": "基本配置-CloudEngine 16800-CE16800-X16A-DH-B02-CE16800-X16交流组合配置2(含交流/高压直流总装机箱,2*主控板D,7*交换网板G-H,20*3000W交流&高压直流电源模块,满配风机盒)",
+            "container_qty": 64,
+            "components": [
+              {
+                "model": "主控板D",
+                "qty_per_unit": 2,
+                "total_qty": 128
+              },
+              {
+                "model": "交换网板G-H",
+                "qty_per_unit": 7,
+                "total_qty": 448
+              },
+              {
+                "model": "3000W交流&高压直流电源模块",
+                "qty_per_unit": 20,
+                "total_qty": 1280
+              }
+            ],
+            "decomposition_source": "description_regex"
+          },
+          "_row_number": 14
+        },
+        {
+          "sort_no": "",
+          "sales_code": "CEX-L36DQ2CQJ2-B",
+          "part_number": "02356SKH",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "36端口400GE，2端口100GE以太网光接口板(XL-J2,QSFP-DD,QSFP28)(CM)含3*CE168-RTU-U6DQ-ISP",
+          "total_qty": 256,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1.2 X-400G以太网光接口板",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 16
+        },
+        {
+          "sort_no": "",
+          "sales_code": "N1-CE168LIC-CFAD-OTT",
+          "part_number": "88039JDE",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CE16800交换机CloudFabric Advanced软件包(OTT)",
+          "total_qty": 64,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.2 软件",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 18
+        },
+        {
+          "sort_no": "",
+          "sales_code": "N1-CE168LIC-AI-OTT",
+          "part_number": "88039JDH",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "N1-CloudEngine 16800交换机AI场景增值包(OTT)",
+          "total_qty": 64,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.2 软件",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 19
+        }
+      ],
+      "site_columns": [],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "优选标识",
+        "含软件备注",
+        "总数",
+        "参考备货周期\n(天)",
+        "CE16800-X16  4块业务板",
+        ""
+      ]
+    },
+    {
+      "sheet": "AI运力网络规划设计与实施服务",
+      "product_id": "",
+      "product_head": "AI运力网络规划设计与实施服务",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "2",
+          "name": "AI运力网络规划设计与实施服务",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "2.1",
+          "name": "AI运力网络规划设计与实施服务",
+          "level": 2,
+          "parent_sort_no": "2"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8814220718",
+          "part_number": "8814220718",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "AI运力网络规划设计与实施服务-备注：高端设备数量64套,中端设备数量100套,FabricInsight - 服务器数量3套,iMaster NCE - 平台服务器数量3套,AI运力基础网络规划设计与部署,AI网络光链路集成设计与调优,AI网络业务集成设计与部署调优,AI集群系统设计与部署调优（网络）",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "2.1 AI运力网络规划设计与实施服务",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 13
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "总数",
+        "参考备货周期\n(天)",
+        "站点1",
+        ""
+      ]
+    },
+    {
+      "sheet": "技术支持服务",
+      "product_id": "",
+      "product_head": "技术支持服务",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "3",
+          "name": "CloudEngine 16800 & XH16800 核心交换机",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "3.1",
+          "name": "CloudEngine 16800 & XH16800 核心交换机",
+          "level": 2,
+          "parent_sort_no": "3"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "02356FQH_88134UFD_60(M)",
+          "part_number": "88134UFD",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CE16800-X16交流组合配置2(含交流/高压直流总装机箱,2*主控板E,7*交换网板G-H2,20*3000W交流&高压直流电源模块,满配风机盒)-Hi-Care基础服务金牌 7x24x4H-/台*年-60(月)",
+          "total_qty": 64,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "3.1 CloudEngine 16800 & XH16800 核心交换机",
+          "remark": "",
+          "cluster_expansion": {
+            "source": "CE16800-X16交流组合配置2(含交流/高压直流总装机箱,2*主控板E,7*交换网板G-H2,20*3000W交流&高压直流电源模块,满配风机盒)-Hi-Care基础服务金牌 7x24x4H-/台*年-60(月)",
+            "container_qty": 64,
+            "components": [
+              {
+                "model": "主控板E",
+                "qty_per_unit": 2,
+                "total_qty": 128
+              },
+              {
+                "model": "交换网板G-H2",
+                "qty_per_unit": 7,
+                "total_qty": 448
+              },
+              {
+                "model": "3000W交流&高压直流电源模块",
+                "qty_per_unit": 20,
+                "total_qty": 1280
+              }
+            ],
+            "decomposition_source": "description_regex"
+          },
+          "_row_number": 13
+        },
+        {
+          "sort_no": "",
+          "sales_code": "02356SKH_88134UFD_60(M)",
+          "part_number": "88134UFD",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "36端口400GE，2端口100GE以太网光接口板(XL-J2,QSFP-DD,QSFP28)(CM)含3*CE168-RTU-U6DQ-ISP-Hi-Care基础服务金牌 7x24x4H-/台*年-60(月)",
+          "total_qty": 256,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "3.1 CloudEngine 16800 & XH16800 核心交换机",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 14
+        }
+      ],
+      "site_columns": [],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "单套数量",
+        "数量",
+        "",
+        ""
+      ]
+    }
+  ],
+  "item_summary": [],
+  "item_summary_by_product": [],
+  "model_summary": [
+    {
+      "_row_number": 10,
+      "sort_no": "1",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 11,
+      "sort_no": "",
+      "total_qty": 64,
+      "product_id": "145647032",
+      "product_group": ""
+    },
+    {
+      "_row_number": 12,
+      "sort_no": "2",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 13,
+      "sort_no": "",
+      "total_qty": 64,
+      "product_id": "145647032",
+      "product_group": ""
+    },
+    {
+      "_row_number": 14,
+      "sort_no": "3",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 15,
+      "sort_no": "",
+      "total_qty": 1,
+      "product_id": "145608158",
+      "product_group": ""
+    }
+  ],
+  "raw_headers": {
+    "CE16800-X16 V300R024": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "优选标识",
+      "含软件备注",
+      "总数",
+      "参考备货周期\n(天)",
+      "CE16800-X16  4块业务板",
+      ""
+    ],
+    "AI运力网络规划设计与实施服务": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1",
+      ""
+    ],
+    "技术支持服务": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "单套数量",
+      "数量",
+      "",
+      ""
+    ]
+  },
+  "warnings": [
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='CE16800-X16 V300R024')"
+    },
+    {
+      "level": "info",
+      "sheet": "AI运力网络规划设计与实施服务",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='AI运力网络规划设计与实施服务')"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='技术支持服务')"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 14,
+      "code": "unknown_product",
+      "message": "型号 'CE16800-X16A-DH-B02' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 14,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: CE16800-X16A-DH-B02"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 16,
+      "code": "unknown_product",
+      "message": "型号 'CEX-L36DQ2CQJ2-B' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 16,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: CEX-L36DQ2CQJ2-B"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 18,
+      "code": "unknown_product",
+      "message": "型号 'N1-CE168LIC-CFAD-OTT' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 18,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: N1-CE168LIC-CFAD-OTT"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 19,
+      "code": "unknown_product",
+      "message": "型号 'N1-CE168LIC-AI-OTT' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE16800-X16 V300R024",
+      "row": 19,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: N1-CE168LIC-AI-OTT"
+    },
+    {
+      "level": "info",
+      "sheet": "AI运力网络规划设计与实施服务",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 '8814220718' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "AI运力网络规划设计与实施服务",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814220718"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 '02356FQH_88134UFD_60(M)' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 02356FQH_88134UFD_60(M)"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 14,
+      "code": "unknown_product",
+      "message": "型号 '02356SKH_88134UFD_60(M)' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 14,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 02356SKH_88134UFD_60(M)"
+    }
+  ],
+  "sheet_roles": [
+    {
+      "sheet": "封面",
+      "role": "ignore",
+      "signals": {
+        "title": "封面",
+        "n_rows": 15,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:封面"
+      }
+    },
+    {
+      "sheet": "免责声明",
+      "role": "ignore",
+      "signals": {
+        "title": "免责声明",
+        "n_rows": 24,
+        "n_cols": 3,
+        "reason": "blacklist_keyword:免责声明"
+      }
+    },
+    {
+      "sheet": "基础信息表",
+      "role": "ignore",
+      "signals": {
+        "title": "基础信息表",
+        "n_rows": 22,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:基础信息表"
+      }
+    },
+    {
+      "sheet": "汇总表",
+      "role": "model_summary",
+      "signals": {
+        "title": "汇总表",
+        "n_rows": 15,
+        "n_cols": 5,
+        "meta": {
+          "any_meta": 6,
+          "partnumber": 0,
+          "partnumber_nested": 0,
+          "productid": 3,
+          "isquoteleaf": 3,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 2,
+        "has_device_headers": false
+      }
+    },
+    {
+      "sheet": "统计",
+      "role": "ignore",
+      "signals": {
+        "title": "统计",
+        "n_rows": 14,
+        "n_cols": 11,
+        "reason": "blacklist_keyword:统计"
+      }
+    },
+    {
+      "sheet": "CE16800-X16 V300R024",
+      "role": "l3_device",
+      "signals": {
+        "title": "CE16800-X16 V300R024",
+        "n_rows": 19,
+        "n_cols": 12,
+        "meta": {
+          "any_meta": 10,
+          "partnumber": 4,
+          "partnumber_nested": 0,
+          "productid": 10,
+          "isquoteleaf": 4,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 5,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "AI运力网络规划设计与实施服务",
+      "role": "l3_device",
+      "signals": {
+        "title": "AI运力网络规划设计与实施服务",
+        "n_rows": 13,
+        "n_cols": 10,
+        "meta": {
+          "any_meta": 4,
+          "partnumber": 1,
+          "partnumber_nested": 0,
+          "productid": 4,
+          "isquoteleaf": 1,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "技术支持服务",
+      "role": "l3_device",
+      "signals": {
+        "title": "技术支持服务",
+        "n_rows": 14,
+        "n_cols": 10,
+        "meta": {
+          "any_meta": 5,
+          "partnumber": 2,
+          "partnumber_nested": 0,
+          "productid": 5,
+          "isquoteleaf": 2,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    }
+  ],
+  "_stats": {
+    "cluster_expanded": 2
+  }
+}

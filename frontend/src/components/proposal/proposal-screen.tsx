@@ -14,12 +14,7 @@ import { RoomChapter } from './chapters/room-chapter';
 import { ServiceChapterWrapper } from './chapters/service-chapters';
 import { SoftwareChapter } from './chapters/software-chapter';
 import { TestCaseChapter } from './chapters/test-case-chapter';
-import {
-  CHAPTERS_BY_SNAP,
-  SNAP_ALIASES,
-  SNAPSHOTS,
-  type SnapKey,
-} from './proposal-data';
+import { CHAPTERS_BY_SNAP, SNAP_ALIASES, SNAPSHOTS, type SnapKey } from './proposal-data';
 import {
   anchorToChapterKey,
   CHAPTER_TARGETS,
@@ -28,11 +23,67 @@ import {
 } from './proposal-navigation';
 import { ProposalOutlineRail } from './proposal-outline-rail';
 import { VersionDropdown } from './proposal-version-dropdown';
-import { ProposalDataProvider, useProposalData } from '@/hooks/useProposalData';
+import {
+  exportDocument,
+  fetchDraft,
+  fetchVersionSnapshot,
+  fetchVersions,
+  formatProposalDateTime,
+  getDefaultProjectId,
+  loadChangeLogForDraft,
+  loadChangeLogThroughVersion,
+  manualLogToChangeRecords,
+  ProposalApiError,
+  releaseAndDecide,
+  resolveVersionInfoMetadata,
+  saveDraft,
+  useProposalApiHeaders,
+  type CumulativeChangeEntry,
+  type DraftManifest,
+  type ManifestActivity,
+  type ProposalVersionItem,
+  type VersionInfoMetadata,
+} from '@/lib/proposal-api';
 
-function ProposalScreenInner() {
-  const { dirty, setDirty, saveDraft, saveAndConfirm } = useProposalData();
-  const [snapKey, setSnapKey] = useState<SnapKey>('dtrb');
+const DEFAULT_MANIFEST: DraftManifest = {
+  workingVersionLabel: '草稿',
+  status: 'draft',
+};
+
+const DEFAULT_METADATA: VersionInfoMetadata = {
+  proposalVersion: '草稿',
+  projectName: '京东三期项目',
+};
+
+/** API 未就绪时仍展示版本下拉（至少草稿一行） */
+const FALLBACK_VERSIONS: ProposalVersionItem[] = [
+  {
+    proposalVersion: 'draft',
+    status: 'draft',
+    label: '草稿',
+    tone: 'amber',
+    isLatest: true,
+    isEditable: true,
+  },
+];
+
+export default function ProposalScreen() {
+  const headers = useProposalApiHeaders();
+  const projectId = getDefaultProjectId();
+
+  const [proposalVersion, setProposalVersion] = useState('draft');
+  const [versions, setVersions] = useState<ProposalVersionItem[]>([]);
+  const [manifest, setManifest] = useState<DraftManifest>(DEFAULT_MANIFEST);
+  const [metadata, setMetadata] = useState<VersionInfoMetadata>(DEFAULT_METADATA);
+  const [cumulativeLog, setCumulativeLog] = useState<CumulativeChangeEntry[]>([]);
+  const [manualChangeLog, setManualChangeLog] = useState<CumulativeChangeEntry[]>([]);
+  const [etag, setEtag] = useState<string | undefined>();
+  const [dirty, setDirty] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [docToast, setDocToast] = useState<string | null>(null);
+
+  const [snapKey, setSnapKey] = useState<SnapKey>('exec');
   const [activeChapterKey, setActiveChapterKey] = useState<string | null>(null);
   const [pendingTip, setPendingTip] = useState<{ num: string; panel: string } | null>(null);
   const [outlineCollapsed, setOutlineCollapsed] = useState(false);
@@ -40,7 +91,95 @@ function ProposalScreenInner() {
   const [outlinePinned, setOutlinePinned] = useState(false);
   const [outlineHidden, setOutlineHidden] = useState(false);
 
+  const isEditable = proposalVersion === 'draft';
   const outlineWide = !outlineCollapsed || outlineHover || outlinePinned;
+
+  const fireDocToast = useCallback((msg: string) => {
+    setDocToast(msg);
+    window.setTimeout(() => setDocToast(null), 2400);
+  }, []);
+
+  const handleManifestActivity = useCallback((activity: ManifestActivity) => {
+    setMetadata((m) => ({
+      ...m,
+      ...(activity.updatedBy != null ? { updatedBy: activity.updatedBy } : {}),
+      ...(activity.updatedAt != null ? { updatedAt: activity.updatedAt } : {}),
+    }));
+    if (activity.etag) setEtag(activity.etag);
+  }, []);
+
+  /** 保存草稿；若 etag 过期则拉取最新 manifest 后自动重试一次 */
+  const saveDraftWithEtagRetry = useCallback(async () => {
+    const attempt = async (matchEtag?: string) =>
+      saveDraft(projectId, headers, { manualChangeLog }, matchEtag);
+
+    try {
+      return await attempt(etag);
+    } catch (err) {
+      if (err instanceof ProposalApiError && err.code === 'ETAG_MISMATCH') {
+        const fresh = await fetchDraft(projectId, headers);
+        const freshEtag = fresh.manifest?.etag;
+        if (freshEtag) setEtag(freshEtag);
+        return attempt(freshEtag);
+      }
+      throw err;
+    }
+  }, [etag, headers, manualChangeLog, projectId]);
+
+  const loadProposalState = useCallback(async () => {
+    setLoading(true);
+    const errors: string[] = [];
+
+    let draftData: Awaited<ReturnType<typeof fetchDraft>> | null = null;
+    let versionList: ProposalVersionItem[] = [];
+    let changeLog: CumulativeChangeEntry[] = [];
+
+    try {
+      draftData = await fetchDraft(projectId, headers);
+    } catch (err) {
+      errors.push(
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
+      );
+    }
+
+    try {
+      versionList = await fetchVersions(projectId, headers);
+    } catch (err) {
+      errors.push(
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
+      );
+    }
+
+    if (draftData) {
+      changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
+      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
+      setEtag(draftData.manifest?.etag);
+      setDirty(draftData.manifest?.dirty ?? false);
+      setCumulativeLog(changeLog);
+      setManualChangeLog(
+        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+      );
+    } else {
+      setCumulativeLog(changeLog);
+      setManualChangeLog(
+        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+      );
+    }
+
+    setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
+    setProposalVersion('draft');
+
+    if (errors.length > 0) {
+      fireDocToast(errors[0] ?? '预案加载失败');
+    }
+
+    setLoading(false);
+  }, [fireDocToast, headers, projectId]);
+
+  useEffect(() => {
+    void loadProposalState();
+  }, [loadProposalState]);
 
   useEffect(() => {
     const v = readUrlParam('snap');
@@ -77,7 +216,58 @@ function ProposalScreenInner() {
     );
     targets.forEach((t) => io.observe(t));
     return () => io.disconnect();
-  }, [snapKey]);
+  }, [snapKey, proposalVersion]);
+
+  const handleVersionSelect = useCallback(
+    async (version: string) => {
+      setProposalVersion(version);
+      if (version === 'draft') {
+        try {
+          const draftData = await fetchDraft(projectId, headers);
+          const log = await loadChangeLogForDraft(projectId, headers, draftData);
+          setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+          setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
+          setCumulativeLog(log);
+          setManualChangeLog(
+            log.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+          );
+          setEtag(draftData.manifest?.etag);
+        } catch {
+          /* keep current */
+        }
+        return;
+      }
+      try {
+        const snap = await fetchVersionSnapshot(projectId, version, headers);
+        const verItem = versions.find((v) => v.proposalVersion === version);
+        setManifest({
+          workingVersionLabel: version,
+          status: 'published',
+        });
+        setMetadata(
+          resolveVersionInfoMetadata(
+            snap as Record<string, unknown>,
+            DEFAULT_METADATA,
+            verItem,
+          ),
+        );
+        const draftForOrder = await fetchDraft(projectId, headers);
+        const changeLog = await loadChangeLogThroughVersion(
+          projectId,
+          headers,
+          version,
+          draftForOrder,
+        );
+        setCumulativeLog(changeLog);
+        setManualChangeLog([]);
+      } catch (err) {
+        const msg =
+          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '加载版本失败';
+        fireDocToast(msg);
+      }
+    },
+    [fireDocToast, headers, projectId, versions],
+  );
 
   const handleChapterJump = useCallback((chapterKey: string) => {
     const t = CHAPTER_TARGETS[chapterKey];
@@ -94,67 +284,122 @@ function ProposalScreenInner() {
     }, 50);
   }, []);
 
-  const [docToast, setDocToast] = useState<string | null>(null);
-  const fireDocToast = useCallback((msg: string) => {
-    setDocToast(msg);
-    window.setTimeout(() => setDocToast(null), 2400);
-  }, []);
-
   const handleSaveDraft = useCallback(async () => {
-    try {
-      await saveDraft();
-      fireDocToast('草稿已保存 · 版本号不变');
-    } catch {
-      fireDocToast('保存失败 · 请确认 Agent 服务已启动');
-    }
-  }, [fireDocToast, saveDraft]);
-
-  const handleConfirm = useCallback(async () => {
-    try {
-      await saveAndConfirm();
-    } catch {
-      fireDocToast('保存失败 · 请确认 Agent 服务已启动');
+    if (!isEditable) {
+      fireDocToast('历史版本只读，请切换到草稿编辑');
       return;
     }
-    setDirty(false);
-    if (typeof window === 'undefined') return;
-    const fire = (delay: number, detail: object) =>
-      setTimeout(
-        () => window.dispatchEvent(new CustomEvent('aida:progress', { detail })),
-        delay,
+    setActionBusy(true);
+    try {
+      const result = await saveDraftWithEtagRetry();
+      setDirty(false);
+      setEtag(result.etag);
+      setManifest((m) => ({
+        ...m,
+        workingVersionLabel: result.workingVersionLabel ?? m.workingVersionLabel,
+        dirty: false,
+      }));
+      if (result.metadata || result.createdBy) {
+        setMetadata(
+          resolveVersionInfoMetadata(
+            { metadata: result.metadata, manifest: { ...manifest, ...result } },
+            metadata,
+          ),
+        );
+      }
+      const draftAfterSave = await fetchDraft(projectId, headers);
+      const logAfterSave = await loadChangeLogForDraft(projectId, headers, draftAfterSave);
+      setCumulativeLog(logAfterSave);
+      setManualChangeLog(
+        logAfterSave.filter((e) => e.editable !== false && e.source !== 'snapshot'),
       );
-    fire(0, { role: 'user', body: `生成预案并决策 · ${SNAPSHOTS[snapKey].label}` });
-    fire(400, {
-      role: 'ai',
-      body: `预案 ${SNAPSHOTS[snapKey].label} 已发布 · 正在下发任务与风险…`,
-      chips: ['预案已发布'],
-    });
-    fire(1200, {
-      role: 'ai',
-      body: '任务下发完成：ConnectX-7 数量确认（何博）/ 样本面接入设备补齐（王明）/ k8s 平台版本确认（TD）已进入计划任务列表。',
-      chips: ['任务 +3', '已指定责任人'],
-      actions: [{ label: '查看计划任务', kind: 'primary', icon: 'Eye' }],
-    });
-    fire(2200, {
-      role: 'ai',
-      body: '风险已写入项目孪生风险预警：BOQ 冲突（高）/ 组网缺失（高）/ CAD 缺失（中）· 进入孪生看板可见全貌。',
-      chips: ['风险 +3', '已同步看板'],
-      actions: [
-        { label: '进入项目孪生', kind: 'primary' },
-        { label: '查看风险预警', kind: 'ghost' },
-      ],
-    });
-    setTimeout(() => window.location.assign('/cockpit'), 2800);
-  }, [snapKey, saveAndConfirm, setDirty]);
+      if (draftAfterSave.manifest?.etag) setEtag(draftAfterSave.manifest.etag);
+      fireDocToast('草稿已保存 · 版本号不变');
+    } catch (err) {
+      const msg =
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '保存失败';
+      fireDocToast(msg);
+    } finally {
+      setActionBusy(false);
+    }
+  }, [fireDocToast, headers, isEditable, manifest, metadata, manualChangeLog, projectId, saveDraftWithEtagRetry]);
 
-  const snap = SNAPSHOTS[snapKey];
+  const handleConfirm = useCallback(async () => {
+    if (!isEditable) {
+      fireDocToast('历史版本只读，请切换到草稿后再发布');
+      return;
+    }
+    setActionBusy(true);
+    try {
+      await saveDraftWithEtagRetry();
+      const result = await releaseAndDecide(projectId, headers, {
+        changeRecords: manualLogToChangeRecords(manualChangeLog),
+      });
+      setDirty(false);
+
+      if (typeof window !== 'undefined' && result.progress) {
+        result.progress.forEach((item, idx) => {
+          setTimeout(
+            () => window.dispatchEvent(new CustomEvent('aida:progress', { detail: item })),
+            idx === 0 ? 0 : idx * 400,
+          );
+        });
+      }
+
+      const versionList = await fetchVersions(projectId, headers);
+      setVersions(versionList);
+      const draftData = await fetchDraft(projectId, headers);
+      const log = await loadChangeLogForDraft(projectId, headers, draftData);
+      setProposalVersion('draft');
+      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
+      setCumulativeLog(log);
+      setManualChangeLog(
+        log.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+      );
+      setEtag(draftData.manifest?.etag);
+
+      const delay = (result.progress?.length ?? 1) * 400 + 400;
+      setTimeout(() => window.location.assign('/cockpit'), Math.max(delay, 2800));
+    } catch (err) {
+      const msg =
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';
+      fireDocToast(msg);
+      setActionBusy(false);
+    }
+  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveDraftWithEtagRetry]);
+
+  const handleExport = useCallback(async () => {
+    setActionBusy(true);
+    try {
+      const blob = await exportDocument(projectId, headers, proposalVersion);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download =
+        proposalVersion === 'draft'
+          ? `${metadata.projectName ?? '交付预案'}_草稿.json`
+          : `${metadata.projectName ?? '交付预案'}_${proposalVersion}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      fireDocToast('文档已导出');
+    } catch (err) {
+      const msg =
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '导出失败';
+      fireDocToast(msg);
+    } finally {
+      setActionBusy(false);
+    }
+  }, [fireDocToast, headers, metadata.projectName, projectId, proposalVersion]);
+
   const chapters = CHAPTERS_BY_SNAP[snapKey] || [];
-
   const outlinePageClass = outlineHidden
     ? 'proposal-page--outline-hidden'
     : outlineWide
       ? ''
       : 'proposal-page--outline-collapsed';
+
+  const pageTitle = `${metadata.projectName ?? '京东三期项目'}交付预案`;
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>
@@ -183,27 +428,30 @@ function ProposalScreenInner() {
           <div className="proposal-doc-header">
             <div className="proposal-doc-header-top">
               <div className="min-w-0">
-                <h1 className="proposal-doc-title">京东三期项目交付预案</h1>
+                <h1 className="proposal-doc-title">{pageTitle}</h1>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   type="button"
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700"
-                  onClick={() => fireDocToast('正在导出文档：京东三期项目交付预案.docx')}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => void handleExport()}
+                  disabled={actionBusy || loading}
                 >
                   下载文档
                 </button>
                 <button
                   type="button"
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-                  onClick={handleSaveDraft}
+                  onClick={() => void handleSaveDraft()}
+                  disabled={actionBusy || loading || !isEditable}
                 >
                   保存草稿
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700"
-                  onClick={handleConfirm}
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                  onClick={() => void handleConfirm()}
+                  disabled={actionBusy || loading || !isEditable}
                 >
                   生成预案并决策
                 </button>
@@ -211,37 +459,70 @@ function ProposalScreenInner() {
             </div>
             <div className="proposal-doc-actions">
               <div className="proposal-doc-meta">
-                <span>创建人 <b>{snap.createdBy}</b></span>
+                <span>创建人 <b>{metadata.createdBy ?? '—'}</b></span>
                 <span className="proposal-doc-meta-dot">·</span>
-                <span>创建时间 <b>{snap.createdAt}</b></span>
+                <span>创建时间 <b>{formatProposalDateTime(metadata.createdAt)}</b></span>
                 <span className="proposal-doc-meta-dot">·</span>
-                <span>最后修改人 <b>{snap.updatedBy}</b></span>
+                <span>最后修改人 <b>{metadata.updatedBy ?? '—'}</b></span>
                 <span className="proposal-doc-meta-dot">·</span>
-                <span>修改时间 <b>{snap.updatedAt}</b></span>
+                <span>修改时间 <b>{formatProposalDateTime(metadata.updatedAt)}</b></span>
+                {dirty && isEditable && (
+                  <>
+                    <span className="proposal-doc-meta-dot">·</span>
+                    <span className="text-amber-600">未保存</span>
+                  </>
+                )}
               </div>
               <div className="proposal-doc-actions-spacer" />
-              <VersionDropdown snapKey={snapKey} onSelect={setSnapKey} />
+              <VersionDropdown
+                versions={versions.length > 0 ? versions : FALLBACK_VERSIONS}
+                currentVersion={proposalVersion}
+                onSelect={(v) => void handleVersionSelect(v)}
+              />
             </div>
           </div>
 
-          <MetaChapter snapKey={snapKey} />
-          <CustomerChapterWrapper />
+          {loading ? (
+            <p className="py-8 text-center text-sm text-slate-500">加载预案数据…</p>
+          ) : (
+            <>
+              <MetaChapter
+                cumulativeLog={cumulativeLog}
+                readOnly={!isEditable}
+                onCumulativeLogChange={(entries) => {
+                  setManualChangeLog(entries);
+                  if (isEditable) setDirty(true);
+                }}
+              />
+              <CustomerChapterWrapper />
 
-          <DeviceChapter />
-          <PartsChapter />
-          <SoftwareChapter />
-          <NetworkChapterWrapper />
+              <DeviceChapter
+                proposalVersion={proposalVersion}
+                readOnly={!isEditable}
+                onDirty={() => setDirty(true)}
+                onManifestActivity={handleManifestActivity}
+              />
+              <PartsChapter />
+              <SoftwareChapter />
+              <NetworkChapterWrapper />
 
-          <IntegrationChapter />
+              <IntegrationChapter />
 
-          <RoomChapter />
+              <RoomChapter />
 
-          <ServiceChapterWrapper />
+              <ServiceChapterWrapper
+                proposalVersion={proposalVersion}
+                readOnly={!isEditable}
+                onDirty={() => setDirty(true)}
+                onManifestActivity={handleManifestActivity}
+              />
 
-          <RaciChapter />
-          <PlanChapter />
-          <AcceptanceChapter />
-          <TestCaseChapter />
+              <RaciChapter />
+              <PlanChapter />
+              <AcceptanceChapter />
+              <TestCaseChapter />
+            </>
+          )}
         </div>
 
         {docToast && <div className="boq-attach-toast">{docToast}</div>}
@@ -270,13 +551,5 @@ function ProposalScreenInner() {
         </div>
       )}
     </div>
-  );
-}
-
-export default function ProposalScreen() {
-  return (
-    <ProposalDataProvider>
-      <ProposalScreenInner />
-    </ProposalDataProvider>
   );
 }

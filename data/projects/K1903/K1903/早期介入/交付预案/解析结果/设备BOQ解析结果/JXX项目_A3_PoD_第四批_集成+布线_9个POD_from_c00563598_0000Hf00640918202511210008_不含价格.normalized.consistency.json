@@ -1,0 +1,54 @@
+{
+  "verdict": "WARN",
+  "findings": [
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 13,
+      "message": "硬件叶子无单价: 8814325423"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 14,
+      "message": "硬件叶子无单价: 8814325418"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 15,
+      "message": "硬件叶子无单价: 8814325419"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 16,
+      "message": "硬件叶子无单价: 8814325420"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 17,
+      "message": "硬件叶子无单价: 8814325421"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 19,
+      "message": "硬件叶子无单价: 8814305204"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "row": 13,
+      "message": "硬件叶子无单价: 8814283352"
+    }
+  ]
+}

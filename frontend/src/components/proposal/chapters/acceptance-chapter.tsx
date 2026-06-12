@@ -6,14 +6,11 @@ import {
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { useProposalData } from '@/hooks/useProposalData';
+import { ACCEPTANCE_ITEMS } from '../proposal-data';
 
 export function AcceptanceChapter() {
-  const { acceptanceItems, loading } = useProposalData();
-
   return (
     <ProposalChapterCard id="panel-accept" title="11. 验收策略">
-      {loading && <p className="mb-2 text-xs text-slate-400">正在加载验收策略…</p>}
       <ProposalDataTable equalCols leftAlign>
         <ProposalDataTableHead>
           <tr>
@@ -27,7 +24,7 @@ export function AcceptanceChapter() {
           </tr>
         </ProposalDataTableHead>
         <ProposalDataTableBody>
-          {acceptanceItems.map((a, i) => (
+          {ACCEPTANCE_ITEMS.map((a, i) => (
             <tr key={i}>
               <td>{a.cat}</td>
               <td className="text-xs">{a.scheme}</td>

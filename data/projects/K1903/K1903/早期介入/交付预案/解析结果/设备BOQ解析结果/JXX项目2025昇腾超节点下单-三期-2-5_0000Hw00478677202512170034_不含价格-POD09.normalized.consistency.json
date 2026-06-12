@@ -1,0 +1,26 @@
+{
+  "verdict": "WARN",
+  "findings": [
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 13,
+      "message": "硬件叶子无单价: Atlas 900 A3 SuperPoD-A9US-33-HCZSC2A0L06"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 14,
+      "message": "硬件叶子无单价: X21208992"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "Atlas 900 A3 SuperPoD(空白模块)",
+      "row": 15,
+      "message": "硬件叶子无单价: X21208993"
+    }
+  ]
+}

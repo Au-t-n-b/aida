@@ -1,46 +1,228 @@
 'use client';
 
-import { ProposalChapterCard } from '../primitives';
-import { COMPUTE_DEVICES } from '../proposal-data';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ProposalChapterCard,
+  ProposalDataTable,
+  ProposalDataTableBody,
+  ProposalDataTableHead,
+} from '../primitives';
+import {
+  deviceRowsNeedEnrichment,
+  enrichDeviceInfo,
+  fetchDeviceInfo,
+  getDefaultProjectId,
+  parseDeviceBoq,
+  patchDeviceInfoRow,
+  ProposalApiError,
+  useProposalApiHeaders,
+  type DeviceInfoRow,
+  type ManifestActivity,
+} from '@/lib/proposal-api';
 
-const SOURCE_TEXT: Record<string, string> = { BOQ: '自动解析', HLD: '人工录入', 人工: '人工录入' };
-const srcLabel = (s: string) => SOURCE_TEXT[s] ?? s;
+function displayValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === '') return 'NA';
+  return String(value);
+}
 
-export function DeviceChapter() {
+function EllipsisCell({ value }: { value: string | number | null | undefined }) {
+  const text = displayValue(value);
+  return (
+    <td className="proposal-cell-ellipsis" title={text}>
+      {text}
+    </td>
+  );
+}
+
+export function DeviceChapter({
+  proposalVersion = 'draft',
+  readOnly = false,
+  onDirty,
+  onManifestActivity,
+}: {
+  proposalVersion?: string;
+  readOnly?: boolean;
+  onDirty?: () => void;
+  onManifestActivity?: (activity: ManifestActivity) => void;
+}) {
+  const headers = useProposalApiHeaders();
+  const projectId = getDefaultProjectId();
+  const [rows, setRows] = useState<DeviceInfoRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [enriching, setEnriching] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [enrichNotice, setEnrichNotice] = useState<string | null>(null);
+  const [savingRowId, setSavingRowId] = useState<string | null>(null);
+  const enrichStartedRef = useRef(false);
+
+  const runEnrichment = useCallback(
+    async (currentRows: DeviceInfoRow[]) => {
+      if (proposalVersion !== 'draft' || readOnly || !deviceRowsNeedEnrichment(currentRows)) {
+        return;
+      }
+      setEnriching(true);
+      setEnrichNotice('正在补全生命周期与 GA/EOM/EOS…');
+      try {
+        const data = await enrichDeviceInfo(projectId, headers, proposalVersion);
+        setRows(data.rows);
+        setEnrichNotice(null);
+      } catch (err) {
+        const msg =
+          err instanceof ProposalApiError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : '生命周期补全失败';
+        setEnrichNotice(msg);
+      } finally {
+        setEnriching(false);
+      }
+    },
+    [headers, projectId, proposalVersion, readOnly],
+  );
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setEnrichNotice(null);
+    enrichStartedRef.current = false;
+    try {
+      let data = await fetchDeviceInfo(projectId, headers, proposalVersion);
+      if (proposalVersion === 'draft' && data.rows.length === 0) {
+        data = await parseDeviceBoq(projectId, headers);
+        onDirty?.();
+      }
+      setRows(data.rows);
+      setLoading(false);
+
+      if (proposalVersion === 'draft' && deviceRowsNeedEnrichment(data.rows) && !enrichStartedRef.current) {
+        enrichStartedRef.current = true;
+        void runEnrichment(data.rows);
+      }
+    } catch (err) {
+      const msg =
+        err instanceof ProposalApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : '加载失败';
+      setError(msg);
+      setLoading(false);
+    }
+  }, [headers, onDirty, projectId, proposalVersion, runEnrichment]);
+
+  useEffect(() => {
+    void loadRows();
+  }, [loadRows]);
+
+  const setQuantity = async (row: DeviceInfoRow, value: string) => {
+    const nextQty = Number(value);
+    if (readOnly || Number.isNaN(nextQty) || nextQty < 0 || nextQty === row.quantity) return;
+    const prev = rows;
+    setRows((rs) =>
+      rs.map((r) =>
+        r.rowId === row.rowId ? { ...r, quantity: nextQty, dataSource: '人工录入' } : r,
+      ),
+    );
+    setSavingRowId(row.rowId);
+    setError(null);
+    try {
+      const { row: updated, manifestActivity } = await patchDeviceInfoRow(
+        projectId,
+        row.rowId,
+        { quantity: nextQty },
+        headers,
+      );
+      setRows((rs) => rs.map((r) => (r.rowId === row.rowId ? updated : r)));
+      onDirty?.();
+      if (manifestActivity) onManifestActivity?.(manifestActivity);
+    } catch (err) {
+      setRows(prev);
+      const msg =
+        err instanceof ProposalApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : '保存失败';
+      setError(msg);
+    } finally {
+      setSavingRowId(null);
+    }
+  };
+
   return (
     <ProposalChapterCard id="sec-ch-2" title="2. 设备配置信息">
-      <div className="overflow-hidden rounded-md border border-slate-100">
-        <table className="w-full table-fixed border-collapse text-sm">
-          <thead>
-            <tr className="bg-slate-50/90 text-left text-sm text-slate-700">
-              <th className="px-3 py-2.5 font-semibold">设备型号</th>
-              <th className="px-3 py-2.5 font-semibold">产品编码</th>
-              <th className="px-3 py-2.5 font-semibold">版本</th>
-              <th className="px-3 py-2.5 font-semibold">生命周期</th>
-              <th className="px-3 py-2.5 font-semibold">数量</th>
-              <th className="px-3 py-2.5 font-semibold">设备U高</th>
-              <th className="px-3 py-2.5 font-semibold">来源</th>
+      {error && (
+        <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          {error}
+          <button type="button" className="ml-2 underline" onClick={() => void loadRows()}>
+            重试
+          </button>
+        </div>
+      )}
+      {enrichNotice && !error && (
+        <div className="mb-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          {enrichNotice}
+          {!enriching && (
+            <button type="button" className="ml-2 underline" onClick={() => void runEnrichment(rows)}>
+              重试补全
+            </button>
+          )}
+        </div>
+      )}
+      {loading ? (
+        <p className="text-sm text-slate-500">加载中…</p>
+      ) : (
+        <ProposalDataTable leftAlign compact>
+          <ProposalDataTableHead>
+            <tr>
+              <th>设备型号</th>
+              <th>产品编码</th>
+              <th>版本</th>
+              <th className="w-14 max-w-[3.5rem]">数量</th>
+              <th className="num">设备U高</th>
+              <th>生命周期</th>
+              <th>GA实际</th>
+              <th>GA计划</th>
+              <th>EOM实际</th>
+              <th>EOM计划</th>
+              <th>EOS实际</th>
+              <th>EOS计划</th>
+              <th>来源</th>
             </tr>
-          </thead>
-          <tbody>
-            {COMPUTE_DEVICES.map((d, i) => (
-              <tr key={i} className="border-t border-slate-100 text-slate-700">
-                <td className="px-3 py-2.5">
-                  <span className="block max-w-[160px] truncate" title={d.model}>
-                    {d.model}
-                  </span>
+          </ProposalDataTableHead>
+          <ProposalDataTableBody>
+            {rows.map((row) => (
+              <tr key={row.rowId}>
+                <EllipsisCell value={row.deviceModel} />
+                <EllipsisCell value={row.productCode} />
+                <EllipsisCell value={row.version || (enriching ? '…' : null)} />
+                <td className="w-14 max-w-[3.5rem]">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={row.quantity}
+                    disabled={readOnly || savingRowId === row.rowId}
+                    onChange={(e) => void setQuantity(row, e.target.value)}
+                    className="w-12 max-w-full rounded border border-transparent bg-transparent px-1 py-1 text-left text-sm tabular-nums hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none disabled:opacity-60"
+                    title="数量"
+                  />
                 </td>
-                <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{d.code}</td>
-                <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{d.ver}</td>
-                <td className="px-3 py-2.5">{d.lifecycle}</td>
-                <td className="px-3 py-2.5">{d.qty}</td>
-                <td className="px-3 py-2.5">{d.unitSpace}</td>
-                <td className="px-3 py-2.5 text-slate-500">{srcLabel(d.source)}</td>
+                <td className="num">{displayValue(row.deviceUHeight)}</td>
+                <EllipsisCell value={row.lifecycleStatus || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.gaActualDate || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.gaPlanDate || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.eomActualDate || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.eomPlanDate || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.eosActualDate || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.eosPlanDate || (enriching ? '…' : null)} />
+                <EllipsisCell value={row.dataSource} />
               </tr>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </ProposalDataTableBody>
+        </ProposalDataTable>
+      )}
     </ProposalChapterCard>
   );
 }

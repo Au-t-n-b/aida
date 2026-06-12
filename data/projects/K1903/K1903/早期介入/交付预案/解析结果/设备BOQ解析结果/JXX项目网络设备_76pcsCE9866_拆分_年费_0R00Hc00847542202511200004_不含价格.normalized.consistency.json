@@ -1,0 +1,19 @@
+{
+  "verdict": "WARN",
+  "findings": [
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "CE9865-4C",
+      "row": 13,
+      "message": "硬件叶子无单价: N1-CE98CFAD-OTT-SnS1Y"
+    },
+    {
+      "rule_id": "RULE-005",
+      "level": "warning",
+      "sheet": "CE9865-4C",
+      "row": 14,
+      "message": "硬件叶子无单价: N1-CE98AI-OTT-SnS1Y"
+    }
+  ]
+}

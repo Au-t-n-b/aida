@@ -1,0 +1,176 @@
+{
+  "source": {
+    "file": "运营商IT维保解决方案 V100R006 服务建议书 V5.2.docx",
+    "parsed_at": "2026-06-11T11:08:24.514583",
+    "engine": "python-docx-merged"
+  },
+  "notes": [
+    "统一输出列：序号 | 服务项目 | 问题级别 | 服务时段 | 响应时间 | 恢复时间 | 解决时间",
+    "识别含「服务SLA」或 SLA 列结构（问题级别/等级+服务时段+响应时间）的表格",
+    "非标准格式（如通用模板）会映射到上述标准列；无值字段统一填 NA"
+  ],
+  "tables": [
+    {
+      "table_index": 4,
+      "id": "sla_1",
+      "title": "标准+服务SLA",
+      "format": "operator",
+      "columns": [
+        "序号",
+        "服务项目",
+        "问题级别",
+        "服务时段",
+        "响应时间",
+        "恢复时间",
+        "解决时间"
+      ],
+      "row_count": 16,
+      "records": [
+        {
+          "no": "1",
+          "service": "热线受理",
+          "problem_level": "NA",
+          "service_period": "7×24×365提供服务",
+          "response_time": "NA",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "2",
+          "service": "在线技术支持",
+          "problem_level": "NA",
+          "service_period": "7×24×365提供服务",
+          "response_time": "NA",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "3",
+          "service": "远程问题处理（单域）",
+          "problem_level": "紧急问题",
+          "service_period": "7×24",
+          "response_time": "1 小时",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "3",
+          "service": "远程问题处理（单域）",
+          "problem_level": "重要问题",
+          "service_period": "5×8",
+          "response_time": "2 小时",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "3",
+          "service": "远程问题处理（单域）",
+          "problem_level": "一般问题",
+          "service_period": "5×8",
+          "response_time": "4 小时",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "3",
+          "service": "远程问题处理（单域）",
+          "problem_level": "技术咨询",
+          "service_period": "5×8",
+          "response_time": "8 小时",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "4",
+          "service": "现场问题处理",
+          "problem_level": "紧急问题",
+          "service_period": "7×10",
+          "response_time": "NBD人员到达",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "4",
+          "service": "现场问题处理",
+          "problem_level": "重要问题",
+          "service_period": "5×8",
+          "response_time": "NBD人员到达",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "4",
+          "service": "现场问题处理",
+          "problem_level": "一般问题",
+          "service_period": "5×8",
+          "response_time": "NBD人员到达",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "5",
+          "service": "备件先行",
+          "problem_level": "紧急问题",
+          "service_period": "7×10",
+          "response_time": "NBD备件送达",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "5",
+          "service": "备件先行",
+          "problem_level": "重要问题",
+          "service_period": "5×8",
+          "response_time": "NBD备件送达",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "5",
+          "service": "备件先行",
+          "problem_level": "一般问题",
+          "service_period": "5×8",
+          "response_time": "NBD备件送达",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "6",
+          "service": "现场硬件更换",
+          "problem_level": "紧急问题",
+          "service_period": "7×10",
+          "response_time": "NBD完成更换",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "6",
+          "service": "现场硬件更换",
+          "problem_level": "重要问题",
+          "service_period": "5×8",
+          "response_time": "NBD完成更换",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "6",
+          "service": "现场硬件更换",
+          "problem_level": "一般问题",
+          "service_period": "5×8",
+          "response_time": "NBD完成更换",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        },
+        {
+          "no": "7",
+          "service": "软件更新授权",
+          "problem_level": "NA",
+          "service_period": "提供",
+          "response_time": "NA",
+          "recovery_time": "NA",
+          "resolution_time": "NA"
+        }
+      ]
+    }
+  ]
+}

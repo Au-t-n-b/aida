@@ -1,0 +1,586 @@
+{
+  "source_file": "JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.xlsx",
+  "parsed_at": "2026-06-11T15:36:15+08:00",
+  "project": {},
+  "sites": [
+    "站点1"
+  ],
+  "products": [
+    {
+      "sheet": "CE9865-4C",
+      "product_id": "",
+      "product_head": "CE9865-4C",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "CloudEngine 9800 & XH9000 TOR 交换机",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "1.1",
+          "name": "CloudEngine 9800 主设备",
+          "level": 2,
+          "parent_sort_no": "1"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "N1-CE98LIC-AI-OTT",
+          "part_number": "88039JWJ",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "N1-CloudEngine 9800交换机AI场景增值包(OTT)",
+          "total_qty": 76,
+          "site_qty": {
+            "站点1": 76
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 CloudEngine 9800 主设备",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 13
+        },
+        {
+          "sort_no": "",
+          "sales_code": "N1-CE98LIC-CFAD-OTT",
+          "part_number": "88039JWG",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "N1-CE9800交换机CloudFabric Advanced软件包(OTT)",
+          "total_qty": 76,
+          "site_qty": {
+            "站点1": 76
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 CloudEngine 9800 主设备",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 14
+        },
+        {
+          "sort_no": "",
+          "sales_code": "CE9866-128DQ-B",
+          "part_number": "02356TXY",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CE9866-128DQ交换机(128*400GE QSFP112,2*10GE SFP+,4*交流电源,6*风机盒,端口侧进风)-ISP",
+          "total_qty": 76,
+          "site_qty": {
+            "站点1": 76
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 CloudEngine 9800 主设备",
+          "remark": "",
+          "cluster_expansion": {
+            "source": "CE9866-128DQ交换机(128*400GE QSFP112,2*10GE SFP+,4*交流电源,6*风机盒,端口侧进风)-ISP",
+            "container_qty": 76,
+            "components": [
+              {
+                "model": "400GE QSFP112",
+                "qty_per_unit": 128,
+                "total_qty": 9728
+              },
+              {
+                "model": "10GE SFP+",
+                "qty_per_unit": 2,
+                "total_qty": 152
+              },
+              {
+                "model": "交流电源",
+                "qty_per_unit": 4,
+                "total_qty": 304
+              },
+              {
+                "model": "风机盒",
+                "qty_per_unit": 6,
+                "total_qty": 456
+              }
+            ],
+            "decomposition_source": "description_regex"
+          },
+          "_row_number": 15
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "优选标识",
+        "含软件备注",
+        "总数",
+        "参考备货周期\n(天)",
+        "站点1",
+        ""
+      ]
+    },
+    {
+      "sheet": "数通工程技术应用支持",
+      "product_id": "",
+      "product_head": "数通工程技术应用支持",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "2",
+          "name": "CloudEngine 9800 / XH9000 工程技术应用支持--远程工程咨询、远程方案评审、远程保障",
+          "level": 1,
+          "parent_sort_no": ""
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8814079907",
+          "part_number": "8814079907",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CloudEngine 9800 / XH9000 工程技术应用支持--远程工程咨询、远程方案评审、远程保障",
+          "total_qty": 1,
+          "site_qty": {
+            "站点1": 1
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "2 CloudEngine 9800 / XH9000 工程技术应用支持--远程工程咨询、远程方案评审、远程保障",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 12
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "总数",
+        "参考备货周期\n(天)",
+        "站点1",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "sheet": "技术支持服务",
+      "product_id": "",
+      "product_head": "技术支持服务",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "3",
+          "name": "CloudEngine 9800 & XH9000 TOR 交换机",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "3.1",
+          "name": "CloudEngine 9800 & XH9000 TOR 交换机",
+          "level": 2,
+          "parent_sort_no": "3"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "02356TXY_88134UFD_60(M)",
+          "part_number": "88134UFD",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "CE9866-128DQ交换机(128*400GE QSFP112,2*10GE SFP+,4*交流电源,6*风机盒,端口侧进风)-ISP-Hi-Care基础服务金牌 7x24x4H-/台*年-60(月)",
+          "total_qty": 76,
+          "site_qty": {},
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "3.1 CloudEngine 9800 & XH9000 TOR 交换机",
+          "remark": "",
+          "cluster_expansion": {
+            "source": "CE9866-128DQ交换机(128*400GE QSFP112,2*10GE SFP+,4*交流电源,6*风机盒,端口侧进风)-ISP-Hi-Care基础服务金牌 7x24x4H-/台*年-60(月)",
+            "container_qty": 76,
+            "components": [
+              {
+                "model": "400GE QSFP112",
+                "qty_per_unit": 128,
+                "total_qty": 9728
+              },
+              {
+                "model": "10GE SFP+",
+                "qty_per_unit": 2,
+                "total_qty": 152
+              },
+              {
+                "model": "交流电源",
+                "qty_per_unit": 4,
+                "total_qty": 304
+              },
+              {
+                "model": "风机盒",
+                "qty_per_unit": 6,
+                "total_qty": 456
+              }
+            ],
+            "decomposition_source": "description_regex"
+          },
+          "_row_number": 13
+        }
+      ],
+      "site_columns": [],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "单套数量",
+        "数量",
+        "",
+        ""
+      ]
+    }
+  ],
+  "item_summary": [],
+  "item_summary_by_product": [],
+  "model_summary": [
+    {
+      "_row_number": 10,
+      "sort_no": "1",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 11,
+      "sort_no": "",
+      "total_qty": 76,
+      "product_id": "145689401",
+      "product_group": ""
+    },
+    {
+      "_row_number": 12,
+      "sort_no": "2",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 13,
+      "sort_no": "",
+      "total_qty": 76,
+      "product_id": "145689401",
+      "product_group": ""
+    },
+    {
+      "_row_number": 14,
+      "sort_no": "3",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 15,
+      "sort_no": "",
+      "total_qty": 1,
+      "product_id": "146783411",
+      "product_group": ""
+    }
+  ],
+  "raw_headers": {
+    "CE9865-4C": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "优选标识",
+      "含软件备注",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1",
+      ""
+    ],
+    "数通工程技术应用支持": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "参考备货周期\n(天)",
+      "站点1",
+      "",
+      "",
+      ""
+    ],
+    "技术支持服务": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "单套数量",
+      "数量",
+      "",
+      ""
+    ]
+  },
+  "warnings": [
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='CE9865-4C')"
+    },
+    {
+      "level": "info",
+      "sheet": "数通工程技术应用支持",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='数通工程技术应用支持')"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='技术支持服务')"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 'N1-CE98LIC-AI-OTT' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: N1-CE98LIC-AI-OTT"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 14,
+      "code": "unknown_product",
+      "message": "型号 'N1-CE98LIC-CFAD-OTT' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 14,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: N1-CE98LIC-CFAD-OTT"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 15,
+      "code": "unknown_product",
+      "message": "型号 'CE9866-128DQ-B' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "CE9865-4C",
+      "row": 15,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: CE9866-128DQ-B"
+    },
+    {
+      "level": "info",
+      "sheet": "数通工程技术应用支持",
+      "row": 12,
+      "code": "unknown_product",
+      "message": "型号 '8814079907' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "数通工程技术应用支持",
+      "row": 12,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814079907"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 '02356TXY_88134UFD_60(M)' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "技术支持服务",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 02356TXY_88134UFD_60(M)"
+    }
+  ],
+  "sheet_roles": [
+    {
+      "sheet": "封面",
+      "role": "ignore",
+      "signals": {
+        "title": "封面",
+        "n_rows": 15,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:封面"
+      }
+    },
+    {
+      "sheet": "免责声明",
+      "role": "ignore",
+      "signals": {
+        "title": "免责声明",
+        "n_rows": 24,
+        "n_cols": 3,
+        "reason": "blacklist_keyword:免责声明"
+      }
+    },
+    {
+      "sheet": "基础信息表",
+      "role": "ignore",
+      "signals": {
+        "title": "基础信息表",
+        "n_rows": 22,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:基础信息表"
+      }
+    },
+    {
+      "sheet": "汇总表",
+      "role": "model_summary",
+      "signals": {
+        "title": "汇总表",
+        "n_rows": 15,
+        "n_cols": 5,
+        "meta": {
+          "any_meta": 6,
+          "partnumber": 0,
+          "partnumber_nested": 0,
+          "productid": 3,
+          "isquoteleaf": 3,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 2,
+        "has_device_headers": false
+      }
+    },
+    {
+      "sheet": "统计",
+      "role": "ignore",
+      "signals": {
+        "title": "统计",
+        "n_rows": 14,
+        "n_cols": 11,
+        "reason": "blacklist_keyword:统计"
+      }
+    },
+    {
+      "sheet": "CE9865-4C",
+      "role": "l3_device",
+      "signals": {
+        "title": "CE9865-4C",
+        "n_rows": 15,
+        "n_cols": 12,
+        "meta": {
+          "any_meta": 6,
+          "partnumber": 3,
+          "partnumber_nested": 0,
+          "productid": 6,
+          "isquoteleaf": 3,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 5,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "数通工程技术应用支持",
+      "role": "l3_device",
+      "signals": {
+        "title": "数通工程技术应用支持",
+        "n_rows": 12,
+        "n_cols": 12,
+        "meta": {
+          "any_meta": 3,
+          "partnumber": 1,
+          "partnumber_nested": 0,
+          "productid": 3,
+          "isquoteleaf": 1,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "技术支持服务",
+      "role": "l3_device",
+      "signals": {
+        "title": "技术支持服务",
+        "n_rows": 13,
+        "n_cols": 10,
+        "meta": {
+          "any_meta": 4,
+          "partnumber": 1,
+          "partnumber_nested": 0,
+          "productid": 4,
+          "isquoteleaf": 1,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    }
+  ],
+  "_stats": {
+    "cluster_expanded": 2
+  }
+}
