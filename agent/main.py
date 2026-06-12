@@ -36,6 +36,9 @@ from .chat_engine import run_chat, run_chat_async, DEFAULT_SYSTEM
 from .sog_routes import router as sog_router
 from .routers.proposal_mock import router as proposal_mock_router
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
+
 
 def _get_sdui_projector(skill_id: str):
     """按 skill_id 从注册表查 SDUI 投影器。未注册或未设置则返回 None。"""
@@ -1125,6 +1128,96 @@ def _run_evals_bundle(
     if not fixture:
         out["export"] = _eval_subprocess_run("export_deviations.py", fixture=fixture)
     return out
+
+
+def _excel_date(value) -> str:
+    if not value:
+        return ""
+    if hasattr(value, "strftime"):
+        return value.strftime("%Y-%m-%d")
+    return str(value)[:10]
+
+
+def _delivery_plan_snapshot(project_id: str) -> dict:
+    from openpyxl import load_workbook
+
+    if not DELIVERY_PLAN_PATH.is_file():
+        raise HTTPException(status_code=404, detail="delivery plan workbook not found")
+
+    sheet = load_workbook(DELIVERY_PLAN_PATH, data_only=True, read_only=True).active
+    rows = list(sheet.iter_rows(values_only=True))
+    headers = {name: index for index, name in enumerate(rows[0])}
+    records = [{name: row[index] for name, index in headers.items()} for row in rows[1:]]
+    pods = sorted({
+        unit.strip()
+        for record in records
+        for unit in str(record.get("MANAGEMENT_UNIT") or "").split(",")
+        if unit.strip().upper().endswith(tuple(f"POD{i:02d}" for i in range(1, 100)))
+    })
+    matchers = {
+        "roomReady": lambda name: "机房改造实施" in name,
+        "arrival": lambda name: "设备到货静置" in name or "设备静置" in name,
+        "cabling": lambda name: "综合布线与成端" in name,
+        "powerOn": lambda name: "设备上电" in name,
+        "online": lambda name: "集群性能调优" in name,
+        "handover": lambda name: name == "移交",
+    }
+    pod_items = []
+    for pod in pods:
+        stages = {}
+        for key, matcher in matchers.items():
+            candidates = []
+            for record in records:
+                if not matcher(str(record.get("ACTIVITY_NAME") or "").strip()):
+                    continue
+                units = [unit.strip() for unit in str(record.get("MANAGEMENT_UNIT") or "").split(",") if unit.strip()]
+                if not units or pod in units:
+                    candidates.append(record)
+            if not candidates:
+                continue
+            completed = all(
+                "已完成" in str(record.get("STATUS") or "")
+                or float(str(record.get("PROCESS") or "0").replace("%", "") or 0) >= 100
+                for record in candidates
+            )
+            expected_ends = sorted(filter(None, (_excel_date(record.get("END_DATE")) for record in candidates)))
+            actual_ends = sorted(filter(None, (_excel_date(record.get("ACTUAL_END_DATE")) for record in candidates)))
+            progress = min(
+                100 if "已完成" in str(record.get("STATUS") or "") else
+                max(0, min(99, float(str(record.get("PROCESS") or "0").replace("%", "") or 0)))
+                for record in candidates
+            )
+            stages[key] = {
+                "expectedEnd": expected_ends[-1] if expected_ends else "",
+                "actualEnd": actual_ends[-1] if completed and actual_ends else "",
+                "progress": progress,
+                "owner": next((str(record.get("PRINCIPAL")) for record in candidates if record.get("PRINCIPAL")), ""),
+                "common": any(not str(record.get("MANAGEMENT_UNIT") or "").strip() for record in candidates),
+            }
+        if all(key in stages and stages[key]["expectedEnd"] for key in matchers):
+            pod_items.append({"pod": pod, "batch": pod.split("-")[0], "stages": stages})
+    return {"projectId": project_id, "sourceLabel": "data/delivery/delivery-plan.xlsx", "pods": pod_items}
+
+
+@app.get("/api/v1/projects/{project_id}/delivery-plan/milestones")
+def get_delivery_plan_milestones(project_id: str):
+    return JSONResponse(
+        content=_delivery_plan_snapshot(project_id),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/api/v1/projects/{project_id}/delivery-plan.xlsx")
+def get_delivery_plan_excel(project_id: str):
+    """Return the project-local delivery plan workbook used by the dashboard."""
+    if not DELIVERY_PLAN_PATH.is_file():
+        raise HTTPException(status_code=404, detail="delivery plan workbook not found")
+    return FileResponse(
+        DELIVERY_PLAN_PATH,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="delivery-plan.xlsx",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 async def _trigger_eval_background(*, run_id: str = "", conv_id: str = "", skill_id: str = "zhgk") -> None:
