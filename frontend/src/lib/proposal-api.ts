@@ -79,10 +79,18 @@ interface ApiResponse<T> {
   meta: { project_id: string; timestamp: string };
 }
 
+const AUTH_HEADERS: Record<string, string> = {
+  'X-User-Role': 'td',
+  'X-User-Account': 'dev',
+};
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
+  const hasBody = options?.body != null;
+  const baseHeaders: Record<string, string> = { ...AUTH_HEADERS };
+  if (hasBody) baseHeaders['Content-Type'] = 'application/json';
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: { ...baseHeaders, ...(options?.headers as Record<string, string> | undefined) },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -449,7 +457,11 @@ export function formatProposalDateTime(dt?: string): string {
 }
 
 export function useProposalApiHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json' };
+  return {
+    'Content-Type': 'application/json',
+    'X-User-Role': 'td',
+    'X-User-Account': 'dev',
+  };
 }
 
 export async function fetchDraft(projectId: string, _headers?: Record<string, string>) {
@@ -459,9 +471,10 @@ export async function fetchDraft(projectId: string, _headers?: Record<string, st
 }
 
 export async function fetchVersions(projectId: string, _headers?: Record<string, string>) {
-  return request<ProposalVersionItem[]>(
+  const data = await request<{ versions: ProposalVersionItem[] }>(
     `/api/v1/projects/${projectId}/proposal/versions`,
   );
+  return data.versions ?? [];
 }
 
 export async function fetchVersionSnapshot(
@@ -505,8 +518,8 @@ export async function exportDocument(
   version: string,
 ): Promise<Blob> {
   const res = await fetch(
-    `/api/v1/projects/${projectId}/proposal/export?version=${encodeURIComponent(version)}`,
-    { headers: _headers },
+    `/api/v1/projects/${projectId}/proposal/export/document?version=${encodeURIComponent(version)}`,
+    { headers: { ...AUTH_HEADERS, ..._headers } },
   );
   if (!res.ok) throw new ProposalApiError(`导出失败 (HTTP ${res.status})`, 'EXPORT_FAILED');
   return res.blob();
@@ -555,7 +568,7 @@ export function manualLogToChangeRecords(
 
 export async function fetchMaintenanceSla(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: MaintenanceSlaRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.2/maintenance-sla`,
+    `/api/v1/projects/${projectId}/proposal/chapters/8.4/maintenance-sla`,
   );
 }
 
@@ -567,40 +580,40 @@ export async function fetchMaintenanceStrategy(projectId: string, _headers?: Rec
 
 export async function fetchServiceContent(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: ServiceContentRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.1/service-content`,
+    `/api/v1/projects/${projectId}/proposal/chapters/8.2/service-content`,
   );
 }
 
 export async function fetchServiceDeliveryUi(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: ServiceDeliveryUiRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.4/service-delivery-ui`,
+    `/api/v1/projects/${projectId}/proposal/chapters/8.1/service-delivery-ui`,
   );
 }
 
 export async function initializeServiceDeliveryUi(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: ServiceDeliveryUiRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.4/service-delivery-ui/initialize`,
+    `/api/v1/projects/${projectId}/proposal/chapters/8.1/service-delivery-ui/initialize`,
     { method: 'POST' },
   );
 }
 
 export async function parseMaintenanceBoq(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: MaintenanceSlaRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.2/parse-boq`,
+    `/api/v1/projects/${projectId}/proposal/parse/maintenance-boq`,
     { method: 'POST' },
   );
 }
 
 export async function parseMaintenanceProposalDoc(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: MaintenanceStrategyRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.3/parse-proposal`,
+    `/api/v1/projects/${projectId}/proposal/parse/maintenance-boq`,
     { method: 'POST' },
   );
 }
 
 export async function parseServiceBoq(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: ServiceContentRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.1/parse-boq`,
+    `/api/v1/projects/${projectId}/proposal/parse/service-boq`,
     { method: 'POST' },
   );
 }
@@ -612,7 +625,7 @@ export async function patchMaintenanceSlaRow(
   _headers?: Record<string, string>,
 ) {
   return request<MaintenanceSlaRow>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.2/maintenance-sla/${rowId}`,
+    `/api/v1/projects/${projectId}/proposal/chapters/8.4/maintenance-sla/${rowId}`,
     { method: 'PATCH', body: JSON.stringify(patch) },
   );
 }
@@ -636,14 +649,14 @@ export async function patchServiceDeliveryUiRow(
   _headers?: Record<string, string>,
 ) {
   return request<ServiceDeliveryUiRow>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.4/service-delivery-ui/${rowId}`,
+    `/api/v1/projects/${projectId}/proposal/chapters/8.1/service-delivery-ui/${rowId}`,
     { method: 'PATCH', body: JSON.stringify(patch) },
   );
 }
 
 export async function fetchDeviceInfo(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: DeviceInfoRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/device-info`,
+    `/api/v1/projects/${projectId}/proposal/chapters/2/device-info`,
   );
 }
 
@@ -654,14 +667,14 @@ export async function patchDeviceInfoRow(
   _headers?: Record<string, string>,
 ) {
   return request<DeviceInfoRow>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/device-info/${rowId}`,
+    `/api/v1/projects/${projectId}/proposal/chapters/2/device-info/${rowId}`,
     { method: 'PATCH', body: JSON.stringify(patch) },
   );
 }
 
 export async function parseDeviceBoq(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: DeviceInfoRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/parse-boq`,
+    `/api/v1/projects/${projectId}/proposal/parse/device-boq`,
     { method: 'POST' },
   );
 }
@@ -672,7 +685,7 @@ export function deviceRowsNeedEnrichment(_rows: DeviceInfoRow[]): boolean {
 
 export async function enrichDeviceInfo(projectId: string, _headers?: Record<string, string>) {
   return request<{ rows: DeviceInfoRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/device-info/enrich`,
+    `/api/v1/projects/${projectId}/proposal/chapters/2/device-info/enrich`,
     { method: 'POST' },
   );
 }
