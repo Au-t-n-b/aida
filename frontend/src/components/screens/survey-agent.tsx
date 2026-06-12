@@ -50,6 +50,10 @@ import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
 import { dispatchRailSend } from '@/lib/claw-send';
+// system_design 交付台专用（仅 skillId==='system_design' 路径使用）
+import { resolveUploadSlotTag } from '@/lib/systemDesignUpload';
+import { ensureAgentBase, staleSystemDesignUploadMessage } from '@/lib/agentBase';
+import { setSkillConversation, clearSkillConversation } from '@/lib/skillConversationStore';
 import { Button } from '@/components/primitives';
 import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
 
@@ -402,6 +406,82 @@ function applyViewMode(root: SduiNode, mode: 'overview' | 'work'): SduiNode {
   return { ...root, children: next } as SduiNode;
 }
 
+// ── system_design 交付台专用（仅 skillId==='system_design' 走这些）────────────────
+/** 使用「左栏会话 + 右栏面板」交付台布局的 skill（系统设计完整交付流）。 */
+const DELIVERY_WORKBENCH_SKILLS = new Set(['system_design']);
+
+function conversationHasDangerBubble(conv: SduiNode): boolean {
+  let found = false;
+  walkSduiNodes(conv, (n) => {
+    if (n.type !== 'Card') return;
+    const id = (n as { id?: string }).id;
+    const tone = (n as { tone?: string }).tone;
+    if (id === 'cv-bubble-error' || (id === 'cv-bubble' && tone === 'danger') || tone === 'danger') {
+      found = true;
+    }
+  });
+  return found;
+}
+
+/** step_retry 完成后左栏应出现「输入件检查完成」气泡（id=cv-input-done）。 */
+function sduiHasInputCheckDone(doc: SduiDocument): boolean {
+  const conv = findNodeById(doc.root, 'sd-conversation');
+  if (!conv) return false;
+  let found = false;
+  walkSduiNodes(conv, (n) => {
+    if ((n as { id?: string }).id === 'cv-input-done') found = true;
+  });
+  return found;
+}
+
+function sanitizeErrorText(raw: string): string {
+  const lines = raw.split('\n').filter((line) => {
+    const l = line.toLowerCase();
+    return !(l.includes('userwarning') || l.includes('openpyxl') || l.includes('stylesheet.py'));
+  });
+  return (lines.join('\n').trim() || raw.trim());
+}
+
+function ensureConversationErrorBubble(conv: SduiNode, doc: SduiDocument): SduiNode {
+  const err = sanitizeErrorText(String(doc.meta?.error ?? '').trim());
+  if (!err || conversationHasDangerBubble(conv)) return conv;
+  const logHint = String(doc.meta?.exec_log_path ?? '').trim();
+  let body = err;
+  if (logHint && !body.includes(logHint)) body += `\n\n详细日志：${logHint}`;
+  const bubble: SduiNode = {
+    type: 'Card',
+    id: 'cv-bubble-error',
+    density: 'compact',
+    tone: 'danger',
+    children: [
+      { type: 'Text', content: '执行失败', variant: 'heading' },
+      { type: 'Text', content: body, variant: 'body' },
+    ],
+  } as SduiNode;
+  if (conv.type !== 'Stack') return conv;
+  const children = [...((conv as { children?: SduiNode[] }).children ?? []), bubble];
+  return { ...conv, children } as SduiNode;
+}
+
+function dropConversationFromPanel(root: SduiNode): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  const next = children.filter(c => (c as { id?: string }).id !== 'sd-conversation');
+  if (next.length === children.length) return root;
+  return { ...root, children: next } as SduiNode;
+}
+
+function dropHitlFromPanel(root: SduiNode): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  const next = children.filter(c => {
+    const id = (c as { id?: string }).id;
+    return id !== 'hitl-card' && id !== 'hitl-pointer';
+  });
+  if (next.length === children.length) return root;
+  return { ...root, children: next } as SduiNode;
+}
+
 /** 从 SDUI 文档提取运行阶段信息（供 updateSkillRun 写入）*/
 function extractProgressFromSdui(doc: SduiDocument): {
   phase?: 'running' | 'hitl' | 'done' | 'error';
@@ -516,6 +596,10 @@ export default function SkillAgentScreen({
   const commissionPollGenRef = useRef(0);
   // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
   const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
+  // system_design 交付台：上传/续跑后主动拉 /ui 快照，避免 SSE 未及时推送时槽位仍显示「缺失」
+  const usesDeliveryWorkbench = DELIVERY_WORKBENCH_SKILLS.has(skillId);
+  const [postUploadDoc, setPostUploadDoc] = useState<SduiDocument | null>(null);
+  const postUploadEpochRef = useRef(0);
 
   // ── 左右同步：聊天侧 ZhgkProgressCard 启动 run 后自动接入（本地模式）────────
   // store 里有匹配的 skillId + runId 且本地尚未启动 → 直接接入，跳过 IdleScreen
@@ -582,7 +666,16 @@ export default function SkillAgentScreen({
       setFrozenDoc(null);
     }
   }, [sduiDoc, frozenDoc]);
-  const displayDoc = commissionPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc ?? bootDoc;
+  // system_design 上传后快照（postUploadDoc）优先级低于冻结/轮询，sduiDoc 到达后由下方 effect 清除
+  const displayDoc = commissionPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? postUploadDoc ?? sduiDoc ?? bootDoc;
+  useEffect(() => {
+    if (!sduiDoc || postUploadEpochRef.current === 0) return;
+    postUploadEpochRef.current = 0;
+    setPostUploadDoc(null);
+  }, [sduiDoc]);
+  useEffect(() => {
+    if (usesDeliveryWorkbench) void ensureAgentBase(skillId);
+  }, [usesDeliveryWorkbench, skillId]);
 
   // ── meta 工作台路由协议（SDUI.md §HITL-Edit）────────────────────────────────
   // route_hitl_edit：在线编辑 HITL 卡归属 —— 'workbench'（默认 · 留在右侧大盘）/ 'chat'（移交左栏）。
@@ -917,6 +1010,43 @@ export default function SkillAgentScreen({
         setViewMode('work');
       } else if (text === '/overview') {
         setViewMode('overview');
+      } else if (usesDeliveryWorkbench) {
+        // system_design：根据当前态路由自由文本（启动 / 重试 / HITL 续跑 / full_restart 携带指令）
+        const isIdleNow = useClawMode ? !taskId : !runId;
+        const prog = sduiDocRef.current ? extractProgressFromSdui(sduiDocRef.current) : {};
+        const hasHitl = sduiDocRef.current ? !!findNodeById(sduiDocRef.current.root, 'hitl-card') : false;
+        if (isIdleNow) {
+          await handleStart();
+        } else if (prog.phase === 'error') {
+          await doResume({ text, choice: text });
+        } else if (hasHitl) {
+          await doResume({ choice: text, text });
+        } else {
+          // input_check 完成后无 HITL 卡（step_retry 仅重跑检查步）· 仍须 full_restart 携带用户指令
+          await doResume({ text, choice: text });
+          const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
+          if (rid) {
+            void (async () => {
+              for (let i = 0; i < 12; i++) {
+                await new Promise(r => setTimeout(r, i === 0 ? 300 : 450));
+                const snap = await fetchUiSnapshot(skillId, rid);
+                if (!snap) continue;
+                const hitl = findNodeById(snap.root, 'hitl-card');
+                const conv = findNodeById(snap.root, 'sd-conversation');
+                const hasExecConfirm = !!hitl && String((hitl as { title?: string }).title || '').includes('确认执行');
+                let hasUnderstood = false;
+                if (conv) walkSduiNodes(conv, n => {
+                  if ((n as { id?: string }).id === 'cv-understood') hasUnderstood = true;
+                });
+                if (hasExecConfirm || hasUnderstood) {
+                  postUploadEpochRef.current = Date.now();
+                  setPostUploadDoc(snap);
+                  break;
+                }
+              }
+            })();
+          }
+        }
       } else {
         dispatchRailSend(text);
       }
@@ -925,7 +1055,7 @@ export default function SkillAgentScreen({
     } else if (action.kind === 'reset_session') {
       void handleResetSession();
     }
-  }, [handleStart, doResume, handleResetSession, handleIntent, runCommissionStep, skillId]);
+  }, [handleStart, doResume, handleResetSession, handleIntent, runCommissionStep, skillId, usesDeliveryWorkbench, useClawMode, taskId, runId, activeRunId, storeRun]);
 
   // ── 在线编辑型 HITL 提交（resume · rows 由 skill.apply_resume_payload 写回 project）──
   const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[], _stepId?: string) => {
@@ -938,16 +1068,83 @@ export default function SkillAgentScreen({
     await runPatchRun(skillId, activeRunId, payload);
   }, [activeRunId, skillId]);
 
-  const handleUpload = useCallback(async (files: FileList) => {
+  const handleUpload = useCallback(async (
+    files: FileList,
+    _purpose?: string,
+    _stepId?: string,
+    slotTag?: string,
+    slotLabel?: string,
+  ) => {
     const arr = Array.from(files);
-    try {
-      await uploadBatch(skillId, arr);
-    } catch (e) {
-      console.error('[SDUI] upload error:', e);
-      throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
+    // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
+    if (!usesDeliveryWorkbench) {
+      try {
+        await uploadBatch(skillId, arr);
+      } catch (e) {
+        console.error('[SDUI] upload error:', e);
+        throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
+      }
+      await doResume({ uploaded: arr.map(f => f.name) });
+      return;
     }
-    await doResume({ uploaded: arr.map(f => f.name) });
-  }, [skillId, doResume]);
+    // system_design 交付台：按槽位标签上传 → sync_inputs → 拉快照；仅「输入件准备」HITL 内续跑
+    const kinds = arr.map(f => resolveUploadSlotTag(slotTag, slotLabel, f.name));
+    const labels = arr.map(() => (slotLabel?.trim() ? slotLabel.trim() : ''));
+    if (kinds.some(k => !k)) {
+      throw new Error('无法识别输入件类型，请从对应槽位（如「项目信息收集表」）点击「上传」');
+    }
+    const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
+    try {
+      const result = await uploadBatch(skillId, arr, [], kinds, rid, labels);
+      const staleMsg = staleSystemDesignUploadMessage(result);
+      if (staleMsg) throw new Error(staleMsg);
+      const failed = (result.uploaded ?? []).filter(u => u.ok === false);
+      if (failed.length) {
+        const msg = failed.map(f => String(f.error || f.filename || '未知文件')).join('；');
+        throw new Error(`上传失败：${msg}`);
+      }
+      const saved = (result.uploaded ?? []).filter(u => u.ok !== false && u.path);
+      if (!saved.length && (result.uploaded ?? []).length) {
+        throw new Error('上传未落盘，请确认 Agent 已重启并加载最新 system_design 配置');
+      }
+      if (rid) {
+        try {
+          await runPatchRun(skillId, rid, { action: 'sync_inputs' });
+        } catch {
+          // upload/batch 可能已 sync；忽略
+        }
+        const snap = await fetchUiSnapshot(skillId, rid);
+        if (snap) {
+          postUploadEpochRef.current = Date.now();
+          setPostUploadDoc(snap);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '上传失败，请检查文件格式或网络连接';
+      console.error('[SDUI] upload error:', e);
+      setError(msg);
+      throw e instanceof Error ? e : new Error(msg);
+    }
+    setError(null);
+    // 仅「输入件准备」HITL 卡内上传后自动重试 input_check；输入件页签上传只 sync 不续跑
+    const doc = sduiDocRef.current;
+    const hitlCard = doc ? findNodeById(doc.root, 'hitl-card') : null;
+    const isInputPrepareHitl = !!hitlCard && String((hitlCard as { title?: string }).title || '') === '输入件准备';
+    if (isInputPrepareHitl && rid) {
+      void (async () => {
+        await doResume({ uploaded: arr.map(f => f.name) });
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, i === 0 ? 250 : 400));
+          const snap = await fetchUiSnapshot(skillId, rid);
+          if (snap && sduiHasInputCheckDone(snap)) {
+            postUploadEpochRef.current = Date.now();
+            setPostUploadDoc(snap);
+            break;
+          }
+        }
+      })();
+    }
+  }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
   const handleChoiceSubmit = useCallback(async (value: string) => {
     await doResume({ choice: value });
@@ -965,19 +1162,45 @@ export default function SkillAgentScreen({
       setSkillHitl({
         skillId, runId: activeRunId, node: card,
         onChoiceSubmit: handleChoiceSubmit, onUpload: handleUpload,
+        onAction: (action) => { void handleAction(action); },
       });
     } else if (!frozenDoc && !frozenSnapshotRef.current) {
       clearSkillHitl(skillId);
     }
-  }, [displayDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, routeHitlEdit]);
+  }, [displayDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, handleAction, routeHitlEdit]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
+
+  // ── 会话流（AIDA 助手）提升到左侧会话框（仅 system_design 交付台）────────────
+  useEffect(() => {
+    if (!usesDeliveryWorkbench) { clearSkillConversation(skillId); return; }
+    if (!displayDoc || !activeRunId) { clearSkillConversation(skillId); return; }
+    const conv = findNodeById(displayDoc.root, 'sd-conversation');
+    if (conv) {
+      setSkillConversation({
+        skillId, runId: activeRunId,
+        node: ensureConversationErrorBubble(conv, displayDoc),
+        runtime: {
+          runId: activeRunId,
+          skillId,
+          onAction: (action) => { void handleAction(action); },
+          onUpload: handleUpload,
+          onChoiceSubmit: handleChoiceSubmit,
+        },
+      });
+    } else {
+      clearSkillConversation(skillId);
+    }
+  }, [usesDeliveryWorkbench, displayDoc, activeRunId, skillId, handleAction, handleUpload, handleChoiceSubmit]);
+
+  useEffect(() => () => clearSkillConversation(skillId), [skillId]);
 
   // ── SDUI 运行时 ──────────────────────────────────────────────────────────
   const runtime: SduiRuntime = {
     runId: activeRunId,
+    skillId,
     onAction: (action) => { void handleAction(action); },
-    onUpload: (files) => { void handleUpload(files); },
+    onUpload: (files, purpose, stepId, slotTag, slotLabel) => { void handleUpload(files, purpose, stepId, slotTag, slotLabel); },
     onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
     onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
     onRunPatch: handleRunPatch,
@@ -1008,14 +1231,19 @@ export default function SkillAgentScreen({
   }
 
   const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
-  const showOverviewBar = viewMode === 'overview' && !!displayDoc && hasMachineRoom3d(displayDoc.root);
+  // 交付台 skill（system_design）不走 3D 两态；其它 skill 保留总览 ↔ 作业切换
+  const showOverviewBar = !usesDeliveryWorkbench && viewMode === 'overview' && !!displayDoc && hasMachineRoom3d(displayDoc.root);
   const displayRoot = displayDoc
-    ? applyViewMode(
-        leftRailHitl
-          ? stripHitlCard(displayDoc.root)
-          : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
-        viewMode,
-      )
+    ? (usesDeliveryWorkbench
+        // 交付台：右栏面板剥离左栏会话与 HITL 卡（它们已提升到左侧 ClawRail）
+        ? dropConversationFromPanel(dropHitlFromPanel(displayDoc.root))
+        // 其它 skill：HITL 路由到左栏 + 两态视图裁剪
+        : applyViewMode(
+            leftRailHitl
+              ? stripHitlCard(displayDoc.root)
+              : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
+            viewMode,
+          ))
     : null;
 
   return (

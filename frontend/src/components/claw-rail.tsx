@@ -11,6 +11,7 @@ import { refreshEvals } from '@/lib/eval-refresh';
 import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunStore';
 import { useRunLogStore } from '@/lib/runLogStore';
 import { useSkillHitlStore } from '@/lib/skillHitlStore';
+import { useSkillConversationStore } from '@/lib/skillConversationStore';
 import { startRun } from '@/hooks/useSduiStream';
 import { parseCommissionIntent } from '@/lib/commissionCommands';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
@@ -523,9 +524,14 @@ function genConvId(): string {
 const SKILL_LABELS: Record<string, string> = {
   zhgk: '智慧工勘',
   guihua: '规划设计',
+  xtsj: '系统设计',
+  system_design: '系统设计',
   device_install: '设备安装',
   software_deployment: '部署调测',
 };
+
+/** 使用「左栏会话 + 右栏面板」交付台布局的 skill（系统设计完整交付流）。 */
+const DELIVERY_WORKBENCH_SKILLS = new Set(['system_design']);
 
 /** 节点日志气泡：每个 step 一组，逐行随 SSE 到达渲染（与右侧步进条同步） */
 function RunLogFeed({ runId }: { runId: string }) {
@@ -637,6 +643,12 @@ function SkillRunBanner({
   const hitlInfo = useSkillHitlStore();
   const myHitl   = hitlInfo?.skillId === skillId ? hitlInfo : null;
 
+  // 会话流（仅 system_design 交付台）：右侧 SkillAgentScreen 提升到左栏渲染
+  const convInfo = useSkillConversationStore();
+  const myConv   = convInfo?.skillId === skillId ? convInfo : null;
+  const usesDeliveryWorkbench = DELIVERY_WORKBENCH_SKILLS.has(skillId);
+  const showSkillConversation = Boolean(myInfo && usesDeliveryWorkbench && myConv);
+
   const badgeText =
     phase === 'starting'  ? '启动中…'
     : phase === 'hitl'    ? (hitlType === 'choice' ? '⏸ 待选择' : hitlType === 'edit' ? '⏸ 待填表' : '⏸ 待文件')
@@ -652,7 +664,8 @@ function SkillRunBanner({
     : 'running';
 
   return (
-    <div className="zhgk-card">
+    <>
+      <div className="zhgk-card">
       <div className="zhgk-card-head">
         <span className="zhgk-card-title">🛠 {skillLabel}</span>
         <span className={`zhgk-card-badge ${badgeClass}`}>{badgeText}</span>
@@ -690,7 +703,9 @@ function SkillRunBanner({
           <SduiRuntimeContext.Provider
             value={{
               runId: myHitl.runId,
-              onAction: () => {},
+              skillId,
+              // 仅 system_design 交付台在左栏 HITL 卡内响应动作；其它模块保持原有 no-op
+              onAction: usesDeliveryWorkbench ? (myHitl.onAction ?? (() => {})) : (() => {}),
               onUpload: myHitl.onUpload,
               onChoiceSubmit: myHitl.onChoiceSubmit,
               onFormSubmit: myHitl.onFormSubmit,
@@ -724,7 +739,15 @@ function SkillRunBanner({
       {phase === 'error' && errorMsg && (
         <div className="zhgk-card-err">{errorMsg}</div>
       )}
-    </div>
+      </div>
+      {showSkillConversation && myConv && (
+        <div className="claw-skill-conv" style={{ marginTop: 8 }}>
+          <SduiRuntimeContext.Provider value={myConv.runtime}>
+            <SduiNodeView node={myConv.node} />
+          </SduiRuntimeContext.Provider>
+        </div>
+      )}
+    </>
   );
 }
 
