@@ -49,6 +49,7 @@ description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心
 | POST | `/agent/zhgk/start`            | 启动 run（body: `{intent, project_code, project_name, room_name}`） |
 | GET  | `/agent/zhgk/stream/{run_id}`  | SSE 实时事件流 |
 | POST | `/agent/zhgk/resume`           | HITL 续跑（body: `{run_id, payload: {choice: "..."}}`） |
+| POST | `/agent/zhgk/gkclaw/inbound`   | mailgw 收信回调（Bearer · 触发 GKCLAW poll + step_retry） |
 | GET  | `/agent/zhgk/ui/{run_id}`      | SDUI 快照 |
 | GET  | `/agent/zhgk/artifact?path=...`| 下载产物 |
 | GET  | `/agent/zhgk/runs`             | 历史 run 列表 |
@@ -87,7 +88,8 @@ ProjectData/
 | determine_gen | ChoiceCard | BOQ 解析失败 | 手动选择代际-制冷 |
 | confirm_table | ChoiceCard | 表格生成完成 | 确认 / 重新生成 |
 | task_dispatch | ChoiceCard | 勘测表确认完成后 | 下发到现场 App / 跳过（本地人工勘测） |
-| wait_survey | FilePicker | 等待现场回传 | 上传填好的结果表 |
+
+| wait_survey | FilePicker | 等待现场回传 | 上传填好的结果表（GKCLAW 回传可自动触发） |
 | resurvey_gate | ChoiceCard | 有不满足条目 | 复勘 / 跳过 |
 
 ---

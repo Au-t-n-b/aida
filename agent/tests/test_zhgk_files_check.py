@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from agent.zhgk_files import (
+    GKCLAW_ASSIGNEES_REL,
     PERSONNEL_FILENAME,
     check_need_files,
     check_project_files,
@@ -93,8 +94,18 @@ def test_check_need_files_exact_personnel(tmp_path: Path) -> None:
     assert out["ok"] is True
 
 
+def test_check_need_files_gkclaw_assignees(tmp_path: Path) -> None:
+    p = tmp_path / GKCLAW_ASSIGNEES_REL
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text('[{"surveyor_name": "张三", "surveyor_code": "S001"}]', encoding="utf-8")
+    out = check_need_files(tmp_path, [GKCLAW_ASSIGNEES_REL])
+    assert out["ok"] is True
+    assert out["items"][0]["found"] is True
+
+
 def test_infer_upload_kind_v4() -> None:
     assert infer_upload_kind("BOQ.xlsx") == "boq"
+    assert infer_upload_kind("assignees.json") == "gkclaw_assignees"
     assert infer_upload_kind("远近人员表.xlsx") == "personnel"
     assert infer_upload_kind("入场评估标准表.xlsx") == "template"
     assert infer_upload_kind("工勘常见高风险库.xlsx") == "template"

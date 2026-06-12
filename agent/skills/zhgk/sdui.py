@@ -33,6 +33,7 @@ from agent.sdui.builder import (
     SduiMacroStepRailNode, SduiMacroStep,
     SduiRiskListNode, SduiRiskItem,
     SduiDataTableNode,
+
     SduiMachineRoom3DNode, SduiMachineRoom, SduiRoom3DItemStats, SduiRoom3DEntry,
     SduiPostUserMessage,
     SduiTaskTimelineStripNode,
@@ -428,6 +429,7 @@ def _build_assessment_panel(state: dict[str, Any]) -> SduiCardNode | None:
     )
 
 
+
 def _build_task_timeline(state: dict[str, Any]) -> SduiTaskTimelineStripNode | None:
     """勘测窗口 · 计划 vs 实际时间条（backlog #2）。
 
@@ -768,6 +770,7 @@ def _build_running_card(state: dict[str, Any]) -> SduiCardNode | None:
     return SduiCardNode(id="running-card", children=children)
 
 
+
 # ── 3D 机房俯视总览（移植自同事 smart_survey_v8 · ROOM_OVERVIEW）──
 # 真实机房入口 = 四意图启动盘（决策：下钻→路由到意图）。点击 = 用该意图启动/续跑本机房的
 # 工勘 run（action 文本 /intent <value>，前端据此 start({intent}) 或在意图 HITL 处 resume）。
@@ -1023,6 +1026,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if metrics_band:
         nodes.append(metrics_band)
 
+
     # 勘测窗口时间条（backlog #2）：计划 vs 实际双轨 + 逾期提醒
     task_timeline = _build_task_timeline(state)
     if task_timeline:
@@ -1053,6 +1057,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             _build_filter_preview(state),
             _build_assessment_panel(state),
             _build_issue_table(state),
+
             _build_issue_drawer(state),
             _build_resurvey_history(state),
             _build_gkclaw_card(state),

@@ -110,9 +110,12 @@ def deliver_task(*, db: Database, sender: SmtpSender, task_id: str) -> dict:
     return db.get_outbox_task(task_id)
 
 
-def refresh_inbox(*, db: Database, receiver: MailReceiver, data_dir: Path) -> int:
+
+def refresh_inbox(*, db: Database, receiver: MailReceiver, data_dir: Path,
+                  agent_notify: dict | None = None) -> int:
     """拉取新邮件入库，附件落盘。单封解析失败隔离（记审计、跳过）。"""
     new_count = 0
+    new_subjects: list[tuple[int, str]] = []
     for raw in receiver.fetch_new(db.known_uidls()):
         try:
             mail = parse_raw(raw.content)
@@ -132,8 +135,24 @@ def refresh_inbox(*, db: Database, receiver: MailReceiver, data_dir: Path) -> in
             if meta:
                 db.update_inbox_attachments(mail_id, meta)
             new_count += 1
+
+            new_subjects.append((mail_id, mail.subject))
         except Exception as exc:  # noqa: BLE001 —— 单封隔离
             db.add_audit(actor="system", action="fetch_error",
                          detail={"uidl": raw.uidl, "error": str(exc)})
     db.add_audit(actor="system", action="fetch", detail={"new_count": new_count})
+
+    if new_subjects and agent_notify:
+        from mailgw.agent_notify import load_notify_config, notify_agent_inbound
+
+        cfg = load_notify_config(agent_notify)
+        if cfg.get("enabled") and cfg.get("token"):
+            for mid, subj in new_subjects:
+                notify_agent_inbound(
+                    mail_id=mid,
+                    subject=subj,
+                    base_url=str(cfg["base_url"]),
+                    token=str(cfg["token"]),
+                    skill=str(cfg.get("skill") or "zhgk"),
+                )
     return new_count

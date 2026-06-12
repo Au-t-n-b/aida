@@ -52,7 +52,9 @@ def list_inbox(request: Request, refresh: bool = False, limit: int = 20,
     new_count = 0
     if refresh:
         new_count = refresh_inbox(db=state.db, receiver=state.receiver,
-                                  data_dir=state.config.data_dir)
+
+                                  data_dir=state.config.data_dir,
+                                  agent_notify=state.config.agent_notify)
     mails = state.db.list_inbox(limit=limit, unread_only=unread_only)
     return {"new_count": new_count, "mails": [{
         "mail_id": m["id"], "from": m["from_addr"], "subject": m["subject"],

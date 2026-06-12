@@ -42,6 +42,16 @@ def _mail_backend() -> str:
     return "smtp"
 
 
+def _urlopen_no_proxy(req: urllib.request.Request, timeout: float = 30):
+    """对本机 sidecar（mailgw / outlook_http）发 HTTP 请求，绕过 HTTP_PROXY。
+
+    服务器常设 HTTP_PROXY 访问外网；urllib 默认会把 127.0.0.1 也交给代理，
+    代理无法回连本机 → HTTP Error 502: Connection refused。
+    """
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    return opener.open(req, timeout=timeout)
+
+
 def _send_via_outlook_com(
     recipients: list[str],
     subject: str,
@@ -97,7 +107,7 @@ def _send_via_outlook_http(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with _urlopen_no_proxy(req, timeout=30) as resp:
             data = json.loads(resp.read().decode())
         if data.get("success") or data.get("ok"):
             return {"ok": True, "via": "outlook_http", "to": recipients, "subject": subject}
@@ -181,8 +191,14 @@ def _send_via_mailgw(
     token = os.environ.get("MAILGW_TOKEN", "").strip()
     if not token:
         return {"ok": False, "error": "MAILGW_TOKEN 未配置（mailgw Bearer token）", "via": "mailgw"}
-    payload = {"to": recipients, "cc": [], "subject": subject,
-               "body": body, "attachments": attachments or []}
+
+    payload = {
+        "to": recipients,
+        "cc": [],
+        "subject": subject,
+        "body": body,
+        "attachments": attachments or [],
+    }
     req = urllib.request.Request(
         f"{base}/api/send",
         data=json.dumps(payload).encode(),
@@ -190,7 +206,8 @@ def _send_via_mailgw(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+
+        with _urlopen_no_proxy(req, timeout=120) as resp:
             data = json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         try:
@@ -205,7 +222,10 @@ def _send_via_mailgw(
     status = data.get("status", "")
     out: dict[str, Any] = {
         "ok": status in ("sent", "pending_approval"),
-        "via": "mailgw", "to": recipients, "subject": subject,
+
+        "via": "mailgw",
+        "to": recipients,
+        "subject": subject,
         "attachments": attachments or [],
         "mailgw_task_id": data.get("task_id", ""),
         "mailgw_status": status,

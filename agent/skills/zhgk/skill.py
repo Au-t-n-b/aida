@@ -66,7 +66,8 @@ class ZhgkSkill(BaseSkill):
     # SDUI 投影器
     sdui_projector = staticmethod(_sdui_project)
     # assess / report_distribute 支持单步重试（不重跑前序 LLM 步骤）
-    step_retry_keys = ["assess", "report_distribute", "task_dispatch"]
+
+    step_retry_keys = ["assess", "report_distribute", "task_dispatch", "wait_survey"]
     # 文件补齐 HITL 处理器
     file_handler = _zhgk_files
 

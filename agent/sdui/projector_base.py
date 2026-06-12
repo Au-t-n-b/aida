@@ -104,6 +104,16 @@ def overall_status(
         return "failed", "失败"
     if all(s == "completed" for s in statuses) and len(steps) >= len(step_order):
         return "done", "已完成"
+    # 僵尸态：current_step 已指向未执行的 step（如 task_dispatch 后 wait_survey 未跑）
+    cur = str(state.get("current_step") or "")
+    if cur and cur in step_order:
+        terminal = {
+            s.get("key")
+            for s in steps
+            if s.get("status") in ("completed", "hitl", "failed")
+        }
+        if cur not in terminal:
+            return "paused", "待续跑"
     return "running", "执行中"
 
 

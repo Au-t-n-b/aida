@@ -47,6 +47,8 @@ class AppConfig:
     tokens: dict[str, str]  # caller 名（小写）-> token
     admin_password: str
 
+    agent_notify: dict = field(default_factory=dict)
+
 
 def load_config(config_path: str = "config.yaml", env_path: str = ".env") -> AppConfig:
     load_dotenv(env_path, override=True)
@@ -64,4 +66,6 @@ def load_config(config_path: str = "config.yaml", env_path: str = ".env") -> App
         data_dir=Path(raw.get("data_dir", "./data")),
         tokens=tokens,
         admin_password=os.environ["MAILGW_ADMIN_PASSWORD"],
+
+        agent_notify=raw.get("agent_notify") or {},
     )

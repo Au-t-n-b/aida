@@ -10,7 +10,8 @@ pop3:
   port: 995
   ssl: true
   username: aida@corp.com
-  poll_interval: 0          # 秒；0 = 仅按需拉取（list_inbox?refresh=true）
+
+  poll_interval: 0          # 秒；0 = 仅按需拉取；GKCLAW 联调建议 30~60 并开 agent_notify
 policy:
   whitelist_domains: ["corp.com"]
   whitelist_addresses: []
@@ -19,3 +20,10 @@ policy:
   max_attachment_mb: 25
   max_recipients: 20
 data_dir: ./data
+
+# mailgw 收到 GKCLAW 邮件后 POST 通知 AIDA Agent（同机 127.0.0.1）
+agent_notify:
+  enabled: true
+  base_url: http://127.0.0.1:7401
+  # token 默认读环境变量 AGENT_NOTIFY_TOKEN 或 MAILGW_TOKEN_AIDA
+  skill: zhgk

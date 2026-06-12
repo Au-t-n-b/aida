@@ -27,7 +27,9 @@ def build_app(config: AppConfig, *, db: Database | None = None,
                 while not stop_event.wait(config.pop3.poll_interval):
                     try:
                         refresh_inbox(db=app.state.db, receiver=app.state.receiver,
-                                      data_dir=config.data_dir)
+
+                                      data_dir=config.data_dir,
+                                      agent_notify=config.agent_notify)
                     except Exception as exc:  # noqa: BLE001 —— 轮询失败不拖垮服务
                         app.state.db.add_audit(actor="system", action="poll_error",
                                                detail={"error": str(exc)})

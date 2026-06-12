@@ -47,6 +47,10 @@ OPTIONAL_ITEMS: list[dict[str, str]] = [
 PERSONNEL_FILENAME = "远近一体化人员信息.xlsx"
 PERSONNEL_REL = f"ProjectData/Input/{PERSONNEL_FILENAME}"
 
+# GKCLAW 任务下发 · task_dispatch HITL（缺人员时 need_files 指向此路径）
+GKCLAW_ASSIGNEES_REL = "ProjectData/RunTime/gkclaw/assignees.json"
+GKCLAW_ASSIGNEES_FILENAME = "assignees.json"
+
 BOQ_ITEM = {
     "id": "boq",
     "label": "BOQ 清单",
@@ -60,6 +64,8 @@ def infer_upload_kind(filename: str) -> str:
     name = filename or ""
     if re.search(r"BOQ", name, re.I):
         return "boq"
+    if re.search(r"assignees", name, re.I):
+        return "gkclaw_assignees"
     if re.search(r"远近|人员信息|人员表|personnel", name, re.I):
         return "personnel"
     if "入场评估标准表" in name:
@@ -115,6 +121,13 @@ def check_need_files(root: Path, need_files: list[str]) -> dict[str, Any]:
             hint = "请上传到 Template/（底表/模板文件）"
         elif not ok and "/Input/" in rel:
             hint = "请上传到 Input/"
+        elif not ok and "assignees.json" in raw:
+            hint = (
+                "请上传 assignees.json 到 RunTime/gkclaw/；"
+                '格式：[{"surveyor_name": "姓名", "surveyor_code": "工号"}]'
+            )
+        elif not ok and "/gkclaw/" in rel:
+            hint = "请上传到 RunTime/gkclaw/"
         elif not ok and ("/RunTime/" in rel or "/Output/" in rel):
             hint = "由上一步自动生成；可点「继续工勘」重跑流程"
         items.append({
@@ -204,11 +217,16 @@ async def save_upload(root: Path, kind: str, file: UploadFile) -> dict[str, Any]
     elif kind == "personnel":
         dest_dir = root / "ProjectData" / "Input"
         fname = PERSONNEL_FILENAME
+    elif kind == "gkclaw_assignees":
+        dest_dir = root / "ProjectData" / "RunTime" / "gkclaw"
+        fname = GKCLAW_ASSIGNEES_FILENAME
     elif kind == "input":
         dest_dir = root / "ProjectData" / "Input"
         fname = file.filename or "uploaded.xlsx"
     else:
-        raise ValueError(f"unknown kind: {kind!r}（已知 kind: boq / template / image / personnel / input）")
+        raise ValueError(
+            f"unknown kind: {kind!r}（已知 kind: boq / template / image / personnel / gkclaw_assignees / input）"
+        )
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / fname
