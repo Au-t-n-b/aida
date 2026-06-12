@@ -14,6 +14,7 @@ from __future__ import annotations
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import reload_tasks_from_plan, tasks_state_path, refresh_task_metrics
+from ..path_config import get_output_dir, output_rel
 from ..services._common import as_str, principal_display_name
 from ..services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
 from ..services.table_builder import generate_dispatch_plan_xlsx
@@ -109,13 +110,15 @@ def _plan_artifact_rel(ctx: SkillContext) -> str | None:
     inp = ctx.input_dir / DISPATCH_PLAN_FILENAME
     if inp.is_file():
         return ctx.rel(inp)
-    out = ctx.output_dir / DISPATCH_PLAN_FILENAME
-    return ctx.rel(out) if out.is_file() else None
+    out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
+    return output_rel(ctx.work_root, out) if out.is_file() else None
 
 
 class TaskDispatchStep(BaseStep):
     key = "task_dispatch"
     name = "计划下发"
+    # 默认布局（本地/评测）下的回退路径；服务器 DEVICE_INSTALL_OUTPUT_ROOT 外置时
+    # 由 run 返回的显式 artifacts 兜底（见 path_config.output_rel）。
     artifacts_pattern = ["ProjectData/Output/设备安装实施计划.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
@@ -192,7 +195,7 @@ class TaskDispatchStep(BaseStep):
         st = load_tasks_state(state_path)
         tasks = [t for t in st.get("tasks", []) if isinstance(t, dict)]
 
-        out = ctx.output_dir / DISPATCH_PLAN_FILENAME
+        out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
         generate_dispatch_plan_xlsx(tasks, str(out))
 
         dispatched = 0
@@ -238,7 +241,7 @@ class TaskDispatchStep(BaseStep):
         else:
             emit(f"[task_dispatch] ✓ 勾选 {n_sel} 条计划此前已下发（重放幂等）")
 
-        artifacts = [ctx.rel(out)] if out.exists() else []
+        artifacts = [output_rel(ctx.work_root, out)] if out.exists() else []
         metrics = {"dispatched_count": dispatched}
         metrics.update(refresh_task_metrics(ctx))
         return {"artifacts": artifacts, "metrics": metrics}

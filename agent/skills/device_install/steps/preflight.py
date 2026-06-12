@@ -45,13 +45,15 @@ class PreflightStep(BaseStep):
         if is_pipeline_replay(ctx.project):
             emit("[preflight] 扫描设备安装环境与上游实施计划…")
 
-        source_dir = get_source_dir(ctx.work_root)
+        source_dir = get_source_dir(ctx.work_root, ctx.project)
         chk = check_dispatch_plan(source_dir)
         tasks_n = len(get_tasks(str(tasks_state_path(ctx))))
 
         emit(f"  源文件目录：{source_dir}")
         emit(f"  {'✓' if chk['ok'] else '✗'} 上游·{DISPATCH_PLAN_FILENAME}: "
              f"{'已就绪' if chk['ok'] else '缺失'}")
+        if not chk["ok"]:
+            emit(f"  期望文件：{chk['path']}")
 
         command = (ctx.project or {}).get("command", "") or "build"
         emit(f"[preflight] 当前命令: {command}")

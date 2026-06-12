@@ -48,7 +48,7 @@ class PlanReceiveStep(BaseStep):
             ],
         )
 
-        source_dir = get_source_dir(ctx.work_root)
+        source_dir = get_source_dir(ctx.work_root, ctx.project)
         synced = sync_dispatch_plan_to_input(source_dir, ctx.input_dir)
         if synced:
             verb = "已就绪" if source_dir.resolve() == ctx.input_dir.resolve() else "已同步"

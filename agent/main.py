@@ -131,8 +131,21 @@ def healthz():
             out["ok"] = False
     out["skills"] = skills_health
     out["llm"] = llm_healthcheck()
+    try:
+        from .nanobot_integration.config_bridge import nanobot_status
+        out["nanobot"] = nanobot_status()
+    except Exception as e:  # noqa: BLE001
+        out["nanobot"] = {"enabled": False, "error": str(e)}
     if not out["llm"].get("configured"):
         out["ok"] = False
+    try:
+        from agent.skills.zhgk import sdui as _zhgk_sdui
+        out["zhgk_sdui"] = {
+            "file": _zhgk_sdui.__file__,
+            "has_3d_cockpit": hasattr(_zhgk_sdui, "_build_machine_room_3d"),
+        }
+    except Exception as e:  # noqa: BLE001
+        out["zhgk_sdui"] = {"error": str(e)}
     code = 200 if out["ok"] else 500
     return JSONResponse(status_code=code, content=out)
 
@@ -557,15 +570,29 @@ async def chat_stream_endpoint(req: ChatReq):
 
         async def _chat_task() -> None:
             try:
-                async for ev in run_chat_async(
-                    req.message,
-                    history=req.history or None,
-                    system=_chat_system(ctx),
-                    trace_meta={"scope": "chat", "page": ctx.get("page", "")},
-                    conv_id=conv_id or None,
-                    skill_launch_cb=_skill_launch_cb,
-                    approval_cb=_approval_cb,
-                ):
+                from .nanobot_integration.nanobot_chat import (
+                    _enabled as _nanobot_chat_enabled,
+                    run_nanobot_chat_async,
+                )
+
+                if _nanobot_chat_enabled():
+                    chat_iter = run_nanobot_chat_async(
+                        req.message,
+                        conv_id=conv_id or None,
+                        system=_chat_system(ctx),
+                    )
+                else:
+                    chat_iter = run_chat_async(
+                        req.message,
+                        history=req.history or None,
+                        system=_chat_system(ctx),
+                        trace_meta={"scope": "chat", "page": ctx.get("page", "")},
+                        conv_id=conv_id or None,
+                        skill_launch_cb=_skill_launch_cb,
+                        approval_cb=_approval_cb,
+                    )
+
+                async for ev in chat_iter:
                     if ev.get("type") == "tool_call":
                         flags["had_tools"] = True
                     await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
@@ -1144,8 +1171,13 @@ def get_ui_snapshot(skill: str, run_id: str):
     """返回指定 run 的当前 SDUI 文档（JSON）。前端断线重连或初始化时调用。"""
     if run_id not in RUNS:
         raise HTTPException(404, "run_id not found")
-    # full_restart 重放期间返回重放前的旧 state，避免快照回退到「环境准备」早期态
-    state = RUNS[run_id].get("display_state") or RUNS[run_id]["state"]
+    # full_restart 重放期间才用 display_state 兜底；暂停/完成后用最新 state（含 3D 驾驶舱等）
+    entry = RUNS[run_id]
+    task = entry.get("task")
+    if entry.get("display_state") and task is not None and not task.done():
+        state = entry["display_state"]
+    else:
+        state = entry["state"]
     skill_id = state.get("skill_id", skill)
     proj_fn = _get_sdui_projector(skill_id)
     if proj_fn is None:

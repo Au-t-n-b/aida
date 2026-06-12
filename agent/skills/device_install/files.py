@@ -136,6 +136,23 @@ def reset_workspace(root: Path) -> dict[str, Any]:
     for sub in ("Output", "RunTime", "Start", "Images"):
         _clear_dir(sub)
 
+    # 输出目录被 DEVICE_INSTALL_OUTPUT_ROOT 外置（服务器/数据中心落点，
+    # 不在 ProjectData/Output 内）时，单独清理其中的产物文件。
+    from .path_config import get_output_dir
+    out_dir = get_output_dir().resolve()
+    if out_dir != (pd / "Output").resolve() and out_dir.is_dir():
+        for p in list(out_dir.iterdir()):
+            if p.is_file() and not p.name.startswith("~$"):
+                try:
+                    p.unlink()
+                    try:
+                        rel = str(p.relative_to(root))
+                    except ValueError:
+                        rel = str(p)
+                    removed.append(rel)
+                except OSError:
+                    pass
+
     return {
         "ok": True,
         "removed_count": len(removed),

@@ -13,6 +13,7 @@ import json
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import refresh_task_metrics, tasks_state_path, staged_cold_start_pace, SN_GENERATE_PACE_SEC
+from ..path_config import get_output_dir, output_rel
 from ..services._common import as_str
 from ..services.dispatch_plan_parser import load_sn_pool, group_sn_rows_to_tables
 from ..services.sn_builder import generate_sn_xlsx
@@ -122,9 +123,9 @@ class SnGenerateStep(BaseStep):
 
         artifacts: list[str] = []
         for tbl in tables:
-            out = generate_sn_xlsx(tbl, str(ctx.output_dir))
+            out = generate_sn_xlsx(tbl, str(get_output_dir(ctx.project)))
             if out:
-                artifacts.append(ctx.rel(out))
+                artifacts.append(output_rel(ctx.work_root, out))
 
         meta_path = ctx.runtime_dir / "sn_tables.json"
         ctx.runtime_dir.mkdir(parents=True, exist_ok=True)

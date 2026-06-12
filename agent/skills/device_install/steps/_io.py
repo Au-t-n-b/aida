@@ -92,7 +92,7 @@ def reload_tasks_from_plan(ctx: SkillContext, *, merge_runtime: bool = True) -> 
 
     先 sync 源目录 → Input/，再 parse；merge_runtime=True 时按 task id 保留本 run 内下发/进度态。
     """
-    sync_dispatch_plan_to_input(get_source_dir(ctx.work_root), ctx.input_dir)
+    sync_dispatch_plan_to_input(get_source_dir(ctx.work_root, ctx.project), ctx.input_dir)
     plan_path = resolve_dispatch_plan_path(ctx.input_dir)
     if not plan_path:
         return []

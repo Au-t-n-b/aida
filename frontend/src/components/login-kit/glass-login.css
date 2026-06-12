@@ -187,6 +187,76 @@
 .lg-submit .spin { width: 16px; height: 16px; border: 2px solid rgba(255, 255, 255, 0.4); border-top-color: #fff; border-radius: 50%; animation: lgSpin 0.7s linear infinite; display: none; }
 .lg-submit.loading .spin { display: block; }
 .lg-submit.loading .label { opacity: 0.8; }
+.lg-submit.lg-submit-error {
+  box-shadow: 0 0 0 1px oklch(0.62 0.22 25 / 0.45);
+}
+.lg-error {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #ffd4d0;
+  background: oklch(0.35 0.12 25 / 0.35);
+  border: 1px solid oklch(0.55 0.18 25 / 0.45);
+}
+.lg-success {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #d4f5e8;
+  background: oklch(0.35 0.1 155 / 0.35);
+  border: 1px solid oklch(0.55 0.14 155 / 0.45);
+}
+.lg-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(4, 8, 14, 0.72);
+  backdrop-filter: blur(6px);
+}
+.lg-modal {
+  width: min(420px, 100%);
+  padding: 22px 22px 20px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(160deg, rgba(18, 28, 44, 0.96), rgba(10, 16, 28, 0.98));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  color: var(--glass-text);
+}
+.lg-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.lg-modal-head h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+.lg-modal-close {
+  border: none;
+  background: transparent;
+  color: var(--glass-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px;
+}
+.lg-modal-close:hover { color: #fff; }
+.lg-modal-desc {
+  margin: 0 0 16px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--glass-muted);
+}
 @keyframes lgSpin { to { transform: rotate(360deg); } }
 
 .lg-divider { display: flex; align-items: center; gap: 12px; margin: 22px 0; color: var(--glass-faint); font-size: 11px; letter-spacing: 0.1em; }

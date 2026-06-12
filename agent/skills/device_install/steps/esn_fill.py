@@ -16,6 +16,7 @@ import os
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import tasks_state_path, refresh_task_metrics
+from ..path_config import get_output_dir, output_rel
 from ..services._common import as_str
 from ..services.sn_builder import validate_esn
 from ..services.completion_builder import generate_completion_checklist, generate_completion_report
@@ -134,9 +135,9 @@ def _write_sn_xlsx_artifacts(ctx: SkillContext, tables: list[dict]) -> list[str]
 
     artifacts: list[str] = []
     for tbl in tables:
-        out = generate_sn_xlsx(tbl, str(ctx.output_dir))
+        out = generate_sn_xlsx(tbl, str(get_output_dir(ctx.project)))
         if out:
-            artifacts.append(ctx.rel(out))
+            artifacts.append(output_rel(ctx.work_root, out))
     return artifacts
 
 
@@ -250,12 +251,12 @@ class EsnFillStep(BaseStep):
 
         # 完工清单（按机房+设备大类）+ 完工报告（全项目汇总）
         for tbl in tables:
-            cl = generate_completion_checklist(tbl, str(ctx.output_dir))
+            cl = generate_completion_checklist(tbl, str(get_output_dir(ctx.project)))
             if cl and os.path.isfile(cl):
-                artifacts.append(ctx.rel(cl))
-        rep = generate_completion_report(tables, str(ctx.output_dir))
+                artifacts.append(output_rel(ctx.work_root, cl))
+        rep = generate_completion_report(tables, str(get_output_dir(ctx.project)))
         if rep and os.path.isfile(rep):
-            artifacts.append(ctx.rel(rep))
+            artifacts.append(output_rel(ctx.work_root, rep))
         emit(f"[esn_fill] ✓ 已生成完工清单 {len(tables)} 份 + 完工报告，标记 {done} 条任务完成")
 
         metrics = {"esn_devices": n_devices, "esn_tables": len(tables), "completed_now": done}
