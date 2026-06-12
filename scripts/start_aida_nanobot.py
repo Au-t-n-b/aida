@@ -6,7 +6,8 @@ AIDA + nanobot 融合启动器。
 2. 启动 nanobot serve (:8900) — 自由聊天引擎
 3. 启动 AIDA FastAPI (:7401) — LangGraph + SDUI，聊天代理到 nanobot
 4. 启动 Manager (:8000) — UX 鉴权，代理数据中心
-5. 启动前端静态服务 (:8080)
+5. 启动 mailgw 团队邮箱 (:8025) — GKCLAW 邮件网关（需 mailgw/config.yaml）
+6. 启动前端静态服务 (:8080)
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NANOBOT_DIR = ROOT / "nanobot-main"
+MAILGW_DIR = ROOT / "mailgw"
 
 
 def _venv_python() -> str:
@@ -103,6 +105,43 @@ def start_nanobot_serve() -> subprocess.Popen | None:
         return None
 
 
+def _mailgw_port() -> str:
+    return os.environ.get("MAILGW_PORT", "8025")
+
+
+def _mailgw_python() -> str:
+    for candidate in [
+        MAILGW_DIR / ".venv" / "bin" / "python3",
+        MAILGW_DIR / ".venv" / "Scripts" / "python.exe",
+    ]:
+        if candidate.exists():
+            return str(candidate)
+    return _venv_python()
+
+
+def start_mailgw() -> subprocess.Popen | None:
+    config = MAILGW_DIR / "config.yaml"
+    if not config.is_file():
+        print("[mailgw] config.yaml not found, skip")
+        return None
+    env_file = MAILGW_DIR / ".env"
+    py = _mailgw_python()
+    port = _mailgw_port()
+    host = os.environ.get("MAILGW_HOST", "127.0.0.1")
+    cmd = [
+        py, "-m", "mailgw",
+        "--config", str(config),
+        "--env", str(env_file),
+        "--host", host,
+        "--port", port,
+    ]
+    try:
+        return _popen(cmd, cwd=MAILGW_DIR, log_name="aida-mailgw.log")
+    except Exception as e:
+        print(f"[mailgw] failed: {e}")
+        return None
+
+
 def _manager_port() -> str:
     return os.environ.get("MANAGER_PORT", "8001")
 
@@ -145,7 +184,8 @@ def start_frontend() -> subprocess.Popen | None:
     return _popen(cmd, log_name="aida-liwen-frontend.log")
 
 
-def verify() -> bool:
+def verify(*, mailgw_started: bool = False) -> bool:
+    import urllib.error
     import urllib.request
 
     # 本机健康检查不走 HTTP_PROXY（与 nanobot_chat 一致）
@@ -157,10 +197,20 @@ def verify() -> bool:
         ("backend", "http://127.0.0.1:7401/healthz"),
         ("frontend", "http://127.0.0.1:8080/"),
     ]
+    if mailgw_started:
+        checks.insert(3, ("mailgw", f"http://127.0.0.1:{_mailgw_port()}/admin"))
     for name, url in checks:
         try:
             with opener.open(url, timeout=10) as r:
                 print(f"[verify] {name}: HTTP {r.status}")
+        except urllib.error.HTTPError as e:
+            # mailgw /admin 需 Basic 认证，401 表示服务已就绪
+            if name == "mailgw" and e.code == 401:
+                print(f"[verify] {name}: HTTP {e.code} (auth required, ok)")
+            else:
+                print(f"[verify] {name} FAIL: HTTP {e.code}")
+                if name not in ("frontend",):
+                    ok = False
         except Exception as e:
             print(f"[verify] {name} FAIL: {e}")
             if name != "frontend":
@@ -175,10 +225,11 @@ def stop_old() -> None:
         "http.server 8080",
         "nanobot serve",
         "nanobot.cli.commands serve",
+        "python -m mailgw",
     ]
     for p in patterns:
         subprocess.run(["pkill", "-9", "-f", p], check=False)
-    for port in (8001, 8900, 7401, 8080):
+    for port in (8001, 8900, 7401, 8080, int(_mailgw_port())):
         subprocess.run(
             ["bash", "-c", f"ss -lptn 'sport = :{port}' | grep -oP 'pid=\\K[0-9]+' | xargs -r kill -9"],
             check=False,
@@ -213,13 +264,19 @@ def main() -> int:
     procs.append(start_manager())
     time.sleep(2)
 
+    mg = start_mailgw()
+    mailgw_started = mg is not None
+    if mg:
+        procs.append(mg)
+        time.sleep(2)
+
     if not args.no_frontend:
         fe = start_frontend()
         if fe:
             procs.append(fe)
 
     time.sleep(2)
-    if not verify():
+    if not verify(mailgw_started=mailgw_started):
         for p in procs:
             p.terminate()
         return 1
