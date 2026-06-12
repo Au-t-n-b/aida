@@ -1,0 +1,513 @@
+{
+  "source_file": "JXX项目_A3_PoD_第四批_集成+布线_9个POD_from_c00563598_0000Hf00640918202511210008_不含价格.xlsx",
+  "parsed_at": "2026-06-11T15:35:35+08:00",
+  "project": {},
+  "sites": [
+    "站点1"
+  ],
+  "products": [
+    {
+      "sheet": "集群系统集成服务（训练）",
+      "product_id": "",
+      "product_head": "集群系统集成服务（训练）",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "1",
+          "name": "集群系统集成服务",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "1.1",
+          "name": "集群系统集成服务（训练）（同构）",
+          "level": 2,
+          "parent_sort_no": "1"
+        },
+        {
+          "sort_no": "1.2",
+          "name": "集群系统集成服务（训练）-综合布线",
+          "level": 2,
+          "parent_sort_no": "1"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "",
+          "part_number": "8814325423",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "AI集群系统集成项目管理-训练-384卡",
+          "total_qty": 9,
+          "site_qty": {
+            "站点1": 9
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 集群系统集成服务（训练）（同构）",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 13
+        },
+        {
+          "sort_no": "",
+          "sales_code": "",
+          "part_number": "8814325418",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "AI集群系统集成规划设计-训练-384卡",
+          "total_qty": 9,
+          "site_qty": {
+            "站点1": 9
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 集群系统集成服务（训练）（同构）",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 14
+        },
+        {
+          "sort_no": "",
+          "sales_code": "",
+          "part_number": "8814325419",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "AI集群系统集成对接联调-训练-384卡",
+          "total_qty": 9,
+          "site_qty": {
+            "站点1": 9
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 集群系统集成服务（训练）（同构）",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 15
+        },
+        {
+          "sort_no": "",
+          "sales_code": "",
+          "part_number": "8814325420",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "AI集群系统集成验证-训练-384卡",
+          "total_qty": 9,
+          "site_qty": {
+            "站点1": 9
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 集群系统集成服务（训练）（同构）",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 16
+        },
+        {
+          "sort_no": "",
+          "sales_code": "",
+          "part_number": "8814325421",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "AI集群系统集成验收-训练-384卡",
+          "total_qty": 9,
+          "site_qty": {
+            "站点1": 9
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.1 集群系统集成服务（训练）（同构）",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 17
+        },
+        {
+          "sort_no": "",
+          "sales_code": "8814305204",
+          "part_number": "8814305204",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "综合布线服务（机房内布线，布线长度<=70m)",
+          "total_qty": 5400,
+          "site_qty": {
+            "站点1": 5400
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "1.2 集群系统集成服务（训练）-综合布线",
+          "remark": "",
+          "cluster_expansion": null,
+          "_row_number": 19
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "总数",
+        "站点1"
+      ]
+    },
+    {
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "product_id": "",
+      "product_head": "AI计算规划设计与实施服务（训练）",
+      "product_head_qty": 0,
+      "categories": [
+        {
+          "sort_no": "2",
+          "name": "AI计算规划设计与实施服务（训练）",
+          "level": 1,
+          "parent_sort_no": ""
+        },
+        {
+          "sort_no": "2.1",
+          "name": "AI计算规划设计与实施服务（训练）",
+          "level": 2,
+          "parent_sort_no": "2"
+        }
+      ],
+      "leaves": [
+        {
+          "sort_no": "",
+          "sales_code": "8814283352",
+          "part_number": "8814283352",
+          "father_part_number": "",
+          "financial_code": "",
+          "description": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜）- 每个SuperPoD \n包含\n1、项目管理\n2、计算柜（12*Atlas 900 POD）和网络柜（4*天成灵衢交换机柜）工程安装\n3、超节点的规划设计\n4、超节点内综合布线（2688根HCCS MPO线缆-跨柜）\n5、计算柜部署调试\n6、HCCS网络柜部署调试\n7、超节点测试验证",
+          "total_qty": 9,
+          "site_qty": {
+            "站点1": 9
+          },
+          "existing_qty": 0,
+          "new_qty": 0,
+          "unit_price": null,
+          "is_software": false,
+          "is_manual": false,
+          "is_virtual": false,
+          "parent_category": "2.1 AI计算规划设计与实施服务（训练）",
+          "remark": "",
+          "cluster_expansion": {
+            "source": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜）- 每个SuperPoD \n包含\n1、项目管理\n2、计算柜（12*Atlas 900 POD）和网络柜（4*天成灵衢交换机柜）工程安装\n3、超节点的规划设计\n4、超节点内综合布线（2688根HCCS MPO线缆-跨柜）\n5、计算柜部署调试\n6、HCCS网络柜部署调试\n7、超节点测试验证",
+            "container_qty": 9,
+            "components": [
+              {
+                "model": "Atlas 900 POD+4*天成灵衢交换机柜",
+                "qty_per_unit": 12,
+                "total_qty": 108
+              },
+              {
+                "model": "Atlas 900 POD",
+                "qty_per_unit": 12,
+                "total_qty": 108
+              },
+              {
+                "model": "天成灵衢交换机柜",
+                "qty_per_unit": 4,
+                "total_qty": 36
+              }
+            ],
+            "decomposition_source": "description_regex"
+          },
+          "_row_number": 13
+        }
+      ],
+      "site_columns": [
+        "站点1"
+      ],
+      "raw_header": [
+        "",
+        "",
+        "序号",
+        "部件编码",
+        "型号",
+        "描述",
+        "总数",
+        "站点1"
+      ]
+    }
+  ],
+  "item_summary": [],
+  "item_summary_by_product": [],
+  "model_summary": [
+    {
+      "_row_number": 10,
+      "sort_no": "1",
+      "total_qty": 0,
+      "product_id": "",
+      "product_group": ""
+    },
+    {
+      "_row_number": 11,
+      "sort_no": "",
+      "total_qty": 1,
+      "product_id": "146684981",
+      "product_group": ""
+    },
+    {
+      "_row_number": 12,
+      "sort_no": "",
+      "total_qty": 1,
+      "product_id": "143566935",
+      "product_group": ""
+    }
+  ],
+  "raw_headers": {
+    "集群系统集成服务（训练）": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "站点1"
+    ],
+    "AI计算规划设计与实施服务（训练）": [
+      "",
+      "",
+      "序号",
+      "部件编码",
+      "型号",
+      "描述",
+      "总数",
+      "站点1"
+    ]
+  },
+  "warnings": [
+    {
+      "level": "info",
+      "sheet": "(配置参数)专业服务",
+      "row": 0,
+      "code": "unknown_sheet",
+      "message": "未识别的 sheet，已跳过；特征={'title': '(配置参数)专业服务', 'n_rows': 25, 'n_cols': 5, 'meta': {'any_meta': 16, 'partnumber': 0, 'partnumber_nested': 0, 'productid': 0, 'isquoteleaf': 0, 'isproduct': 0}, 'hdr_idx': 8, 'hdr_score': 1, 'has_device_headers': False, 'param_hits': 0, 'reason': 'no_matching_role'}"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='集群系统集成服务（训练）')"
+    },
+    {
+      "level": "info",
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "row": 0,
+      "code": "l3_device_non_l3_prefix",
+      "message": "设备 sheet 名非 L3- 前缀，已按内容识别为设备清单 (product_head='AI计算规划设计与实施服务（训练）')"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814325423"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 14,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814325418"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 15,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814325419"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 16,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814325420"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 17,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814325421"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 19,
+      "code": "unknown_product",
+      "message": "型号 '8814305204' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "集群系统集成服务（训练）",
+      "row": 19,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814305204"
+    },
+    {
+      "level": "info",
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "row": 13,
+      "code": "unknown_product",
+      "message": "型号 '8814283352' 不在 product-catalog.yaml 中，可能为新产品，请人工确认后补录"
+    },
+    {
+      "level": "info",
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "row": 13,
+      "code": "missing_unit_price",
+      "message": "硬件叶子无单价: 8814283352"
+    }
+  ],
+  "sheet_roles": [
+    {
+      "sheet": "封面",
+      "role": "ignore",
+      "signals": {
+        "title": "封面",
+        "n_rows": 15,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:封面"
+      }
+    },
+    {
+      "sheet": "免责声明",
+      "role": "ignore",
+      "signals": {
+        "title": "免责声明",
+        "n_rows": 24,
+        "n_cols": 3,
+        "reason": "blacklist_keyword:免责声明"
+      }
+    },
+    {
+      "sheet": "基础信息表",
+      "role": "ignore",
+      "signals": {
+        "title": "基础信息表",
+        "n_rows": 22,
+        "n_cols": 6,
+        "reason": "blacklist_keyword:基础信息表"
+      }
+    },
+    {
+      "sheet": "汇总表",
+      "role": "model_summary",
+      "signals": {
+        "title": "汇总表",
+        "n_rows": 12,
+        "n_cols": 5,
+        "meta": {
+          "any_meta": 3,
+          "partnumber": 0,
+          "partnumber_nested": 0,
+          "productid": 2,
+          "isquoteleaf": 2,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 2,
+        "has_device_headers": false
+      }
+    },
+    {
+      "sheet": "(配置参数)专业服务",
+      "role": "unknown",
+      "signals": {
+        "title": "(配置参数)专业服务",
+        "n_rows": 25,
+        "n_cols": 5,
+        "meta": {
+          "any_meta": 16,
+          "partnumber": 0,
+          "partnumber_nested": 0,
+          "productid": 0,
+          "isquoteleaf": 0,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 1,
+        "has_device_headers": false,
+        "param_hits": 0,
+        "reason": "no_matching_role"
+      }
+    },
+    {
+      "sheet": "集群系统集成服务（训练）",
+      "role": "l3_device",
+      "signals": {
+        "title": "集群系统集成服务（训练）",
+        "n_rows": 19,
+        "n_cols": 8,
+        "meta": {
+          "any_meta": 10,
+          "partnumber": 6,
+          "partnumber_nested": 0,
+          "productid": 10,
+          "isquoteleaf": 6,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    },
+    {
+      "sheet": "AI计算规划设计与实施服务（训练）",
+      "role": "l3_device",
+      "signals": {
+        "title": "AI计算规划设计与实施服务（训练）",
+        "n_rows": 13,
+        "n_cols": 8,
+        "meta": {
+          "any_meta": 4,
+          "partnumber": 1,
+          "partnumber_nested": 0,
+          "productid": 4,
+          "isquoteleaf": 1,
+          "isproduct": 0
+        },
+        "hdr_idx": 8,
+        "hdr_score": 4,
+        "has_device_headers": true,
+        "param_hits": 0
+      }
+    }
+  ],
+  "_stats": {
+    "cluster_expanded": 1
+  }
+}

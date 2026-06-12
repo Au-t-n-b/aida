@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PROPOSAL_VERSION_HISTORY, type SnapKey } from './proposal-data';
+import type { ProposalVersionItem } from '@/lib/proposal-api';
 
 const STATUS_LABEL: Record<'published' | 'draft', string> = {
   published: '已发布',
@@ -9,15 +9,16 @@ const STATUS_LABEL: Record<'published' | 'draft', string> = {
 };
 
 export function VersionDropdown({
-  snapKey,
+  versions,
+  currentVersion,
   onSelect,
 }: {
-  snapKey: SnapKey;
-  onSelect: (key: SnapKey) => void;
+  versions: ProposalVersionItem[];
+  currentVersion: string;
+  onSelect: (proposalVersion: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const current =
-    PROPOSAL_VERSION_HISTORY.find((v) => v.snapKey === snapKey) ?? PROPOSAL_VERSION_HISTORY[0];
+  const current = versions.find((v) => v.proposalVersion === currentVersion) ?? versions[0];
   if (!current) return null;
 
   return (
@@ -39,13 +40,13 @@ export function VersionDropdown({
           <div className="proposal-version-section">
             <span>版本历史</span>
           </div>
-          {PROPOSAL_VERSION_HISTORY.map((v) => (
+          {versions.map((v) => (
             <button
-              key={v.snapKey}
+              key={v.proposalVersion}
               type="button"
-              className={`proposal-version-row tone-${v.tone}${snapKey === v.snapKey ? ' on' : ''}`}
+              className={`proposal-version-row tone-${v.tone}${currentVersion === v.proposalVersion ? ' on' : ''}`}
               onClick={() => {
-                onSelect(v.snapKey);
+                onSelect(v.proposalVersion);
                 setOpen(false);
               }}
             >
@@ -56,7 +57,9 @@ export function VersionDropdown({
                   {STATUS_LABEL[v.status]}
                 </span>
               </div>
-              {snapKey === v.snapKey && <span className="proposal-version-check">✓</span>}
+              {currentVersion === v.proposalVersion && (
+                <span className="proposal-version-check">✓</span>
+              )}
             </button>
           ))}
         </div>
