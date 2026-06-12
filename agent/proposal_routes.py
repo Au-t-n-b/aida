@@ -300,7 +300,7 @@ def update_cluster_device(project_id: str, row_id: str, req: ClusterDeviceUpdate
         raise _handle_store_error(e)
 
 
-@router.delete("/chapters/5.3/cluster-device-list/{row_id}", status_code=204)
+@router.delete("/chapters/5.3/cluster-device-list/{row_id}", status_code=200)
 def delete_cluster_device(
     project_id: str,
     row_id: str,
