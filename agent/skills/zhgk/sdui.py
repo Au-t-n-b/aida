@@ -33,6 +33,12 @@ from agent.sdui.builder import (
     SduiMacroStepRailNode, SduiMacroStep,
     SduiRiskListNode, SduiRiskItem,
     SduiDataTableNode,
+    SduiMachineRoom3DNode, SduiMachineRoom, SduiRoom3DItemStats, SduiRoom3DEntry,
+    SduiPostUserMessage,
+    SduiTaskTimelineStripNode,
+    SduiDrawerNode, SduiTextNode, SduiBadgeNode,
+    SduiChecklistNode, SduiChecklistItem,
+    SduiButtonNode,
     dump_sdui_json,
 )
 from agent.sdui.projector_base import (
@@ -422,6 +428,92 @@ def _build_assessment_panel(state: dict[str, Any]) -> SduiCardNode | None:
     )
 
 
+def _build_task_timeline(state: dict[str, Any]) -> SduiTaskTimelineStripNode | None:
+    """勘测窗口 · 计划 vs 实际时间条（backlog #2）。
+
+    actualStart 取首个 step 的真实 started_at；计划窗口按标准勘测周期（默认 5 天）估算；
+    progressPct=overall_progress；remainingDays 逾期为负 → 前端自动红色逾期提醒。"""
+    from datetime import datetime, timedelta, date
+    steps = state.get("steps") or []
+    starts = [s.get("started_at") for s in steps if s.get("started_at")]
+    if not starts:
+        return None
+    try:
+        a_start = datetime.fromisoformat(min(starts)).date()
+    except (ValueError, TypeError):
+        return None
+    WINDOW_DAYS = 5
+    p_end = a_start + timedelta(days=WINDOW_DAYS)
+    progress = int(state.get("overall_progress", 0) or 0)
+    all_done = bool(steps) and all(s.get("status") in ("completed", "skipped") for s in steps)
+    today = date.today()
+    a_end = today if all_done else None
+    remaining = (p_end - today).days
+    return SduiTaskTimelineStripNode(
+        id="task-timeline",
+        plannedStart=a_start.isoformat(), plannedEnd=p_end.isoformat(),
+        actualStart=a_start.isoformat(),
+        actualEnd=a_end.isoformat() if a_end else None,
+        remainingDays=remaining,
+        progressPct=progress,
+    )
+
+
+def _build_issue_drawer(state: dict[str, Any]) -> SduiDrawerNode | None:
+    """问题详情抽屉（backlog #1 · 内嵌面板）——深挖最高优先级问题。
+
+    取问题清单首条（issue_list 已按 不满足/无法识别 排序），按同事 IssueDrawer 结构
+    呈现：描述 + 状态 + AI 整改建议。字段取真实 issue_rows（序号/问题描述/状态/整改建议）。"""
+    m = collect_metrics(state)
+    rows = m.get("issue_rows") or []
+    if not rows:
+        return None
+    top = rows[0]
+    seq    = str(top.get("序号", "") or top.get("seq", "") or "1")
+    desc   = str(top.get("问题描述", "") or "")
+    status = str(top.get("状态", "") or "待处理")
+    fix    = str(top.get("整改建议", "") or "")
+    owner  = str(top.get("责任人", "") or "")
+    children: list[SduiNode] = [
+        SduiRowNode(id="iss-tags", gap="sm", align="center", children=[
+            SduiBadgeNode(text=f"#{seq}", tone="default"),
+            SduiBadgeNode(text=status, tone="warning"),
+            *([SduiBadgeNode(text=f"责任人 {owner}", tone="default")] if owner else []),
+        ]),
+        SduiTextNode(content=desc or "（无问题描述）", variant="body"),
+    ]
+    if fix:
+        children.append(SduiDividerNode(id="iss-div"))
+        children.append(SduiMarkdownNode(id="iss-fix", content=f"**AI 整改建议**\n\n{fix}"))
+    total = m.get("issue_count", len(rows))
+    title = f"问题详情 · 共 {total} 项（深挖优先级最高一项）" if total else "问题详情"
+    return SduiDrawerNode(id="issue-drawer", title=title, children=children)
+
+
+def _build_phase_todo(state: dict[str, Any]) -> SduiCardNode | None:
+    """阶段待办清单（backlog #3）——把宏阶段折成可勾选清单，done 由真实 step 完成度驱动。
+
+    仅纳入「本次 run 已涉及」的阶段（其 step 出现在 state.steps），避免对 scene_suggest 等
+    短意图展示永远 0/N 的报告阶段。"""
+    by_key = {s.get("key", ""): s for s in (state.get("steps") or [])}
+    if not by_key:
+        return None
+    items: list[SduiChecklistItem] = []
+    for _key, name, _sub, step_keys in ZHGK_MACRO_PHASES:
+        present = [k for k in step_keys if k in by_key]
+        if not present:
+            continue
+        done = [k for k in present if by_key[k].get("status") in ("completed", "skipped")]
+        items.append(SduiChecklistItem(
+            label=f"{name} · {len(done)}/{len(present)}",
+            done=len(done) == len(present),
+        ))
+    if not items:
+        return None
+    return SduiCardNode(id="phase-todo", title="阶段待办",
+                        children=[SduiChecklistNode(id="phase-todo-list", items=items)])
+
+
 
 def _build_filter_preview(state: dict[str, Any]) -> SduiCardNode | None:
     """勘测条目预览表（B 场景2 · filter_build 完成后出现）。
@@ -676,6 +768,218 @@ def _build_running_card(state: dict[str, Any]) -> SduiCardNode | None:
     return SduiCardNode(id="running-card", children=children)
 
 
+# ── 3D 机房俯视总览（移植自同事 smart_survey_v8 · ROOM_OVERVIEW）──
+# 真实机房入口 = 四意图启动盘（决策：下钻→路由到意图）。点击 = 用该意图启动/续跑本机房的
+# 工勘 run（action 文本 /intent <value>，前端据此 start({intent}) 或在意图 HITL 处 resume）。
+# 「勘测主线」保留同事设计的主入口措辞，对应 survey_work 全流程。
+_ZHGK_INTENT_ENTRIES: list[tuple[str, str, str, bool]] = [
+    ("survey_work",   "勘测主线 · 全流程", "cube",     True),
+    ("report_gen",    "生成工勘报告",      "doc",      False),
+    ("supplement",    "补充勘测",          "sync",     False),
+    ("scene_suggest", "场景建议",          "sparkles", False),
+]
+
+# 样例机房入口（忠实还原 app-shell.jsx · 勘测主线/通液电子流/液冷湿材质审核）。
+# 样例无真实 run 可路由，点击仅在左侧会话说明其为演示数据。
+_ZHGK_SAMPLE_ENTRIES: list[tuple[str, str, str, bool]] = [
+    ("main",  "勘测主线",            "cube",     True),
+    ("flow",  "通液电子流",          "sync",     False),
+    ("audit", "液冷湿材质 AI 辅助审核", "sparkles", False),
+]
+
+# 样例陪衬机房（决策：单真房 + 样例陪衬）。zhgk 当前仅勘测一个机房，这两张卡为视觉占位，
+# code 标「样例」、入口消息显式说明为演示数据；多机房并行勘测为后续规划。
+_ZHGK_SAMPLE_ROOMS: list[dict[str, Any]] = [
+    {"id": "idc-b", "code": "NW-001 · 样例", "label": "B2 核心网络机房",
+     "status": "active", "progress": 64, "rows": 3, "cols": 5, "racks": 15, "cdu": 0,
+     "itemStats": {"surveyed": 61, "pending": 25, "unknown": 3, "na": 7}, "_issues": 6},
+    {"id": "idc-c", "code": "DS-001 · 样例", "label": "C1 分布式存储机房",
+     "status": "pending", "progress": 41, "rows": 3, "cols": 4, "racks": 12, "cdu": 0,
+     "itemStats": {"surveyed": 38, "pending": 44, "unknown": 2, "na": 8}, "_issues": 5},
+]
+
+
+def _derive_room_geometry(total: int, liquid: bool) -> tuple[int, int, int, int]:
+    """由真实勘测条目总数估算机柜体量（rows, cols, racks, cdu）——更多条目=更大机房。
+    纯视觉示意，不代表真实物理排布。"""
+    import math
+    racks = max(4, min(30, round(total / 6))) if total else 6
+    cols = max(3, math.ceil(math.sqrt(racks * 1.6)))
+    rows = max(2, math.ceil(racks / cols))
+    cdu = 2 if liquid else 0
+    return rows, cols, racks, cdu
+
+
+def _build_real_room(state: dict[str, Any], m: dict[str, Any]) -> dict[str, Any]:
+    """从真实 state/metrics 派生「当前勘测机房」卡片数据。
+
+    五值映射：assess 的 满足/不满足 → 已勘测；未勘测 → 未勘测；无法识别 → 无法识别；
+    不涉及 → 不涉及。assess 未跑时退化为「全部未勘测」（用 filtered_count 作总数）。"""
+    proj = state.get("project") or {}
+    label = proj.get("room_name") or "当前机房"
+    code = proj.get("project_code") or ""
+    satisfied = int(m.get("assess_满足", 0) or 0)
+    unsat     = int(m.get("assess_不满足", 0) or 0)
+    pending   = int(m.get("assess_未勘测", 0) or 0)
+    unknown   = int(m.get("assess_无法识别", 0) or 0)
+    na        = int(m.get("assess_不涉及", 0) or 0)
+    asm_total = m.get("assess_total")
+    if asm_total is None:
+        # assess 尚未产出：全部计未勘测，总数取已建表条目数
+        pending = int(m.get("filtered_count", 0) or 0)
+    surveyed = satisfied + unsat
+    total = (asm_total if asm_total is not None
+             else surveyed + pending + unknown + na) or 0
+    liquid = "液冷" in label or "液冷" in str(m.get("generation_cooling", ""))
+    rows, cols, racks, cdu = _derive_room_geometry(int(total), liquid)
+    return {
+        "id": "real", "code": code, "label": label, "real": True,
+        "status": "active",
+        "progress": int(state.get("overall_progress", 0) or 0),
+        "rows": rows, "cols": cols, "racks": racks, "cdu": cdu,
+        "itemStats": {"surveyed": surveyed, "pending": pending,
+                      "unknown": unknown, "na": na},
+        # 机柜着色分项：满足→done(绿) · 不满足→risk(红) · 未勘测→pending(灰) · 无法识别→active(蓝)
+        "_buckets": {"done": satisfied, "risk": unsat, "pending": pending, "active": unknown},
+        "_issues": int(m.get("issue_count", 0) or 0),
+        "_round": m.get("survey_round"),
+    }
+
+
+def _distribute_racks(buckets: dict[str, int], racks: int) -> list[str]:
+    """把 racks 个机柜按各状态计数比例分配成状态序列（最大余数法保证总和=racks）。
+    顺序固定 done→active→pending→risk，让同色机柜成片，立体观感更整齐。"""
+    order = ["done", "active", "pending", "risk"]
+    total = sum(max(0, buckets.get(k, 0)) for k in order)
+    if racks <= 0 or total <= 0:
+        return ["active"] * max(0, racks)   # 无数据时退化为统一进行态（蓝）
+    raw = {k: racks * max(0, buckets.get(k, 0)) / total for k in order}
+    base = {k: int(raw[k]) for k in order}
+    rem = racks - sum(base.values())
+    # 余数按小数部分从大到小补
+    for k in sorted(order, key=lambda k: raw[k] - base[k], reverse=True)[:rem]:
+        base[k] += 1
+    out: list[str] = []
+    for k in order:
+        out.extend([k] * base[k])
+    return out
+
+
+def _room_statkey(r: dict[str, Any]) -> list[str]:
+    """机房卡紧凑扫读行：条目数 · 问题数 · 勘测轮次（样例房标注样例）。"""
+    total = sum(r["itemStats"].values())
+    if not r.get("real"):
+        return [f"{total} 条目", "样例"]
+    keys = [f"{total} 条目", f"{int(r.get('_issues', 0) or 0)} 问题"]
+    rnd = r.get("_round")
+    if rnd:
+        keys.append(f"R{rnd} 轮")
+    return keys
+
+
+def _sample_entry_message(r: dict[str, Any]) -> str:
+    """样例机房入口点击 → 投递到左侧 Claw 会话的说明（无真实 run 可路由）。"""
+    return (f"「{r['label']}」为样例机房（演示数据），暂无真实作业数据。当前智慧工勘对单个真实"
+            f"机房做全流程勘测，多机房并行勘测为后续规划。")
+
+
+def _to_machine_room(r: dict[str, Any]) -> SduiMachineRoom:
+    """机房数据 dict → SduiMachineRoom 节点。
+
+    真实房：入口 = 四意图启动盘，action=/intent <value>（前端路由到 start/resume）。
+    样例房：入口 = 同事设计的三标签，action=说明性自然语言（投递左侧会话）。"""
+    if r.get("real"):
+        entries = [
+            SduiRoom3DEntry(
+                key=value, label=label, icon=icon, primary=primary,
+                action=SduiPostUserMessage(text=f"/intent {value}"),
+            )
+            for value, label, icon, primary in _ZHGK_INTENT_ENTRIES
+        ]
+    else:
+        msg = _sample_entry_message(r)
+        entries = [
+            SduiRoom3DEntry(
+                key=key, label=label, icon=icon, primary=primary,
+                action=SduiPostUserMessage(text=msg),
+            )
+            for key, label, icon, primary in _ZHGK_SAMPLE_ENTRIES
+        ]
+    # 机柜状态着色：真实房用五值分项；样例房用 itemStats（surveyed→done/pending→pending/unknown→active）
+    st = r["itemStats"]
+    buckets = r.get("_buckets") or {
+        "done": st.get("surveyed", 0), "pending": st.get("pending", 0),
+        "active": st.get("unknown", 0), "risk": 0,
+    }
+    racks = int(r.get("racks", 0) or 0)
+    return SduiMachineRoom(
+        id=r["id"], label=r["label"], code=r.get("code"),
+        status=r.get("status", "active"), progress=r.get("progress", 0),
+        rows=r.get("rows", 3), cols=r.get("cols", 4),
+        racks=racks, cdu=r.get("cdu", 0),
+        itemStats=SduiRoom3DItemStats(**st),
+        rackStatuses=_distribute_racks(buckets, racks),
+        statKey=_room_statkey(r),
+        entries=entries,
+    )
+
+
+_ZHGK_INTENT_LABEL = {
+    "survey_work": "勘测主线 · 全流程", "report_gen": "报告分发",
+    "supplement": "补充勘测", "scene_suggest": "场景建议",
+}
+
+
+def _build_room_contextbar(state: dict[str, Any]) -> SduiCardNode:
+    """作业态机房上下文条（两态导航 · backlog UX#2）：当前机房 + 意图 + 返回总览。
+
+    前端仅在 work 视图渲染（overview 视图隐藏）；「返回机房总览」投递 /overview
+    指令切回总览态，根治「3D 总览 + 作业仪表盘」同屏堆叠的滚动过载。"""
+    proj = state.get("project") or {}
+    room = proj.get("room_name") or "当前机房"
+    code = proj.get("project_code") or ""
+    intent_label = _ZHGK_INTENT_LABEL.get(proj.get("intent", ""), "作业台")
+    head = f"📍 {room} · {intent_label}"
+    if code:
+        head += f"  ·  {code}"
+    return SduiCardNode(id="room-contextbar", density="compact", children=[
+        SduiRowNode(gap="sm", align="center", justify="between", children=[
+            SduiTextNode(content=head, variant="heading"),
+            SduiButtonNode(id="back-overview", label="← 返回机房总览", variant="ghost",
+                           action=SduiPostUserMessage(text="/overview")),
+        ]),
+    ])
+
+
+def _build_machine_room_3d(state: dict[str, Any]) -> SduiMachineRoom3DNode | None:
+    """3D 机房俯视总览：等距体素 + 机房卡片网格 + 多业务入口。
+
+    决策「单真房 + 样例陪衬」：第一张卡 = 当前勘测机房（真实 state 派生，随流程实时变），
+    其余为样例占位。点击入口向左侧 Claw 会话投递接地的自然语言指令，由对话驱动下钻。"""
+    m = collect_metrics(state)
+    real = _build_real_room(state, m)
+    rooms_src = [real, *_ZHGK_SAMPLE_ROOMS]
+    rooms = [_to_machine_room(r) for r in rooms_src]
+
+    total = sum(sum(s["itemStats"].values()) for s in rooms_src)
+    avg = round(sum(s.get("progress", 0) for s in rooms_src) / len(rooms_src))
+    issues = sum(int(s.get("_issues", 0) or 0) for s in rooms_src)
+    return SduiMachineRoom3DNode(
+        id="machine-room-3d",
+        eyebrow="机房总览 · 3D",
+        title=f"{(state.get('project') or {}).get('project_name', '智慧工勘')} · 机房勘测总览",
+        subtitle="首卡为当前真实机房，入口=四意图启动盘（点击按该意图启动/续跑本机房工勘）· 其余为样例",
+        headStats=[
+            {"value": str(total), "label": "勘测条目"},
+            {"value": f"{avg}%", "label": "综合完成", "tone": "brand"},
+            {"value": str(issues), "label": "遗留问题", "tone": "danger"},
+        ],
+        rooms=rooms,
+        refreshNote="首卡随勘测流程实时刷新 · 其余为样例",
+    )
+
+
+
 # ── 顶层入口 ──
 
 def project(state: dict[str, Any]) -> dict[str, Any]:
@@ -719,6 +1023,16 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if metrics_band:
         nodes.append(metrics_band)
 
+    # 勘测窗口时间条（backlog #2）：计划 vs 实际双轨 + 逾期提醒
+    task_timeline = _build_task_timeline(state)
+    if task_timeline:
+        nodes.append(task_timeline)
+
+    # 3D 机房俯视总览：通栏可视化，提供机房级下钻入口
+    room_3d = _build_machine_room_3d(state)
+    if room_3d:
+        nodes.append(room_3d)
+
     # 醒目状态条：HITL 等待 / 失败时强提示（运行/完成态不显示，避免泛滥）
     status_banner = _build_status_banner(state)
     if status_banner:
@@ -739,6 +1053,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             _build_filter_preview(state),
             _build_assessment_panel(state),
             _build_issue_table(state),
+            _build_issue_drawer(state),
             _build_resurvey_history(state),
             _build_gkclaw_card(state),
             _build_alerts(state),
@@ -778,9 +1093,15 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             default_collapsed=True,
         ),
     ]
+    phase_todo = _build_phase_todo(state)
+    if phase_todo:
+        right_children.append(phase_todo)
+
     activity = _build_activity_timeline(state)
     if activity:
         right_children.append(activity)
+
+    nodes.append(_build_room_contextbar(state))
 
     nodes.append(SduiRowNode(
         id="dashboard-row", gap="md", align="start", wrap=True,
