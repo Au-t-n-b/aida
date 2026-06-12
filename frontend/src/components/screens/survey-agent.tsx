@@ -357,9 +357,14 @@ function replayCaughtUp(live: SduiDocument, frozenMaxDone: number): boolean {
   return maxDoneStepIndex(live) > frozenMaxDone;
 }
 
+/** SDUI 是否处于「左侧会话框 HITL」态（root 含 hitl-card）。*/
+function hasLeftRailHitl(doc: SduiDocument): boolean {
+  return !!findNodeById(doc.root, 'hitl-card');
+}
+
 /** 移除 root 下的 hitl-card（交互卡已路由到左侧会话框，避免左右双份）。
- *  hitl-card 是 root Stack 的直接子节点（见 zhgk/sdui.py），浅层移除即可。
- *  右侧此刻由 P4「你的回合」接管态承载（见主渲染）。*/
+ *  hitl-card 是 root Stack 的直接子节点（见各 skill/sdui.py），浅层移除即可；
+ *  右侧仅保留顶部轻量引导条 + 正常遥测大盘（见主渲染）。*/
 function stripHitlCard(root: SduiNode): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
@@ -368,32 +373,34 @@ function stripHitlCard(root: SduiNode): SduiNode {
   return { ...root, children: next } as SduiNode;
 }
 
-/** P4 · 你的回合（HITL 接管态）：等待用户操作时，把「该你了」抬成主角，
- *  下方遥测整体退后降饱和。交互卡片在左侧会话框，这里是右侧的肯定式引导。*/
+/** 左侧会话 HITL 等待态：顶部轻量引导（交互在 ClawRail，右侧大盘保持可读）。*/
 function HitlTakeover() {
   return (
     <div style={{
-      border: '1px solid var(--c-warning)', borderRadius: 'var(--r-lg)',
-      background: 'linear-gradient(180deg, var(--c-warning-soft) 0%, var(--c-surface) 64%)',
-      boxShadow: 'var(--shadow-md)', overflow: 'hidden', marginBottom: 'var(--sp-4)',
-      animation: 'sdui-node-in .3s cubic-bezier(.2,.65,.4,1) both',
+      border: '1px solid var(--c-info-border, rgba(53,81,216,.22))',
+      borderRadius: 'var(--r-md)',
+      background: 'var(--c-info-soft, #eef1fc)',
+      overflow: 'hidden', marginBottom: 'var(--sp-3)',
+      animation: 'sdui-node-in .25s cubic-bezier(.2,.65,.4,1) both',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px var(--sp-5) 0' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px var(--sp-4)' }}>
         <span style={{
-          width: 9, height: 9, borderRadius: '50%', background: 'var(--c-warning)',
-          boxShadow: '0 0 0 4px var(--c-warning-soft)', flexShrink: 0,
+          width: 8, height: 8, borderRadius: '50%', background: 'var(--c-brand, #3551d8)',
+          boxShadow: '0 0 0 3px rgba(53,81,216,.12)', flexShrink: 0, marginTop: 5,
         }} />
-        <span style={{
-          fontSize: 'var(--fs-11)', fontWeight: 700, letterSpacing: '.08em',
-          textTransform: 'uppercase', color: 'var(--c-warning-text)',
-        }}>你的回合 · 需要你的操作</span>
-      </div>
-      <div style={{ padding: '4px var(--sp-5) var(--sp-5)' }}>
-        <div style={{ fontSize: 'var(--fs-16)', fontWeight: 600, letterSpacing: '-.01em', margin: '4px 0 6px' }}>
-          ← 请在左侧会话框完成确认
-        </div>
-        <div style={{ fontSize: 'var(--fs-13)', color: 'var(--c-text-muted)' }}>
-          下方运行面板已暂时退后。交互卡片就在左侧会话框，完成选择 / 上传后将自动继续。
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 'var(--fs-11)', fontWeight: 700, letterSpacing: '.06em',
+            textTransform: 'uppercase', color: 'var(--c-brand-text, #1e34a8)', marginBottom: 4,
+          }}>
+            等待你的操作
+          </div>
+          <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, letterSpacing: '-.01em', marginBottom: 3 }}>
+            请在左侧会话框完成选择或上传
+          </div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-text-muted)', lineHeight: 1.5 }}>
+            完成后将自动继续执行
+          </div>
         </div>
       </div>
     </div>
@@ -701,24 +708,16 @@ export default function SkillAgentScreen({
     );
   }
 
-  // P4：待用户操作时（root 含 hitl-card），右侧进入「你的回合」接管态
-  const hasHitl = !!(displayDoc && findNodeById(displayDoc.root, 'hitl-card'));
+  const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
 
   return (
     <SduiRuntimeContext.Provider value={runtime}>
       <div style={{ height: '100%', overflow: 'auto', padding: 'var(--pad-panel)' }}>
         {displayDoc ? (
-          hasHitl ? (
-            /* P4 接管态：「你的回合」抬为主角 + 下方遥测退后降饱和（交互卡在左侧会话框）*/
-            <>
-              <HitlTakeover />
-              <div style={{ filter: 'saturate(.5) opacity(.62)', pointerEvents: 'none', transition: 'filter .35s' }}>
-                <SduiNodeView node={stripHitlCard(displayDoc.root)} />
-              </div>
-            </>
-          ) : (
-            <SduiNodeView node={displayDoc.root} />
-          )
+          <>
+            {leftRailHitl && <HitlTakeover />}
+            <SduiNodeView node={leftRailHitl ? stripHitlCard(displayDoc.root) : displayDoc.root} />
+          </>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* 骨架屏：正在连接 SSE / 等待第一个 sdui 事件 */}
