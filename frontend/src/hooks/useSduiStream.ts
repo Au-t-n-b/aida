@@ -6,8 +6,71 @@
  * 首屏快照 + 流式增量（每个 node_update / step_retry 后后端推一棵完整 sdui 树）。
  */
 import { useEffect, useRef, useState } from 'react';
-import type { SduiDocument } from '@/lib/sdui';
+import type { SduiDocument, SduiNode } from '@/lib/sdui';
 import { parseSduiDocument } from '@/lib/sdui';
+
+function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
+  visit(node);
+  const ch = (node as { children?: SduiNode[] }).children;
+  if (Array.isArray(ch)) ch.forEach(child => walkSduiNodes(child, visit));
+}
+
+/** 从 SDUI 树提取整体进度（DonutChart.centerValue）；无则 -1。*/
+export function extractSduiProgress(doc: SduiDocument): number {
+  let best = -1;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'DonutChart' && node.centerValue) {
+      const n = parseInt(node.centerValue, 10);
+      if (!isNaN(n)) best = Math.max(best, n);
+    }
+  });
+  return best;
+}
+
+/** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡）。*/
+function hasExecutionSurface(doc: SduiDocument): boolean {
+  let found = false;
+  walkSduiNodes(doc.root, (node) => {
+    if (found) return;
+    const id = (node as { id?: string }).id ?? '';
+    if (id === 'hitl-card' || id === 'hitl-edit-card') { found = true; return; }
+    if (node.type === 'DonutChart' && node.centerValue) {
+      const n = parseInt(node.centerValue, 10);
+      if (!isNaN(n) && n > 0) found = true;
+    }
+    if (node.type === 'Stepper') {
+      if (node.steps.some(s => s.status === 'done' || s.status === 'running')) found = true;
+    }
+  });
+  return found;
+}
+
+/** idle 引导态：*-intro 节点，或 device_install 空根 suppress_idle_panel。*/
+export function isIdleLikeSduiDoc(doc: SduiDocument): boolean {
+  const meta = (doc.meta ?? {}) as Record<string, unknown>;
+  if (meta.suppress_idle_panel) {
+    const ch = (doc.root as { children?: SduiNode[] }).children;
+    return !ch || ch.length === 0;
+  }
+  let intro = false;
+  walkSduiNodes(doc.root, (node) => {
+    const id = (node as { id?: string }).id ?? '';
+    if (id.endsWith('-intro')) intro = true;
+  });
+  return intro;
+}
+
+/** full_restart 重连时拒绝比当前更低的进度快照（与后端 display_state 双保险）。*/
+function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocument {
+  if (!prev) return next;
+  const pPrev = extractSduiProgress(prev);
+  const pNext = extractSduiProgress(next);
+  if (pPrev >= 0 && pNext >= 0 && pNext < pPrev) return prev;
+  if (hasExecutionSurface(prev) && isIdleLikeSduiDoc(next)) return prev;
+  if (pPrev > 0 && pNext < 0 && !hasExecutionSurface(next)) return prev;
+  return next;
+}
+
 import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
 
 // 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
@@ -40,7 +103,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
     // 1. 先拉快照（run 已完成 / 晚接入 SSE / resume 重订阅时保底）
     fetchUiSnapshot(skillId, runId).then(snap => {
-      if (!cancelled && snap) setDoc(snap);
+      if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
     }).catch(() => { /* ignore */ });
 
     // 2. 同步订阅 SSE 增量更新（后续事件会覆盖快照，保持最新）
@@ -52,7 +115,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
         const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
         const result = parseSduiDocument(raw);
         if (result.ok) {
-          setDoc(result.doc);
+          setDoc(prev => mergeSduiDoc(prev, result.doc));
         }
       } catch {
         // ignore parse errors

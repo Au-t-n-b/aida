@@ -24,9 +24,11 @@ def _register_all():
     单个 skill 缺目录 / 导入失败时**只跳过它**，不拖垮整个注册表——
     否则一个未提交的可选 skill（如 device_install）会让全部 skill 不可用。
     """
-    import sys
-
+    from .zhgk.skill import get_zhgk_skill
+    from .guihua.skill import get_guihua_skill
     from .xtsj.skill import get_xtsj_skill
+    registry.register("zhgk", get_zhgk_skill)
+    registry.register("guihua", get_guihua_skill)
     registry.register("xtsj", get_xtsj_skill)
 
     try:

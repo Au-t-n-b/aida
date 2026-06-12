@@ -4,21 +4,21 @@
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
  *
  * 运行模式自动检测（无需手动配置）：
- *   有 ClawManager 登录态 → 容器模式：ClawManager 任务 API → payload.sdui
- *   无登录态              → 本地模式：直连 aida/agent :7401 SSE（开发/单机部署）
+ *   登录且 session.containerEndpoint 存在 → 容器模式：ClawManager 任务 API → payload.sdui
+ *   否则（含本地已登录无容器）         → 直连模式：aida/agent :7401 SSE
  *
  * 两种模式下 SduiNodeView / HITL / 文件上传的 UI 完全一致，零代码差异。
  */
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
-import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
+import { SduiRuntimeContext, type SduiRuntime, type SduiTableSubmitMeta } from '@/components/sdui/SduiContext';
 
 // 懒加载：预览组件内含 xlsx/mammoth 动态 import，懒加载使其仅在「打开预览」时才被 Vite 转译，
 // 避免未安装这两个库时（如 CI / 首次拉取）解析整棵模块图失败导致白屏。
 const SduiPreviewModal = lazy(() =>
   import('@/components/sdui/SduiPreviewModal').then(m => ({ default: m.SduiPreviewModal })),
 );
-import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace, type StartReq } from '@/hooks/useSduiStream';
+import { useSduiStream, startRun, resumeRun, uploadBatch, runPatchRun, resetWorkspace, isIdleLikeSduiDoc, type StartReq } from '@/hooks/useSduiStream';
 import { clearRunLog } from '@/lib/runLogStore';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
@@ -27,7 +27,7 @@ import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/
 import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
 import { dispatchRailSend } from '@/lib/claw-send';
 import { Button } from '@/components/primitives';
-import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
+import type { SduiAction, SduiDataTableRow, SduiDocument, SduiNode } from '@/lib/sdui';
 
 export interface SkillAgentScreenProps {
   /** 后端 skill_id，决定 /agent/<skillId>/* 端点（如 zhgk / guihua）。 */
@@ -290,15 +290,6 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   return found;
 }
 
-function findDataTableByStepId(root: SduiNode, stepId?: string): SduiNode | null {
-  let found: SduiNode | null = null;
-  walkSduiNodes(root, (n) => {
-    if (found || n.type !== 'DataTable' || !n.editable) return;
-    if (!stepId || n.stepId === stepId) found = n;
-  });
-  return found;
-}
-
 /** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
 const HITL_POINTER: SduiNode = {
   type: 'Alert', id: 'hitl-pointer', tone: 'warning',
@@ -349,6 +340,12 @@ function stripHitlCard(root: SduiNode): SduiNode {
   return { ...root, children: next } as SduiNode;
 }
 
+/** SDUI 根节点是否含 3D 机房总览块（决定是否启用 overview ↔ work 两态）。*/
+function hasMachineRoom3d(root: SduiNode): boolean {
+  const children = (root as { children?: SduiNode[] }).children;
+  return Array.isArray(children) && children.some(c => (c as { id?: string }).id === 'machine-room-3d');
+}
+
 /** 两态导航（总览 ↔ 作业）：按 viewMode 隐藏 root 顶层互斥块，根治滚动过载。
  *  overview 态：3D 总览；work 态：作业区 + room-contextbar。
  *  有 3D 驾驶舱时去掉 header，避免与智算 Q3 顶栏重复。
@@ -356,8 +353,7 @@ function stripHitlCard(root: SduiNode): SduiNode {
 function applyViewMode(root: SduiNode, mode: 'overview' | 'work'): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
-  const has3d = children.some(c => (c as { id?: string }).id === 'machine-room-3d');
-  if (!has3d) return root;   // 无总览块 → 不做两态裁剪，原样渲染
+  if (!hasMachineRoom3d(root)) return root;   // 无总览块 → 不做两态裁剪，原样渲染
   const hide = mode === 'overview'
     ? new Set(['header', 'dashboard-row', 'room-contextbar'])
     : new Set(['header', 'machine-room-3d']);
@@ -423,9 +419,9 @@ export default function SkillAgentScreen({
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
 }: SkillAgentScreenProps) {
-  // ── 模式检测：有 ClawManager 登录态 → 容器模式 ────────────────────────────
+  // ── 模式检测：仅当 Manager 分配了容器 endpoint 时走任务 API；本地登录无容器仍直连 Agent
   const { session } = useAidaSession();
-  const useClawMode = !!session;
+  const useClawMode = !!session?.containerEndpoint;
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式
@@ -457,26 +453,27 @@ export default function SkillAgentScreen({
   // 容器模式：用容器内 aida/agent 的 run_id 做文件上传（clawTask.runId 由 payload 携带）
   const activeRunId = useClawMode ? (clawTask.runId ?? null) : runId;
 
-  // ── resume 冻结窗口：防止 full_restart 短暂闪回 0% 初始状态 ────────────────────
-  // full_restart 模式下每次 resume 都新建一个 run 从 step-1 回放；后端立即推一条
-  // steps=[] 的快照（0% 空白状态），前端会短暂闪回预检画面。
-  // 解法：resume 发起时把当前 SDUI 快照冻结展示，等新流进度追上冻结水位
-  // （或出现新 HITL 卡）时再解冻，切换回实时文档。
-  // 整个修改限定在本组件内部，不触碰 useSduiStream / 后端 / 其他模块。
+  // ── resume 冻结窗口：与后端 display_state 双保险，防 full_restart 闪回 idle ───
   const sduiDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { sduiDocRef.current = sduiDoc; }, [sduiDoc]);
+  const frozenSnapshotRef = useRef<SduiDocument | null>(null);
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
   const frozenProgressRef = useRef(0);
   useEffect(() => {
-    if (!frozenDoc || !sduiDoc) return;
+    frozenSnapshotRef.current = null;
+    setFrozenDoc(null);
+  }, [runId, taskId]);
+  useEffect(() => {
+    if (!frozenDoc && !frozenSnapshotRef.current) return;
+    if (!sduiDoc) return;
     const { progress = 0 } = extractProgressFromSdui(sduiDoc);
-    const hasHitl = !!findNodeById(sduiDoc.root, 'hitl-card')
-      || !!findNodeById(sduiDoc.root, 'hitl-edit-card');
-    // 进度追上冻结水位 → 后端重放完毕；出现新 HITL → 流水线推进到下一交互门
-    if (progress >= frozenProgressRef.current || hasHitl) setFrozenDoc(null);
+    // 实时进度追上冻结水位且已脱离 idle 引导态 → 解冻
+    if (progress >= frozenProgressRef.current && progress > 0 && !isIdleLikeSduiDoc(sduiDoc)) {
+      frozenSnapshotRef.current = null;
+      setFrozenDoc(null);
+    }
   }, [sduiDoc, frozenDoc]);
-  // resume 期间展示冻结快照，其余时间展示实时文档
-  const displayDoc = frozenDoc ?? sduiDoc;
+  const displayDoc = frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc;
 
   // ── meta 工作台路由协议（SDUI.md §HITL-Edit）────────────────────────────────
   // route_hitl_edit：在线编辑 HITL 卡归属 —— 'workbench'（默认 · 留在右侧大盘）/ 'chat'（移交左栏）。
@@ -485,12 +482,11 @@ export default function SkillAgentScreen({
   const routeHitlEdit: 'workbench' | 'chat' = docMeta.route_hitl_edit === 'chat' ? 'chat' : 'workbench';
   const workbenchClass = typeof docMeta.workbench_class === 'string' ? docMeta.workbench_class : '';
 
-  // Sync SDUI doc → skillRunStore（左侧 SkillRunBanner 从 store 读取进度展示）
+  // Sync SDUI doc → skillRunStore（与 displayDoc 同步，冻结期间左侧进度不闪回 0%）
   useEffect(() => {
-    if (!sduiDoc || !activeRunId) return;
-    const patch = extractProgressFromSdui(sduiDoc);
-    updateSkillRun(patch);
-  }, [sduiDoc, activeRunId]);
+    if (!displayDoc || !activeRunId) return;
+    updateSkillRun(extractProgressFromSdui(displayDoc));
+  }, [displayDoc, activeRunId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
@@ -533,11 +529,11 @@ export default function SkillAgentScreen({
       const curDoc = sduiDocRef.current;
       if (curDoc) {
         frozenProgressRef.current = extractProgressFromSdui(curDoc).progress ?? 0;
+        frozenSnapshotRef.current = curDoc;
         setFrozenDoc(curDoc);
+        updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
       }
       await resumeRun(skillId, activeRunId, payload);
-      // 立即给左侧 SkillRunBanner 反馈：HITL 已提交，恢复 running
-      updateSkillRun({ phase: 'running', hitlType: null });
       // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
       setStreamEpoch(e => e + 1);
     }
@@ -550,6 +546,8 @@ export default function SkillAgentScreen({
     setViewMode('work');
     if (activeRunId && atIntentHitl) {
       await doResume({ choice: intent });
+    } else if (activeRunId) {
+      // 已在跑且非意图 HITL：只切作业台，避免误触发新开 run
     } else {
       await handleStart({ intent });
     }
@@ -567,8 +565,8 @@ export default function SkillAgentScreen({
     clearSkillHitl(skillId);
     setRunId(null);
     setTaskId(null);
+    frozenSnapshotRef.current = null;
     setFrozenDoc(null);
-    frozenMaxDoneStepIdxRef.current = -1;
     setStreamEpoch(0);
     setPreviewPath(null);
     setError(null);
@@ -590,6 +588,8 @@ export default function SkillAgentScreen({
         // TODO: 打开报告预览
       } else if (text.startsWith('/intent ')) {
         await handleIntent(text.slice('/intent '.length).trim());
+      } else if (text === '/work') {
+        setViewMode('work');
       } else if (text === '/overview') {
         setViewMode('overview');
       } else {
@@ -603,19 +603,20 @@ export default function SkillAgentScreen({
   }, [handleStart, doResume, handleResetSession, handleIntent, skillId]);
 
   // ── EditableTable 提交（submitMode 路由 · 对 skill 名零硬编码）──────────────
-  const handleRowsSubmit = useCallback(async (rows: Record<string, unknown>[], stepId?: string) => {
-    const tableNode = sduiDoc ? findDataTableByStepId(sduiDoc.root, stepId) : null;
-    const submitMode = (tableNode as { submitMode?: string } | null)?.submitMode ?? 'resume';
-    if (submitMode === 'run-patch') {
+  const handleTableSubmit = useCallback(async (rows: SduiDataTableRow[], meta: SduiTableSubmitMeta) => {
+    if (meta.submitMode === 'run-patch') {
+      // 运行时补丁：不重跑 LangGraph，后端 merge_run_patch 落盘后推新 SDUI 树
       if (!activeRunId) return;
       await runPatchRun(skillId, activeRunId, {
-        action: (tableNode as { patchAction?: string } | null)?.patchAction ?? stepId ?? 'table',
+        action: meta.patchAction ?? meta.stepId ?? 'table',
         rows,
       });
       return;
     }
+    // 在线编辑型 HITL：与 choice / upload 同走 resume（full_restart 重跑，
+    // rows 由 skill.apply_resume_payload 写回 project）
     await doResume({ rows });
-  }, [sduiDoc, activeRunId, skillId, doResume]);
+  }, [activeRunId, skillId, doResume]);
 
   const handleUpload = useCallback(async (files: FileList) => {
     const arr = Array.from(files);
@@ -637,18 +638,18 @@ export default function SkillAgentScreen({
   // 左侧 SkillRunBanner 据此渲染可交互卡。无 HITL / 卸载时清除。
   // 在线编辑卡（hitl-edit-card）默认留在右侧大盘，仅 meta.route_hitl_edit==='chat' 才移交。
   useEffect(() => {
-    if (!sduiDoc || !activeRunId) { clearSkillHitl(skillId); return; }
-    const card = findNodeById(sduiDoc.root, 'hitl-card')
-      ?? (routeHitlEdit === 'chat' ? findNodeById(sduiDoc.root, 'hitl-edit-card') : null);
+    if (!displayDoc || !activeRunId) { clearSkillHitl(skillId); return; }
+    const card = findNodeById(displayDoc.root, 'hitl-card')
+      ?? (routeHitlEdit === 'chat' ? findNodeById(displayDoc.root, 'hitl-edit-card') : null);
     if (card) {
       setSkillHitl({
         skillId, runId: activeRunId, node: card,
         onChoiceSubmit: handleChoiceSubmit, onUpload: handleUpload,
       });
-    } else {
+    } else if (!frozenDoc && !frozenSnapshotRef.current) {
       clearSkillHitl(skillId);
     }
-  }, [sduiDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, routeHitlEdit]);
+  }, [displayDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, routeHitlEdit]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
 
@@ -658,14 +659,9 @@ export default function SkillAgentScreen({
     onAction: (action) => { void handleAction(action); },
     onUpload: (files) => { void handleUpload(files); },
     onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
-    onRowsSubmit: (rows, stepId) => {
-      handleRowsSubmit(rows, stepId).catch(e => console.error('[SDUI] table submit error:', e));
+    onTableSubmit: (rows, meta) => {
+      handleTableSubmit(rows, meta).catch(e => console.error('[SDUI] table submit error:', e));
     },
-    onRunPatch: async (payload) => {
-      if (!activeRunId) return;
-      await runPatchRun(skillId, activeRunId, payload);
-    },
-    streamEpoch,
   };
 
   // ── 渲染 ────────────────────────────────────────────────────────────────
@@ -684,6 +680,7 @@ export default function SkillAgentScreen({
   }
 
   const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
+  const showOverviewBar = viewMode === 'overview' && !!displayDoc && hasMachineRoom3d(displayDoc.root);
   const displayRoot = displayDoc
     ? applyViewMode(
         leftRailHitl
@@ -702,6 +699,31 @@ export default function SkillAgentScreen({
           ...(WORKBENCH_LAYOUTS[workbenchClass] ?? {}),
         }}
       >
+        {showOverviewBar && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+              marginBottom: 12, padding: '10px 14px',
+              background: 'var(--c-surface, #fff)', border: '1px solid var(--c-border, #e2e8f0)',
+              borderRadius: 'var(--r-lg, 8px)',
+            }}
+          >
+            <span style={{ fontSize: 'var(--fs-14, 14px)', fontWeight: 600, color: 'var(--c-text-1, #0f172a)' }}>
+              机房总览
+            </span>
+            <button
+              type="button"
+              onClick={() => setViewMode('work')}
+              style={{
+                padding: '5px 12px', fontFamily: 'var(--font-sans)', fontSize: '12.5px', fontWeight: 600,
+                border: '1px solid var(--c-brand, #3551d8)', borderRadius: 'var(--r-sm, 6px)',
+                background: 'var(--c-brand, #3551d8)', color: '#fff', cursor: 'pointer',
+              }}
+            >
+              进入作业台 →
+            </button>
+          </div>
+        )}
         {displayRoot ? (
           <SduiNodeView node={displayRoot} />
         ) : (
