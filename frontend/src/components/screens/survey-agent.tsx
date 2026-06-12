@@ -4,8 +4,8 @@
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
  *
  * 运行模式自动检测（无需手动配置）：
- *   有 ClawManager 登录态 → 容器模式：ClawManager 任务 API → payload.sdui
- *   无登录态              → 本地模式：直连 aida/agent :7401 SSE（开发/单机部署）
+ *   登录且 session.containerEndpoint 存在 → 容器模式：ClawManager 任务 API → payload.sdui
+ *   否则（含本地已登录无容器）         → 直连模式：aida/agent :7401 SSE
  *
  * 两种模式下 SduiNodeView / HITL / 文件上传的 UI 完全一致，零代码差异。
  */
@@ -414,9 +414,9 @@ export default function SkillAgentScreen({
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
 }: SkillAgentScreenProps) {
-  // ── 模式检测：有 ClawManager 登录态 → 容器模式 ────────────────────────────
+  // ── 模式检测：仅当 Manager 分配了容器 endpoint 时走任务 API；本地登录无容器仍直连 Agent
   const { session } = useAidaSession();
-  const useClawMode = !!session;
+  const useClawMode = !!session?.containerEndpoint;
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式
@@ -559,7 +559,6 @@ export default function SkillAgentScreen({
     setRunId(null);
     setTaskId(null);
     setFrozenDoc(null);
-    frozenMaxDoneStepIdxRef.current = -1;
     setStreamEpoch(0);
     setPreviewPath(null);
     setError(null);
