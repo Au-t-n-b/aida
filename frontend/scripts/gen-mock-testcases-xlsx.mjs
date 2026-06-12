@@ -1,5 +1,5 @@
 /**
- * 从 proposal-testcases.ts 导出 mock 测试用例new.xlsx（输入模板）
+ * 从 proposal-testcases.ts 导出 mock 测试用例模板.xlsx（输入模板）
  * 运行：node scripts/gen-mock-testcases-xlsx.mjs
  */
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -9,10 +9,10 @@ import XLSX from 'xlsx';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const srcPath = join(__dirname, '../src/components/proposal/proposal-testcases.ts');
-const outPaths = [
-  join(__dirname, '../../mock数据/早期介入/交付预案/输入文件/测试用例new.xlsx'),
-  join(__dirname, '../../mock数据/JD2项目_test-boq/早期介入/交付预案/输入文件/测试用例new.xlsx'),
-];
+const outPath = join(
+  __dirname,
+  '../../data/delivery/mock/JD2项目_test-boq/早期介入/交付预案/输入文件/测试用例/测试用例模板.xlsx',
+);
 
 const raw = readFileSync(srcPath, 'utf8');
 const match = raw.match(/export const ACCEPTANCE_TEST_CASES[^=]*=\s*(\[[\s\S]*?\]);/);
@@ -37,8 +37,6 @@ const wb = XLSX.utils.book_new();
 const ws = XLSX.utils.json_to_sheet(rows);
 XLSX.utils.book_append_sheet(wb, ws, '测试用例');
 const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-for (const outPath of outPaths) {
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, buf);
-  console.log(`已生成 ${outPath} (${rows.length} 行)`);
-}
+mkdirSync(dirname(outPath), { recursive: true });
+writeFileSync(outPath, buf);
+console.log(`已生成 ${outPath} (${rows.length} 行)`);

@@ -3,7 +3,7 @@
 """
 from __future__ import annotations
 
-import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
@@ -24,8 +24,12 @@ from ..services.proposal_parse import (
 
 router = APIRouter(prefix="/api/v1", tags=["proposal-mock"])
 
-# aida/mock数据 根目录
-MOCK_ROOT = Path(__file__).resolve().parents[2] / "mock数据"
+# 0612：交付预案 Mock 根目录（默认 data/delivery/mock）
+_AIDA_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_MOCK_ROOT = _AIDA_ROOT / "data" / "delivery" / "mock"
+MOCK_ROOT = Path(os.environ.get("AIDA_MOCK_DATA_ROOT", str(_DEFAULT_MOCK_ROOT))).resolve()
+
+_INPUT_DIR_SUFFIXES = (".docx", ".xlsx", ".xlsm", ".md", ".pdf", ".pptx")
 
 
 def _resolve_logical(logical_path: str) -> Path:
@@ -34,6 +38,12 @@ def _resolve_logical(logical_path: str) -> Path:
         p.relative_to(MOCK_ROOT.resolve())
     except ValueError as e:
         raise HTTPException(403, "path outside mock root") from e
+    if p.is_dir():
+        for suffix in _INPUT_DIR_SUFFIXES:
+            matches = sorted(p.glob(f"*{suffix}"))
+            if matches:
+                return matches[0].resolve()
+        raise HTTPException(404, f"no readable file in directory: {logical_path}")
     return p
 
 
@@ -218,7 +228,7 @@ async def parse_tech_proposal(file: UploadFile = File(...)):
 
 
 DEFAULT_TESTCASES_XLSX = (
-    "JD2项目_test-boq/早期介入/交付预案/输入文件/测试用例new.xlsx"
+    "JD2项目_test-boq/早期介入/交付预案/输入文件/测试用例/测试用例模板.xlsx"
 )
 
 

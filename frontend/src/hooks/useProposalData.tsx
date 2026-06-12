@@ -32,6 +32,7 @@ import {
   setAcceptanceCache,
   setDraftRaci,
   setStoredVersions,
+  testCaseKey,
 } from '@/lib/proposal-data-service';
 
 export interface ProposalDataContextValue {
@@ -56,7 +57,7 @@ export interface ProposalDataContextValue {
 const ProposalDataContext = createContext<ProposalDataContextValue | null>(null);
 
 function tcKey(c: AcceptanceTestCase, i: number): string {
-  return `tc-${c.id}-${i}`;
+  return testCaseKey(c, i);
 }
 
 export function ProposalDataProvider({ children }: { children: ReactNode }) {
@@ -77,7 +78,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       const stored = getStoredVersions(projectName);
       const scale = await loadCardScale();
-      const [raci, plan, accept, cases] = await Promise.all([
+      const [raci, plan, accept, tcLoaded] = await Promise.all([
         loadRaciMatrix(projectName),
         loadPlan(projectName),
         loadAcceptance(projectName),
@@ -93,8 +94,10 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       });
       setPlanRows(plan);
       setAcceptanceItems(accept);
-      setTestCases(cases);
-      setSelectedTcKeys(new Set(cases.map((c, i) => tcKey(c, i))));
+      setTestCases(tcLoaded.cases);
+      setSelectedTcKeys(
+        tcLoaded.selectedKeys ?? new Set(tcLoaded.cases.map((c, i) => tcKey(c, i))),
+      );
       setLoading(false);
     })();
     return () => { cancelled = true; };

@@ -27,12 +27,13 @@ class DataCenterError(Exception):
 
 def _client() -> httpx.AsyncClient:
     proxy = http_proxy()
+    # 勿 trust_env=True：Windows 系统代理会把 127.0.0.1 也走网关，本地 Mock 数据中心会 504
     return httpx.AsyncClient(
         base_url=datacenter_base(),
         timeout=httpx.Timeout(30.0, connect=10.0),
         proxy=proxy,
         verify=ssl_verify(),
-        trust_env=proxy is None,
+        trust_env=False,
     )
 
 

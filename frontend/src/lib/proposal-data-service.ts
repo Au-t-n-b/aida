@@ -23,9 +23,9 @@ import {
 } from '@/lib/xlsx-io';
 
 const DRAFT_RACI_KEY = 'aida:proposal:raci-draft';
-/** v4：计划表改读 mock数据/项目管理/计划/项目计划进度表.xlsx */
-const PLAN_CACHE_KEY = 'aida:proposal:plan-cache:v4';
-const ACCEPT_CACHE_KEY = 'aida:proposal:accept-cache:v3';
+/** v5：计划表改读 项目管理/计划/输入文件/交付计划表.xlsx */
+const PLAN_CACHE_KEY = 'aida:proposal:plan-cache:v5';
+const ACCEPT_CACHE_KEY = 'aida:proposal:accept-cache:v4';
 const TC_UPLOADED_KEY = 'aida:proposal:tc-uploaded';
 const TC_CACHE_KEY = 'aida:proposal:tc-cache';
 const VERSIONS_KEY = 'aida:proposal:versions';
@@ -174,7 +174,17 @@ export async function loadAcceptance(projectName: string): Promise<AcceptanceIte
     }
   }
 
-  // 0610 SSOT：首次从输入文件技术建议书.docx 解析；无文件/无结果时不回退静态 mock
+  const saved = await safeFetch(ProposalMockPaths.acceptanceOut);
+  if (saved?.rows.length) {
+    const rows = asAcceptanceItems(saved.rows);
+    if (rows.length && !isPlaceholderAcceptance(rows)) {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(`${ACCEPT_CACHE_KEY}:${projectName}`, JSON.stringify(rows));
+      }
+      return rows;
+    }
+  }
+
   const data = await safeFetch(ProposalMockPaths.techProposalIn);
   if (data === null) {
     return [{ ...EMPTY_ACCEPT }];
@@ -199,24 +209,50 @@ export function isTestCasesUploaded(projectName: string): boolean {
   return sessionStorage.getItem(`${TC_UPLOADED_KEY}:${projectName}`) === '1';
 }
 
+export function testCaseKey(c: AcceptanceTestCase, i: number): string {
+  return `tc-${c.id}-${i}`;
+}
+
 async function loadTestCasesFromXlsx(cardScale: number): Promise<AcceptanceTestCase[]> {
-  const data = await safeFetch(ProposalMockPaths.testCasesIn);
+  const data = await safeFetch(ProposalMockPaths.testCasesTemplate);
   if (!data?.rows.length) return [];
   return filterTestCases(asTestCases(data.rows), cardScale);
 }
 
-/** 未上传场景测试用例时返回空数组；已上传则读缓存或 xlsx 默认条目并筛选 */
+export interface LoadedTestCases {
+  cases: AcceptanceTestCase[];
+  /** null 表示默认全选 */
+  selectedKeys: Set<string> | null;
+}
+
+/** 优先读已保存输出表；否则在上传标记存在时读缓存或模板并筛选 */
 export async function loadTestCasesIfReady(
   projectName: string,
   cardScale: number,
-): Promise<AcceptanceTestCase[]> {
-  if (!isTestCasesUploaded(projectName)) return [];
+): Promise<LoadedTestCases> {
+  const saved = await safeFetch(ProposalMockPaths.testCasesOut);
+  if (saved?.rows.length) {
+    const raw = saved.rows as SavedTestCaseRow[];
+    const cases = asTestCases(raw);
+    const selectedKeys = new Set<string>();
+    cases.forEach((c, i) => {
+      const sel = raw[i]?.selected;
+      if (sel !== false) selectedKeys.add(testCaseKey(c, i));
+    });
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem(`${TC_UPLOADED_KEY}:${projectName}`, '1');
+      sessionStorage.setItem(`${TC_CACHE_KEY}:${projectName}`, JSON.stringify(cases));
+    }
+    return { cases, selectedKeys };
+  }
+
+  if (!isTestCasesUploaded(projectName)) return { cases: [], selectedKeys: null };
 
   if (typeof window !== 'undefined') {
     const cached = sessionStorage.getItem(`${TC_CACHE_KEY}:${projectName}`);
     if (cached) {
       try {
-        return JSON.parse(cached) as AcceptanceTestCase[];
+        return { cases: JSON.parse(cached) as AcceptanceTestCase[], selectedKeys: null };
       } catch { /* fall through */ }
     }
   }
@@ -225,7 +261,7 @@ export async function loadTestCasesIfReady(
   if (typeof window !== 'undefined') {
     sessionStorage.setItem(`${TC_CACHE_KEY}:${projectName}`, JSON.stringify(cases));
   }
-  return cases;
+  return { cases, selectedKeys: null };
 }
 
 /** 上传解析成功后：筛选、写缓存、标记已上传 */

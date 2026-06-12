@@ -138,7 +138,7 @@ _DETAIL_FIELDS = ("steps", "expects", "pre", "purpose", "topology", "remark", "r
 
 
 def _load_default_testcases_xlsx(xlsx_path: Path) -> list[dict[str, Any]]:
-    """从 mock 测试用例new.xlsx 读取默认条目（SSOT 目录）。"""
+    """从 mock 测试用例模板.xlsx 读取默认条目（SSOT 目录）。"""
     if not xlsx_path.is_file():
         return []
     try:

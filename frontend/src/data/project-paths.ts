@@ -33,7 +33,7 @@ function ipoTriple(root: string, domain: string, module: string) {
 /** 组织资产（跨项目，无项目根前缀） */
 export const OrgAssets = {
   root: '组织资产',
-  raciTemplate: '组织资产/责任矩阵标准模板.xlsx',
+  raciTemplate: '组织资产/责任矩阵/责任矩阵模板.xlsx',
   productBasicInfo: '组织资产/产品基本信息表',
 } as const;
 
@@ -41,13 +41,14 @@ export const OrgAssets = {
 export const ProjectPaths = {
   contract: (root: string) => ({
     ...ipoTriple(root, '早期介入', '合同'),
-    simulationDeviceMd: `${root}/早期介入/合同/${IpoLayer.output}/建模仿真设备信息表.md`,
+    simulationDeviceMd: `${root}/早期介入/合同/${IpoLayer.output}/建模仿真/建模仿真设备信息表.md`,
   }),
 
   proposal: (root: string) => ({
     ...ipoTriple(root, '早期介入', '交付预案'),
-    techProposalIn: `${root}/早期介入/交付预案/${IpoLayer.input}/技术建议书.docx`,
-    testCasesIn: `${root}/早期介入/交付预案/${IpoLayer.input}/测试用例new.xlsx`,
+    techProposalIn: `${root}/早期介入/交付预案/${IpoLayer.input}/技术建议书`,
+    testCasesIn: `${root}/早期介入/交付预案/${IpoLayer.input}/测试用例`,
+    testCasesTemplate: `${root}/早期介入/交付预案/${IpoLayer.input}/测试用例/测试用例模板.xlsx`,
     raciOut: `${root}/早期介入/交付预案/${IpoLayer.output}/项目责任矩阵.xlsx`,
     acceptanceOut: `${root}/早期介入/交付预案/${IpoLayer.output}/验收策略.xlsx`,
     testCasesOut: `${root}/早期介入/交付预案/${IpoLayer.output}/测试用例.xlsx`,
@@ -55,13 +56,8 @@ export const ProjectPaths = {
 
   pmPlan: (root: string) => ({
     ...ipoTriple(root, '项目管理', '计划'),
-    scheduleXlsx: `${root}/项目管理/计划/项目计划进度表.xlsx`,
+    scheduleXlsx: `${root}/项目管理/计划/${IpoLayer.input}/交付计划表.xlsx`,
   }),
-} as const;
-
-/** 跨项目 · 项目管理计划表（0610 SSOT：mock数据/项目管理/计划/项目计划进度表.xlsx） */
-export const PmPlanAssets = {
-  scheduleXlsx: '项目管理/计划/项目计划进度表.xlsx',
 } as const;
 
 /** 0610 交付预案 · 逻辑路径快捷引用（基于默认项目根） */
@@ -72,6 +68,7 @@ export const ProposalMockPaths = {
   testCasesOut: ProjectPaths.proposal(DEFAULT_PROJECT_ROOT).testCasesOut,
   techProposalIn: ProjectPaths.proposal(DEFAULT_PROJECT_ROOT).techProposalIn,
   testCasesIn: ProjectPaths.proposal(DEFAULT_PROJECT_ROOT).testCasesIn,
-  planSchedule: PmPlanAssets.scheduleXlsx,
+  testCasesTemplate: ProjectPaths.proposal(DEFAULT_PROJECT_ROOT).testCasesTemplate,
+  planSchedule: ProjectPaths.pmPlan(DEFAULT_PROJECT_ROOT).scheduleXlsx,
   simulationDeviceMd: ProjectPaths.contract(DEFAULT_PROJECT_ROOT).simulationDeviceMd,
 } as const;
