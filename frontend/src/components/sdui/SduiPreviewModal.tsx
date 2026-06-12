@@ -10,8 +10,7 @@
  * 设计沿用 aida 浅色 token，不照搬 nanobot 深色主题。
  */
 import { useEffect, useState } from 'react';
-
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+import { ensureAgentBase } from '@/lib/agentBase';
 
 // 仅声明本组件实际调用的 API，避免依赖 xlsx/mammoth 自带类型（库未安装时也能编译）。
 interface XlsxLike {
@@ -31,8 +30,8 @@ type Props = {
 
 type Status = 'loading' | 'ready' | 'error' | 'unsupported';
 
-function artifactUrl(skillId: string, path: string): string {
-  return `${AGENT_BASE}/agent/${skillId}/artifact?path=${encodeURIComponent(path)}`;
+function artifactUrl(base: string, skillId: string, path: string): string {
+  return `${base}/agent/${skillId}/artifact?path=${encodeURIComponent(path)}`;
 }
 
 export function SduiPreviewModal({ skillId, path, onClose }: Props) {
@@ -42,6 +41,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
   const [activeSheet, setActiveSheet] = useState(0);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState('');
+  const [agentBase, setAgentBase] = useState('');
 
   const fileName = path ? (path.split('/').pop() ?? path) : '';
   const ext = (fileName.split('.').pop() ?? '').toLowerCase();
@@ -61,7 +61,9 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
 
     void (async () => {
       try {
-        const res = await fetch(artifactUrl(skillId, path));
+        const base = await ensureAgentBase(skillId);
+        if (!cancelled) setAgentBase(base);
+        const res = await fetch(artifactUrl(base, skillId, path));
         if (!res.ok) throw new Error(`加载失败 (${res.status})`);
 
         if (ext === 'xlsx' || ext === 'xls') {
@@ -122,7 +124,8 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
       <style>{`
         @keyframes sdui-preview-fade { from { opacity: 0 } to { opacity: 1 } }
         @keyframes sdui-preview-pop { from { opacity:0; transform:translateY(8px) scale(.99) } to { opacity:1; transform:none } }
-        .sdui-xlsx-pane table { width:100%; border-collapse:collapse; font-size:12px; }
+        .sdui-xlsx-pane { overflow-x: auto; overflow-y: visible; max-width: 100%; }
+        .sdui-xlsx-pane table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 12px; }
         .sdui-xlsx-pane td, .sdui-xlsx-pane th { border:1px solid var(--border); padding:5px 9px; color:var(--text-secondary); white-space:nowrap; }
         .sdui-xlsx-pane tr:first-child td { background:var(--c-surface-2,#f1f5f9); font-weight:600; color:var(--text-primary); position:sticky; top:0; }
         .sdui-docx-pane { line-height:1.8; color:var(--text-primary); font-size:13px; }
@@ -162,7 +165,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
             {fileName}
           </span>
           <a
-            href={artifactUrl(skillId, path)}
+            href={agentBase ? artifactUrl(agentBase, skillId, path) : '#'}
             download={fileName}
             style={{
               padding: '5px 12px', borderRadius: 'var(--radius-md)',

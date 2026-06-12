@@ -1,10 +1,23 @@
 /**
+
  * useSduiStream — 订阅任意 skill 的 SSE 流，接收 sdui 事件更新 SduiDocument。
+
  *
+
  * skill 参数化：所有端点为 /agent/<skillId>/*（不再写死 zhgk）——
+
  * 新业务场景 Skill（guihua/install/...）复用此 hook + SkillAgentScreen，无需复制。
+
  * 首屏快照 + 流式增量（每个 node_update / step_retry 后后端推一棵完整 sdui 树）。
+
+ *
+
+ * device_install 额外订阅 run_log 事件（RunLogFeed）；其它 skill 以 SSE 为权威来源，
+
+ * 快照仅作首包到达前的保底（避免 resume 后旧快照覆盖含 meta.error 的最新树）。
+
  */
+
 import { useEffect, useRef, useState } from 'react';
 import type { SduiDocument, SduiNode } from '@/lib/sdui';
 import { parseSduiDocument } from '@/lib/sdui';
@@ -73,157 +86,402 @@ function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocume
 
 import { pushRunLog, clearRunLog, type RunLogEvent } from '@/lib/runLogStore';
 
-// 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+import { ensureAgentBase } from '@/lib/agentBase';
 
-/**
- * @param epoch  重订阅令牌。HITL resume 后后端会新建队列 + 新 task（full_restart），
- *   而旧 task 早已往旧队列推过 None 哨兵——靠 EventSource 自动重连追新队列既慢又不稳。
- *   调用方在 resume 成功后自增 epoch，即可强制销毁旧 ES、重拉快照、对准新队列，0 延迟刷新。
- */
+
+
+const RUN_LOG_SKILLS = new Set(['device_install']);
+
+
+
 export function useSduiStream(skillId: string, runId: string | null, epoch = 0): SduiDocument | null {
+
   const [doc, setDoc] = useState<SduiDocument | null>(null);
+
   const esRef = useRef<EventSource | null>(null);
-  // 只在 runId 真正变化时清空日志；epoch 自增（resume/full_restart）保留已有气泡，
-  // 以便下发确认后追加 sn_generate 等新节点的日志。
+
   const clearedRunIdRef = useRef<string | null>(null);
 
+  const useRunLog = RUN_LOG_SKILLS.has(skillId);
+
+
+
   useEffect(() => {
+
     if (!runId) {
+
       setDoc(null);
+
       return;
+
     }
 
-    if (clearedRunIdRef.current !== runId) {
+
+
+    if (useRunLog && clearedRunIdRef.current !== runId) {
+
       clearRunLog(runId);
+
       clearedRunIdRef.current = runId;
+
     }
+
+
 
     let cancelled = false;
 
-    // 1. 先拉快照（run 已完成 / 晚接入 SSE / resume 重订阅时保底）
-    fetchUiSnapshot(skillId, runId).then(snap => {
-      if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
-    }).catch(() => { /* ignore */ });
+    let sseReceived = false;
 
-    // 2. 同步订阅 SSE 增量更新（后续事件会覆盖快照，保持最新）
-    const es = new EventSource(`${AGENT_BASE}/agent/${skillId}/stream/${runId}`);
-    esRef.current = es;
+    let es: EventSource | null = null;
 
-    const handleSdui = (e: MessageEvent) => {
-      try {
-        const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        const result = parseSduiDocument(raw);
-        if (result.ok) {
-          setDoc(prev => mergeSduiDoc(prev, result.doc));
+
+
+    void (async () => {
+
+      const base = await ensureAgentBase(skillId);
+
+      if (cancelled) return;
+
+
+
+      // 1. 先拉快照（run 已完成 / 晚接入 SSE / resume 重订阅时保底）
+      fetchUiSnapshot(skillId, runId, base).then(snap => {
+
+        if (cancelled) return;
+
+        if (!snap) {
+
+          setDoc(prev => {
+
+            if (sseReceived || prev?.meta?.error) return prev;
+
+            return null;
+
+          });
+
+          return;
+
         }
-      } catch {
-        // ignore parse errors
-      }
-    };
 
-    const handleRunLog = (e: MessageEvent) => {
-      try {
-        const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-        pushRunLog(runId, raw as RunLogEvent);
-      } catch {
-        // ignore parse errors
-      }
-    };
+        // 快照经 mergeSduiDoc：full_restart 重连时拒绝比当前更低的进度（zhgk 防闪回）
+        setDoc(prev => {
 
-    es.addEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
-    es.addEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
-    es.addEventListener('error', () => {
-      // connection dropped; SSE will auto-reconnect
-    });
+          if (sseReceived) return prev;
+
+          if (prev?.meta?.error && !snap.meta?.error) return prev;
+
+          return useRunLog ? snap : mergeSduiDoc(prev, snap);
+
+        });
+
+      }).catch(() => { /* ignore */ });
+
+
+
+      es = new EventSource(`${base}/agent/${skillId}/stream/${runId}`);
+
+      esRef.current = es;
+
+
+
+      const handleSdui = (e: MessageEvent) => {
+
+        try {
+
+          const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+
+          const result = parseSduiDocument(raw);
+
+          if (result.ok) {
+
+            sseReceived = true;
+
+            // SSE 增量经 mergeSduiDoc：与后端 display_state 双保险，防 full_restart 闪回低进度
+            setDoc(prev => useRunLog ? result.doc : mergeSduiDoc(prev, result.doc));
+
+          }
+
+        } catch {
+
+          // ignore parse errors
+
+        }
+
+      };
+
+
+
+      const handleRunLog = (e: MessageEvent) => {
+
+        if (!useRunLog) return;
+
+        try {
+
+          const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+
+          pushRunLog(runId, raw as RunLogEvent);
+
+        } catch {
+
+          // ignore parse errors
+
+        }
+
+      };
+
+
+
+      const handleStreamError = (e: MessageEvent) => {
+
+        if (!e.data) return;
+
+        try {
+
+          const raw = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+
+          const msg = String(raw?.error ?? raw?.message ?? '执行失败');
+
+          sseReceived = true;
+
+          setDoc(prev => ({
+            schemaVersion: prev?.schemaVersion ?? 1,
+            type: 'SduiDocument' as const,
+            root: prev?.root ?? { type: 'Stack', id: 'stream-error-root', gap: 'sm', children: [] },
+            meta: { ...(prev?.meta ?? {}), skill: skillId, run_id: runId, phase: 'error', error: msg },
+          }));
+
+        } catch {
+
+          // ignore parse errors
+
+        }
+
+      };
+
+
+
+      // 服务端在 run 结束/HITL 暂停时会发 close 事件并关闭连接。EventSource 默认会
+      // 自动重连 → 服务端再次发 close → 无限重连风暴（每次重连重发 sdui 快照，导致整棵
+      // SDUI 树高频重渲染，握碎文件选择等交互）。收到 close 主动 es.close() 终止重连；
+      // resume 时 survey-agent 会 bump streamEpoch 触发本 effect 重订阅，不影响续跑。
+      const handleClose = () => {
+        cancelled = true;
+        es?.close();
+        if (esRef.current === es) esRef.current = null;
+      };
+
+      es.addEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
+
+      if (useRunLog) {
+
+        es.addEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
+
+      }
+
+      es.addEventListener('error', handleStreamError as EventListenerOrEventListenerObject);
+
+      es.addEventListener('close', handleClose as EventListenerOrEventListenerObject);
+
+      es.onerror = () => {
+
+        // 连接异常断开（网络抖动）→ 交给浏览器自动重连；run 正常结束由 close 事件终止。
+
+      };
+
+    })();
+
+
 
     return () => {
+
       cancelled = true;
-      es.removeEventListener('sdui', handleSdui as EventListenerOrEventListenerObject);
-      es.removeEventListener('run_log', handleRunLog as EventListenerOrEventListenerObject);
-      es.close();
+
+      es?.close();
+
       esRef.current = null;
+
     };
-  }, [skillId, runId, epoch]);
+
+  }, [skillId, runId, epoch, useRunLog]);
+
+
 
   return doc;
+
 }
+
+
 
 // ── REST helpers（均按 skillId 拼端点）─────────────────────────────────────────
 
+
+
 export interface StartReq {
+
   project_code?: string;
+
   project_name?: string;
+
   scenario_run?: string;
 
   /** zhgk：从 3D 机房入口下钻时预选意图（写入 initial project） */
   intent?: string;
+
+  command?: string;
+
+  text?: string;
+
+  action?: string;
+
 }
 
+
+
 /** 启动一次 run。默认值由后端 skill.initial_project 兜（如 zhgk 的 K1903），前端不写死。 */
+
 export async function startRun(skillId: string, req: StartReq = {}): Promise<string> {
-  const res = await fetch(`${AGENT_BASE}/agent/${skillId}/start`, {
+
+  const base = await ensureAgentBase(skillId);
+
+  const res = await fetch(`${base}/agent/${skillId}/start`, {
+
     method: 'POST',
+
     headers: { 'Content-Type': 'application/json' },
+
     body: JSON.stringify(req),
+
   });
-  if (!res.ok) throw new Error(`start failed: ${res.status}`);
-  const data = await res.json() as { run_id: string };
-  return data.run_id;
+
+  if (!res.ok) throw new Error(await res.text());
+
+  const data = await res.json();
+
+  return data.run_id as string;
+
 }
 
 /** 清空 skill 工作区产物与运行态（保留 Input），重置会话时调用。 */
 export async function resetWorkspace(skillId: string): Promise<void> {
-  const res = await fetch(`${AGENT_BASE}/agent/${skillId}/reset-workspace`, {
+
+  const base = await ensureAgentBase(skillId);
+
+  const res = await fetch(`${base}/agent/${skillId}/reset-workspace`, {
+
     method: 'POST',
+
+    headers: { 'Content-Type': 'application/json' },
+
+    body: JSON.stringify({}),
+
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `reset-workspace failed: ${res.status}`);
-  }
+
+  if (!res.ok) throw new Error(await res.text());
+
 }
+
+
 
 export async function runPatchRun(skillId: string, runId: string, payload: Record<string, unknown> = {}): Promise<void> {
-  const res = await fetch(`${AGENT_BASE}/agent/${skillId}/run-patch`, {
+
+  const base = await ensureAgentBase(skillId);
+
+  const res = await fetch(`${base}/agent/${skillId}/run-patch`, {
+
     method: 'POST',
+
     headers: { 'Content-Type': 'application/json' },
+
     body: JSON.stringify({ run_id: runId, payload }),
+
   });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `run-patch failed: ${res.status}`);
-  }
+
+  if (!res.ok) throw new Error(await res.text());
+
 }
+
+
 
 export async function resumeRun(skillId: string, runId: string, payload: Record<string, unknown> = {}): Promise<void> {
-  await fetch(`${AGENT_BASE}/agent/${skillId}/resume`, {
+
+  const base = await ensureAgentBase(skillId);
+
+  await fetch(`${base}/agent/${skillId}/resume`, {
+
     method: 'POST',
+
     headers: { 'Content-Type': 'application/json' },
+
     body: JSON.stringify({ run_id: runId, payload }),
+
   });
+
 }
 
-/**
- * HITL 批量上传：走 /upload/batch，后端按文件名自动推断 kind。
- * 注意：不要用 /upload + kind=<purpose>，purpose 形如 hitl_scene_filter 不是合法 kind，会 500。
- * needFiles 仅用于返回对齐的齐备检查（可选）；真正的门禁是 resume 时 step.check_inputs 重校验。
- */
-export async function uploadBatch(skillId: string, files: File[], needFiles: string[] = []): Promise<void> {
+
+
+export async function uploadBatch(
+
+  skillId: string,
+
+  files: File[],
+
+  needFiles: string[] = [],
+
+  kinds: string[] = [],
+
+  runId?: string | null,
+
+  slotLabels: string[] = [],
+
+): Promise<{ uploaded: Array<Record<string, unknown>>; check: Record<string, unknown>; system_design_root?: string; upload_dir?: string; data_root?: string }> {
+
+  const base = await ensureAgentBase(skillId);
+
   const form = new FormData();
-  for (const f of files) form.append('files', f);
-  for (const n of needFiles) form.append('need', n);
-  const res = await fetch(`${AGENT_BASE}/agent/${skillId}/upload/batch`, { method: 'POST', body: form });
-  if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+
+  files.forEach(f => form.append('files', f));
+
+  needFiles.forEach(n => form.append('need', n));
+
+  kinds.forEach(k => form.append('kinds', k));
+
+  slotLabels.forEach(l => form.append('slot_labels', l));
+
+  if (runId) form.append('run_id', runId);
+
+  const res = await fetch(`${base}/agent/${skillId}/upload/batch`, { method: 'POST', body: form });
+
+  if (!res.ok) throw new Error(await res.text());
+
+  return res.json();
+
 }
 
-export async function fetchUiSnapshot(skillId: string, runId: string): Promise<SduiDocument | null> {
+
+
+export async function fetchUiSnapshot(skillId: string, runId: string, base?: string): Promise<SduiDocument | null> {
+
+  const agentBase = base ?? await ensureAgentBase(skillId);
+
   try {
-    const res = await fetch(`${AGENT_BASE}/agent/${skillId}/ui/${runId}`);
+
+    const res = await fetch(`${agentBase}/agent/${skillId}/ui/${runId}`);
+
     if (!res.ok) return null;
+
     const raw = await res.json();
+
     const result = parseSduiDocument(raw);
+
     return result.ok ? result.doc : null;
+
   } catch {
+
     return null;
+
   }
+
 }
+
+

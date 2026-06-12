@@ -1,0 +1,74 @@
+{
+  "run_id": "20260602_170353",
+  "steps": {
+    "01": {
+      "status": "pending_no_handler"
+    },
+    "02": {
+      "status": "pending_no_handler"
+    },
+    "03": {
+      "status": "pending_no_handler"
+    },
+    "04": {
+      "status": "pending_no_handler"
+    },
+    "05": {
+      "status": "pending_no_handler"
+    },
+    "06": {
+      "status": "pending_no_handler"
+    },
+    "07": {
+      "status": "pending_no_handler"
+    },
+    "08": {
+      "status": "pending_no_handler"
+    },
+    "09": {
+      "status": "pending_no_handler"
+    },
+    "10": {
+      "status": "pending_no_handler"
+    },
+    "11": {
+      "status": "pending_no_handler"
+    },
+    "12": {
+      "status": "pending_no_handler"
+    },
+    "13": {
+      "status": "pending_no_handler"
+    },
+    "14": {
+      "status": "pending_no_handler"
+    },
+    "15": {
+      "status": "skipped_not_eligible"
+    },
+    "16": {
+      "status": "pending_no_handler"
+    },
+    "17": {
+      "status": "pending_no_handler"
+    },
+    "18": {
+      "status": "pending_no_handler"
+    },
+    "19": {
+      "status": "pending_no_handler"
+    },
+    "20": {
+      "status": "pending_no_handler"
+    },
+    "21": {
+      "status": "pending_no_handler"
+    },
+    "22": {
+      "status": "pending_no_handler"
+    },
+    "23": {
+      "status": "pending_integrate"
+    }
+  }
+}

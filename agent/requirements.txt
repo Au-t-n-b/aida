@@ -29,6 +29,7 @@ pydantic>=2.9.0
 
 # === 透传 zhgk skill 依赖（用于 subprocess 调用现有脚本） ===
 openpyxl>=3.1.0
+pandas>=2.0.0                  # system_design / a3_engine pipeline 读写 Excel
 python-docx>=1.1.0
 Pillow>=10.0.0
 requests>=2.31.0

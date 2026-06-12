@@ -1,0 +1,2 @@
+﻿scenario,keyword,source_script,rail_mode,rule
+a3,AT800TA3|AT800IA3|AT900A3,a3_csm_ip_address.py,8,端口表含 A3 服务器 → a3_csm_ip_address.a3_csm_ip_generate

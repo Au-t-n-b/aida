@@ -1,0 +1,24 @@
+{
+  "skill": "system_design",
+  "run_id": "run-golden-sd-0001",
+  "execution": {
+    "steps": [
+      {"step": "intent_recognition", "name": "意图识别", "status": "completed"},
+      {"step": "input_check", "name": "输入件检查", "status": "completed"},
+      {"step": "plane_planning", "name": "平面规划", "status": "completed"},
+      {"step": "lld_integrate", "name": "LLD 融合", "status": "completed"},
+      {"step": "ztp_generate", "name": "生成 ZTP 设计文件", "status": "completed"},
+      {"step": "naming_replace", "name": "设备名称替换", "status": "completed"},
+      {"step": "publish", "name": "发布完成", "status": "completed"}
+    ]
+  },
+  "completion_rate": 1.0,
+  "metrics": {
+    "plane_done": 6,
+    "plane_total": 12,
+    "plane_coverage": 0.5,
+    "lld_planes_merged": 6,
+    "artifact_count": 14,
+    "warning_count": 2
+  }
+}

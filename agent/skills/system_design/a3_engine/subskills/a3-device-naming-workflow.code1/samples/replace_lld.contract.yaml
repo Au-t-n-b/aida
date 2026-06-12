@@ -1,0 +1,16 @@
+# Contract: replace-lld
+command: replace-lld
+online_intent: 替换设备名称
+input:
+  device_list:
+    mapping_columns:
+      old: 设备名称
+      new: 客户定义设备名称
+    prerequisite: at least one non-empty 客户定义设备名称
+  lld:
+    description: 融合后 LLD 设计 xlsx（全 sheet 扫描）
+algorithm:
+  match: exact string match on cell value (strip)
+  skip_empty_customer_names: true
+output:
+  path_pattern: output/run_*/*_replaced.xlsx

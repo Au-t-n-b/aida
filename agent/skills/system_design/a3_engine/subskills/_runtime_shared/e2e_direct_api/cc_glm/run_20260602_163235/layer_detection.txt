@@ -1,0 +1,3 @@
+layer=L3
+gateway_position=LEAF
+网关位置*=LEAF → LEAF接入三层 → 存储管理面地址规划_L3 → a3_cc_glm_ip_address.py

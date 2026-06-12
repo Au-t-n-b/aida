@@ -567,6 +567,16 @@ class BaseSkill(abc.ABC):
         result["hitl"] = {}  # 清空
         return result
 
+    def prepare_work_root(self) -> None:
+        """图构建前准备工作区目录。默认创建 ProjectData 子树；system_design 等子类可覆盖为 no-op。"""
+        ctx = SkillContext(
+            skill_id=self.name,
+            work_root=self.work_root,
+            run_id="<init>",
+            llm_factory=self.llm_factory,
+        )
+        ctx.ensure_dirs()
+
     # ── LangGraph 编排 ──
 
     def build_graph(self, checkpointer=None):
@@ -585,13 +595,7 @@ class BaseSkill(abc.ABC):
         from langgraph.graph import StateGraph, START, END
 
         g = StateGraph(SkillState)
-        ctx = SkillContext(
-            skill_id=self.name,
-            work_root=self.work_root,
-            run_id="<init>",
-            llm_factory=self.llm_factory,
-        )
-        ctx.ensure_dirs()
+        self.prepare_work_root()
 
         # 注册每个 step 为一个节点（闭包绑定）
         def make_node(s: BaseStep):

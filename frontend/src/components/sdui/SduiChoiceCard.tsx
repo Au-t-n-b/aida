@@ -1,5 +1,5 @@
 /**
- * SduiChoiceCard — HITL 单选卡（简化版）
+ * SduiChoiceCard — HITL 单选 / 多选卡（意图消歧等多选场景对齐设计稿 cv-dis-*）
  */
 import { useState } from 'react';
 import { useSduiRuntime } from './SduiContext';
@@ -8,54 +8,106 @@ import type { SduiChoiceCardNode } from '@/lib/sdui';
 
 type Props = Omit<SduiChoiceCardNode, 'type' | 'id' | 'flex'>;
 
-export function SduiChoiceCard({ title, options, stepId }: Props) {
+export function SduiChoiceCard({
+  title,
+  options,
+  stepId,
+  multiple = false,
+  maxSelections,
+  submitLabel,
+}: Props) {
   const { onChoiceSubmit, runId } = useSduiRuntime();
-  // 跨重挂载回读确认态（冻结重放期间组件会重挂，避免闪回「未选」）
   const key = hitlKey(runId, stepId);
   const restored = getHitlOptimistic(key);
   const restoredSel = restored?.kind === 'choice' ? restored.selected : null;
-  const [selected, setSelected] = useState<string | null>(restoredSel);
+
+  const [selected, setSelected] = useState<string[]>(
+    multiple ? (restoredSel ? restoredSel.split('、') : []) : [],
+  );
+  const [single, setSingle] = useState<string | null>(
+    multiple ? null : restoredSel,
+  );
   const [submitted, setSubmitted] = useState(restoredSel != null);
 
-  const handleSubmit = () => {
-    if (!selected) return;
-    setSubmitted(true);
-    setHitlOptimistic(key, { kind: 'choice', selected });
-    // parent 在 onChoiceSubmit 内会先 hold 再 resume，保证确认态可见一段时间
-    onChoiceSubmit(selected, stepId);
+  const max = multiple ? (maxSelections ?? options.length) : 1;
+  const picked = multiple ? selected : (single ? [single] : []);
+  const canSubmit = picked.length > 0;
+
+  const toggle = (val: string) => {
+    if (submitted) return;
+    if (!multiple) {
+      setSingle(val);
+      return;
+    }
+    setSelected((prev) => {
+      if (prev.includes(val)) return prev.filter((x) => x !== val);
+      if (prev.length >= max) return prev;
+      return [...prev, val];
+    });
   };
+
+  const handleSubmit = () => {
+    if (!canSubmit) return;
+    const value = multiple ? picked.join('、') : picked[0];
+    if (!value) return;
+    setSubmitted(true);
+    setHitlOptimistic(key, { kind: 'choice', selected: value });
+    onChoiceSubmit(value, stepId);
+  };
+
+  const confirmText = submitLabel
+    ?? (multiple ? `确认（${picked.length}）` : '确认选择');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)' }}>{title}</div>
-      {/* 选项列表：提交后降低不透明度，禁止二次点击 */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 6,
-        opacity: submitted ? 0.45 : 1,
-        pointerEvents: submitted ? 'none' : 'auto',
-        transition: 'opacity .2s',
-      }}>
+      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)' }}>
+        {title}
+      </div>
+      <div
+        className={multiple ? 'cv-dis-list' : undefined}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6,
+          opacity: submitted ? 0.45 : 1,
+          pointerEvents: submitted ? 'none' : 'auto',
+          transition: 'opacity .2s',
+        }}
+      >
         {options.map((opt, i) => {
           const val = opt.value ?? opt.id ?? String(i);
-          const isSelected = selected === val;
+          const isOn = multiple ? selected.includes(val) : single === val;
+          if (multiple) {
+            return (
+              <button
+                key={val}
+                type="button"
+                className={`cv-dis-opt${isOn ? ' on' : ''}`}
+                onClick={() => toggle(val)}
+              >
+                <span className="cv-dis-check">{isOn ? '✓' : ''}</span>
+                <span className="cv-dis-label">{opt.label}</span>
+              </button>
+            );
+          }
           return (
             <div
               key={val}
-              onClick={() => !submitted && setSelected(val)}
+              onClick={() => toggle(val)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 12px',
                 borderRadius: 'var(--radius-md)',
-                border: `1px solid ${isSelected ? 'var(--blue-600)' : 'var(--border)'}`,
-                background: isSelected ? 'var(--blue-50)' : 'var(--surface)',
+                border: `1px solid ${isOn ? 'var(--blue-600)' : 'var(--border)'}`,
+                background: isOn ? 'var(--blue-50)' : 'var(--surface)',
                 cursor: 'pointer',
                 transition: 'all .15s',
               }}
             >
               <div style={{
                 width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
-                border: `2px solid ${isSelected ? 'var(--blue-600)' : 'var(--zinc-300)'}`,
-                background: isSelected ? 'var(--blue-600)' : 'transparent',
+                border: `2px solid ${isOn ? 'var(--blue-600)' : 'var(--zinc-300)'}`,
+                background: isOn ? 'var(--blue-600)' : 'transparent',
               }} />
               <div>
                 <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>{opt.label}</div>
@@ -68,27 +120,34 @@ export function SduiChoiceCard({ title, options, stepId }: Props) {
         })}
       </div>
 
+      {multiple && !submitted && (
+        <span className="cv-card-hint" style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>
+          已选 {picked.length} 项{max < options.length ? `（最多 ${max} 项）` : ''}
+        </span>
+      )}
+
       {!submitted && (
         <button
+          type="button"
           onClick={handleSubmit}
-          disabled={!selected}
-          style={{
+          disabled={!canSubmit}
+          className={multiple ? 'btn primary sm' : undefined}
+          style={multiple ? undefined : {
             alignSelf: 'flex-start',
             padding: '6px 14px',
             fontSize: 'var(--text-sm)', fontWeight: 500,
             borderRadius: 'var(--radius-md)',
             border: 'none',
-            background: selected ? 'var(--blue-600)' : 'var(--zinc-200)',
-            color: selected ? '#fff' : 'var(--text-tertiary)',
-            cursor: selected ? 'pointer' : 'not-allowed',
+            background: canSubmit ? 'var(--blue-600)' : 'var(--zinc-200)',
+            color: canSubmit ? '#fff' : 'var(--text-tertiary)',
+            cursor: canSubmit ? 'pointer' : 'not-allowed',
             transition: 'all .15s',
           }}
         >
-          确认选择
+          {confirmText}
         </button>
       )}
 
-      {/* 提交后：绿色确认横幅，显示选了什么 */}
       {submitted && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
@@ -104,7 +163,7 @@ export function SduiChoiceCard({ title, options, stepId }: Props) {
           </svg>
           已提交：
           <span style={{ fontWeight: 600 }}>
-            {options.find(o => (o.value ?? o.id ?? String(options.indexOf(o))) === selected)?.label ?? selected}
+            {picked.map((v) => options.find((o) => (o.value ?? o.id) === v)?.label ?? v).join('、')}
           </span>
           <span style={{ color: '#0a7350', fontWeight: 400, marginLeft: 4 }}>· 等待处理中…</span>
         </div>

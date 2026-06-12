@@ -175,21 +175,7 @@ const SEED_CREATE = [
   },
 ];
 
-const SEED_DESIGN = [
-  {
-    role: 'ai',
-    body: 'LLD 设计模式 · 已加载 BOQ 解析结果 + 客户机房约束。当前页面会用到部件清单的冲突项 (ConnectX-7 数量)，请先在 设备清单 Tab 里确认数量再落图。',
-    reasoning: [
-      { ix: '1', text: '依赖：BOQ-K1903-D01 已发布' },
-      { ix: '2', text: '冲突待解：1 项 (ConnectX-7)' },
-    ],
-    chips: ['LLD 输出', '设备清单冲突'],
-    actions: [
-      { label: '回到设备清单', kind: 'primary', icon: 'Eye' },
-    ],
-    ts: ts(11, 5),
-  },
-];
+const SEED_DESIGN: never[] = [];
 
 const SEED_ADMIN = [
   {
@@ -282,10 +268,10 @@ export const CLAW_SUGGESTS_BY_ROUTE = {
     '能跳过 BOQ 解析吗？',
   ],
   '/design': [
-    '设备清单冲突怎么处理？',
-    '生成 LLD 模板',
-    '同步给 TD 评审',
-    '导出 PDF',
+    '带外管理互联规划',
+    '网络接入规划',
+    '网络互联规划',
+    '生成完整 LLD 设计',
   ],
   '/admin': [
     '当前账号能改谁的项目？',
@@ -311,7 +297,10 @@ export const SHOW_PROPOSAL_CLAW_SEED = false;
 export function getSeedForPath(pathname: string) {
   if (pathname.includes('/proposal') && !SHOW_PROPOSAL_CLAW_SEED) return [];
   if (!pathname) return CLAW_SEED_BY_ROUTE['/cockpit'];
+  // Skill Agent（/module/*）左侧走真实 SDUI 会话，不用静态 mock 种子
+  if (pathname.includes('/module')) return CLAW_SEED_BY_ROUTE['/module'];
   for (const key of Object.keys(CLAW_SEED_BY_ROUTE)) {
+    if (key === '/module') continue;
     if (pathname.includes(key)) return CLAW_SEED_BY_ROUTE[key as keyof typeof CLAW_SEED_BY_ROUTE];
   }
   return CLAW_SEED_BY_ROUTE['/cockpit'];

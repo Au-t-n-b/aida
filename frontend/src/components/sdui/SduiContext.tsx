@@ -7,8 +7,10 @@ import type { SduiAction } from '@/lib/sdui';
 
 export interface SduiRuntime {
   runId: string | null;
+  /** 后端 skill_id（产物下载/预览 URL：/agent/{skillId}/artifact）。 */
+  skillId?: string;
   onAction: (action: SduiAction) => void;
-  onUpload: (files: FileList, purpose: string, stepId?: string) => void;
+  onUpload: (files: FileList, purpose: string, stepId?: string, slotTag?: string, slotLabel?: string) => void | Promise<void>;
   onChoiceSubmit: (value: string, stepId?: string) => void;
   /** 可编辑 DataTable 提交：把编辑后的行回传 /resume（payload={rows}）。可选 —— 不支持的提供方不实现。 */
   onRowsSubmit?: (rows: Record<string, unknown>[], stepId?: string) => void;
@@ -20,6 +22,7 @@ export interface SduiRuntime {
 
 const defaultRuntime: SduiRuntime = {
   runId: null,
+  skillId: undefined,
   onAction: () => {},
   onUpload: () => {},
   onChoiceSubmit: () => {},

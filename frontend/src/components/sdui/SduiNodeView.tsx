@@ -7,7 +7,7 @@
  *  - 简单叶节点（Text/Badge/Button/Statistic）：inline 实现
  *  - 未知节点：降级提示
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom } from '@/lib/sdui';
 import { stableChildKey } from '@/lib/sduiKeys';
@@ -18,6 +18,8 @@ import { SduiArtifactGrid } from './SduiArtifactGrid';
 import { SduiFilePicker } from './SduiFilePicker';
 import { SduiChoiceCard } from './SduiChoiceCard';
 import { SduiDataTable } from './SduiDataTable';
+import { SduiIoConfirmPanel } from './SduiIoConfirmPanel';
+import { SduiPlaneMatrix } from './SduiPlaneMatrix';
 import { useSduiRuntime } from './SduiContext';
 
 // ── Sub-components (must be real components for hook rules) ────────────────────
@@ -541,13 +543,24 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
     return i >= 0 ? i : 0;
   };
   const [active, setActive] = useState(initialIdx());
-  // 后端引导：activeTab 变化时同步选中（如执行中自动切「进度」页）；
-  // 用户点击在两次刷新之间接管本地选择。
+  const prevFocusToken = useRef<number | undefined>(undefined);
+  // 后端引导：activeTab / focusToken 变化时同步选中（如检查测试用例后切「输出件」页）；
+  // focusToken 递增时强制切页；用户点击在两次刷新之间接管本地选择。
   useEffect(() => {
-    const i = tabs.findIndex(t => t.id === node.activeTab);
-    if (i >= 0) setActive(i);
+    const focusChanged = node.focusToken != null && node.focusToken !== prevFocusToken.current;
+    if (focusChanged) prevFocusToken.current = node.focusToken;
+    if (focusChanged || node.activeTab) {
+      const i = tabs.findIndex(t => t.id === node.activeTab);
+      if (i >= 0) setActive(i);
+    }
+    if (focusChanged && node.activeTab === 'outputs') {
+      requestAnimationFrame(() => {
+        const el = document.querySelector('[data-art-id="art-testcase"]');
+        el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [node.activeTab]);
+  }, [node.activeTab, node.focusToken]);
   const idx = Math.min(active, Math.max(tabs.length - 1, 0));
   const cur = tabs[idx];
   return (
@@ -583,6 +596,251 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
           return <SduiNodeView key={seg} node={child} pathPrefix={seg} />;
         })}
       </div>
+    </div>
+  );
+}
+
+/* ── 任务时间规划安排（对齐设计稿 TaskTimelineStrip · 编号徽章 + 计划/实际双时间组）── */
+function diffDays(a: string, b: string): number {
+  const da = new Date(a + 'T00:00:00').getTime();
+  const db = new Date(b + 'T00:00:00').getTime();
+  return Math.round((db - da) / 86400000);
+}
+function fmtCnDate(d?: string | null): string | null {
+  if (!d) return null;
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(d);
+  if (!m) return d;
+  return `${parseInt(m[2]!, 10)}月${parseInt(m[3]!, 10)}日`;
+}
+function todayIso(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function SduiTaskTimelineStrip({ node }: { node: Extract<SduiNode, { type: 'TaskTimelineStrip' }> }) {
+  const today = todayIso();
+  const pct = Math.max(0, Math.min(100, node.progressPct ?? 0));
+  const plannedEnd = node.plannedEnd;
+  const remaining = plannedEnd ? diffDays(today, plannedEnd) : (node.remainingDays ?? null);
+  const done = pct >= 100 || !!node.actualEnd;
+
+  let phase = { label: '待开始', dot: '#94a3b8', bg: 'var(--c-bg-soft, #eef2f7)', color: 'var(--text-tertiary)' };
+  if (done) phase = { label: '已完成', dot: '#3551d8', bg: 'var(--c-brand-soft, #eef1fc)', color: 'var(--c-brand-text, #1e34a8)' };
+  else if (remaining != null && remaining < 0) phase = { label: '已超时', dot: '#dc2626', bg: '#fde8e8', color: '#c0322f' };
+  else if (node.actualStart) phase = { label: '进行中', dot: '#0f9d58', bg: '#e6f6ee', color: '#0a7350' };
+
+  let banner = '';
+  let bannerColor = 'var(--text-tertiary)';
+  if (done) { banner = '任务已交付完成。'; bannerColor = '#0a7350'; }
+  else if (remaining != null && remaining < 0) { banner = `已超过计划结束时间 ${Math.abs(remaining)} 天，请尽快完成并同步交付经理。`; bannerColor = '#c0322f'; }
+  else if (remaining === 0) { banner = '今天为计划结束日，请尽快完成。'; bannerColor = '#b45309'; }
+  else if (remaining != null) { banner = `距离计划结束还有 ${remaining} 天。`; bannerColor = remaining <= 3 ? '#b45309' : 'var(--text-tertiary)'; }
+
+  let remBadge = '';
+  let remColor = 'var(--c-brand-text, #1e34a8)', remBg = 'var(--c-brand-soft, #eef1fc)';
+  if (done) { remBadge = '已交付'; remColor = '#0a7350'; remBg = '#e6f6ee'; }
+  else if (remaining != null && remaining < 0) { remBadge = `超 ${Math.abs(remaining)} 天`; remColor = '#c0322f'; remBg = '#fde8e8'; }
+  else if (remaining != null) { remBadge = `剩余 ${remaining} 天`; if (remaining <= 3) { remColor = '#b45309'; remBg = '#fdf2dd'; } }
+
+  const DateBox = ({ label, value, accent, placeholder }: { label: string; value?: string | null; accent?: boolean; placeholder?: string }) => {
+    const display = fmtCnDate(value);
+    return (
+      <div style={{
+        flex: 1, minWidth: 0, padding: '9px 13px', borderRadius: 8,
+        border: '1px solid var(--border)', background: 'var(--surface)',
+      }}>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 5 }}>{label}</div>
+        {display ? (
+          <div style={{ fontSize: 18, fontWeight: 700, fontFamily: 'var(--font-mono)', letterSpacing: '-.01em', color: accent ? '#7c3aed' : '#3551d8' }}>{display}</div>
+        ) : (
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', fontStyle: 'italic' }}>{placeholder ?? '待开始'}</div>
+        )}
+      </div>
+    );
+  };
+
+  const Group = ({ title, dot, children }: { title: string; dot: string; children: ReactNode }) => (
+    <div style={{ flex: 1, minWidth: 0, border: '1px solid var(--border)', borderRadius: 10, padding: 12, background: 'var(--c-surface-2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 9 }}>
+        <span style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{title}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 10 }}>{children}</div>
+    </div>
+  );
+
+  return (
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', background: 'var(--surface)',
+      padding: 14, display: 'flex', flexDirection: 'column', gap: 13,
+      animation: 'sdui-node-in .28s cubic-bezier(.2,.65,.4,1) both',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 11, flexWrap: 'wrap' }}>
+        <span style={{
+          width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'grid', placeItems: 'center',
+          background: 'linear-gradient(135deg,#3551d8,#7c3aed)', color: '#fff', fontSize: 13, fontWeight: 700,
+        }}>1</span>
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{ fontSize: 9.5, fontWeight: 600, letterSpacing: '.12em', color: 'var(--text-tertiary)' }}>TASK SCHEDULE</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>任务时间规划安排</span>
+        </span>
+        {banner && <span style={{ fontSize: 11.5, color: bannerColor, marginLeft: 4 }}>{banner}</span>}
+        <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: phase.color, background: phase.bg, borderRadius: 999, padding: '3px 10px' }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: phase.dot }} />{phase.label}
+        </span>
+        {remBadge && <span style={{ fontSize: 11, fontWeight: 700, color: remColor, background: remBg, borderRadius: 999, padding: '3px 10px' }}>{remBadge}</span>}
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <Group title="计划时间" dot="#3551d8">
+          <DateBox label="计划开始时间" value={node.plannedStart} />
+          <DateBox label="计划结束时间" value={node.plannedEnd} />
+        </Group>
+        <Group title="实际时间" dot="#7c3aed">
+          <DateBox label="实际开始时间" value={node.actualStart} accent placeholder="上传项目信息收集表后更新" />
+          <DateBox label="实际结束时间" value={node.actualEnd} accent placeholder={done ? '已完成' : '进行中'} />
+        </Group>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 30, fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>进度</span>
+          <div style={{ flex: 1, height: 8, borderRadius: 999, background: 'var(--zinc-100)', overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${pct}%`, background: done ? '#10b981' : '#3551d8',
+              borderRadius: 999, transition: 'width .85s cubic-bezier(.22,.61,.36,1)',
+            }} />
+          </div>
+          <span style={{ width: 38, textAlign: 'right', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', flexShrink: 0 }}>{pct}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── 输入件槽位清单（对齐设计稿 InputSlotList · 真实文件上传 + 预览）── */
+function SduiInputSlotList({ node }: { node: Extract<SduiNode, { type: 'InputSlotList' }> }) {
+  const { onAction, onUpload } = useSduiRuntime();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pendingSlotTag = useRef<string | undefined>(undefined);
+  const pendingSlotLabel = useRef<string | undefined>(undefined);
+  const [uploading, setUploading] = useState(false);
+  const [uploadErr, setUploadErr] = useState<string | null>(null);
+  const [uploadOk, setUploadOk] = useState<string | null>(null);
+  const slots = node.slots ?? [];
+  /** 左栏 HITL「输入件准备」仅展示就绪态；预览入口在右侧「输入件」页签（对齐设计稿 FileRequestCard vs InputsPanel） */
+  const isHitlPrepareList = node.id === 'cv-input-slots';
+  const canUpload = !!node.uploadStepId || !!node.uploadPurpose;
+  const btnGhost: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' };
+  const btnPrimary: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid #3551d8', background: '#3551d8', color: '#fff', cursor: uploading ? 'wait' : 'pointer', fontWeight: 500, whiteSpace: 'nowrap', opacity: uploading ? 0.7 : 1 };
+  const triggerUpload = (slotTag?: string, slotLabel?: string) => {
+    if (uploading) return;
+    if (canUpload) {
+      pendingSlotTag.current = slotTag;
+      pendingSlotLabel.current = slotLabel;
+      if (fileRef.current) {
+        fileRef.current.dataset.slotTag = slotTag ?? '';
+        fileRef.current.dataset.slotLabel = slotLabel ?? '';
+      }
+      setUploadErr(null);
+      setUploadOk(null);
+      fileRef.current?.click();
+    } else {
+      onAction({ kind: 'post_user_message', text: '上传项目信息收集表' });
+    }
+  };
+  const onPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // FileList 是对 input.files 的实时引用：必须在清空 value 之前把文件固化到独立
+    // FileList（DataTransfer），否则随后的 e.target.value='' 会把 fs 清空 → 长度归零 →
+    // 直接 return，永远不会调用 onUpload（表现为「选完文件后不触发上传接口」）。
+    const picked = e.target.files;
+    const dt = new DataTransfer();
+    if (picked) for (const f of Array.from(picked)) dt.items.add(f);
+    const files = dt.files;
+    const slotTag = pendingSlotTag.current || fileRef.current?.dataset.slotTag || undefined;
+    const slotLabel = pendingSlotLabel.current || fileRef.current?.dataset.slotLabel || undefined;
+    e.target.value = '';
+    if (!files.length) return;
+    pendingSlotTag.current = undefined;
+    pendingSlotLabel.current = undefined;
+    setUploading(true);
+    setUploadErr(null);
+    setUploadOk(null);
+    Promise.resolve(onUpload(files, node.uploadPurpose ?? 'hitl_input_check', node.uploadStepId, slotTag || undefined, slotLabel || undefined))
+      .then(() => setUploadOk('上传成功，输入件状态已刷新'))
+      .catch(err => {
+        const msg = err instanceof Error ? err.message : '上传失败';
+        setUploadErr(msg);
+        console.error('[SDUI] upload error:', err);
+      })
+      .finally(() => setUploading(false));
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv,.doc,.docx" multiple style={{ display: 'none' }} onChange={onPicked} />
+      {node.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</div>}
+      {uploadErr && (
+        <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--c-danger-soft, #fef2f2)', color: 'var(--c-danger-text, #b91c1c)', fontSize: 12 }}>
+          {uploadErr}
+        </div>
+      )}
+      {uploadOk && !uploadErr && (
+        <div style={{ padding: '8px 10px', borderRadius: 6, background: 'var(--c-success-soft, #ecfdf5)', color: 'var(--c-success-text, #047857)', fontSize: 12 }}>
+          {uploadOk}
+        </div>
+      )}
+      {slots.map((s, i) => {
+        const ready = !!s.ready;
+        const isAuto = s.source === 'auto';
+        const accent = ready ? '#10b981' : isAuto ? '#d97706' : s.required ? '#dc2626' : '#d97706';
+        return (
+          <div key={i} style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
+            border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
+            background: !ready && !isAuto ? 'var(--c-surface-2)' : 'var(--surface)',
+            animation: `sdui-stagger .18s ease-out ${Math.min(i, 8) * 0.04}s both`,
+          }}>
+            <span style={{
+              width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: accent,
+              boxShadow: ready ? '0 0 0 3px rgba(16,185,129,.14)' : 'none',
+              animation: !ready && isAuto ? 'clawStepperPulse 1.4s ease-in-out infinite' : 'none',
+            }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{s.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: s.required ? '#b45309' : 'var(--text-tertiary)', background: s.required ? '#fdf2dd' : 'var(--c-bg-soft, #eef2f7)' }}>
+                  {s.required ? '必需' : '可选'}
+                </span>
+                <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: isAuto ? 'var(--c-brand-text, #1e34a8)' : 'var(--text-tertiary)', background: isAuto ? 'var(--c-brand-soft, #eef1fc)' : 'var(--c-bg-soft, #eef2f7)' }}>
+                  {isAuto ? '自动检查' : '手动 · 上传'}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3, fontFamily: ready ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {ready ? (s.fileName ?? '已就绪') : isAuto ? '检查中…（等待仿真产出）' : '缺失 · 待上传'}
+              </div>
+            </div>
+            <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
+              {ready && isHitlPrepareList && (
+                <span style={{ fontSize: 11, color: '#0a7350', fontWeight: 600 }}>已就绪</span>
+              )}
+              {ready && !isHitlPrepareList && s.previewPath && (
+                <button onClick={() => { const p = s.previewPath; if (p) onAction({ kind: 'open_preview', path: p }); }} style={btnGhost}>预览</button>
+              )}
+              {ready && !isHitlPrepareList && !s.previewPath && (
+                <span style={{ fontSize: 11, color: '#0a7350', fontWeight: 600 }}>已就绪</span>
+              )}
+              {!ready && isAuto && (
+                <span style={{ fontSize: 11, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <i style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid var(--zinc-100)', borderTopColor: '#d97706', display: 'block', animation: 'spin .8s linear infinite' }} />
+                  检查中
+                </span>
+              )}
+              {!ready && !isAuto && (
+                <button onClick={() => triggerUpload(s.slotTag, s.label)} disabled={uploading} style={btnPrimary}>{uploading ? '上传中…' : '上传'}</button>
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -744,6 +1002,27 @@ const BADGE_TONE: Record<string, 'default' | 'green' | 'amber' | 'red'> = {
 const BTN_VARIANT: Record<string, 'primary' | 'secondary' | 'ghost'> = {
   primary: 'primary', secondary: 'secondary', ghost: 'ghost', outline: 'secondary',
 };
+
+/* ── HITL 按钮：点击后立即显示「处理中…」避免无反馈 ── */
+function SduiHitlButton({ node }: { node: Extract<SduiNode, { type: 'Button' }> }) {
+  const { onAction } = useSduiRuntime();
+  const [pending, setPending] = useState(false);
+  const v = BTN_VARIANT[node.variant ?? 'primary'] ?? 'primary';
+  return (
+    <Button
+      variant={v}
+      size="sm"
+      disabled={pending || !!node.disabled}
+      onClick={() => {
+        if (pending || node.disabled) return;
+        setPending(true);
+        onAction(node.action);
+      }}
+    >
+      {pending ? '处理中…' : node.label}
+    </Button>
+  );
+}
 
 // ── Main dispatcher ────────────────────────────────────────────────────────────
 
@@ -1130,14 +1409,8 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     // ── Interactive ──
 
-    case 'Button': {
-      const v = BTN_VARIANT[node.variant ?? 'primary'] ?? 'primary';
-      return (
-        <Button variant={v} size="sm" onClick={() => onAction(node.action)}>
-          {node.label}
-        </Button>
-      );
-    }
+    case 'Button':
+      return <SduiHitlButton node={node} />;
 
     case 'Link': {
       const href = node.href;
@@ -1341,83 +1614,8 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
     }
 
-    case 'PlaneMatrix': {
-      // 平面矩阵：N 个网络平面 × 规划状态。按 group 聚拢，每格 = 状态点 + 平面名 + 角标。
-      const PM_DOT: Record<string, string> = {
-        done: 'var(--c-success)', running: 'var(--c-warning)', pending: 'var(--c-border-strong)', error: 'var(--c-danger)',
-      };
-      const PM_LABEL: Record<string, string> = {
-        done: 'var(--c-text)', running: 'var(--c-warning-text)',
-        pending: 'var(--c-text-muted)', error: 'var(--c-danger)',
-      };
-      const cells = node.cells ?? [];
-      // 按首次出现顺序分组
-      const groups: string[] = [];
-      for (const c of cells) {
-        const g = c.group ?? '';
-        if (!groups.includes(g)) groups.push(g);
-      }
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {groups.map((g) => {
-            const items = cells.filter((c) => (c.group ?? '') === g);
-            return (
-              <div key={g || '_'}>
-                {g && (
-                  <div style={{
-                    fontSize: '10px', fontWeight: 500, letterSpacing: '.05em',
-                    textTransform: 'uppercase', color: 'var(--text-tertiary)', marginBottom: 7,
-                  }}>
-                    {g}
-                  </div>
-                )}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: node.columns
-                    ? `repeat(${node.columns}, 1fr)`
-                    : 'repeat(auto-fill, minmax(150px, 1fr))',
-                  gap: 8,
-                }}>
-                  {items.map((c, i) => {
-                    const st = c.status ?? 'pending';
-                    return (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        padding: '9px 11px',
-                        border: '1px solid var(--border)', borderRadius: 8,
-                        background: st === 'pending' ? 'var(--c-surface-2)' : 'var(--surface)',
-                      }}>
-                        <span style={{
-                          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                          background: PM_DOT[st] ?? PM_DOT.pending,
-                          boxShadow: st === 'done' ? '0 0 0 3px rgba(16,185,129,.14)'
-                            : st === 'running' ? '0 0 0 3px rgba(53,81,216,.14)' : 'none',
-                          animation: st === 'running' ? 'clawStepperPulse 1.4s ease-in-out infinite' : 'none',
-                        }} />
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{
-                            fontSize: '12px', fontWeight: 500, lineHeight: 1.3,
-                            color: PM_LABEL[st] ?? 'var(--text-primary)',
-                            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                          }}>
-                            {c.label}
-                          </div>
-                          {c.note && (
-                            <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-                              {c.note}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
+    case 'PlaneMatrix':
+      return <SduiPlaneMatrix cells={node.cells ?? []} />;
 
     // ── Business ──
 
@@ -1879,106 +2077,11 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'TabGroup':
       return <SduiTabGroup node={node} pathPrefix={pathPrefix} />;
 
-    case 'InputSlotList': {
-      const slots = node.slots ?? [];
-      const btnGhost: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' };
-      const btnPrimary: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid #3551d8', background: '#3551d8', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' };
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {node.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</div>}
-          {slots.map((s, i) => {
-            const ready = !!s.ready;
-            const isAuto = s.source === 'auto';
-            // 缺件高亮：必需缺件红，自动检查中/可选缺件琥珀，就绪绿
-            const accent = ready ? '#10b981' : isAuto ? '#d97706' : s.required ? '#dc2626' : '#d97706';
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
-                border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
-                background: !ready && !isAuto ? 'var(--c-surface-2)' : 'var(--surface)',
-                animation: `sdui-stagger .18s ease-out ${Math.min(i, 8) * 0.04}s both`,
-              }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: accent,
-                  boxShadow: ready ? '0 0 0 3px rgba(16,185,129,.14)' : 'none',
-                  animation: !ready && isAuto ? 'clawStepperPulse 1.4s ease-in-out infinite' : 'none',
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{s.label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: s.required ? '#b45309' : 'var(--text-tertiary)', background: s.required ? '#fdf2dd' : 'var(--c-bg-soft, #eef2f7)' }}>
-                      {s.required ? '必需' : '可选'}
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: isAuto ? 'var(--c-brand-text, #1e34a8)' : 'var(--text-tertiary)', background: isAuto ? 'var(--c-brand-soft, #eef1fc)' : 'var(--c-bg-soft, #eef2f7)' }}>
-                      {isAuto ? '自动 · 仿真' : '手动 · 上传'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3, fontFamily: ready ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ready ? (s.fileName ?? '已就绪') : isAuto ? '检查中…（等待仿真产出）' : '缺失 · 待上传'}
-                  </div>
-                </div>
-                <div style={{ flexShrink: 0 }}>
-                  {ready ? (
-                    s.previewPath ? (
-                      <button onClick={() => { const p = s.previewPath; if (p) onAction({ kind: 'open_preview', path: p }); }} style={btnGhost}>预览</button>
-                    ) : (
-                      <span style={{ fontSize: 11, color: '#0a7350', fontWeight: 600 }}>✓ 就绪</span>
-                    )
-                  ) : isAuto ? (
-                    <span style={{ fontSize: 11, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <i style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid var(--zinc-100)', borderTopColor: '#d97706', display: 'block', animation: 'spin .8s linear infinite' }} />
-                      检查中
-                    </span>
-                  ) : (
-                    <button onClick={() => onAction({ kind: 'post_user_message', text: `上传${s.label}` })} style={btnPrimary}>上传</button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
+    case 'InputSlotList':
+      return <SduiInputSlotList node={node} />;
 
-    case 'TaskTimelineStrip': {
-      const pct = Math.max(0, Math.min(100, node.progressPct ?? 0));
-      const rd = node.remainingDays;
-      const overdue = typeof rd === 'number' && rd < 0;
-      const fill = pct >= 100 ? '#10b981' : overdue ? '#dc2626' : '#3551d8';
-      let rdText = '', rdColor = 'var(--text-tertiary)', rdBg = 'var(--c-bg-soft, #eef2f7)';
-      if (typeof rd === 'number') {
-        if (rd < 0) { rdText = `逾期 ${Math.abs(rd)} 天`; rdColor = '#c0322f'; rdBg = '#fde8e8'; }
-        else if (rd === 0) { rdText = '今日截止'; rdColor = '#b45309'; rdBg = '#fdf2dd'; }
-        else if (rd <= 3) { rdText = `剩余 ${rd} 天`; rdColor = '#b45309'; rdBg = '#fdf2dd'; }
-        else { rdText = `剩余 ${rd} 天`; rdColor = 'var(--c-brand-text, #1e34a8)'; rdBg = 'var(--c-brand-soft, #eef1fc)'; }
-      }
-      const trackRow: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8 };
-      const track: React.CSSProperties = { flex: 1, height: 8, borderRadius: 999, background: 'var(--zinc-100)', overflow: 'hidden' };
-      const railLabel: React.CSSProperties = { width: 30, fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 };
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12 }}>
-              <span style={{ color: 'var(--text-tertiary)' }}>计划 <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{node.plannedStart} → {node.plannedEnd}</span></span>
-              <span style={{ color: 'var(--text-tertiary)' }}>实际 <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>{node.actualStart ?? '—'} → {node.actualEnd ?? '进行中'}</span></span>
-            </div>
-            {rdText && <span style={{ fontSize: 11, fontWeight: 600, color: rdColor, background: rdBg, borderRadius: 999, padding: '3px 10px' }}>{rdText}</span>}
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={trackRow}>
-              <span style={railLabel}>计划</span>
-              <div style={track}><div style={{ height: '100%', width: '100%', background: 'var(--zinc-200)', borderRadius: 999 }} /></div>
-              <span style={{ width: 38, flexShrink: 0 }} />
-            </div>
-            <div style={trackRow}>
-              <span style={railLabel}>实际</span>
-              <div style={track}><div style={{ height: '100%', width: `${pct}%`, background: fill, borderRadius: 999, transition: 'width .85s cubic-bezier(.22,.61,.36,1)' }} /></div>
-              <span style={{ width: 38, textAlign: 'right', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', flexShrink: 0 }}>{pct}%</span>
-            </div>
-          </div>
-        </div>
-      );
-    }
+    case 'TaskTimelineStrip':
+      return <SduiTaskTimelineStrip node={node} />;
 
     case 'MacroStepRail': {
       const steps = node.steps ?? [];
@@ -2044,7 +2147,32 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
 
     case 'ChoiceCard':
-      return <SduiChoiceCard title={node.title} options={node.options} hitlRequestId={node.hitlRequestId} stepId={node.stepId} />;
+      return (
+        <SduiChoiceCard
+          title={node.title}
+          options={node.options}
+          hitlRequestId={node.hitlRequestId}
+          stepId={node.stepId}
+          multiple={node.multiple}
+          maxSelections={node.maxSelections}
+          submitLabel={node.submitLabel}
+        />
+      );
+
+    case 'IoConfirmPanel':
+      return (
+        <SduiIoConfirmPanel
+          commandTitle={node.commandTitle}
+          reads={node.reads}
+          writes={node.writes}
+          confirmLabel={node.confirmLabel}
+          cancelLabel={node.cancelLabel}
+          confirmValue={node.confirmValue}
+          cancelValue={node.cancelValue}
+          stepId={node.stepId}
+          hitlRequestId={node.hitlRequestId}
+        />
+      );
 
     case 'HitlTextInput':
       return <HitlTextInput node={node} onSubmit={onChoiceSubmit} />;

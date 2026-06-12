@@ -23,7 +23,7 @@ from langchain_openai import ChatOpenAI
 # ── 加载 .env（同目录） ──
 _ENV_PATH = Path(__file__).parent / ".env"
 if _ENV_PATH.exists():
-    load_dotenv(_ENV_PATH, override=False)
+    load_dotenv(_ENV_PATH, override=True)
 
 # nanobot 配置优先（若存在 ~/.nanobot/config.json）
 try:

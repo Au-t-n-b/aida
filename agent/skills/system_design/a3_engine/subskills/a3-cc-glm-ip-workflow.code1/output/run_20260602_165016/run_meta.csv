@@ -1,0 +1,2 @@
+﻿layer,gateway_position,layer_detection_rule,source_script,network_plane,ip_pool,switch_count,node_count
+L3,SPINE,强制 layer=L3（资源表网关位置*='SPINE'）,a3_cc_glm_ip_address.py,存储管理面,188.108.248.0-192.108.248.137,1,16

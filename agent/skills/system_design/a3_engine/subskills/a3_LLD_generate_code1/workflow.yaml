@@ -1,0 +1,274 @@
+# LLD 完整生成工作流 — 对齐 main_flow.generate_all_lld_file instruction_set
+# 首版 step 01-22 均 enabled:false；子 skill 后续在对应 step 填写 child_skill 并设 enabled:true
+
+steps:
+  - id: "01"
+    instruction: 交换机MLAG规划
+    gate_sheet: __mlag__
+    step_type: secondary
+    layer_from_resource: false
+    expected_output_pattern: "*A3交换机MLAG规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "02"
+    instruction: 计算带外管理地址规划
+    gate_sheet: 计算带外管理面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 计算带外管理面
+    expected_output_pattern: "*A3计算带外管理地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "03"
+    instruction: 存储带外管理地址规划
+    gate_sheet: 存储带外管理面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 存储带外管理面
+    expected_output_pattern: "*A3存储带外管理地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "04"
+    instruction: 网络带外管理地址规划
+    gate_sheet: 网络带外管理面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 网络带外管理面
+    expected_output_pattern: "*A3网络带外管理地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "05"
+    instruction: 灵衢带外管理地址规划
+    gate_sheet: 灵衢带外管理面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 灵衢带外管理面
+    expected_output_pattern: "*A3灵衢带外管理地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "06"
+    instruction: 计算管理面地址规划
+    gate_sheet: 计算管理面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 计算管理面
+    expected_output_pattern: "*A3计算管理面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "07"
+    instruction: 存储管理面地址规划
+    gate_sheet: 存储管理面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 存储管理面
+    expected_output_pattern: "*A3存储管理面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "08"
+    instruction: 计算管存面地址规划
+    gate_sheet: 计算管存面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 计算管存面
+    expected_output_pattern: "*A3计算管存面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "09"
+    instruction: 计算参数面地址规划
+    gate_sheet: 参数面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 计算参数面
+    expected_output_pattern: "*A3计算参数面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "10"
+    instruction: 计算超平面地址规划
+    gate_sheet: 超平面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 超平面
+    expected_output_pattern: "*A3计算超平面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "11"
+    instruction: 计算业务面地址规划
+    gate_sheet: 计算业务面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 计算业务面
+    expected_output_pattern: "*A3计算业务面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "12"
+    instruction: 存储业务面地址规划
+    gate_sheet: 存储业务面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 存储业务面
+    expected_output_pattern: "*A3存储业务面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "13"
+    instruction: 计算样本面地址规划
+    gate_sheet: 存储面端口互联 | 样本面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 计算样本面
+    expected_output_pattern: "*A3计算样本面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "14"
+    instruction: 存储样本面地址规划
+    gate_sheet: 样本面端口互联 | 数据面端口互联
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 存储样本面
+    expected_output_pattern: "*A3存储样本面地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "15"
+    instruction: 网络业务地址规划
+    gate_sheet: 网络业务地址规划
+    step_type: address
+    layer_from_resource: true
+    web_network_key: 其它
+    expected_output_pattern: "*A3网络业务地址规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "16"
+    instruction: 网络设备ASN规划
+    gate_sheet: 互联
+    step_type: secondary
+    layer_from_resource: false
+    expected_output_pattern: "*A3网络设备ASN规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "17"
+    instruction: 计算样本面互联规划
+    gate_sheet: 存储面端口互联 | 样本面端口互联
+    step_type: interconnect
+    layer_from_resource: true
+    web_network_key: 计算样本面
+    expected_output_pattern: "*A3计算样本面互联规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "18"
+    instruction: 计算参数面互联规划
+    gate_sheet: 参数面端口互联
+    step_type: interconnect
+    layer_from_resource: true
+    web_network_key: 计算参数面
+    expected_output_pattern: "*A3计算参数面互联规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "19"
+    instruction: 存储样本面互联规划
+    gate_sheet: 样本面端口互联 | 数据面端口互联
+    step_type: interconnect
+    layer_from_resource: true
+    web_network_key: 存储样本面
+    expected_output_pattern: "*A3存储样本面互联规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "20"
+    instruction: CCAE规划
+    gate_sheet: 互联
+    step_type: secondary
+    layer_from_resource: false
+    expected_output_pattern: "*A3CCAE部署规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "21"
+    instruction: DME规划
+    gate_sheet: 互联
+    step_type: secondary
+    layer_from_resource: false
+    expected_output_pattern: "*A3DME部署规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "22"
+    instruction: NCE规划
+    gate_sheet: 互联
+    step_type: secondary
+    layer_from_resource: false
+    expected_output_pattern: "*A3NCE部署规划.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: false
+
+  - id: "23"
+    instruction: 融合完整LLD设计
+    gate_sheet: null
+    step_type: integrate
+    layer_from_resource: false
+    handler: builtin:integrate
+    expected_output_pattern: "{project_name}-LLD设计-*.xlsx"
+    child_skill: null
+    cli_template: null
+    outputs: []
+    enabled: true

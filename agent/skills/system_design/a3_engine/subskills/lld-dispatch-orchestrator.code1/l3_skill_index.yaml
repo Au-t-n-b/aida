@@ -1,0 +1,337 @@
+# 三级基命令 -> agent-skill_full1（与 intent-taxonomy.md 对齐）
+
+version: "0.2"
+
+skills:
+  # --- 带外管理地址规划 ---
+  计算带外管理地址规划:
+    package: ../a3-dw-manage-ip-workflow.code1
+    entrypoint: scripts/offline_dw_manage_pipeline.py
+    args_style: dw_007
+    default_sheet: 计算带外管理面端口互联
+
+  存储带外管理地址规划:
+    package: ../a3-storage-dw-manage-ip-workflow.code1
+    entrypoint: scripts/offline_storage_dw_manage_pipeline.py
+    args_style: dw_007
+    default_sheet: 存储带外管理面端口互联
+
+  网络带外管理地址规划:
+    package: ../a3-net-dw-manage-ip-workflow.code1
+    entrypoint: scripts/offline_net_dw_manage_pipeline.py
+    args_style: dw_007
+    default_sheet: 网络带外管理面端口互联
+
+  灵衢带外管理地址规划:
+    package: ../a3-lq-dw-manage-ip-workflow.code1
+    entrypoint: scripts/offline_lq_dw_manage_pipeline.py
+    args_style: dw_007
+    default_sheet: 灵衢带外管理面端口互联
+
+  # --- 管理/管存/业务/样本/参数/超平面 地址 ---
+  计算管理面地址规划:
+    package: ../a3-l2-l3-ip-workflow.code1
+    entrypoint: scripts/offline_l2_l3_ip_pipeline.py
+    args_style: l2l3_sheet
+    default_sheet: 计算管理面端口互联
+
+  存储管理面地址规划:
+    package: ../a3-cc-glm-ip-workflow.code1
+    entrypoint: scripts/offline_cc_glm_pipeline.py
+    args_style: connect_resource
+    default_sheet: 存储管理面端口互联
+
+  计算管存面地址规划:
+    package: ../a3-gcm-ip-workflow.code1
+    entrypoint: scripts/offline_gcm_pipeline.py
+    args_style: gcm
+    default_network_plane: 计算管存面
+    default_sheet: 计算管存面端口互联
+
+  计算业务面地址规划:
+    package: ../a3-ywm-ip-workflow.code1
+    entrypoint: scripts/offline_ywm_pipeline.py
+    args_style: connect_resource
+    default_sheet: 计算业务面端口互联
+
+  存储业务面地址规划:
+    package: ../a3-cc-ywm-ip-workflow.code1
+    entrypoint: scripts/offline_cc_ywm_pipeline.py
+    args_style: connect_resource
+    default_sheet: 存储业务面端口互联
+
+  计算参数面地址规划:
+    package: ../a3-csm-ip-workflow.code1
+    entrypoint: scripts/offline_csm_pipeline.py
+    args_style: connect_resource
+    default_sheet: 参数面端口互联
+
+  计算超平面地址规划:
+    package: ../a3-cpm-lq-ip-workflow.code1
+    entrypoint: scripts/offline_cpm_lq_ip_pipeline.py
+    args_style: connect_resource
+    default_sheet: 超平面端口互联
+
+  计算样本面地址规划:
+    package: ../a3-ybm-ip-workflow.code1
+    entrypoint: scripts/ybm_offline_pipeline.py
+    args_style: connect_resource
+    default_sheet: 存储面端口互联 | 样本面端口互联
+
+  存储样本面地址规划:
+    package: ../a3-cc-ybm-ip-workflow.code1
+    entrypoint: scripts/offline_cc_ybm_pipeline.py
+    args_style: connect_resource
+    default_sheet: 样本面端口互联 | 数据面端口互联
+
+  网络业务地址规划:
+    package: ../a3-gcm-ip-workflow.code1
+    entrypoint: scripts/offline_gcm_pipeline.py
+    args_style: gcm
+    default_network_plane: 其它
+    default_sheet: 其它
+
+  # --- 互联规划（oob 覆盖 LEAF-SPINE / 带外等）---
+  计算带外管理互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  存储带外管理互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  网络带外管理互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  灵衢带外管理互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  计算业务面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  计算管理面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  计算管存面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  计算样本面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  计算参数面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  存储管理面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  存储业务面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  存储样本面互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+
+  SPINE上行互联规划:
+    package: ../oob-interconnect-workflow.code1
+    entrypoint: scripts/run_oob_interconnect.py
+    args_style: oob_plan
+    default_layer: l2
+
+  # --- 接入规划：从已有 A3网络设备接入规划.xlsx 按平面导出（需先完成地址规划）---
+  计算带外管理接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  存储带外管理接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  网络带外管理接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  灵衢带外管理接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  带外管理面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  计算管理面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  计算业务面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  计算样本面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  计算参数面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  计算管存面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  存储管理面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  存储业务面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  存储样本面接入规划:
+    package: ../net-dw-access-ip-workflow.code1
+    entrypoint: scripts/run_network_access_plan.py
+    args_style: access_query
+    requires_access_plan: true
+
+  # --- 路由 / LLD / ZTP / 检查 ---
+  网络设备ASN规划:
+    package: ../a3-switch-asn-workflow.code1
+    entrypoint: scripts/offline_switch_asn_pipeline.py
+    args_style: connect_resource
+
+  生成完整LLD设计:
+    package: ../a3_LLD_generate_code1
+    entrypoint: scripts/offline_lld_generate_pipeline.py
+    args_style: lld_generate
+    lld_mode: plan
+
+  融合完整LLD设计:
+    package: ../a3_LLD_generate_code1
+    entrypoint: scripts/offline_lld_generate_pipeline.py
+    args_style: lld_generate
+    lld_mode: integrate
+
+  生成ZTP设计文件:
+    package: ../a3-generate-ztp-lld-workflow.code1
+    entrypoint: scripts/offline_generate_ztp_lld_pipeline.py
+    args_style: ztp_scan
+
+  生成ZTP配置文件:
+    package: ../a3-generate-ztp-cfg-workflow.code1
+    entrypoint: scripts/offline_generate_ztp_cfg_pipeline.py
+    args_style: ztp_scan
+
+  生成灵衢开局文件:
+    package: ../a3-generate-lq-open-workflow.code1
+    entrypoint: scripts/offline_generate_lq_open_pipeline.py
+    args_style: lq_open_scan
+
+  检查输入件是否妥当:
+    package: ../a3-input-components-workflow.code1
+    entrypoint: scripts/offline_input_components_pipeline.py
+    args_style: input_check
+
+  # --- 网管 direct（二级即三级）---
+  CCAE规划:
+    package: ../ccae-planner.code1
+    entrypoint: scripts/run_ccae_planner.py
+    args_style: planner
+
+  DME规划:
+    package: ../dme-planning.code1
+    entrypoint: scripts/generate_dme_plan.py
+    args_style: planner
+
+  NCE规划:
+    package: ../nce-planner.code1
+    entrypoint: scripts/run_nce_planner.py
+    args_style: planner
+
+  交换机MLAG规划:
+    package: ../switch-mlag-planning-workflow.code1
+    entrypoint: scripts/run_switch_mlag.py
+    args_style: mlag
+
+  # --- 设备命名（五条 L2，一指令一子命令）---
+  生成设备清单:
+    package: ../a3-device-naming-workflow.code1
+    entrypoint: scripts/offline_device_naming_pipeline.py
+    args_style: device_naming
+    naming_subcommand: generate-list
+
+  替换设备名称:
+    package: ../a3-device-naming-workflow.code1
+    entrypoint: scripts/offline_device_naming_pipeline.py
+    args_style: device_naming
+    naming_subcommand: replace-lld
+
+  ZTP名称替换:
+    package: ../a3-device-naming-workflow.code1
+    entrypoint: scripts/offline_device_naming_pipeline.py
+    args_style: device_naming
+    naming_subcommand: replace-ztp
+
+  ZTP名称替换_L1:
+    package: ../a3-device-naming-workflow.code1
+    entrypoint: scripts/offline_device_naming_pipeline.py
+    args_style: device_naming
+    naming_subcommand: replace-ztp-l1
+
+  ZTP名称替换_L2:
+    package: ../a3-device-naming-workflow.code1
+    entrypoint: scripts/offline_device_naming_pipeline.py
+    args_style: device_naming
+    naming_subcommand: replace-ztp-l2
+
+  # --- 无离线执行器 ---
+  网络地址规划知识:
+    unsupported: true
+    note: "知识问答，非规划 workflow"
+
+  防火墙互联规划:
+    unsupported: true
+    note: "线上为占位实现，暂无稳定 offline skill"

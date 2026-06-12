@@ -16,6 +16,14 @@ AIDA Agent · FastAPI 入口
     uvicorn main:app --host 127.0.0.1 --port 7401 --reload
 """
 from __future__ import annotations
+
+# 最先加载 agent/.env，避免 skill 注册 / inputs.FIXED_INPUT_DIR 在 import 时读到旧默认路径
+from pathlib import Path as _Path
+from dotenv import load_dotenv as _load_dotenv
+_ENV_FILE = _Path(__file__).resolve().parent / ".env"
+if _ENV_FILE.exists():
+    _load_dotenv(_ENV_FILE, override=True)
+
 import asyncio
 import json
 import os
@@ -79,6 +87,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
         "*",  # 演示期放开，生产期改具体源
     ],
     allow_methods=["*"],
@@ -164,6 +174,13 @@ def _kick_step_retry(run_id: str, step_key: str) -> None:
     RUNS[run_id]["queue"] = asyncio.Queue()
     RUNS[run_id]["attempt"] = RUNS[run_id].get("attempt", 0) + 1
     RUNS[run_id]["task"] = asyncio.create_task(_run_single_step_streaming(run_id, step_key))
+
+
+@app.on_event("startup")
+def _on_startup() -> None:
+    """启动时刷新 skill 实例缓存，确保 .env 中的 SYSTEM_DESIGN_ROOT 等路径生效。"""
+    from .skills import registry
+    registry._cache.clear()
 
 
 # ─── 健康检查 ───
@@ -665,6 +682,7 @@ async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool
         except Exception:
             pass
         hitl = (diff.get("hitl") or {}) if isinstance(diff.get("hitl"), dict) else {}
+        # zhgk：wait_survey 完成后链式推进下一步
         chain_to = (
             should_chain_after_wait_survey(
                 prev_step=step_key,
@@ -676,6 +694,15 @@ async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool
         )
         if chain_to:
             await _run_single_step_streaming(run_id, chain_to, _chain=False)
+            return
+        # system_design：publish_confirm 确认发布后链式执行 publish（step_retry 不重跑前置 LLD/ZTP）
+        if (
+            step_key == "publish_confirm"
+            and not hitl.get("step")
+            and not diff.get("error")
+            and (RUNS[run_id]["state"].get("project") or {}).get("confirmations", {}).get("publish")
+        ):
+            await _run_single_step_streaming(run_id, "publish")
             return
         if not hitl.get("step") and not diff.get("error"):
             asyncio.create_task(_trigger_eval_background(run_id=run_id, skill_id=skill_id))
@@ -710,6 +737,18 @@ async def resume_run(skill: str, req: ResumeReq):
     # 该 step 声明支持 step_retry：仅重试本步，避免重跑前序 LLM（如 zhgk report_distribute）
     if hitl_step and hitl_step in skill_obj.step_retry_keys:
         RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
+        # 确认门 / 测试用例检查等：先把用户选择写回 project（step_retry 路径原先未调用）
+        cur_state = RUNS[req.run_id]["state"]
+        project = skill_obj.apply_resume_payload(
+            cur_state.get("project", {}) or {}, req.payload or {}, hitl_step
+        )
+        cur_state["project"] = project
+        tc_rel = str(project.get("test_case_output") or "").strip()
+        if tc_rel:
+            files = dict(cur_state.get("files") or {})
+            files["test_case_file"] = tc_rel
+            files[f"out::{tc_rel}"] = tc_rel
+            cur_state["files"] = files
         task = asyncio.create_task(_run_single_step_streaming(req.run_id, hitl_step))
         RUNS[req.run_id]["task"] = task
         return {
@@ -899,21 +938,53 @@ async def upload_batch(
     skill: str,
     files: list[UploadFile] = File(..., description="多文件，按文件名自动路由目录"),
     need: list[str] = Form(default=[], description="当前 HITL need_files，用于返回对齐的齐备检查"),
+    kinds: list[str] = Form(default=[], description="每文件对应 kind/tag（与 files 顺序对齐；缺省则按文件名推断）"),
+    slot_labels: list[str] = Form(default=[], description="每文件对应槽位展示名（与 files 顺序对齐；kind 缺失时用于推断 tag）"),
+    run_id: str | None = Form(default=None, description="活动 run_id；传入则上传后立即 sync 输入件并推 SDUI"),
 ):
     """批量上传；不自动续跑。传 need 时 check 按 HITL 缺失项，否则查该 skill 默认前置集。"""
     skill_obj, fh = _get_file_handler_or_501(skill)
     if not files:
         raise HTTPException(400, "未选择文件")
+    if skill == "system_design":
+        try:
+            from agent.skills.system_design.pipelines.path_manifest import reload_manifest
+            reload_manifest()
+        except Exception:
+            pass
     root = skill_obj.work_root
     results: list[dict] = []
-    for f in files:
-        kind = fh.infer_upload_kind(f.filename or "")
+    for i, f in enumerate(files):
+        hinted = (kinds[i] if i < len(kinds) else "").strip()
+        label_hint = (slot_labels[i] if i < len(slot_labels) else "").strip()
+        kind = hinted or fh.infer_upload_kind(f.filename or "")
         try:
-            results.append(await fh.save_upload(root, kind, f))
+            try:
+                results.append(await fh.save_upload(root, kind, f, label_hint=label_hint))
+            except TypeError:
+                results.append(await fh.save_upload(root, kind, f))
         except Exception as e:  # noqa: BLE001
             results.append({"ok": False, "filename": f.filename, "error": str(e)})
     check = fh.check_need_files(root, need) if need else fh.check_project_files(root)
-    return {"uploaded": results, "check": check}
+    payload: dict = {"uploaded": results, "check": check, "system_design_root": str(root)}
+    if hasattr(fh, "resolve_artifact_path"):
+        from agent.skills.system_design.pipelines.path_manifest import abs_upload_dir, resolve_data_root
+        payload["upload_dir"] = str(abs_upload_dir())
+        payload["data_root"] = str(resolve_data_root())
+
+    rid = (run_id or "").strip()
+    sync_fn = getattr(fh, "sync_inputs_into_state", None)
+    if rid and rid in RUNS and callable(sync_fn):
+        try:
+            payload["sync"] = sync_fn(root, RUNS[rid]["state"])
+            proj_fn = _get_sdui_projector(skill)
+            queue = RUNS[rid].get("queue")
+            if queue is not None and proj_fn is not None:
+                await queue.put({"event": "sdui", "data": proj_fn(RUNS[rid]["state"])})
+        except Exception:
+            pass
+
+    return payload
 
 
 # ─── 状态快照 ───
@@ -929,16 +1000,28 @@ def status(skill: str, run_id: str):
 
 @app.get("/agent/{skill}/artifact")
 def artifact(skill: str, path: str = Query(..., description="相对 skill 工作区根目录的产物路径")):
-    """安全下载产物 · 只允许 ProjectData/ 子树下"""
+    """安全下载产物 · 默认仅 ProjectData/；system_design 等可走 file_handler.resolve_artifact_path。"""
     skill_obj = _get_skill_or_404(skill)
     root = skill_obj.work_root
-    full = (root / path).resolve()
-    try:
-        full.relative_to((root / "ProjectData").resolve())
-    except ValueError:
-        raise HTTPException(403, "path outside ProjectData")
-    if not full.exists() or not full.is_file():
-        raise HTTPException(404, "not found")
+    fh = skill_obj.file_handler
+    resolve_fn = getattr(fh, "resolve_artifact_path", None) if fh else None
+    if resolve_fn:
+        try:
+            full = resolve_fn(root, path)
+        except FileNotFoundError:
+            raise HTTPException(404, "not found")
+        except PermissionError as e:
+            raise HTTPException(403, str(e))
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+    else:
+        full = (root / path).resolve()
+        try:
+            full.relative_to((root / "ProjectData").resolve())
+        except ValueError:
+            raise HTTPException(403, "path outside ProjectData")
+        if not full.exists() or not full.is_file():
+            raise HTTPException(404, "not found")
     return FileResponse(str(full), filename=full.name)
 
 

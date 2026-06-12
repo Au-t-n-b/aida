@@ -1,0 +1,442 @@
+{
+  "run_id": "20260602_170353",
+  "run_dir": "D:\\OCCproject\\终版skill对齐\\a3-intelligent-network-opening\\subskills\\a3_LLD_generate_code1\\output\\run_20260602_170353",
+  "topology": "D:\\OCCproject\\终版skill对齐\\a3-intelligent-network-opening\\subskills\\建模仿真输出文档007-端口连线表for all4.xlsx",
+  "resource": "D:\\OCCproject\\终版skill对齐\\a3-intelligent-network-opening\\subskills\\项目信息收集表模板-20260130 (1).xlsx",
+  "user_id": "offline_user",
+  "project_id": "offline_project",
+  "project_name": "LLD项目",
+  "out_dir": "D:\\OCCproject\\终版skill对齐\\a3-intelligent-network-opening\\subskills\\a3_LLD_generate_code1\\output",
+  "final_lld_pattern": "LLD项目-LLD设计-*.xlsx",
+  "sheet_names": [
+    "文档说明",
+    "灵衢带外管理面端口互联",
+    "网络带外管理面端口互联",
+    "计算带外管理面端口互联",
+    "存储带外管理面端口互联",
+    "参数面端口互联",
+    "计算管存面端口互联",
+    "计算管理面端口互联",
+    "存储管理面端口互联",
+    "计算业务面端口互联",
+    "存储业务面端口互联",
+    "样本面端口互联",
+    "超平面端口互联"
+  ],
+  "steps": [
+    {
+      "id": "01",
+      "instruction": "交换机MLAG规划",
+      "resolved_instruction": "交换机MLAG规划",
+      "layer": null,
+      "step_type": "secondary",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3交换机MLAG规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 01 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "02",
+      "instruction": "计算带外管理地址规划",
+      "resolved_instruction": "计算带外管理地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算带外管理地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 02 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "03",
+      "instruction": "存储带外管理地址规划",
+      "resolved_instruction": "存储带外管理地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3存储带外管理地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 03 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "04",
+      "instruction": "网络带外管理地址规划",
+      "resolved_instruction": "网络带外管理地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3网络带外管理地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 04 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "05",
+      "instruction": "灵衢带外管理地址规划",
+      "resolved_instruction": "灵衢带外管理地址规划_L3",
+      "layer": "L3",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3灵衢带外管理地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 05 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "06",
+      "instruction": "计算管理面地址规划",
+      "resolved_instruction": "计算管理面地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算管理面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 06 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "07",
+      "instruction": "存储管理面地址规划",
+      "resolved_instruction": "存储管理面地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3存储管理面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 07 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "08",
+      "instruction": "计算管存面地址规划",
+      "resolved_instruction": "计算管存面地址规划_L3",
+      "layer": "L3",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算管存面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 08 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "09",
+      "instruction": "计算参数面地址规划",
+      "resolved_instruction": "计算参数面地址规划_L3",
+      "layer": "L3",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算参数面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 09 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "10",
+      "instruction": "计算超平面地址规划",
+      "resolved_instruction": "计算超平面地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算超平面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 10 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "11",
+      "instruction": "计算业务面地址规划",
+      "resolved_instruction": "计算业务面地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算业务面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 11 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "12",
+      "instruction": "存储业务面地址规划",
+      "resolved_instruction": "存储业务面地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3存储业务面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 12 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "13",
+      "instruction": "计算样本面地址规划",
+      "resolved_instruction": "计算样本面地址规划_L3",
+      "layer": "L3",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算样本面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 13 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "14",
+      "instruction": "存储样本面地址规划",
+      "resolved_instruction": "存储样本面地址规划_L3",
+      "layer": "L3",
+      "step_type": "address",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3存储样本面地址规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 14 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "15",
+      "instruction": "网络业务地址规划",
+      "resolved_instruction": "网络业务地址规划_L2",
+      "layer": "L2",
+      "step_type": "address",
+      "eligible": false,
+      "enabled": false,
+      "status": "skipped_not_eligible",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3网络业务地址规划.xlsx"
+      ],
+      "agent_hint": "007 sheet 门控未通过，跳过本步",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "16",
+      "instruction": "网络设备ASN规划",
+      "resolved_instruction": "网络设备ASN规划",
+      "layer": null,
+      "step_type": "secondary",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3网络设备ASN规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 16 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "17",
+      "instruction": "计算样本面互联规划",
+      "resolved_instruction": "计算样本面互联规划_L3",
+      "layer": "L3",
+      "step_type": "interconnect",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算样本面互联规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 17 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "18",
+      "instruction": "计算参数面互联规划",
+      "resolved_instruction": "计算参数面互联规划_L3",
+      "layer": "L3",
+      "step_type": "interconnect",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3计算参数面互联规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 18 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "19",
+      "instruction": "存储样本面互联规划",
+      "resolved_instruction": "存储样本面互联规划_L3",
+      "layer": "L3",
+      "step_type": "interconnect",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3存储样本面互联规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 19 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "20",
+      "instruction": "CCAE规划",
+      "resolved_instruction": "CCAE规划",
+      "layer": null,
+      "step_type": "secondary",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3CCAE部署规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 20 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "21",
+      "instruction": "DME规划",
+      "resolved_instruction": "DME规划",
+      "layer": null,
+      "step_type": "secondary",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3DME部署规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 21 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "22",
+      "instruction": "NCE规划",
+      "resolved_instruction": "NCE规划",
+      "layer": null,
+      "step_type": "secondary",
+      "eligible": true,
+      "enabled": false,
+      "status": "pending_no_handler",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "*A3NCE部署规划.xlsx"
+      ],
+      "agent_hint": "子 skill 未接入：在 workflow.yaml step 22 填写 child_skill 并设 enabled:true",
+      "handler": null,
+      "outputs": []
+    },
+    {
+      "id": "23",
+      "instruction": "融合完整LLD设计",
+      "resolved_instruction": "融合完整LLD设计",
+      "layer": null,
+      "step_type": "integrate",
+      "eligible": true,
+      "enabled": true,
+      "status": "pending_integrate",
+      "child_skill": null,
+      "cli_command": null,
+      "expected_outputs": [
+        "LLD项目-LLD设计-*.xlsx"
+      ],
+      "agent_hint": "全部规划步骤完成后执行: --mode integrate",
+      "handler": "builtin:integrate",
+      "outputs": []
+    }
+  ]
+}

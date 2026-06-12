@@ -1,0 +1,35 @@
+﻿powershell : 所在位置 D:\OCCproject\终版skill对齐\a3-intelligent-network-opening\subskills\_runtime_shared\run_remaining_skill_
+tests
+所在位置 C:\Users\l00940172\AppData\Local\Temp\ps-script-9f15baf0-0c46-4599-871f-673f4eb2b191.ps1:83 字符: 1
++ powershell -NoProfile -ExecutionPolicy Bypass -File "d:\OCCproject\终版 ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (所在位置 D:\OCCproj...ing_skill_tests:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+.ps1:11 字符: 29
++   @{ cat = "杈撳叆妫€鏌?; cmd = "python a3-input-components-workflow.code1 ...
++                             ~~~~~~
+表达式或语句中包含意外的标记“python”。
+所在位置 D:\OCCproject\终版skill对齐\a3-intelligent-network-opening\subskills\_runtime_shared\run_remaining_skill_tests
+.ps1:11 字符: 29
++   @{ cat = "杈撳叆妫€鏌?; cmd = "python a3-input-components-workflow.code1 ...
++                             ~
+哈希文本不完整。
+所在位置 D:\OCCproject\终版skill对齐\a3-intelligent-network-opening\subskills\_runtime_shared\run_remaining_skill_tests
+.ps1:13 字符: 257
++ ... --out-dir a3-compute-net-interconnect-l2-l3-workflow.code1\output" },
++                                                                        ~
+子表达式中缺少右“)”。
+所在位置 D:\OCCproject\终版skill对齐\a3-intelligent-network-opening\subskills\_runtime_shared\run_remaining_skill_tests
+.ps1:13 字符: 257
++ ... --out-dir a3-compute-net-interconnect-l2-l3-workflow.code1\output" },
++                                                                        ~
+表达式或语句中包含意外的标记“}”。
+所在位置 D:\OCCproject\终版skill对齐\a3-intelligent-network-opening\subskills\_runtime_shared\run_remaining_skill_tests
+.ps1:26 字符: 1
++ )
++ ~
+表达式或语句中包含意外的标记“)”。
+    + CategoryInfo          : ParserError: (:) [], ParentContainsErrorRecordException
+    + FullyQualifiedErrorId : UnexpectedToken
+ 

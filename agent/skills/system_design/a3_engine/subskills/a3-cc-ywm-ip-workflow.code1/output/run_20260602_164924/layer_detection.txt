@@ -1,0 +1,4 @@
+layer=L2
+gateway_position=SPINE
+device_scenario=osp_only
+网关位置*='SPINE' → LEAF接入二层 → 存储业务面地址规划_L2 → a3_l2_cc_ywm_ip_address.py

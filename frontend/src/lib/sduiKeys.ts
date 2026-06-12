@@ -23,7 +23,8 @@ function safeStringify(value: unknown): string {
 export function stableChildKey(node: SduiNode, index: number, parentKey: string): string {
   const rawId = (node as { id?: unknown }).id;
   if (typeof rawId === 'string' && rawId.trim()) {
-    return `id:${rawId.trim()}`;
+    // 同级可重复 id（如多轮 cv-user）→ 追加 index 保证 React key 唯一
+    return `id:${rawId.trim()}:i:${index}`;
   }
   const sig = safeStringify(node);
   const h = hashDjb2Hex(sig);

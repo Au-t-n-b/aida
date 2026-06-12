@@ -1,0 +1,25 @@
+# Contract: generate-list
+command: generate-list
+online_intent: 生成设备清单
+input:
+  file: 设备位置信息表.xlsx
+  sheet: 设备位置信息
+  required_columns:
+    - 设备名称
+    - 所属机房
+    - 所属机柜
+    - 安装起始U位
+rules:
+  - exclude_rows_where: 设备名称 == 空挡板
+  - add_column: 编号  # 1..N
+  - add_column: 客户定义设备名称  # empty string
+output:
+  path_pattern: output/run_*/设备清单表.xlsx
+  sheet: 设备信息
+  columns:
+    - 编号
+    - 设备名称
+    - 所属机房
+    - 所属机柜
+    - 安装起始U位
+    - 客户定义设备名称

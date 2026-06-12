@@ -36,6 +36,11 @@ desktop.ini
 *.swo
 .idea/
 
+# ── 本地 skill 工作区（上传输入件 / 规划产物，不入库）──
+workspace/a3-project/ProjectData/Input/*
+workspace/a3-project/ProjectData/Output/*
+!workspace/a3-project/ProjectData/**/.gitkeep
+
 # ── 日志 / 临时 ──
 *.log
 dev.log

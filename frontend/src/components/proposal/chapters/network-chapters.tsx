@@ -560,7 +560,7 @@ export function ClusterDeviceChapter() {
         const idx = rs.findIndex((r) => r.source_net_plane_id === sourceNetPlaneId);
         if (idx >= 0) {
           let insertPos = idx + 1;
-          while (insertPos < rs.length && rs[insertPos].source_net_plane_id === sourceNetPlaneId) {
+          while (insertPos < rs.length && rs[insertPos]?.source_net_plane_id === sourceNetPlaneId) {
             insertPos++;
           }
           return [...rs.slice(0, insertPos), newRow, ...rs.slice(insertPos)];

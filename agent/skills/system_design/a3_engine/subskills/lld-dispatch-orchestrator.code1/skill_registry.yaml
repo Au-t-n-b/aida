@@ -1,0 +1,154 @@
+# L2 编排策略（执行细节；下级 skill 索引见 l3_skill_index.yaml）
+
+version: "1.0"
+
+l2_without_offline:
+  - 输出件查询
+  - 输入件查询
+  - LLD设计知识
+  - 系统能能力与使用指南
+  - 集群LLD通用配置
+  - 集群LLD基本信息
+  - 查询输入件
+  - 查询设计进度
+
+l2_policies:
+  - secondary_intent: 带外管理地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 管理面地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 管存面地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 业务面地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 样本面地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 参数面地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 超平面地址规划
+    strategy: children
+    execution: serial
+    pass_prior: []
+
+  - secondary_intent: 网络互联规划
+    strategy: children
+    execution: serial
+    pass_prior: [connect, access]
+
+  - secondary_intent: 网络接入规划
+    strategy: children
+    execution: serial
+    pass_prior: [access]
+
+  - secondary_intent: 交换机MLAG规划
+    strategy: direct
+    child_skill:
+      package: ../switch-mlag-planning-workflow.code1
+      entrypoint: scripts/run_switch_mlag.py
+
+  - secondary_intent: CCAE规划
+    strategy: direct
+    child_skill:
+      package: ../ccae-planner.code1
+      entrypoint: scripts/run_ccae_planner.py
+
+  - secondary_intent: DME规划
+    strategy: direct
+    child_skill:
+      package: ../dme-planning.code1
+      entrypoint: scripts/generate_dme_plan.py
+
+  - secondary_intent: NCE规划
+    strategy: direct
+    child_skill:
+      package: ../nce-planner.code1
+      entrypoint: scripts/run_nce_planner.py
+
+  - secondary_intent: 网络业务地址规划
+    strategy: direct
+    child_skill:
+      package: ../a3-gcm-ip-workflow.code1
+      entrypoint: scripts/offline_gcm_pipeline.py
+
+  - secondary_intent: 路由协议规划
+    strategy: direct
+    third_intent: 网络设备ASN规划
+    child_skill:
+      package: ../a3-switch-asn-workflow.code1
+      entrypoint: scripts/offline_switch_asn_pipeline.py
+
+  - secondary_intent: 输入件准备度检查
+    strategy: direct
+    third_intent: 检查输入件是否妥当
+    child_skill:
+      package: ../a3-input-components-workflow.code1
+      entrypoint: scripts/offline_input_components_pipeline.py
+
+  - secondary_intent: 生成LLD设计
+    # nested_workflow 走 conductor，tree 下级「生成完整LLD设计」仅作 taxonomy 对齐
+    strategy: nested_workflow
+    conductor:
+      package: ../a3_LLD_generate_code1
+      entrypoint: scripts/offline_lld_generate_pipeline.py
+      default_mode: plan
+
+  - secondary_intent: 融合LLD设计
+    # nested_workflow 走 conductor，tree 下级「融合完整LLD设计」仅作 taxonomy 对齐
+    strategy: nested_workflow
+    conductor:
+      package: ../a3_LLD_generate_code1
+      entrypoint: scripts/offline_lld_generate_pipeline.py
+      default_mode: integrate
+
+  - secondary_intent: 防火墙互联规划
+    strategy: unsupported
+    note: "待产品确认离线 skill"
+
+  - secondary_intent: ZTP开局
+    strategy: children
+    execution: serial
+    note: "扫描 out-dir 内已有 A3*.xlsx；建议先完成地址/互联规划"
+
+  - secondary_intent: 命名替换
+    strategy: children
+    execution: serial
+    pass_prior: []
+    note: "L1 展开五条 L2；各 L2 为 direct 单任务"
+
+  - secondary_intent: 生成设备清单
+    strategy: direct
+    third_intent: 生成设备清单
+
+  - secondary_intent: 替换设备名称
+    strategy: direct
+    third_intent: 替换设备名称
+
+  - secondary_intent: ZTP名称替换
+    strategy: direct
+    third_intent: ZTP名称替换
+
+  - secondary_intent: ZTP名称替换_L1
+    strategy: direct
+    third_intent: ZTP名称替换_L1
+
+  - secondary_intent: ZTP名称替换_L2
+    strategy: direct
+    third_intent: ZTP名称替换_L2

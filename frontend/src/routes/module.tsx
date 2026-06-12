@@ -6,14 +6,20 @@ import ClawRail from '@/components/claw-rail';
 import { TweaksProvider, useTweaks } from '@/lib/tweaks-context';
 import { TweaksPanel } from '@/components/tweaks-panel';
 import { ALL_MODULES, MODULE_SCHEMAS } from '@/data/modules-data';
+import { designSkillId, isSystemDesignFull } from '@/config/design-skill';
 
 /* 前端模块 key → 后端 skill_id：已注册后端 skill 的模块走 SDUI 通用作业界面 */
 const MODULE_TO_SKILL: Record<string, string> = {
   survey: 'zhgk',
   modeling: 'guihua',
-  design: 'xtsj',    // 系统设计（a3 智能网络开局）· dispatch 模式 PoC
+  design: designSkillId,
   install: 'device_install',
 };
+
+/* 模块衔接：建模仿真 → 系统设计（xtsj PoC 模式下禁用 autostart） */
+const MODULE_NEXT: Record<string, { label: string; to: string }> = isSystemDesignFull
+  ? { modeling: { label: '进入系统设计', to: '/module/design?autostart=1' } }
+  : {};
 
 function ModuleInner({ moduleKey }: { moduleKey: string }) {
   const { tweaks, setTweak } = useTweaks();
@@ -21,6 +27,7 @@ function ModuleInner({ moduleKey }: { moduleKey: string }) {
   const moduleEntry = ALL_MODULES.find(m => m.key === moduleKey);
   const name = schema?.name ?? moduleEntry?.name ?? moduleKey;
   const skillId = MODULE_TO_SKILL[moduleKey];
+  const nextModule = MODULE_NEXT[moduleKey];
 
   /* 有后端 skill 的模块走 LangGraph Agent 工作台（SDUI 通用界面）；其它沿用 mock ModuleRoute */
   if (skillId) {
@@ -41,6 +48,7 @@ function ModuleInner({ moduleKey }: { moduleKey: string }) {
           skillId={skillId}
           title={name}
           description={schema?.subtitle ?? moduleEntry?.desc}
+          nextModule={nextModule}
         />
       </AppShell>
     );

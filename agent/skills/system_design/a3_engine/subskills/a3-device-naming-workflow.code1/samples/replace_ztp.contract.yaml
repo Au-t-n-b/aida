@@ -1,0 +1,34 @@
+# Contract: replace-ztp / replace-ztp-l1 / replace-ztp-l2
+commands:
+  - cli: replace-ztp
+    online_intent: ZTP名称替换
+    plane: null
+  - cli: replace-ztp-l1
+    online_intent: ZTP名称替换_L1
+    plane: 1
+  - cli: replace-ztp-l2
+    online_intent: ZTP名称替换_L2
+    plane: 2
+input:
+  ztp_lld:
+    sheet: 网络IP规划
+    target_column: 交换机名称
+    plane_column: L1/L2平面
+  mapping:
+    format: csv or xlsx
+    required_columns:
+      - source
+      - target
+    note: NOT derived from 设备清单 automatically
+plane_filter:
+  plane_null: process all data rows (ignore L1/L2平面)
+  plane_1_or_2: skip rows where L1/L2平面 missing or not 1/2; only replace matching plane rows
+output:
+  path_pattern:
+    all: output/run_*/*_ztp.xlsx
+    l1: output/run_*/*_ztp_l1.xlsx
+    l2: output/run_*/*_ztp_l2.xlsx
+stats:
+  hit_sources: unique source values found in 交换机名称 column
+  replaced: cells where target != source
+  missed_sources: mapping entries never seen in sheet

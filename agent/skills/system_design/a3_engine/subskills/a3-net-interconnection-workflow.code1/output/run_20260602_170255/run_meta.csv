@@ -1,0 +1,2 @@
+﻿third_intent,layer,gateway_position,network_plane,connect_sheet,keyword,link_count,source_script,layer_detection_rule
+计算业务面互联规划,L2,SPINE,计算业务面,计算业务面端口互联,YWM-LEAF,8,a3_l2_net_interconnection.py,网关位置*='SPINE' → 二层互联 → *_互联规划_L2 → a3_l2_net_interconnection.py

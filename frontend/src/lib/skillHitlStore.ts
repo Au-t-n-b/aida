@@ -9,13 +9,12 @@
  *   · SkillAgentScreen 从 sduiDoc 抽出 hitl-card 节点 + 暴露 resume 回调 → setSkillHitl()
  *   · 左侧 SkillRunBanner 读 store，用一个本地 SduiRuntimeContext.Provider 复用同一套
  *     SduiNodeView 渲染那张卡，回调直连 store 里的 onChoiceSubmit / onUpload。
-
- *   · 右侧 SkillAgentScreen strip hitl-card（或替换为只读指引），交互在左侧会话框。
+ *   · 右侧 SkillAgentScreen 把 hitl-card 替换为只读指引（交互已移到左侧）。
  *
  * 存函数到单例只是「持有最新回调引用」，SkillAgentScreen 在回调变化时刷新即可。
  */
 import { useSyncExternalStore } from 'react';
-import type { SduiNode } from '@/lib/sdui';
+import type { SduiNode, SduiAction } from '@/lib/sdui';
 
 export interface SkillHitlState {
   skillId: string;
@@ -24,8 +23,10 @@ export interface SkillHitlState {
   node: SduiNode;
   /** ChoiceCard 提交回调（直连 SkillAgentScreen.handleChoiceSubmit → resume）。*/
   onChoiceSubmit: (value: string, stepId?: string) => void;
+  /** Button / 快捷指令回调（直连 SkillAgentScreen.handleAction → resume）。*/
+  onAction: (action: SduiAction) => void;
   /** FilePicker 上传回调（直连 SkillAgentScreen.handleUpload → resume）。*/
-  onUpload: (files: FileList, purpose: string, stepId?: string) => void;
+  onUpload: (files: FileList, purpose: string, stepId?: string, slotTag?: string, slotLabel?: string) => void | Promise<void>;
 }
 
 let _current: SkillHitlState | null = null;

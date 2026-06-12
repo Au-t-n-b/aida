@@ -1,0 +1,3 @@
+layer=L3
+gateway_position=SPINE
+强制 layer=L3（资源表网关位置*='SPINE'）

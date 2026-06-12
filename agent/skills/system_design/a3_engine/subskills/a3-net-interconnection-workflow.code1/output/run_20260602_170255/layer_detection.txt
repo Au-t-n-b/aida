@@ -1,0 +1,8 @@
+layer=L2
+gateway_position=SPINE
+network_plane=计算业务面
+connect_sheet=计算业务面端口互联
+keyword=YWM-LEAF
+link_count=8
+rule=网关位置*='SPINE' → 二层互联 → *_互联规划_L2 → a3_l2_net_interconnection.py
+source_script=a3_l2_net_interconnection.py

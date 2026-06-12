@@ -1,0 +1,4 @@
+scenario=a3
+keyword=AT800TA3|AT800IA3|AT900A3
+rule=端口表含 A3 服务器 → a3_csm_ip_address.a3_csm_ip_generate
+rail_mode=8

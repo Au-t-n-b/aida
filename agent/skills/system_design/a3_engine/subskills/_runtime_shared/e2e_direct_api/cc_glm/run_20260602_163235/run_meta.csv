@@ -1,0 +1,2 @@
+﻿layer,gateway_position,layer_detection_rule,source_script,network_plane,ip_pool,switch_count,node_count
+L3,LEAF,网关位置*=LEAF → LEAF接入三层 → 存储管理面地址规划_L3 → a3_cc_glm_ip_address.py,a3_cc_glm_ip_address.py,存储管理面,188.108.249.0-188.108.249.127,1,16

@@ -1,4 +1,5 @@
 import type { ModuleSchemas } from '../types/domain';
+import { isSystemDesignFull } from '@/config/design-skill';
 
 export const MODULE_SCHEMAS = {
   survey: {
@@ -144,13 +145,17 @@ export const MODULE_SCHEMAS = {
     ],
   },
 
-  // design → xtsj（系统设计 / A3 智能网络开局），dispatch 命令模式，非线性流水线
+  // design → system_design（完整交付流，默认）或 xtsj（dispatch PoC），由 VITE_DESIGN_SKILL 控制
   design: {
     key: 'design',
     name: '系统设计',
     iconName: 'IconDesign',
-    subtitle: '输入件检查 · 地址规划 · LLD 生成',
-    steps: ['命令选择', '输入件检查', '地址规划', 'LLD 生成', '完成'],
+    subtitle: isSystemDesignFull
+      ? '意图识别 · 平面规划 · LLD 融合 · ZTP'
+      : '输入件检查 · 地址规划 · LLD 生成',
+    steps: isSystemDesignFull
+      ? ['意图识别', '输入检查', '平面规划', 'LLD 融合', 'ZTP / 命名', '发布完成']
+      : ['命令选择', '输入件检查', '地址规划', 'LLD 生成', '完成'],
     embed: null,
     welcome: '系统设计（A3 智能网络开局）将检查输入件完整性、批量规划 IP 地址段，并生成标准化 LLD 文档，支持按需触发各命令。',
     decideAsk: '请选择本次要执行的系统设计命令：',

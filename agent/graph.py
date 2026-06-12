@@ -46,16 +46,22 @@ async def get_graph_async(skill_id: str = "zhgk"):
     """
     global _async_conn, _async_saver
     if _async_saver is None:
-        import aiosqlite
-        from pathlib import Path
-        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
         from .skills.base import default_checkpoint_db
 
-        db_path = default_checkpoint_db()
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        _async_conn = await aiosqlite.connect(db_path, check_same_thread=False)
-        _async_saver = AsyncSqliteSaver(_async_conn)
-        await _async_saver.setup()
+        try:
+            import aiosqlite
+            from pathlib import Path
+            from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+            db_path = default_checkpoint_db()
+            Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+            _async_conn = await aiosqlite.connect(db_path, check_same_thread=False)
+            _async_saver = AsyncSqliteSaver(_async_conn)
+            await _async_saver.setup()
+        except ImportError:
+            # 缺 langgraph-checkpoint-sqlite 时降级为内存 checkpointer，避免图完全无法启动
+            from langgraph.checkpoint.memory import MemorySaver
+            _async_saver = MemorySaver()
 
     if skill_id not in _compiled_async:
         skill = registry.get(skill_id)

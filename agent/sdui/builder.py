@@ -232,6 +232,7 @@ class SduiButtonNode(BaseModel):
     id: str | None = None
     label: str
     variant: Literal["primary", "secondary", "ghost", "outline"] | None = None
+    disabled: bool | None = None
     action: SduiPostUserMessage | SduiOpenPreview
 
 
@@ -770,12 +771,13 @@ class SduiTabPanel(BaseModel):
 class SduiTabGroupNode(BaseModel):
     """页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。
     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导
-    （如执行中切「进度」页）。"""
+    （如执行中切「进度」页）；focusToken 递增时前端强制同步选中（即使用户曾手动切页）。"""
     model_config = ConfigDict(extra="ignore")
     type: Literal["TabGroup"] = "TabGroup"
     id: str | None = None
     tabs: list[SduiTabPanel]
     activeTab: str | None = None
+    focusToken: int | None = None
 
 
 class SduiInputSlot(BaseModel):
@@ -788,17 +790,24 @@ class SduiInputSlot(BaseModel):
     ready: bool | None = None
     fileName: str | None = None
     previewPath: str | None = None
+    slotTag: str | None = None  # FILE_CONFIG tag · 行内上传时传给 /upload/batch kinds
 
 
 class SduiInputSlotListNode(BaseModel):
     """输入件槽位清单 · 每行一个输入件，区分必需/可选 × 自动/手动 × 就绪/缺失。
     缺件行高亮并给行内上传 CTA，就绪行可预览，自动件未就绪显示「检查中」标签。
-    （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）"""
+    （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）
+
+    uploadStepId / uploadPurpose：缺件行「上传」按钮触发真实文件选择器并经
+    runtime.onUpload(files, uploadPurpose, uploadStepId) 上传 + resume；
+    未给时退回 post_user_message（仅提示）。"""
     model_config = ConfigDict(extra="ignore")
     type: Literal["InputSlotList"] = "InputSlotList"
     id: str | None = None
     slots: list[SduiInputSlot]
     title: str | None = None
+    uploadStepId: str | None = None
+    uploadPurpose: str | None = None
 
 
 class SduiTaskTimelineStripNode(BaseModel):
@@ -884,6 +893,22 @@ class SduiChoiceCardNode(BaseModel):
     options: list[SduiChoiceOption]
     hitlRequestId: str | None = None
     stepId: str | None = None
+
+
+class SduiIoConfirmPanelNode(BaseModel):
+    """确认执行计划 · 将读取 → 将生成 双列 IO 面板（对齐设计稿 ConfirmCard / cv-io）。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["IoConfirmPanel"] = "IoConfirmPanel"
+    id: str | None = None
+    commandTitle: str
+    reads: list[str]
+    writes: list[str]
+    confirmLabel: str = "确认执行"
+    cancelLabel: str = "重新选择"
+    confirmValue: str = "confirm"
+    cancelValue: str = "cancel"
+    stepId: str | None = None
+    hitlRequestId: str | None = None
 
 
 class SduiHitlTextInputNode(BaseModel):
@@ -1025,6 +1050,7 @@ SduiNode = Annotated[
         # HITL
         SduiFilePickerNode,
         SduiChoiceCardNode,
+        SduiIoConfirmPanelNode,
         SduiHitlTextInputNode,
     ],
     Field(discriminator="type"),

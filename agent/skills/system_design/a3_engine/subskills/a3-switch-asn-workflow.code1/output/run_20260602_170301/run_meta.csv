@@ -1,0 +1,2 @@
+﻿deliverable_file,export_sheet_planes,planes_allocated,plane_names,allocated_planes,asn_rows,source_allocate,source_export,instruction
+A3交换机ASN规划.xlsx,8,0,计算参数面|计算管存面|计算业务面|计算管理面|计算样本面|存储样本面|存储管理面|存储业务面,,130,a3_switch_loopback_ip_address.py,a3_switch_asn.py,网络设备ASN规划

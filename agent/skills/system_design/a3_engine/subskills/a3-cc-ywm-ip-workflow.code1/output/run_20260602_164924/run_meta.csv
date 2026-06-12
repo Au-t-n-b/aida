@@ -1,0 +1,2 @@
+﻿layer,gateway_position,layer_detection_rule,source_script,device_scenario,network_plane,net_mode,ip_pool,switch_count,osp_node_count,osa800_row_count
+L2,SPINE,网关位置*='SPINE' → LEAF接入二层 → 存储业务面地址规划_L2 → a3_l2_cc_ywm_ip_address.py,a3_l2_cc_ywm_ip_address.py,osp_only,存储业务面,,188.108.248.0-192.108.248.138,1,32,0

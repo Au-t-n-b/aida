@@ -59,6 +59,10 @@ export type SduiArtifactItem = {
   path: string;
   kind?: SduiArtifactKind;
   status?: SduiArtifactStatus;
+  /** 对齐设计稿 OutputsPanel is-highlight */
+  highlight?: boolean;
+  /** 行内角标，如「本环节生成」 */
+  badge?: string;
 };
 
 // ── Node types ────────────────────────────────────────────────────────────────
@@ -83,7 +87,7 @@ export type SduiKeyValueItem = { key: string; value: string };
 export type SduiKeyValueListNode = OptId & { type: 'KeyValueList'; items: SduiKeyValueItem[] };
 export type SduiTableNode    = OptId & { type: 'Table';    headers?: string[]; rows: string[][] };
 
-export type SduiButtonNode   = OptId & { type: 'Button';   label: string; variant?: 'primary' | 'secondary' | 'ghost' | 'outline'; color?: SduiSemanticColor; action: SduiAction };
+export type SduiButtonNode   = OptId & { type: 'Button';   label: string; variant?: 'primary' | 'secondary' | 'ghost' | 'outline'; color?: SduiSemanticColor; disabled?: boolean; action: SduiAction };
 export type SduiLinkNode     = OptId & { type: 'Link';     label: string; href?: string; action?: SduiAction };
 
 export type SduiDonutSegment = { label: string; value: number; color?: string };
@@ -311,12 +315,12 @@ export type SduiDrawerNode = OptId & { type: 'Drawer'; title: string; children?:
 export type SduiTabPanel = { id: string; label: string; badge?: string | number; children?: SduiNode[] };
 /** TabGroup — 页签容器，子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。
  *  badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导（如执行中切「进度」页）。*/
-export type SduiTabGroupNode = OptId & { type: 'TabGroup'; tabs: SduiTabPanel[]; activeTab?: string };
+export type SduiTabGroupNode = OptId & { type: 'TabGroup'; tabs: SduiTabPanel[]; activeTab?: string; focusToken?: number };
 
 /** InputSlotList 的一行输入件槽位。source=auto 仿真产出 / manual 人工上传。*/
-export type SduiInputSlot = { label: string; source: 'auto' | 'manual'; required?: boolean; ready?: boolean; fileName?: string; previewPath?: string };
+export type SduiInputSlot = { label: string; source: 'auto' | 'manual'; required?: boolean; ready?: boolean; fileName?: string; previewPath?: string; slotTag?: string };
 /** InputSlotList — 输入件槽位清单：必需/可选 × 自动/手动 × 就绪/缺失；缺件行高亮 + 上传 CTA，就绪行可预览，自动件未就绪显示「检查中」。*/
-export type SduiInputSlotListNode = OptId & { type: 'InputSlotList'; slots: SduiInputSlot[]; title?: string };
+export type SduiInputSlotListNode = OptId & { type: 'InputSlotList'; slots: SduiInputSlot[]; title?: string; uploadStepId?: string; uploadPurpose?: string };
 
 /** TaskTimelineStrip — 任务时间规划条/迷你甘特：计划 vs 实际双轨 + 剩余天数 + 进度填充（remainingDays 逾期为负，progressPct 0–100）。*/
 export type SduiTaskTimelineStripNode = OptId & { type: 'TaskTimelineStrip'; plannedStart: string; plannedEnd: string; actualStart?: string; actualEnd?: string; remainingDays?: number; progressPct?: number };
@@ -350,6 +354,23 @@ export type SduiChoiceCardNode = OptId & {
   options: SduiChoiceOption[];
   hitlRequestId?: string;
   stepId?: string;
+  /** 意图消歧等多选 HITL */
+  multiple?: boolean;
+  maxSelections?: number;
+  submitLabel?: string;
+};
+
+export type SduiIoConfirmPanelNode = OptId & {
+  type: 'IoConfirmPanel';
+  commandTitle: string;
+  reads: string[];
+  writes: string[];
+  confirmLabel?: string;
+  cancelLabel?: string;
+  confirmValue?: string;
+  cancelValue?: string;
+  stepId?: string;
+  hitlRequestId?: string;
 };
 
 export type SduiHitlTextInputNode = OptId & {
@@ -412,7 +433,7 @@ export type SduiNode =
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
   | SduiEmbeddedWebNode
-  | SduiFilePickerNode | SduiChoiceCardNode | SduiHitlTextInputNode;
+  | SduiFilePickerNode | SduiChoiceCardNode | SduiIoConfirmPanelNode | SduiHitlTextInputNode;
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
