@@ -3,13 +3,67 @@
   "chapterTitle": "11. 验收策略",
   "rows": [
     {
-      "cat": "安装PAC",
-      "scheme": "方案A",
-      "standard": "标准A",
-      "milestone": "M1",
-      "doc": "DocA",
+      "cat": "到货",
+      "scheme": "设备到货清点",
+      "standard": "型号/数量与 BOQ 一致，外观无损",
+      "milestone": "到货签收",
+      "doc": "到货验收单",
+      "payment": "20%",
+      "paymentMilestone": "到货"
+    },
+    {
+      "cat": "安装 PAC",
+      "scheme": "整机柜 ST 测试",
+      "standard": "GPU 数量与 BOQ 一致，误码率 ≤ 1e-12",
+      "milestone": "部署调测完成",
+      "doc": "验收测试报告",
       "payment": "30%",
-      "paymentMilestone": "里程碑A"
+      "paymentMilestone": "安装 PAC"
+    },
+    {
+      "cat": "安装 PAC",
+      "scheme": "RDMA 全互联压测",
+      "standard": "400G 带宽达标，时延 p99 ≤ 2μs",
+      "milestone": "集群联调完成",
+      "doc": "网络测试报告",
+      "payment": "—",
+      "paymentMilestone": "—"
+    },
+    {
+      "cat": "维保",
+      "scheme": "维保服务启动",
+      "standard": "维保策略与 SLA 合同一致",
+      "milestone": "维保生效",
+      "doc": "维保确认函",
+      "payment": "—",
+      "paymentMilestone": "—"
+    },
+    {
+      "cat": "培训",
+      "scheme": "AI 使能培训",
+      "standard": "参训人数 ≥ 合同，考核通过",
+      "milestone": "培训完成",
+      "doc": "培训签到表",
+      "payment": "—",
+      "paymentMilestone": "—"
+    },
+    {
+      "cat": "安装 PAC",
+      "scheme": "整体性能基线",
+      "standard": "RTO ≤ 5s / p99 ≤ 30ms",
+      "milestone": "整体压测完成",
+      "doc": "性能基线报告",
+      "payment": "20%",
+      "paymentMilestone": "终验"
+    },
+    {
+      "cat": "安装 PAC",
+      "scheme": "客户签收移交",
+      "standard": "文档齐套，客户代表签字",
+      "milestone": "客户验收",
+      "doc": "移交确认函",
+      "payment": "30%",
+      "paymentMilestone": "终验"
     }
   ],
   "proposalVersion": "草稿"

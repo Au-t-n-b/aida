@@ -1,7 +1,10 @@
 """Draft save/load orchestration."""
 from __future__ import annotations
 
+import json
+import time
 from typing import Any
+from pathlib import Path
 
 from agent.proposal.auth import ProposalSession, proposal_operator_display_name
 from agent.proposal.chapter_files import (
@@ -19,12 +22,42 @@ from agent.proposal.models import PutDraftBody
 from agent.proposal.services import metadata as metadata_service
 
 
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "5609cc",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-5609cc.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
+
+
 def get_draft(
     project_id: str,
     *,
     operator: str | None = None,
     session: ProposalSession | None = None,
 ) -> dict[str, Any]:
+    chapter_seed_fallback_keys = {"1", "3", "4", "6", "9", "10", "11"}
+
+    def _is_seed_single_row(project: str, key: str, payload: dict[str, Any]) -> bool:
+        # 56A0TXN migration carried local debug rows (single-line) into draft storage.
+        # For those chapters, return frontend defaults until real multi-row draft is saved.
+        if project != "56A0TXN" or key not in chapter_seed_fallback_keys:
+            return False
+        rows = payload.get("rows")
+        return isinstance(rows, list) and len(rows) == 1
+
     def _has_content(payload: dict[str, Any]) -> bool:
         return bool(
             (isinstance(payload.get("rows"), list) and payload.get("rows"))
@@ -40,8 +73,32 @@ def get_draft(
         if spec.key == "meta":
             continue
         payload = load_chapter_payload(project_id, spec.key, "draft")
+        if _is_seed_single_row(project_id, spec.key, payload):
+            _debug_log(
+                "H5",
+                "agent/proposal/services/draft.py:58",
+                "skip seed single-row chapter payload",
+                {"projectId": project_id, "chapterKey": spec.key},
+            )
+            continue
         if _has_content(payload):
             chapters[spec.key] = payload
+    _debug_log(
+        "H2",
+        "agent/proposal/services/draft.py:63",
+        "backend draft chapters loaded",
+        {
+            "projectId": project_id,
+            "chapterRowCounts": {
+                key: (
+                    len(value.get("rows") or [])
+                    if isinstance(value, dict) and isinstance(value.get("rows"), list)
+                    else -1
+                )
+                for key, value in chapters.items()
+            },
+        },
+    )
 
     meta_row, meta_deps = metadata_service.ensure_metadata_draft(project_id, op)
     return {

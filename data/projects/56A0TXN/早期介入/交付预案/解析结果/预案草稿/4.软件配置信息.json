@@ -3,12 +3,60 @@
   "chapterTitle": "4. 软件配置信息",
   "rows": [
     {
+      "type": "昇腾训练版本",
+      "isHW": "是",
+      "software": "Ascend Training Solution",
+      "ver": "24.0.0",
+      "source": "自动解析",
+      "remark": ""
+    },
+    {
+      "type": "昇腾推理版本",
+      "isHW": "是",
+      "software": "Ascend Inference Solution",
+      "ver": "24.0.0",
+      "source": "自动解析",
+      "remark": ""
+    },
+    {
       "type": "操作系统",
       "isHW": "否",
-      "software": "EulerOS",
-      "ver": "2.0",
+      "software": "FresBSD",
+      "ver": "—",
       "source": "人工录入",
-      "remark": "test"
+      "remark": "待客户确认"
+    },
+    {
+      "type": "ASCEND HDK",
+      "isHW": "是",
+      "software": "ASCEND HDK",
+      "ver": "V100R001C020",
+      "source": "自动解析",
+      "remark": ""
+    },
+    {
+      "type": "存储 DPC",
+      "isHW": "是",
+      "software": "存储 DPC",
+      "ver": "V100R001C020",
+      "source": "自动解析",
+      "remark": ""
+    },
+    {
+      "type": "CCAE AGENT",
+      "isHW": "是",
+      "software": "iMaster CCAE",
+      "ver": "V100R025C20SPC010",
+      "source": "自动解析",
+      "remark": "已生成风险 R-002"
+    },
+    {
+      "type": "CANN",
+      "isHW": "是",
+      "software": "CANN",
+      "ver": "CANN 8.0.1",
+      "source": "自动解析",
+      "remark": ""
     }
   ],
   "proposalVersion": "草稿"

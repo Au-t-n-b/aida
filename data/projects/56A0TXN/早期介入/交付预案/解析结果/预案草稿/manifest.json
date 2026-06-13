@@ -6,8 +6,8 @@
   "createdBy": "何博",
   "createdAt": "2026-06-13T08:27:16.364558+00:00",
   "updatedBy": "何博",
-  "updatedAt": "2026-06-13T10:06:23.544512+00:00",
-  "dirty": true,
+  "updatedAt": "2026-06-13T11:13:15.270371+00:00",
+  "dirty": false,
   "changeDescription": "",
   "changeRecords": [],
   "latestReleaseVersion": "V1.8_20260613173932_DRB",
@@ -22,5 +22,5 @@
     "V1.7_20260613170405_DRB",
     "V1.8_20260613173932_DRB"
   ],
-  "etag": "W/\"e19dc160c317\""
+  "etag": "W/\"15621dbeb7fe\""
 }

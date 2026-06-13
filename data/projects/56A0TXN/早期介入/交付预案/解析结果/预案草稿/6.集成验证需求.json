@@ -4,12 +4,30 @@
   "rows": [
     {
       "cat": "回测版本配置",
-      "desc": "第6章修复校验",
-      "hw": "Atlas",
-      "sw": "CANN",
+      "desc": "昇腾 ATLAS A3 900 Superpod*1 CCAE V1R2 版本未确认",
+      "hw": "ATALAS A3 900 Superpod*1 TAISHAN 2280 服务器",
+      "sw": "Ascend Training 1.00 + CCAE V1R2",
       "owner": "TD",
       "state": "已完成",
-      "date": "20260613"
+      "date": "20260511"
+    },
+    {
+      "cat": "跨网络配置",
+      "desc": "DT 950 产品系列与 HCS V1R2 物认匹配",
+      "hw": "ATALAS A3 900 Superpod*1 TAISHAN 2280 服务器",
+      "sw": "Ascend Training 1.00 + CCAE V1R2",
+      "owner": "TD",
+      "state": "未完成",
+      "date": "N/A"
+    },
+    {
+      "cat": "三方集成",
+      "desc": "ATALAS A3 产品本身移动九天平台 KBS 兼容性测试",
+      "hw": "ATALAS A3 900 Superpod*1 TAISHAN 2280 服务器",
+      "sw": "Ascend Training 1.00 + CCAE V1R2",
+      "owner": "TD",
+      "state": "未完成",
+      "date": "N/A"
     }
   ],
   "proposalVersion": "草稿"

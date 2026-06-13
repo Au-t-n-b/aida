@@ -245,6 +245,15 @@ export default function ProposalScreen() {
     }
 
     if (draftData) {
+      const chapterRowCounts = Object.fromEntries(
+        Object.entries((draftData.chapters ?? {}) as Record<string, unknown>).map(([k, v]) => {
+          const rows = (v as { rows?: unknown[] } | undefined)?.rows;
+          return [k, Array.isArray(rows) ? rows.length : -1];
+        }),
+      );
+      // #region agent log
+      fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/components/proposal/proposal-screen.tsx:248',message:'draft loaded with chapter row counts',data:{projectId,proposalVersion:draftData.manifest?.workingVersionLabel,chapterRowCounts},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
       setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
       setDraftChapters((draftData.chapters ?? {}) as Record<string, unknown>);
