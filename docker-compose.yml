@@ -26,6 +26,24 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── Manager（鉴权 / 项目列表，frontend nginx 反代 manager:8000）──
+  manager:
+    image: harbor.aie.rnd.huawei.com/aida/manager:latest
+    container_name: aida-manager
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      AIDA_AGENT_BASE_URL: http://agent:7401
+    networks:
+      - aida-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
   # ── 前端（Nginx + API 反代）──
   frontend:
     image: harbor.aie.rnd.huawei.com/aida/frontend:latest
@@ -35,6 +53,8 @@ services:
       - "5401:5401"
     depends_on:
       agent:
+        condition: service_healthy
+      manager:
         condition: service_healthy
     networks:
       - aida-net

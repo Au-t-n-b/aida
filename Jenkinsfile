@@ -2,7 +2,7 @@
 // AIDA Jenkins 流水线（前后端分离 · 内网 Harbor · 自动部署）
 //
 // 功能：
-//   1. Docker 镜像构建 + 推送（agent / frontend 分别打包）
+//   1. Docker 镜像构建 + 推送（agent / manager / frontend 分别打包）
 //   2. SSH 部署到 10.143.2.231（拉取镜像 + docker compose 重启）
 //
 // 使用方式：
@@ -21,6 +21,7 @@ pipeline {
         DOCKER_REGISTRY   = 'harbor.aie.rnd.huawei.com'
         HARBOR_PROJECT    = 'aida'
         AGENT_IMAGE       = 'backend'
+        MANAGER_IMAGE     = 'manager'
         FRONTEND_IMAGE    = 'frontend'
         DEPLOY_HOST       = '10.143.2.231'
         DEPLOY_DIR        = '/home/docker_data/aida'
@@ -64,6 +65,15 @@ pipeline {
                         env.AGENT_FULL_IMAGE = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:${env.BUILD_NUMBER}"
 
                         sh """
+                            docker build -f manager/Dockerfile \
+                                -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${MANAGER_IMAGE}:${env.BUILD_NUMBER} \
+                                -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${MANAGER_IMAGE}:latest .
+                            docker push ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${MANAGER_IMAGE}:${env.BUILD_NUMBER}
+                            docker push ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${MANAGER_IMAGE}:latest
+                        """
+                        env.MANAGER_FULL_IMAGE = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${MANAGER_IMAGE}:${env.BUILD_NUMBER}"
+
+                        sh """
                             docker build -f frontend/Dockerfile \
                                 -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:${env.BUILD_NUMBER} \
                                 -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:latest .
@@ -105,6 +115,7 @@ docker compose pull
 docker compose up -d --remove-orphans
 docker compose ps
 docker compose ps --status running | grep -q aida-agent
+docker compose ps --status running | grep -q aida-manager
 docker compose ps --status running | grep -q aida-frontend
 docker image prune -f
 docker logout "\$REGISTRY" || true
@@ -134,6 +145,7 @@ docker compose ps
             ╔══════════════════════════════════════════════════╗
             ║  AIDA Build + Deploy Success                     ║
             ║  Agent:    ${env.AGENT_FULL_IMAGE ?: 'N/A'}
+            ║  Manager:  ${env.MANAGER_FULL_IMAGE ?: 'N/A'}
             ║  Frontend: ${env.FRONTEND_FULL_IMAGE ?: 'N/A'}
             ║  Deploy:   ${env.DEPLOY_HOST}:${env.DEPLOY_DIR}
             ║
