@@ -10,6 +10,7 @@
  * 两种模式下 SduiNodeView / HITL / 文件上传的 UI 完全一致，零代码差异。
  */
 import React, { useState, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
 
@@ -574,10 +575,13 @@ export default function SkillAgentScreen({
   skillId,
   title = '作业模块',
   description = 'AI 驱动的作业全流程',
+  nextModule,
 }: SkillAgentScreenProps) {
   // ── 模式检测：仅当 Manager 分配了容器 endpoint 时走任务 API；本地登录无容器仍直连 Agent
   const { session } = useAidaSession();
   const useClawMode = !!session?.containerEndpoint;
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // ── 状态（两种模式都需要）──────────────────────────────────────────────────
   const [taskId, setTaskId] = useState<string | null>(null);   // 容器模式
@@ -718,6 +722,20 @@ export default function SkillAgentScreen({
       setStarting(false);
     }
   }, [skillId, useClawMode, session]);
+
+  // ── autostart：从上一模块「进入系统设计」跳转而来时（?autostart=1）自动开跑 ──
+  const autostartedRef = useRef(false);
+  useEffect(() => {
+    if (autostartedRef.current) return;
+    if (searchParams.get('autostart') !== '1') return;
+    const isIdleNow = useClawMode ? !taskId : !runId;
+    if (!isIdleNow || starting) return;
+    autostartedRef.current = true;
+    void handleStart();
+    const next = new URLSearchParams(searchParams);
+    next.delete('autostart');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, useClawMode, taskId, runId, starting, handleStart, setSearchParams]);
 
   // ── resume（两种模式统一入口）────────────────────────────────────────────
   const doResume = useCallback(async (payload: Record<string, unknown>, fromStep?: string) => {
@@ -1221,6 +1239,9 @@ export default function SkillAgentScreen({
           onCommissionStart={skillId === 'software_deployment' ? () => { void handleStart({ entry_mode: 'commission' }); } : undefined}
           loading={starting}
         />
+        {nextModule && (
+          <NextModuleButton label={nextModule.label} onClick={() => navigate(nextModule.to)} />
+        )}
         {error && (
           <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--red-50)', borderRadius: 'var(--radius-md)', color: 'var(--red-700)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
             {error}
@@ -1321,6 +1342,32 @@ export default function SkillAgentScreen({
           <SduiPreviewModal skillId={skillId} path={previewPath} onClose={() => setPreviewPath(null)} />
         </Suspense>
       )}
+      {nextModule && (
+        <NextModuleButton label={nextModule.label} onClick={() => navigate(nextModule.to)} />
+      )}
     </SduiRuntimeContext.Provider>
+  );
+}
+
+function NextModuleButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        position: 'fixed', right: 28, bottom: 28, zIndex: 40,
+        display: 'inline-flex', alignItems: 'center', gap: 8,
+        padding: '11px 20px', borderRadius: 999, border: 'none', cursor: 'pointer',
+        color: '#fff', fontSize: 14, fontWeight: 600, letterSpacing: '.01em',
+        background: 'linear-gradient(118deg, #3551d8 0%, #5b3ce0 52%, #7c3aed 100%)',
+        boxShadow: '0 14px 34px -12px rgba(53,81,216,.6)',
+      }}
+    >
+      {label}
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </svg>
+    </button>
   );
 }
