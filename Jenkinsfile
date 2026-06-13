@@ -98,12 +98,17 @@ pipeline {
 
                             # Remote: login Harbor -> pull images -> restart containers
                             ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "
+                                set -euo pipefail
                                 cd ${DEPLOY_DIR}
 
                                 echo '${HARBOR_PASS}' | docker login ${DOCKER_REGISTRY} -u '${HARBOR_USER}' --password-stdin
 
                                 docker compose pull
                                 docker compose up -d --remove-orphans
+                                docker compose ps
+                                docker compose ps --status running | grep -q aida-agent
+                                docker compose ps --status running | grep -q aida-frontend
+
                                 docker image prune -f
                                 docker logout ${DOCKER_REGISTRY}
 

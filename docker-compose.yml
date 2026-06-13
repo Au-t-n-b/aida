@@ -7,11 +7,8 @@
 # ============================================================
 
 services:
-  # ── Agent 后端 ──
+  # ── Agent 后端（镜像由 Jenkins 构建推送 Harbor，231 仅 pull）──
   agent:
-    build:
-      context: .
-      dockerfile: agent/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/backend:latest
     container_name: aida-agent
     restart: unless-stopped
@@ -32,9 +29,6 @@ services:
 
   # ── 前端（Nginx + API 反代）──
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/frontend:latest
     container_name: aida-frontend
     restart: unless-stopped

@@ -33,8 +33,9 @@ RUN grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
     --trusted-host mirrors.tools.huawei.com \
     -r /tmp/requirements-docker.txt
 
-# 拷入后端代码
+# 拷入后端代码与 shared 公共库
 COPY agent/ ./agent/
+COPY shared/ ./shared/
 
 # 拷入 skills（A 层 SKILL.md 源）+ 部署到运行时位置
 COPY skills/ ./skills/
