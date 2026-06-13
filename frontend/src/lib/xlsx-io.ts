@@ -1,5 +1,5 @@
 /**
- * Mock 数据中心 · xlsx/docx 读写客户端
+ * 数据中心 · xlsx/docx 读写客户端
  */
 import type {
   AcceptanceItem,
