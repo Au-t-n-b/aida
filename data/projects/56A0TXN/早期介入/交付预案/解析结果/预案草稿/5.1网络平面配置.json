@@ -1,0 +1,52 @@
+{
+  "chapterKey": "5.1",
+  "chapterTitle": "5.1 网络平面配置",
+  "rows": [
+    {
+      "type": "参数面汇聚交换机",
+      "vendor": "华为",
+      "model": "XH9330-128EO",
+      "ver": "V100R001C020",
+      "qty": 64,
+      "source": "人工录入",
+      "note": ""
+    },
+    {
+      "type": "参数面接入交换机",
+      "vendor": "华为",
+      "model": "XH9930-128DQ",
+      "ver": "V100R001C020",
+      "qty": 174,
+      "source": "人工录入",
+      "note": ""
+    },
+    {
+      "type": "样本面-存储接入交换机",
+      "vendor": "华为",
+      "model": "XH9930-128DQ",
+      "ver": "V100R001C020",
+      "qty": 6,
+      "source": "人工录入",
+      "note": ""
+    },
+    {
+      "type": "样本面-汇聚交换机",
+      "vendor": "华为",
+      "model": "XH9930-128DQ",
+      "ver": "V100R001C020",
+      "qty": 16,
+      "source": "人工录入",
+      "note": ""
+    },
+    {
+      "type": "样本面-计算接入交换机",
+      "vendor": "华为",
+      "model": "XH9930-128DQ",
+      "ver": "V100R001C020",
+      "qty": 22,
+      "source": "人工录入",
+      "note": ""
+    }
+  ],
+  "proposalVersion": "草稿"
+}

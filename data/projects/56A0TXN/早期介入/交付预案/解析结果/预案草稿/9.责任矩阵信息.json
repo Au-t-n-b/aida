@@ -1,0 +1,565 @@
+{
+  "chapterKey": "9",
+  "chapterTitle": "9. 责任矩阵信息",
+  "rows": [
+    {
+      "stack": "公共",
+      "cat": "项目管理",
+      "act": "计划进度管理、沟通管理、风险管理、变更管理、问题管理、质量管理、采购管理、验收管理等",
+      "gts": "R",
+      "hw": "",
+      "partner": "S",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "工程勘测",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "设备签收",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "硬件部署",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "硬件初始化",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "固件升级",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "硬件压测",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-工程安装",
+      "act": "硬件验收",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "规划设计",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "OS安装",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "计算服务软件安装",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "单机综合测试",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "单机测试",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "管理子系统验收",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "项目管理",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "站点工勘",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "需求调研",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "硬件安装",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "公共",
+      "cat": "计算-规划设计与实施",
+      "act": "系统部署",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "存储网络连接",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "基础功能配置",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "增值特性配置",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "验收方案",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "验收测试",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "项目移交",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "存储-规划设计与集成",
+      "act": "存储升级",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "网络-工程安装",
+      "act": "工程安装",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "硬件底座",
+      "cat": "网络-规划设计与实施",
+      "act": "规划设计与实施",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群系统需求调研",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群系统规划设计",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群系统对接联网",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "参数面集合通信测试",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群性能测试",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群稳定性测试（训练）",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群初始化调优（训练）",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群试运行（可选）",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "集群验收",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "需求环境调研",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "算存网",
+      "cat": "算存网-集群集成",
+      "act": "云网规划设计",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "HCS+ModelArts-规划设计与实施",
+      "act": "云服务设计",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "HCS+ModelArts-规划设计与实施",
+      "act": "资源池设计",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "HCS+ModelArts-规划设计与实施",
+      "act": "LLD设计",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "HCS+ModelArts-规划设计与实施",
+      "act": "HCS安装实施",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "HCS+ModelArts-规划设计与实施",
+      "act": "ModelArts安装实施",
+      "gts": "",
+      "hw": "R",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "HCS+ModelArts-规划设计与实施",
+      "act": "平台测试与验收支持",
+      "gts": "",
+      "hw": "S",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "AI平台",
+      "cat": "DCS-规划设计与实施",
+      "act": "需求分析",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "AI平台",
+      "cat": "DCS-规划设计与实施",
+      "act": "整体规划",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "AI平台",
+      "cat": "DCS-规划设计与实施",
+      "act": "系统设计",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "AI平台",
+      "cat": "DCS-规划设计与实施",
+      "act": "集成实施",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "AI平台",
+      "cat": "DCS-规划设计与实施",
+      "act": "项目验收",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "AI平台",
+      "cat": "DCS-规划设计与实施",
+      "act": "系统移交",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-模型部署支持",
+      "act": "模型部署支持-训练",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-模型部署支持",
+      "act": "模型部署支持-推理",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-AI计算软件栈技术支持",
+      "act": "问题定位",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-AI计算软件栈技术支持",
+      "act": "使用支持",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-模型部署样例演示",
+      "act": "人员组织，协调场地环境",
+      "gts": "S",
+      "hw": "",
+      "partner": "",
+      "customer": "R"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-模型部署样例演示",
+      "act": "开发环境搭建演示",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "模型",
+      "cat": "AI计算使能-模型部署样例演示",
+      "act": "模型部署演示",
+      "gts": "R",
+      "hw": "",
+      "partner": "",
+      "customer": "S"
+    },
+    {
+      "stack": "应用",
+      "cat": "应用",
+      "act": "应用",
+      "gts": "",
+      "hw": "",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "应用",
+      "cat": "应用",
+      "act": "应用",
+      "gts": "",
+      "hw": "",
+      "partner": "",
+      "customer": ""
+    },
+    {
+      "stack": "公共",
+      "cat": "初验PAC",
+      "act": "签发初验PAC",
+      "gts": "C",
+      "hw": "",
+      "partner": "R/A",
+      "customer": ""
+    },
+    {
+      "stack": "公共",
+      "cat": "终验FAC",
+      "act": "签发终验FAC",
+      "gts": "C",
+      "hw": "",
+      "partner": "R/A",
+      "customer": ""
+    }
+  ],
+  "proposalVersion": "草稿"
+}
