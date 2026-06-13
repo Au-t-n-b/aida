@@ -715,14 +715,15 @@ function SkillRunBanner({
       {myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
 
       {/* HITL 交互卡：直接在左侧会话框内可操作（选择 / 上传），回调直连右侧 resume */}
-      {phase === 'hitl' && myHitl && (
+      {/* phase==='done' 时也渲染：guihua 的 completion-card（询问是否输出文件）需在完成态下显示 */}
+      {(phase === 'hitl' || phase === 'done') && myHitl && (
         <div style={{ margin: '6px 10px 10px' }}>
           <SduiRuntimeContext.Provider
             value={{
               runId: myHitl.runId,
               skillId,
-              // 仅 system_design 交付台在左栏 HITL 卡内响应动作；其它模块保持原有 no-op
-              onAction: usesDeliveryWorkbench ? (myHitl.onAction ?? (() => {})) : (() => {}),
+              // 左栏 HITL 卡动作回调由 SkillAgentScreen 注入（system_design NL 指令、guihua 切页签等）
+              onAction: myHitl.onAction ?? (() => {}),
               onUpload: myHitl.onUpload,
               onChoiceSubmit: myHitl.onChoiceSubmit,
               onFormSubmit: myHitl.onFormSubmit,

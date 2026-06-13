@@ -1,24 +1,21 @@
 """
-adapt_build · 建模仿真第 1 步「设备适配」（api_adapt 移植）
+adapt_build · 建模仿真第 1 步「设备适配」（载入已解析的适配信息表）
 
-对应 Desktop/skill/jmfz/api_adapt：把《建模仿真设备信息表》经仿真 API（queryDeviceModel /
-querySlotMapping，统一走 SimApiClient）模糊匹配设备型号 + 板卡评分，生成《建模仿真设备适配
-信息表》。这是建模仿真的「BOQ 数据已解析完毕 → 查看详细数据」那张设备数据表。
-
-确定性 + 调 API，**非 LLM**（区别于旧 boq_extract）。无内网（dry-run）时：queryDeviceModel
-返回空 → 复用 fixtures/compat_table.md 样本适配表，保证骨架端到端可跑。
+按本次交付要求：进入建模仿真模块即「BOQ 数据已解析完毕」。本步不再现跑仿真 API，
+而是直接载入 vendored 的《建模仿真设备适配信息表》（jmfz/api_adapt 的产物），落到
+ProjectData/RunTime/compat_table.md 供下游（data_confirm / SDUI 设备数据页）复用，
+并解析【超节点概述】首数据行得到 BOQ 概览（超节点组合 / 超节点数 / 服务器数 / 灵衢数）。
 """
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
-from ..services import FIXTURE_DEVICE_INFO, FIXTURE_COMPAT_TABLE
-from ..services.compat_table import build_compat_table
-from ..services.sim_api import SimApiClient, is_live
+from ..services import FIXTURE_COMPAT_TABLE, VENDOR_ADAPT_MD
 
 COMPAT_TABLE_REL = "ProjectData/RunTime/compat_table.md"
-_INPUT_MD_HINTS = ("设备信息表", "设备信息", "device_info", "boq")
+_INPUT_MD_HINTS = ("设备适配信息表", "适配信息表", "compat", "适配")
 
 
 class AdaptBuildStep(BaseStep):
@@ -27,51 +24,94 @@ class AdaptBuildStep(BaseStep):
     artifacts_pattern = [COMPAT_TABLE_REL]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
-        """设备信息表来源：① Input/ 上传的 .md；② 内置 fixture 兜底（故不阻断）。"""
         ctx.ensure_dirs()
-        src = self._find_input_md(ctx)
-        note = (f"已找到设备信息表：{src.name}" if src
-                else "未上传设备信息表，使用内置样本（fixtures/device_info.md）离线生成适配表")
+        src = self._resolve_adapt_md(ctx)
+        note = (f"已就绪适配信息表：{src.name}" if src
+                else "未找到适配信息表，使用内置样本离线渲染")
         return {"ok": True, "missing": [], "found": [src.name] if src else [], "note": note}
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
-        input_md = self._find_input_md(ctx) or FIXTURE_DEVICE_INFO
-        if not Path(input_md).is_file():
-            raise FileNotFoundError(f"设备信息表不存在：{input_md}")
+        src = self._resolve_adapt_md(ctx)
+        if not src or not Path(src).is_file():
+            raise FileNotFoundError("找不到建模仿真设备适配信息表（vendored / 上传 / fixture 均缺失）")
+
         out = ctx.work_root / COMPAT_TABLE_REL
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, out)
+        compat_md = out.read_text(encoding="utf-8")
 
-        emit(f"[{self.key}] 设备信息表：{Path(input_md).name}"
-             + ("（内置样本）" if Path(input_md) == FIXTURE_DEVICE_INFO else "（上传）"))
-        emit(f"[{self.key}] 仿真 API 模式：{'LIVE' if is_live() else 'dry-run（离线兜底 fixture）'}")
+        ov = _parse_superpod_overview(compat_md)
+        emit(f"[{self.key}] BOQ 已解析：超节点组合「{ov.get('combo_model') or '待确认'}」，"
+             f"{ov.get('pod_count', 0)} 个超节点 / 服务器 {ov.get('server_count', 0)} / 灵衢 {ov.get('lingqu_count', 0)}")
+        emit(f"[{self.key}] 适配信息表已载入 → {out.name}（来源：{Path(src).name}）")
 
-        client = SimApiClient(work_root=ctx.work_root, emit=emit)
-        stats = build_compat_table(
-            Path(input_md), out, client,
-            emit=emit, fixture_path=FIXTURE_COMPAT_TABLE,
-        )
-
-        compat_md = out.read_text(encoding="utf-8") if out.is_file() else ""
-        emit(f"[{self.key}] 适配表生成完毕 → {out.name}（组合={stats.get('combo_model') or '待确认'}）")
         return {
             "metrics": {
-                "adapt_mode": stats.get("mode"),
-                "section_count": stats.get("sections"),
-                "device_row_count": stats.get("rows"),
-                "device_count": stats.get("devices"),
-                "matched_count": stats.get("matched"),
-                "combo_model": stats.get("combo_model") or "待确认",
+                "adapt_mode": "vendored",
+                "boq_parsed": True,
+                "combo_model": ov.get("combo_model") or "待确认",
+                "pod_count": ov.get("pod_count", 0),
+                "device_count": ov.get("server_count", 0),
+                "boq_server_count": ov.get("server_count", 0),
+                "boq_server_model": ov.get("server_model", ""),
+                "boq_lingqu_count": ov.get("lingqu_count", 0),
+                "boq_lingqu_model": ov.get("lingqu_model", ""),
                 # SDUI「设备数据」页签渲染用（截断防超大）
                 "compat_table_md": compat_md[:12000],
                 "compat_table_truncated": len(compat_md) > 12000,
             },
         }
 
+    # ── helpers ──
     @staticmethod
-    def _find_input_md(ctx: SkillContext) -> Path | None:
-        mds = [p for p in sorted(ctx.input_dir.glob("*.md")) if p.is_file()]
-        if not mds:
-            return None
-        for p in mds:
-            if any(h in p.name.lower() for h in _INPUT_MD_HINTS):
+    def _resolve_adapt_md(ctx: SkillContext) -> Path | None:
+        """适配表来源优先级：① Input/ 上传的适配表 .md；② vendored jmfz 产物；③ fixture。"""
+        for p in sorted(ctx.input_dir.glob("*.md")):
+            if p.is_file() and any(h in p.name.lower() or h in p.name for h in _INPUT_MD_HINTS):
                 return p
-        return mds[0]
+        if Path(VENDOR_ADAPT_MD).is_file():
+            return Path(VENDOR_ADAPT_MD)
+        if Path(FIXTURE_COMPAT_TABLE).is_file():
+            return Path(FIXTURE_COMPAT_TABLE)
+        return None
+
+
+def _parse_superpod_overview(md_text: str) -> dict:
+    """解析【超节点概述】首数据行：
+    | 超节点组合 | 超节点数量 | 智算服务器 | 服务器数量 | 灵衢交换机 | 灵衢数量 |
+    """
+    out: dict = {}
+    in_section = False
+    seen_header = False
+    for line in md_text.splitlines():
+        s = line.strip()
+        if s.startswith("【") and "超节点概述" in s:
+            in_section = True
+            continue
+        if in_section and s.startswith("【"):
+            break
+        if not in_section or not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if not seen_header:
+            if cells and "超节点组合" in cells[0]:
+                seen_header = True
+            continue
+        if set("".join(cells)) <= set("-: "):
+            continue
+        if cells and cells[0]:
+            out["combo_model"] = cells[0]
+            out["pod_count"] = _to_int(cells[1] if len(cells) > 1 else "")
+            out["server_model"] = cells[2] if len(cells) > 2 else ""
+            out["server_count"] = _to_int(cells[3] if len(cells) > 3 else "")
+            out["lingqu_model"] = cells[4] if len(cells) > 4 else ""
+            out["lingqu_count"] = _to_int(cells[5] if len(cells) > 5 else "")
+            break
+    return out
+
+
+def _to_int(s: str) -> int:
+    try:
+        return int(str(s).strip())
+    except (ValueError, TypeError):
+        return 0

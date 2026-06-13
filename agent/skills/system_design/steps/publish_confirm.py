@@ -19,6 +19,7 @@ from agent.sdui.projector_base import collect_metrics
 class PublishConfirmStep(BaseStep):
     key = "publish_confirm"
     name = "确认发布"
+    internal = True  # HITL 确认门，基础设施步骤，豁免 SKILL.md 后端节点声明
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         confs = (ctx.project or {}).get("confirmations") or {}

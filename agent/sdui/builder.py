@@ -780,6 +780,8 @@ class SduiTabGroupNode(BaseModel):
     activeTab: str | None = None
     focusToken: int | None = None
     variant: Literal["default", "subnav"] | None = None
+    keepAlive: bool = False
+    fill: bool = False
 
 
 class SduiInputSlot(BaseModel):
@@ -906,6 +908,40 @@ class SduiEmbeddedWebNode(BaseModel):
     openInNewTab: bool | None = None
     # offline=True：内网不可达时不渲染空白 iframe，改用骨架占位 + 说明 + 「新页打开」兜底。
     offline: bool | None = None
+    # reloadToken：后端创建超节点成功后递增 → 前端 postMessage pageRefresh 刷新 nVisual 画布。
+    reloadToken: int | None = None
+
+
+# ── OutputDocsGrid ─────────────────────────────────────────────────────────────
+
+class SduiOutputDocItem(BaseModel):
+    """OutputDocsGrid 的一份输出文件：编号 + 名称 + 分类 + 标签 + 一句话说明。"""
+    model_config = ConfigDict(extra="ignore")
+    no: str
+    name: str
+    fullName: str | None = None
+    category: str
+    tag: str | None = None
+    desc: str | None = None
+
+
+class SduiOutputDocCategory(BaseModel):
+    """OutputDocsGrid 的一个分类：key 匹配 doc.category，label 为分组标题。"""
+    model_config = ConfigDict(extra="ignore")
+    key: str
+    label: str
+
+
+class SduiOutputDocsGridNode(BaseModel):
+    """分类输出文件网格 · 按 category 分组的产物卡（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。
+    unlocked=False 时整体半透 + 标「待生成」（建模完成前的占位）；unlocked=True 时给下载入口。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["OutputDocsGrid"] = "OutputDocsGrid"
+    id: str | None = None
+    docs: list[SduiOutputDocItem]
+    categories: list[SduiOutputDocCategory] | None = None
+    unlocked: bool = False
+    title: str | None = None
 
 
 # ── HITL nodes ────────────────────────────────────────────────────────────────
@@ -1123,6 +1159,7 @@ SduiNode = Annotated[
         SduiFlowStepsNode,
         SduiMacroStepRailNode,
         SduiEmbeddedWebNode,
+        SduiOutputDocsGridNode,
         # HITL
         SduiFilePickerNode,
         SduiChoiceCardNode,

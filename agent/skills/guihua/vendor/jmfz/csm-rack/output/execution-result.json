@@ -1,0 +1,918 @@
+{
+  "executed_at": "2026-06-13T06:51:54.522899+00:00",
+  "base_url": "http://100.102.191.17:9091",
+  "leaf_diagram": "参数面",
+  "room_diagram": "机房视图",
+  "parent_diagram": "顶层",
+  "note": "leaf 建在参数面->上架到机房->机房内连线；deleteTopology 仅作用于参数面，机房绝不删除。",
+  "reset_view": {
+    "leaf_diagram": "参数面",
+    "parent_diagram": "顶层",
+    "room_diagram": "机房视图",
+    "delete_http": 200,
+    "delete_ok": true,
+    "delete_response": {
+      "code": 200,
+      "message": "success",
+      "data": null
+    },
+    "create_http": 201,
+    "create_ok": true,
+    "create_response": {
+      "code": 200,
+      "message": "success",
+      "data": null
+    },
+    "action": "reset"
+  },
+  "server_count": 432,
+  "leaf_count": 54,
+  "warnings": {
+    "device": [],
+    "topo": []
+  },
+  "rule_c": [],
+  "create_device": {
+    "summary": {
+      "total": 1,
+      "ok": 1,
+      "status_code_histogram": {
+        "201": 1
+      }
+    },
+    "results": [
+      {
+        "index": 1,
+        "http_status": 201,
+        "ok": true,
+        "meta": {
+          "role": "leaf",
+          "model": "CE9866",
+          "quantity": 54,
+          "server_count": 432,
+          "leaf_downlink_pool": 64
+        },
+        "response": {
+          "code": 200,
+          "message": "success",
+          "data": null
+        }
+      }
+    ]
+  },
+  "batch_rack": {
+    "summary": {
+      "total": 18,
+      "ok": 18,
+      "status_code_histogram": {
+        "200": 18
+      }
+    },
+    "results": [
+      {
+        "index": 1,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "A17",
+          "leaf_seqs": [
+            1,
+            3,
+            5
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 2,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "A18",
+          "leaf_seqs": [
+            2,
+            4,
+            6
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 3,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "B17",
+          "leaf_seqs": [
+            7,
+            9,
+            11
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 4,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "B18",
+          "leaf_seqs": [
+            8,
+            10,
+            12
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 5,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "C17",
+          "leaf_seqs": [
+            13,
+            15,
+            17
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 6,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "C18",
+          "leaf_seqs": [
+            14,
+            16,
+            18
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 7,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "D17",
+          "leaf_seqs": [
+            19,
+            21,
+            23
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 8,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "401",
+          "cabinet": "D18",
+          "leaf_seqs": [
+            20,
+            22,
+            24
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 9,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "A17",
+          "leaf_seqs": [
+            25,
+            27,
+            29
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 10,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "A18",
+          "leaf_seqs": [
+            26,
+            28,
+            30
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 11,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "B17",
+          "leaf_seqs": [
+            31,
+            33,
+            35
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 12,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "B18",
+          "leaf_seqs": [
+            32,
+            34,
+            36
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 13,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "C17",
+          "leaf_seqs": [
+            37,
+            39,
+            41
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 14,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "C18",
+          "leaf_seqs": [
+            38,
+            40,
+            42
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 15,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "D17",
+          "leaf_seqs": [
+            43,
+            45,
+            47
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 16,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "402",
+          "cabinet": "D18",
+          "leaf_seqs": [
+            44,
+            46,
+            48
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 17,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "403",
+          "cabinet": "A17",
+          "leaf_seqs": [
+            49,
+            51,
+            53
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      },
+      {
+        "index": 18,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "room": "403",
+          "cabinet": "A18",
+          "leaf_seqs": [
+            50,
+            52,
+            54
+          ],
+          "mode": "per_cabinet"
+        },
+        "response": {
+          "code": 200,
+          "data": {
+            "failDataList": [],
+            "successCount": 3,
+            "failureCount": 0
+          },
+          "message": "success"
+        }
+      }
+    ]
+  },
+  "verify_leaf_in_room": {
+    "sample_leaf": "CSM-LEAF-CE9866-001",
+    "room_diagram": "机房视图",
+    "http": 200,
+    "found": true,
+    "parent_name": "B2-参数面"
+  },
+  "create_topo": {
+    "summary": {
+      "total": 2,
+      "ok": 2,
+      "status_code_histogram": {
+        "200": 2
+      }
+    },
+    "results": [
+      {
+        "index": 1,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "rail": "odd",
+          "server_count": 432,
+          "src_ports_per_server": 4,
+          "leaf_count": 27,
+          "leaf_downlink_pool": 64,
+          "src_port_instances": 1728,
+          "leaf_port_instances": 1728
+        },
+        "response": {
+          "code": 800114,
+          "message": "cable does not match interface",
+          "data": {
+            "link": {
+              "id": 25000000761225,
+              "typeId": 27000000000364,
+              "name": "SP09-AT900A3-48-PIC8:1\\CSM-LEAF-CE9866-053:400GE1/0/1",
+              "width": null,
+              "color": null,
+              "adaLinkId": "",
+              "linkerCode": 0,
+              "fromNode": 23000001868368,
+              "toNode": 23000001883810,
+              "fromRoute": "24000000000001/24000000083028/24000000212855/24000000212796/24000000213344/23000001868368/23000001868368",
+              "toRoute": "24000000000001/24000000083028/24000000212863/24000000213645/23000001883810",
+              "excludeFromAcra": true,
+              "collectorId": "",
+              "masterId": null,
+              "mapZoom": null,
+              "background": null,
+              "deleteTime": null
+            },
+            "link_type": {
+              "id": 27000000000364,
+              "name": "MPO-MPO-OM4-16 水蓝",
+              "color": "#0ffff0",
+              "thickness": 1.0,
+              "linkStyle": 0,
+              "categoryId": 130001,
+              "snappedToEdge": true,
+              "matchingPortConnectors": false,
+              "useForAcraPatch": false,
+              "excludableFromAcra": true,
+              "mode": 0,
+              "vendorId": 1082,
+              "description": "室内多模MPO预端接光缆16芯",
+              "background": "rd57qjqy.svg",
+              "htLinkType": null,
+              "topLeftX": 125.0,
+              "topLeftY": 0.0,
+              "bottomRightX": 875.0,
+              "bottomRightY": 750.0,
+              "unit": null,
+              "unit_price": null,
+              "origin": null,
+              "width": 6.0,
+              "height": 6.0,
+              "nameAbbr": "MPO 多模16芯 水蓝",
+              "capabilities": [],
+              "favourite": true,
+              "enabled": true,
+              "system": false
+            },
+            "vis_link": {
+              "linkId": 25000000761225,
+              "typeId": 27000000000364,
+              "linkTypeName": "MPO-MPO-OM4-16 水蓝",
+              "name": "SP09-AT900A3-48-PIC8:1\\CSM-LEAF-CE9866-053:400GE1/0/1",
+              "fromNode": 23000001868368,
+              "toNode": 23000001883810,
+              "fromRoute": "24000000000001/24000000083028/24000000212855/24000000212796/24000000213344/23000001868368/23000001868368",
+              "toRoute": "24000000000001/24000000083028/24000000212863/24000000213645/23000001883810",
+              "visLinkId": 4530893,
+              "diagramId": 24000000213645,
+              "routepath": null,
+              "fromAnchorPointX": 0.5,
+              "fromAnchorPointY": 0.5,
+              "toAnchorPointX": 0.5,
+              "toAnchorPointY": 0.5,
+              "canDelete": true,
+              "canMove": true,
+              "zOrder": 0,
+              "displayed": true,
+              "color": "#0ffff0",
+              "thickness": 1.0,
+              "width": 6.0,
+              "height": 6.0,
+              "linkStyle": 0,
+              "htLinkType": null,
+              "connectionDirection": null,
+              "mapZoom": null,
+              "layerBlocked": false,
+              "fromNodeInDiagram": true,
+              "toNodeInDiagram": true,
+              "noticeDiagramBodyList": null
+            },
+            "vis_nodes": {
+              "toNode": {
+                "id": 6099939,
+                "nodeId": 23000001883810,
+                "diagramId": 24000000213645,
+                "x": 176.11028678990297,
+                "y": 250.71144837828837,
+                "z": 10.0,
+                "width": 40.736686861055965,
+                "height": 23.04518069212358,
+                "imageOverride": null,
+                "angle": 0,
+                "canMove": false,
+                "canResize": false,
+                "canDelete": false,
+                "zOrder": -1,
+                "typeId": 26000000000006,
+                "name": "400GE1/0/1",
+                "parentId": 24000000213645,
+                "slotId": null,
+                "masterId": null,
+                "doubleClickBehavior": null,
+                "route": "24000000000001/24000000083028/24000000212863/24000000213645",
+                "mapZoom": null,
+                "nodeTypeName": "Port",
+                "nodeTypeImage": "v5yvc3we.png",
+                "nodeTypeImage2": null,
+                "nodeTypeTypeGroup": 9,
+                "nodeTypeHeight": null,
+                "nodeTypeWidth": null,
+                "mountedNodesData": null,
+                "shapes": null,
+                "diagramSublinks": null,
+                "hasEmbeddedFile": false,
+                "clusterSize": null,
+                "groupId": null,
+                "threeDBackground": null,
+                "layerBlocked": false,
+                "virtual": false,
+                "businessColor": null,
+                "noticeDiagramBodyList": null,
+                "rightNodes": null,
+                "alias": false,
+                "blocked": null,
+                "master": true,
+                "depth": 0.0
+              },
+              "fromNode": {
+                "id": 6100618,
+                "nodeId": 23000001868368,
+                "diagramId": 24000000213645,
+                "x": 176.11028678990297,
+                "y": -91.1074144876045,
+                "z": 0.0,
+                "width": 40.736686861055965,
+                "height": 27.96769665955661,
+                "imageOverride": null,
+                "angle": 0,
+                "canMove": true,
+                "canResize": true,
+                "canDelete": true,
+                "zOrder": 0,
+                "typeId": 26000000000006,
+                "name": "1",
+                "parentId": 24000000213344,
+                "slotId": null,
+                "masterId": null,
+                "doubleClickBehavior": null,
+                "route": "24000000000001/24000000083028/24000000212855/24000000212796/24000000213344",
+                "mapZoom": null,
+                "nodeTypeName": "Port",
+                "nodeTypeImage": "v5yvc3we.png",
+                "nodeTypeImage2": null,
+                "nodeTypeTypeGroup": 9,
+                "nodeTypeHeight": null,
+                "nodeTypeWidth": null,
+                "mountedNodesData": null,
+                "shapes": null,
+                "diagramSublinks": null,
+                "hasEmbeddedFile": false,
+                "clusterSize": null,
+                "groupId": null,
+                "threeDBackground": null,
+                "layerBlocked": false,
+                "virtual": false,
+                "businessColor": null,
+                "noticeDiagramBodyList": null,
+                "rightNodes": null,
+                "alias": null,
+                "blocked": null,
+                "master": false,
+                "depth": 0.0
+              }
+            }
+          }
+        }
+      },
+      {
+        "index": 2,
+        "http_status": 200,
+        "ok": true,
+        "meta": {
+          "rail": "even",
+          "server_count": 432,
+          "src_ports_per_server": 4,
+          "leaf_count": 27,
+          "leaf_downlink_pool": 64,
+          "src_port_instances": 1728,
+          "leaf_port_instances": 1728
+        },
+        "response": {
+          "code": 800114,
+          "message": "cable does not match interface",
+          "data": {
+            "link": {
+              "id": 25000000762968,
+              "typeId": 27000000000364,
+              "name": "SP09-AT900A3-48-PIC8:2\\CSM-LEAF-CE9866-054:400GE1/0/1",
+              "width": null,
+              "color": null,
+              "adaLinkId": "",
+              "linkerCode": 0,
+              "fromNode": 23000001868369,
+              "toNode": 23000001884209,
+              "fromRoute": "24000000000001/24000000083028/24000000212855/24000000212796/24000000213344/23000001868369/23000001868369",
+              "toRoute": "24000000000001/24000000083028/24000000212864/24000000213648/23000001884209",
+              "excludeFromAcra": true,
+              "collectorId": "",
+              "masterId": null,
+              "mapZoom": null,
+              "background": null,
+              "deleteTime": null
+            },
+            "link_type": {
+              "id": 27000000000364,
+              "name": "MPO-MPO-OM4-16 水蓝",
+              "color": "#0ffff0",
+              "thickness": 1.0,
+              "linkStyle": 0,
+              "categoryId": 130001,
+              "snappedToEdge": true,
+              "matchingPortConnectors": false,
+              "useForAcraPatch": false,
+              "excludableFromAcra": true,
+              "mode": 0,
+              "vendorId": 1082,
+              "description": "室内多模MPO预端接光缆16芯",
+              "background": "rd57qjqy.svg",
+              "htLinkType": null,
+              "topLeftX": 125.0,
+              "topLeftY": 0.0,
+              "bottomRightX": 875.0,
+              "bottomRightY": 750.0,
+              "unit": null,
+              "unit_price": null,
+              "origin": null,
+              "width": 6.0,
+              "height": 6.0,
+              "nameAbbr": "MPO 多模16芯 水蓝",
+              "capabilities": [],
+              "favourite": true,
+              "enabled": true,
+              "system": false
+            },
+            "vis_link": {
+              "linkId": 25000000762968,
+              "typeId": 27000000000364,
+              "linkTypeName": "MPO-MPO-OM4-16 水蓝",
+              "name": "SP09-AT900A3-48-PIC8:2\\CSM-LEAF-CE9866-054:400GE1/0/1",
+              "fromNode": 23000001868369,
+              "toNode": 23000001884209,
+              "fromRoute": "24000000000001/24000000083028/24000000212855/24000000212796/24000000213344/23000001868369/23000001868369",
+              "toRoute": "24000000000001/24000000083028/24000000212864/24000000213648/23000001884209",
+              "visLinkId": 4541264,
+              "diagramId": 24000000213648,
+              "routepath": null,
+              "fromAnchorPointX": 0.5,
+              "fromAnchorPointY": 0.5,
+              "toAnchorPointX": 0.5,
+              "toAnchorPointY": 0.5,
+              "canDelete": true,
+              "canMove": true,
+              "zOrder": 0,
+              "displayed": true,
+              "color": "#0ffff0",
+              "thickness": 1.0,
+              "width": 6.0,
+              "height": 6.0,
+              "linkStyle": 0,
+              "htLinkType": null,
+              "connectionDirection": null,
+              "mapZoom": null,
+              "layerBlocked": false,
+              "fromNodeInDiagram": true,
+              "toNodeInDiagram": true,
+              "noticeDiagramBodyList": null
+            },
+            "vis_nodes": {
+              "toNode": {
+                "id": 6100341,
+                "nodeId": 23000001884209,
+                "diagramId": 24000000213648,
+                "x": 176.11028678990297,
+                "y": 250.71144837828837,
+                "z": 10.0,
+                "width": 40.736686861055965,
+                "height": 23.04518069212358,
+                "imageOverride": null,
+                "angle": 0,
+                "canMove": false,
+                "canResize": false,
+                "canDelete": false,
+                "zOrder": -1,
+                "typeId": 26000000000006,
+                "name": "400GE1/0/1",
+                "parentId": 24000000213648,
+                "slotId": null,
+                "masterId": null,
+                "doubleClickBehavior": null,
+                "route": "24000000000001/24000000083028/24000000212864/24000000213648",
+                "mapZoom": null,
+                "nodeTypeName": "Port",
+                "nodeTypeImage": "v5yvc3we.png",
+                "nodeTypeImage2": null,
+                "nodeTypeTypeGroup": 9,
+                "nodeTypeHeight": null,
+                "nodeTypeWidth": null,
+                "mountedNodesData": null,
+                "shapes": null,
+                "diagramSublinks": null,
+                "hasEmbeddedFile": false,
+                "clusterSize": null,
+                "groupId": null,
+                "threeDBackground": null,
+                "layerBlocked": false,
+                "virtual": false,
+                "businessColor": null,
+                "noticeDiagramBodyList": null,
+                "rightNodes": null,
+                "alias": false,
+                "blocked": null,
+                "master": true,
+                "depth": 0.0
+              },
+              "fromNode": {
+                "id": 6109257,
+                "nodeId": 23000001868369,
+                "diagramId": 24000000213648,
+                "x": 176.11028678990297,
+                "y": -91.1074144876045,
+                "z": 0.0,
+                "width": 40.736686861055965,
+                "height": 27.96769665955661,
+                "imageOverride": null,
+                "angle": 0,
+                "canMove": true,
+                "canResize": true,
+                "canDelete": true,
+                "zOrder": 0,
+                "typeId": 26000000000006,
+                "name": "2",
+                "parentId": 24000000213344,
+                "slotId": null,
+                "masterId": null,
+                "doubleClickBehavior": null,
+                "route": "24000000000001/24000000083028/24000000212855/24000000212796/24000000213344",
+                "mapZoom": null,
+                "nodeTypeName": "Port",
+                "nodeTypeImage": "v5yvc3we.png",
+                "nodeTypeImage2": null,
+                "nodeTypeTypeGroup": 9,
+                "nodeTypeHeight": null,
+                "nodeTypeWidth": null,
+                "mountedNodesData": null,
+                "shapes": null,
+                "diagramSublinks": null,
+                "hasEmbeddedFile": false,
+                "clusterSize": null,
+                "groupId": null,
+                "threeDBackground": null,
+                "layerBlocked": false,
+                "virtual": false,
+                "businessColor": null,
+                "noticeDiagramBodyList": null,
+                "rightNodes": null,
+                "alias": null,
+                "blocked": null,
+                "master": false,
+                "depth": 0.0
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

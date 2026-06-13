@@ -1,0 +1,51 @@
+{
+  "base_url": "http://100.102.191.17:9091",
+  "leaf_diagram": "参数面",
+  "room_diagram": "机房",
+  "parent_diagram": "顶层",
+  "reset_leaf_view": true,
+  "auth": {
+    "token": "",
+    "token_env": "SIM_API_TOKEN"
+  },
+  "server_source": "D:\\Project\\AIDA\\相关文件\\DataGrid.xlsx",
+  "plane": {
+    "plane_code": "CSM",
+    "server_rail_mode": "dual",
+    "server_uplink_ports": 8,
+    "leaf_port_split_policy": "contiguous_half",
+    "leaf_panel_groups": 4,
+    "link_type": "MPO-MPO-OM4-16 水蓝",
+    "port_standard": "400GE",
+    "leaf_model": "CE9866",
+    "leaf_role": "参数面接入交换机",
+    "leaf_name_digits": 3
+  },
+  "rack": {
+    "start_u": 41,
+    "interval": 3,
+    "installation_direction": "F",
+    "allocation_direction": 1,
+    "call_mode": "per_cabinet"
+  },
+  "topo": {
+    "endpoint": "batchCreateLink",
+    "diagram": "机房"
+  },
+  "request": {
+    "timeout_seconds": 300,
+    "sleep_between_calls_seconds": 0.3
+  },
+  "_comment": [
+    "复制为 config.json 后填入 auth.token（Bearer Token）。",
+    "leaf_diagram: 在该视图(参数面)创建 leaf 并重置(deleteTopology+createShape)。绝不等于 room_diagram。",
+    "room_diagram: 机柜/server 所在视图(机房)，上架目标 + 拓扑连线视图。绝不删除。",
+    "parent_diagram: createShape 创建 leaf_diagram 时的父视图(顶层)。",
+    "reset_leaf_view: true=运行前 deleteTopology(参数面)再 createShape 重建，保证干净 54 台。",
+    "rack.call_mode: per_cabinet=每柜单独一次调用(共18次，按落位表精确落位)。",
+    "topo.endpoint: batchCreateLink=递归查找嵌套设备(server 在组合模型/leaf 上架后在机柜内)。",
+    "topo.diagram: 连线所在视图，默认取 room_diagram(机房)。",
+    "server_source: DataGrid.xlsx 路径，含 432 台智算服务器名称。",
+    "leaf_name_digits: leaf 序号位数，默认3位(001..054)。"
+  ]
+}

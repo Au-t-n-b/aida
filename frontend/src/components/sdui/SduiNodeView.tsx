@@ -25,6 +25,188 @@ import { useSduiRuntime } from './SduiContext';
 
 // ── Sub-components (must be real components for hook rules) ────────────────────
 
+// EmbeddedWeb — iframe 承载外部 Web UI（nVisual 仿真软件）。保留「刷新」+「新页打开」。
+// 独立组件以满足 hook 规则（switch case 内不能用 useState/useRef）。
+function EmbeddedWebView({ node }: { node: Extract<SduiNode, { type: 'EmbeddedWeb' }> }) {
+  const h = node.height ?? 520;
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const showNewTab = node.openInNewTab !== false;
+
+  // 通过 postMessage 向 nVisual 发送刷新指令，保持已登录会话，不重载整个 iframe。
+  const postRefresh = () => {
+    iframeRef.current?.contentWindow?.postMessage({ name: 'pageRefresh', type: '' }, '*');
+  };
+
+  // 新页打开：读取 iframe 当前实际 URL（已登录后可能已跳转），跨域取不到时回退原始 URL。
+  const openCurrentInNewTab = () => {
+    let url = node.url;
+    try {
+      const current = iframeRef.current?.contentWindow?.location?.href;
+      if (current && current !== 'about:blank') url = current;
+    } catch {
+      // 跨域访问 location.href 抛 SecurityError，静默回退到 node.url
+    }
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // 后端 reloadToken 变化（如创建超节点成功）→ 自动向 nVisual 发送刷新指令，无需用户手点。
+  const prevTokenRef = React.useRef(node.reloadToken);
+  useEffect(() => {
+    if (node.reloadToken === undefined) return;
+    if (prevTokenRef.current === node.reloadToken) return;
+    prevTokenRef.current = node.reloadToken;
+    postRefresh();
+  }, [node.reloadToken]);
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--c-surface-2)', flexShrink: 0 }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{node.title ?? '内嵌网页'}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {!node.offline && (
+            <button
+              type="button"
+              onClick={postRefresh}
+              title="刷新仿真软件"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+                fontSize: 12, color: 'var(--c-brand-text, #1e34a8)', background: 'transparent',
+                border: 'none', padding: 0, fontFamily: 'inherit',
+              }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M13 8A5 5 0 1 1 11.5 4.4" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+                <path d="M12 1.8V4.6H9.2" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              刷新
+            </button>
+          )}
+          {showNewTab && (
+            <button
+              type="button"
+              onClick={openCurrentInNewTab}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer',
+                fontSize: 12, color: 'var(--c-brand-text, #1e34a8)', background: 'transparent',
+                border: 'none', padding: 0, fontFamily: 'inherit',
+              }}
+            >新页打开 ↗</button>
+          )}
+        </span>
+      </div>
+      {node.note && (
+        <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border)' }}>{node.note}</div>
+      )}
+      {node.offline ? (
+        <div style={{
+          minHeight: Math.min(h, 300), display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-3)',
+          padding: 'var(--sp-6)', textAlign: 'center',
+          background: 'var(--c-bg-soft)', borderTop: '1px dashed var(--c-border-strong)',
+        }}>
+          <svg width={40} height={40} viewBox="0 0 24 24" fill="none" style={{ color: 'var(--c-text-faint)' }}>
+            <rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
+            <path d="M3 8h18M8 21h8M12 18v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+          <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--c-text-2)' }}>
+            {node.title ?? '仿真软件'} 暂未加载
+          </div>
+          <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-text-muted)', maxWidth: 340, lineHeight: 1.6 }}>
+            当前为离线 / 内网不可达环境，落位坐标与设备数据已就绪。到内网后将自动嵌入实时拓扑，
+            或点右上「新页打开」直接访问。
+          </div>
+          <a
+            href={node.url} target="_blank" rel="noopener noreferrer"
+            style={{
+              marginTop: 2, fontSize: 'var(--fs-12)', fontWeight: 600, textDecoration: 'none',
+              color: 'var(--c-text-2)', background: 'var(--c-surface)',
+              border: '1px solid var(--c-border-strong)', borderRadius: 'var(--r-md)', padding: '6px 14px',
+            }}
+          >在新页打开 ↗</a>
+        </div>
+      ) : (
+        <iframe
+          ref={iframeRef}
+          src={node.url}
+          title={node.title ?? 'embedded-web'}
+          style={{ width: '100%', height: h, border: 'none', display: 'block', background: '#fff' }}
+          sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+        />
+      )}
+    </div>
+  );
+}
+
+// OutputDocsGrid — 分类输出文件网格（移植 simulation_v3 OutputDocsPanel）。
+// 按 category 分组渲染产物卡：色条分组头 + xlsx 图标 + 标签 chip + 锁定/解锁态。
+const OUTPUT_DOC_CAT_COLOR: Record<string, { color: string; bg: string }> = {
+  LLD:      { color: 'var(--c-brand, #3551d8)',   bg: 'var(--c-brand-soft, #eef1fc)' },
+  设备安装:  { color: 'var(--c-warning, #d97706)', bg: 'var(--c-warning-soft, #fdf2dd)' },
+  交付准备:  { color: 'var(--c-success, #0f9d58)', bg: 'var(--c-success-soft, #e6f6ee)' },
+};
+function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputDocsGrid' }> }) {
+  const unlocked = node.unlocked !== false && !!node.unlocked;
+  const cats = node.categories ?? [];
+  const docs = node.docs ?? [];
+  const groups = (cats.length ? cats : [...new Set(docs.map(d => d.category))].map(k => ({ key: k, label: k })));
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--c-surface-2)' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', flex: 1 }}>
+          {node.title ?? '建模仿真输出文件'}
+          <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 400, marginLeft: 8 }}>
+            {unlocked ? `${docs.length} 份已生成` : `${docs.length} 份 · 等待建模完成`}
+          </span>
+        </span>
+        {!unlocked && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'var(--c-bg-soft, #eef2f7)', border: '1px solid var(--border)', color: 'var(--text-tertiary)' }}>待生成</span>}
+      </div>
+      <div style={{ padding: '12px 14px' }}>
+        {groups.map(cat => {
+          const list = docs.filter(d => d.category === cat.key);
+          if (!list.length) return null;
+          const c = OUTPUT_DOC_CAT_COLOR[cat.key] ?? { color: 'var(--c-brand, #3551d8)', bg: 'var(--c-brand-soft, #eef1fc)' };
+          return (
+            <div key={cat.key} style={{ marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 3, height: 14, borderRadius: 2, background: c.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '.02em' }}>{cat.label}</span>
+                <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{list.length} 份</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
+                {list.map(doc => (
+                  <div key={doc.no} title={doc.fullName ?? doc.name} style={{
+                    border: '1px solid var(--border)', borderRadius: 7, padding: '9px 11px',
+                    background: unlocked ? 'var(--surface)' : 'var(--c-bg-soft, #f7f9fc)',
+                    opacity: unlocked ? 1 : 0.55, display: 'flex', flexDirection: 'column', gap: 4,
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: 5, background: c.bg, border: `1px solid ${c.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+                          <rect x="1.5" y="1" width="11" height="12" rx="1.5" fill="white" stroke={c.color} strokeWidth="1" />
+                          <path d="M4 5l2 2-2 2M7.5 9h3" stroke={c.color} strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-tertiary)', letterSpacing: '.04em' }}>DOC-{doc.no}</div>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, marginTop: 1 }}>{doc.name}</div>
+                      </div>
+                    </div>
+                    {doc.desc && <div style={{ fontSize: 10, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>{doc.desc}</div>}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 }}>
+                      {doc.tag && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>{doc.tag}</span>}
+                      <span style={{ fontSize: 9, color: unlocked ? c.color : 'var(--text-tertiary)', marginLeft: 'auto' }}>{unlocked ? '↓ xlsx' : '待生成'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function UnknownNode({ type }: { type: string }) {
   return (
     <div style={{
@@ -537,6 +719,10 @@ function SduiTabs({ tabs }: { tabs: Array<{ label: string; content?: string }> }
 }
 
 /** TabGroup — 子节点按页签分组切换。badge 角标 + 后端可引导 activeTab（递归渲染 children）。*/
+function tabPanelEmbedFill(fill: boolean, children: SduiNode[]): boolean {
+  return fill && children.length === 1 && children[0]?.type === 'EmbeddedWeb';
+}
+
 function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'TabGroup' }>; pathPrefix: string }) {
   const tabs = node.tabs ?? [];
   const initialIdx = () => {
@@ -562,10 +748,35 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.activeTab, node.focusToken]);
+  // 客户端页签切换约定（如「查看详细数据」按钮 → 切到 设备数据 页），不经后端 resume。
+  useEffect(() => {
+    const h = (e: Event) => {
+      const id = (e as CustomEvent<{ tabId?: string }>).detail?.tabId;
+      if (!id) return;
+      const i = tabs.findIndex(t => t.id === id);
+      if (i >= 0) setActive(i);
+    };
+    window.addEventListener('sdui:activate-tab', h);
+    return () => window.removeEventListener('sdui:activate-tab', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs]);
   const idx = Math.min(active, Math.max(tabs.length - 1, 0));
   const cur = tabs[idx];
+  const fill = node.fill === true;
+  const keepAlive = node.keepAlive === true;
+  const panelChildren = cur?.children ?? [];
+  const embedFill = tabPanelEmbedFill(fill, panelChildren);
+  const renderPanelChildren = (children: SduiNode[], tabId: string | number, tabIdx: number) =>
+    children.map((child, i) => {
+      const seg = stableChildKey(child, i, `${pathPrefix}.${tabId ?? tabIdx}`);
+      return <SduiNodeView key={seg} node={child} pathPrefix={seg} />;
+    });
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
+    <div style={{
+      border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
+      background: 'var(--surface)',
+      ...(fill ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
+    }}>
       <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 8px', flexWrap: 'wrap' }}>
         {tabs.map((t, i) => {
           const on = i === idx;
@@ -591,11 +802,38 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
           );
         })}
       </div>
-      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {(cur?.children ?? []).map((child, i) => {
-          const seg = stableChildKey(child, i, `${pathPrefix}.${cur?.id ?? idx}`);
-          return <SduiNodeView key={seg} node={child} pathPrefix={seg} />;
-        })}
+      <div style={{
+        padding: embedFill ? 0 : 14,
+        display: 'flex', flexDirection: 'column', gap: embedFill ? 0 : 14,
+        ...(fill ? { flex: 1, minHeight: 0, overflow: embedFill ? 'hidden' : 'auto' } : {}),
+      }}>
+        {keepAlive
+          ? tabs.map((t, tabIdx) => {
+            const on = tabIdx === idx;
+            const children = t.children ?? [];
+            const tabKey = t.id ?? tabIdx;
+            const panelEmbedFill = tabPanelEmbedFill(fill, children);
+            return (
+              <div
+                key={tabKey}
+                role="tabpanel"
+                aria-hidden={!on}
+                hidden={!on}
+                style={{
+                  display: on ? 'flex' : 'none',
+                  flexDirection: 'column',
+                  gap: panelEmbedFill ? 0 : 14,
+                  ...(fill && on ? {
+                    flex: 1, minHeight: 0,
+                    overflow: panelEmbedFill ? 'hidden' : 'auto',
+                  } : {}),
+                }}
+              >
+                {renderPanelChildren(children, tabKey, tabIdx)}
+              </div>
+            );
+          })
+          : renderPanelChildren(panelChildren, cur?.id ?? idx, idx)}
       </div>
     </div>
   );
@@ -2121,59 +2359,11 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
         </div>
       );
 
-    case 'EmbeddedWeb': {
-      // iframe 承载外部 Web UI（如 nVisual 仿真软件访问页）。内网不可达时显示 note + 新页打开兜底。
-      const h = node.height ?? 520;
-      return (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--c-surface-2)' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{node.title ?? '内嵌网页'}</span>
-            {node.openInNewTab !== false && (
-              <a href={node.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: 'var(--c-brand-text, #1e34a8)' }}>新页打开 ↗</a>
-            )}
-          </div>
-          {node.note && (
-            <div style={{ padding: '6px 12px', fontSize: 12, color: 'var(--text-tertiary)', borderBottom: '1px solid var(--border)' }}>{node.note}</div>
-          )}
-          {node.offline ? (
-            // 内网不可达：不渲染空白 iframe，给骨架占位 + 说明 + 「新页打开」兜底（见页眉链接）。
-            <div style={{
-              minHeight: Math.min(h, 300), display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-3)',
-              padding: 'var(--sp-6)', textAlign: 'center',
-              background: 'var(--c-bg-soft)', borderTop: '1px dashed var(--c-border-strong)',
-            }}>
-              <svg width={40} height={40} viewBox="0 0 24 24" fill="none" style={{ color: 'var(--c-text-faint)' }}>
-                <rect x="3" y="4" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M3 8h18M8 21h8M12 18v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <div style={{ fontSize: 'var(--fs-14)', fontWeight: 600, color: 'var(--c-text-2)' }}>
-                {node.title ?? '仿真软件'} 暂未加载
-              </div>
-              <div style={{ fontSize: 'var(--fs-12)', color: 'var(--c-text-muted)', maxWidth: 340, lineHeight: 1.6 }}>
-                当前为离线 / 内网不可达环境，落位坐标与设备数据已就绪。到内网后将自动嵌入实时拓扑，
-                或点右上「新页打开」直接访问。
-              </div>
-              <a
-                href={node.url} target="_blank" rel="noopener noreferrer"
-                style={{
-                  marginTop: 2, fontSize: 'var(--fs-12)', fontWeight: 600, textDecoration: 'none',
-                  color: 'var(--c-text-2)', background: 'var(--c-surface)',
-                  border: '1px solid var(--c-border-strong)', borderRadius: 'var(--r-md)', padding: '6px 14px',
-                }}
-              >在新页打开 ↗</a>
-            </div>
-          ) : (
-            <iframe
-              src={node.url}
-              title={node.title ?? 'embedded-web'}
-              style={{ width: '100%', height: h, border: 'none', display: 'block', background: '#fff' }}
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-            />
-          )}
-        </div>
-      );
-    }
+    case 'EmbeddedWeb':
+      return <EmbeddedWebView node={node} />;
+
+    case 'OutputDocsGrid':
+      return <OutputDocsGridView node={node} />;
 
     case 'ImageGrid':
       // 对齐 SDUI v4 设计稿 .d-imgs：3 列 · aspect-ratio 4/3 · 文件名浮层于底部
