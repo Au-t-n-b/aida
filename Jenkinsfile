@@ -97,7 +97,7 @@ pipeline {
                             scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
 
                             # Remote: login Harbor -> pull images -> restart containers
-                            # HARBOR_USER 含 robot$jenkins-ci-bot，须由 shell 展开，勿经 Groovy 内嵌
+                            # HARBOR_USER 含美元符号（robot 账号），须由 shell 展开，勿经 Groovy 内嵌
                             ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \
                                 env HARBOR_PASS="\${HARBOR_PASS}" HARBOR_USER="\${HARBOR_USER}" \
                                 REGISTRY="${DOCKER_REGISTRY}" DEPLOY_DIR="${DEPLOY_DIR}" \
