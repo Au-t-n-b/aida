@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 65 个节点类型 · 41 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 66 个节点类型 · 41 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -117,6 +117,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#MacroStepRail">MacroStepRail</a>
 <a href="#EmbeddedWeb">EmbeddedWeb</a>
 <a href="#OutputDocsGrid">OutputDocsGrid</a>
+<a href="#IoConfirmPanel">IoConfirmPanel</a>
 <a href="#HitlForm">HitlForm</a>
 <h4>嵌套子类型</h4>
 <a href="#SduiCardHeaderAction">CardHeaderAction</a>
@@ -338,6 +339,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>variant</b></td><td><code>enum: primary | secondary | ghost | outline</code></td><td class='req'>—</td><td><code>primary</code> | <code>secondary</code> | <code>ghost</code> | <code>outline</code></td></tr>
+<tr><td><b>disabled</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>action</b></td><td><code>PostUserMessage | OpenPreview</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;Button&quot;,
   &quot;label&quot;: &quot;示例&quot;,
@@ -781,10 +783,11 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;Drawer&quot;,
   &quot;title&quot;: &quot;示例&quot;
 }</pre></section>
-<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导     （如执行中切「进度」页）。variant=subnav 时居中底划线样式（交付台作业空间导航）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
+<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导     （如执行中切「进度」页）；focusToken 递增时前端强制同步选中（即使用户曾手动切页）。     variant=subnav 时居中底划线样式（交付台作业空间导航）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>tabs</b></td><td><code>TabPanel[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>activeTab</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>focusToken</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>variant</b></td><td><code>enum: default | subnav</code></td><td class='req'>—</td><td><code>default</code> | <code>subnav</code></td></tr>
 <tr><td><b>keepAlive</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
 <tr><td><b>fill</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
@@ -796,10 +799,12 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="InputSlotList"><h3><code>InputSlotList</code> SduiInputSlotListNode<span class="tag">Other</span></h3><p class="desc">输入件槽位清单 · 每行一个输入件，区分必需/可选 × 自动/手动 × 就绪/缺失。     缺件行高亮并给行内上传 CTA，就绪行可预览，自动件未就绪显示「检查中」标签。     （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: InputSlotList</code></td><td class='req'>—</td><td><code>InputSlotList</code></td></tr>
+<section id="InputSlotList"><h3><code>InputSlotList</code> SduiInputSlotListNode<span class="tag">Other</span></h3><p class="desc">输入件槽位清单 · 每行一个输入件，区分必需/可选 × 自动/手动 × 就绪/缺失。     缺件行高亮并给行内上传 CTA，就绪行可预览，自动件未就绪显示「检查中」标签。     （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）      uploadStepId / uploadPurpose：缺件行「上传」按钮触发真实文件选择器并经     runtime.onUpload(files, uploadPurpose, uploadStepId) 上传 + resume；     未给时退回 post_user_message（仅提示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: InputSlotList</code></td><td class='req'>—</td><td><code>InputSlotList</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>slots</b></td><td><code>InputSlot[]</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>uploadStepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>uploadPurpose</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;InputSlotList&quot;,
   &quot;slots&quot;: [
     {
@@ -882,6 +887,26 @@ footer code{color:var(--cyan)}</style></head><body>
       &quot;name&quot;: &quot;示例&quot;,
       &quot;category&quot;: &quot;示例&quot;
     }
+  ]
+}</pre></section>
+<section id="IoConfirmPanel"><h3><code>IoConfirmPanel</code> SduiIoConfirmPanelNode<span class="tag">Other</span></h3><p class="desc">确认执行计划 · 将读取 → 将生成 双列 IO 面板（对齐设计稿 ConfirmCard / cv-io）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: IoConfirmPanel</code></td><td class='req'>—</td><td><code>IoConfirmPanel</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>commandTitle</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>reads</b></td><td><code>string[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>writes</b></td><td><code>string[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>confirmLabel</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>确认执行</code></td></tr>
+<tr><td><b>cancelLabel</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>重新选择</code></td></tr>
+<tr><td><b>confirmValue</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>confirm</code></td></tr>
+<tr><td><b>cancelValue</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>cancel</code></td></tr>
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>hitlRequestId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;IoConfirmPanel&quot;,
+  &quot;commandTitle&quot;: &quot;示例&quot;,
+  &quot;reads&quot;: [
+    &quot;示例&quot;
+  ],
+  &quot;writes&quot;: [
+    &quot;示例&quot;
   ]
 }</pre></section>
 <section id="HitlForm"><h3><code>HitlForm</code> SduiHitlFormNode<span class="tag">Other</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: HitlForm</code></td><td class='req'>—</td><td><code>HitlForm</code></td></tr>
@@ -1016,7 +1041,8 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>required</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>ready</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>fileName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>previewPath</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<tr><td><b>previewPath</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>slotTag</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiContextBarGroup"><h3><code>ContextBarGroup</code></h3><p class="desc">ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>badge</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
