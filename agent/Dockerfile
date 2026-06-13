@@ -1,10 +1,11 @@
 # ============================================================
 # AIDA Agent 后端 · Python 3.11 + FastAPI/Uvicorn
 # ============================================================
-# 构建：docker build -f agent/Dockerfile -t aida/backend:latest .
-# 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data aida/backend:latest
+# 构建：docker build -f agent/Dockerfile -t aida-agent:latest .
+# 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data aida-agent:latest
 # ============================================================
 
+# syntax=docker/dockerfile:1
 FROM harbor.aie.rnd.huawei.com/library/python:3.12.13-slim
 
 # 内网 apt 源（Jenkins Agent 无法直连 deb.debian.org）
@@ -27,8 +28,9 @@ WORKDIR /app
 
 # 安装 Python 依赖（-r 保留行内注释；排除 Windows 专用 pywin32）
 COPY agent/requirements.txt ./agent/requirements.txt
-RUN grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
-    pip install --no-cache-dir \
+RUN --mount=type=cache,target=/root/.cache/pip,id=aida-pip-cache \
+    grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
+    pip install \
     -i http://mirrors.tools.huawei.com/pypi/simple \
     --trusted-host mirrors.tools.huawei.com \
     -r /tmp/requirements-docker.txt
