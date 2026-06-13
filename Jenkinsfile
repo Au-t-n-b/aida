@@ -90,7 +90,7 @@ pipeline {
                         script {
                             writeFile file: 'harbor-deploy.env', text: """\
 HARBOR_PASS=${env.HARBOR_PASS}
-HARBOR_USER=${env.HARBOR_USER}
+HARBOR_USER='${env.HARBOR_USER}'
 REGISTRY=${env.DOCKER_REGISTRY}
 """
                             writeFile file: 'deploy-remote.sh', text: """\
