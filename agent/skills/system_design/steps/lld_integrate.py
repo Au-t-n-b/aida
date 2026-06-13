@@ -10,7 +10,7 @@ from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit
 from ..pipelines.a3_bridge import run_command, ensure_plane_address_repairs, rebuild_access_plan_from_outputs
-from ..pipelines.delivery import has_mergeable_plane_artifacts
+from ..pipelines.delivery import has_mergeable_plane_artifacts, is_lld_delivery_intent
 from ..pipelines.exec_log import append_log, extract_actionable_error
 from agent.sdui.projector_base import collect_metrics
 
@@ -42,7 +42,14 @@ class LldIntegrateStep(BaseStep):
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         m = collect_metrics(state)
-        if m.get("sd_mode") in ("single", "batch"):
+        route = str(state.get("route_to") or "")
+        intent_cmd = str(
+            m.get("intent_command")
+            or (ctx.project or {}).get("text")
+            or ""
+        ).strip()
+        force_lld = route == "lld_integrate" or is_lld_delivery_intent(intent_cmd)
+        if m.get("sd_mode") in ("single", "batch") and not force_lld:
             emit(f"[{self.key}] 模式 {m.get('sd_mode')} → 跳过 LLD 融合（仅完整交付执行）")
             return {
                 "logs": ["[lld_integrate] 非完整交付模式，跳过 LLD 融合"],
@@ -50,8 +57,14 @@ class LldIntegrateStep(BaseStep):
                             "lld_status": "skipped"},
             }
 
-        repair_results = ensure_plane_address_repairs(ctx.work_root, emit=emit)
-        rebuild_access_plan_from_outputs(ctx.work_root, emit=emit)
+        # 已有可融合平面表时跳过地址补跑（plane_planning 刚跑完或历史产物仍在 Output），
+        # 避免 LLD 融合前重复执行整批地址规划导致长时间等待 stage_select 弹框。
+        if has_mergeable_plane_artifacts(ctx.work_root):
+            emit(f"[{self.key}] 已有可融合平面表 → 跳过地址规划补跑，直接融合 LLD")
+            repair_results = []
+        else:
+            repair_results = ensure_plane_address_repairs(ctx.work_root, emit=emit)
+            rebuild_access_plan_from_outputs(ctx.work_root, emit=emit)
         repair_errors = [r for r in repair_results if r.status == "error"]
         if repair_errors:
             msg = (
@@ -175,4 +188,5 @@ class LldIntegrateStep(BaseStep):
             "logs": [f"[lld_integrate] {result.summary}"],
             "metrics": {**metrics, "lld_status": "ok", "lld_warnings": []},
             "files": {"lld_file": lld_file} if lld_file else {},
+            "route_to": "",
         }

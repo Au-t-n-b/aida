@@ -124,3 +124,19 @@ def is_skippable_007_error(text: str) -> bool:
     if "指定 sheet" in s and ("无法读取" in s or "互联数据" in s):
         return False
     return any(m in s for m in _SKIPPABLE_MARKERS)
+
+
+def is_soft_skip_message(text: str) -> bool:
+    """007 sheet 缺失 / 命令已跳过类提示 —— 记 warning、不阻断后续 step、UI 不展示「执行失败」。"""
+    s = str(text or "").strip()
+    if not s:
+        return False
+    if is_skippable_007_error(s):
+        return True
+    if "007 缺少对应 sheet" in s:
+        return True
+    if "007 中无" in s and "跳过" in s:
+        return True
+    if "已跳过" in s and ("007" in s or "sheet" in s.lower()):
+        return True
+    return False

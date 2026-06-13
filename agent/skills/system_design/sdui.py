@@ -88,15 +88,16 @@ SD_STEP_ORDER = list(SD_STEP_NAMES.keys())
 
 def _sd_overall_status(state: dict[str, Any]) -> tuple[str, str]:
     """系统设计整体状态：publish 步 completed 即视为交付完成（full_restart 续跑 steps 条数少于全量）。"""
+    steps = state.get("steps") or []
+    hitl_step = (state.get("hitl") or {}).get("step")
+    # publish 已落账 → 整体 done；优先于 reconcile 误注入的 stage_select 等 stale HITL
+    if _step_completed(steps, "publish"):
+        return "done", "已完成"
     status_key, badge = overall_status(state, SD_STEP_ORDER)
+    if hitl_step:
+        return status_key, badge
     if status_key == "done":
         return status_key, badge
-    if (state.get("hitl") or {}).get("step"):
-        return status_key, badge
-    by_key = {s.get("key"): s for s in (state.get("steps") or [])}
-    pub = by_key.get("publish")
-    if pub and pub.get("status") == "completed":
-        return "done", "已完成"
     return status_key, badge
 
 # ── 交付流程「6 步用户蓝图」（对齐设计稿 STEP_BLUEPRINT，展示顺序即设计稿顺序）──
@@ -214,43 +215,19 @@ def _normalize_preview_path(raw: str | None) -> str | None:
 
 
 def _resolve_found_tags(state: dict[str, Any]) -> set[str]:
-    """已就绪输入件 tag：metrics.found_tags + state.files + HITL 反推 + 磁盘扫描（无 mock）。"""
-    from agent.skills.system_design.pipelines.inputs import FILE_CONFIG
-    m = collect_metrics(state)
-    found = set(m.get("found_tags") or [])
-    files = state.get("files") or {}
-    for tag in FILE_CONFIG:
-        fp = files.get(f"input_{tag}")
-        if fp and isinstance(fp, str):
-            found.add(tag)
-    hitl = state.get("hitl") or {}
-    for tag in _tags_from_paths(hitl.get("found_files") or []):
-        found.add(tag)
-    if hitl.get("step") == "input_check" and hitl.get("need_files"):
-        missing = _missing_tags_from_hitl(hitl)
-        for tag in FILE_CONFIG:
-            if tag not in missing:
-                found.add(tag)
-    for tag in _disk_input_index():
-        found.add(tag)
-    return found
+    """已就绪输入件 tag：仅磁盘扫描（collect_inputs / _disk_input_index）。"""
+    _ = state
+    return set(_disk_input_index().keys())
 
 
 def _input_basename(state: dict[str, Any], tag: str) -> str | None:
-    files = state.get("files") or {}
-    fp = files.get(f"input_{tag}")
-    if fp and isinstance(fp, str):
-        return os.path.basename(fp)
-    hitl = state.get("hitl") or {}
-    from_hitl = _tags_from_paths(hitl.get("found_files") or []).get(tag)
-    if from_hitl:
-        return from_hitl
+    _ = state
     disk = _disk_input_index().get(tag)
     return os.path.basename(disk) if disk else None
 
 
 def _input_fullpath(state: dict[str, Any], tag: str) -> str | None:
-    """输入件真实相对路径（供预览：磁盘扫描优先，其次 state.files / HITL）。"""
+    """输入件真实相对路径（供 /artifact 预览）：磁盘扫描优先，state.files 兜底并规范化。"""
     disk = _disk_input_index().get(tag)
     if disk:
         norm = _normalize_preview_path(disk)
@@ -262,13 +239,6 @@ def _input_fullpath(state: dict[str, Any], tag: str) -> str | None:
         norm = _normalize_preview_path(fp)
         if norm:
             return norm
-    hitl = state.get("hitl") or {}
-    name_map = _tags_from_paths(hitl.get("found_files") or [])
-    bn = name_map.get(tag)
-    if bn:
-        for p in (hitl.get("found_files") or []):
-            if os.path.basename(str(p)) == bn:
-                return _normalize_preview_path(str(p))
     return None
 
 
@@ -305,23 +275,45 @@ def _build_input_slot_list(
     )
 
 
+def _blocking_state_error(state: dict[str, Any]) -> str:
+    """会阻断 DAG / 展示为「执行失败」的 state.error（007 sheet 软跳过不算）。"""
+    from .pipelines.sheet007_preflight import is_soft_skip_message
+
+    err = str(state.get("error") or "").strip()
+    if err and not is_soft_skip_message(err):
+        return err
+    return ""
+
+
 def _execution_failed(state: dict[str, Any], m: dict[str, Any]) -> bool:
     """本 run 是否已发生可展示的执行失败（state.error / failed step / 命令结果 error）。"""
-    if str(state.get("error") or "").strip():
+    from .pipelines.sheet007_preflight import is_soft_skip_message
+
+    if _blocking_state_error(state):
         return True
-    if any(s.get("status") == "failed" for s in (state.get("steps") or [])):
-        return True
-    for rec in (m.get("command_results") or []):
-        if isinstance(rec, dict) and rec.get("status") == "error":
+    for s in (state.get("steps") or []):
+        if s.get("status") != "failed":
+            continue
+        step_err = str(s.get("error") or "").strip()
+        if not step_err or not is_soft_skip_message(step_err):
             return True
+    for rec in (m.get("command_results") or []):
+        if not isinstance(rec, dict) or rec.get("status") != "error":
+            continue
+        summary = str(rec.get("summary") or "")
+        errs = " ".join(str(e) for e in (rec.get("errors") or []))
+        if is_soft_skip_message(summary) or is_soft_skip_message(errs):
+            continue
+        return True
     return False
 
 
 def _round_error_text(state: dict[str, Any], m: dict[str, Any]) -> str:
     """本轮执行失败的可读说明（优先 state.error，退回 command_results；去噪 openpyxl 警告）。"""
     from .pipelines.exec_log import extract_actionable_error
+    from .pipelines.sheet007_preflight import is_soft_skip_message
 
-    err = str(state.get("error") or "").strip()
+    err = _blocking_state_error(state)
     if err:
         cleaned = extract_actionable_error(errors=[err], log_tail=err)
         if cleaned and cleaned != "执行失败（详见执行日志）":
@@ -329,12 +321,17 @@ def _round_error_text(state: dict[str, Any], m: dict[str, Any]) -> str:
     for rec in (m.get("command_results") or []):
         if not isinstance(rec, dict) or rec.get("status") != "error":
             continue
+        summary = str(rec.get("summary") or "").strip()
+        if is_soft_skip_message(summary):
+            continue
         cleaned = extract_actionable_error(errors=list(rec.get("errors") or []))
-        if cleaned and cleaned != "执行失败（详见执行日志）":
+        if cleaned and cleaned != "执行失败（详见执行日志）" and not is_soft_skip_message(cleaned):
             return cleaned
-        if rec.get("summary"):
-            return str(rec["summary"]).strip()
-    return err or "规划执行失败"
+        if summary and not is_soft_skip_message(summary):
+            return summary
+    if err:
+        return err
+    return "规划执行失败"
 
 
 def _cv_bubble(
@@ -540,7 +537,7 @@ def _build_confirm_card(state: dict[str, Any], hitl: dict[str, Any]) -> SduiCard
                     submitLabel="确认选择" if not is_multi else None,
                 ),
             ])
-    if state.get("error"):
+    if _blocking_state_error(state):
         children.append(SduiTextNode(
             content=f"错误：{state['error']}", variant="caption", color="error"))
     return SduiCardNode(
@@ -550,12 +547,211 @@ def _build_confirm_card(state: dict[str, Any], hitl: dict[str, Any]) -> SduiCard
     )
 
 
+def _inputs_ready_on_disk() -> bool:
+    from agent.skills.system_design.pipelines.inputs import collect_inputs, missing_required, REQUIRED_DEFAULT
+
+    return not missing_required(collect_inputs(None), REQUIRED_DEFAULT)
+
+
+def _lld_path_on_disk(state: dict[str, Any] | None = None) -> str:
+    _ = state
+    for p in _all_output_paths():
+        if "LLD" in os.path.basename(p).upper():
+            return p
+    return ""
+
+
+def _plan_output_paths(state: dict[str, Any] | None = None) -> list[str]:
+    _ = state
+    return [
+        p for p in _all_output_paths()
+        if "LLD" not in os.path.basename(p).upper()
+    ]
+
+
+def _ensure_step_record(
+    steps: list[dict[str, Any]],
+    key: str,
+    *,
+    status: str = "completed",
+    metrics: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    rec = _latest_step_record(steps, key)
+    if rec is None:
+        rec = {"key": key, "status": status, "metrics": dict(metrics or {})}
+        steps.append(rec)
+        return rec
+    if rec.get("status") in ("running", "hitl", "pending", "failed"):
+        rec["status"] = status
+    if metrics:
+        sm = dict(rec.get("metrics") or {})
+        sm.update(metrics)
+        rec["metrics"] = sm
+    return rec
+
+
+def _catalog_items_from_output_basename(basename: str) -> list[str]:
+    """A3 产物文件名 → 规划覆盖目录项（补充关键词组未命中的接入/互联表）。"""
+    if "LLD" in basename.upper():
+        return []
+    fn = basename.replace(" ", "").replace("面", "")
+    hits: list[str] = []
+    seen: set[str] = set()
+    for nk, items in _CATALOG_NORM_INDEX.items():
+        if not nk or len(nk) < 3:
+            continue
+        if nk in fn or fn in nk:
+            for it in items:
+                if it not in seen:
+                    seen.add(it)
+                    hits.append(it)
+    return hits
+
+
+def _reconcile_delivery_from_disk(state: dict[str, Any]) -> None:
+    """投影前对齐磁盘真值：清除 stale HITL、修复僵尸 running、补全 plan_commands / lld_file。"""
+    steps: list[dict[str, Any]] = list(state.get("steps") or [])
+    hitl = dict(state.get("hitl") or {})
+    out_paths = _all_output_paths()
+    lld_path = _lld_path_on_disk()
+    has_lld = bool(lld_path)
+    plan_paths = _plan_output_paths()
+    has_plan = bool(plan_paths)
+
+    # ① input_check 已通过或磁盘齐备 → 不再保留 input_check HITL
+    if hitl.get("step") == "input_check":
+        if _step_completed(steps, "input_check") or _inputs_ready_on_disk():
+            state.pop("hitl", None)
+            hitl = {}
+
+    # ② output/ 已空 → 清除 stale 产物引用与误标 completed
+    if not out_paths:
+        if hitl.get("step") in ("plane_planning", "lld_integrate"):
+            state.pop("hitl", None)
+        files = dict(state.get("files") or {})
+        for key in list(files.keys()):
+            if key.startswith("out::") or key.startswith("plane_") or key in ("lld_file", "ztp_file"):
+                files.pop(key, None)
+        state["files"] = files
+        top = dict(state.get("metrics") or {})
+        for k in list(top.keys()):
+            if k.startswith("lld_") or k in ("lld_file", "ztp_file"):
+                top.pop(k, None)
+        state["metrics"] = top
+        for s in steps:
+            if s.get("key") == "lld_integrate" and s.get("status") == "completed":
+                s["status"] = "pending"
+                s["metrics"] = {}
+            if s.get("key") == "plane_planning":
+                sm = dict(s.get("metrics") or {})
+                sm["plan_commands"] = []
+                s["metrics"] = sm
+                if s.get("status") == "completed" and not has_lld:
+                    s["status"] = "pending"
+        state["steps"] = steps
+        return
+
+    # ③ output/ 已有产物 → 解除僵尸 running、补全 step 账本（保留 stage_select 等交互 HITL）
+    if has_lld or has_plan:
+        if hitl.get("step") in ("plane_planning", "lld_integrate"):
+            state.pop("hitl", None)
+            hitl = {}
+        for s in steps:
+            if s.get("key") in ("plane_planning", "lld_integrate") and s.get("status") in ("running", "hitl"):
+                s["status"] = "completed"
+        _ensure_step_record(steps, "plane_planning", status="completed")
+        if has_lld:
+            _ensure_step_record(
+                steps,
+                "lld_integrate",
+                status="completed",
+                metrics={
+                    "lld_status": "ok",
+                    "lld_file": lld_path,
+                    "lld_planes_merged": max(1, len(plan_paths)),
+                },
+            )
+            _ensure_step_record(steps, "intent_recognition", status="completed")
+            _ensure_step_record(steps, "exec_confirm", status="completed")
+            files = dict(state.get("files") or {})
+            files["lld_file"] = lld_path
+            for p in plan_paths:
+                files[f"out::{p}"] = p
+            state["files"] = files
+            top = dict(state.get("metrics") or {})
+            top.update({"lld_status": "ok", "lld_file": lld_path})
+            state["metrics"] = top
+            # LLD 已落盘且尚未选择执行计划 → 立即投影 stage_select HITL（不必等 graph 节点排队）
+            stage = (state.get("project") or {}).get("stage") or {}
+            past_ztp = _step_completed(steps, "ztp_generate") or _step_completed(steps, "publish")
+            confs = (state.get("project") or {}).get("confirmations") or {}
+            if not stage.get("chosen") and not past_ztp and not confs.get("publish"):
+                from .pipelines.delivery import stage_select_hitl
+
+                cur_hitl = state.get("hitl") or {}
+                if cur_hitl.get("step") not in ("stage_select", "publish_confirm"):
+                    state["hitl"] = stage_select_hitl()
+                    state["current_step"] = "stage_select"
+
+    # ④ 磁盘规划产物 → 补 plan_commands 账本（点亮「规划覆盖」）
+    plane_rec = _latest_step_record(steps, "plane_planning")
+    if plane_rec and out_paths:
+        metrics = dict(plane_rec.get("metrics") or {})
+        commands: list[dict[str, Any]] = []
+        known: set[str] = set()
+        norm_out = _output_basenames()
+        for item, groups in _CATALOG_FILE_KW.items():
+            if item in known:
+                continue
+            if not any(all(tok in fn for tok in grp) for fn in norm_out for grp in groups):
+                continue
+            matched_bn = ""
+            for p in out_paths:
+                if "LLD" in os.path.basename(p).upper():
+                    continue
+                fn = os.path.basename(p).replace(" ", "").replace("面", "")
+                if any(all(tok in fn for tok in grp) for grp in groups):
+                    matched_bn = os.path.basename(p)
+                    break
+            commands.append({
+                "command": item,
+                "status": "ok",
+                "files": [matched_bn] if matched_bn else [],
+            })
+            known.add(item)
+        for p in out_paths:
+            if "LLD" in os.path.basename(p).upper():
+                continue
+            for item in _catalog_items_from_output_basename(os.path.basename(p)):
+                if item in known:
+                    continue
+                commands.append({
+                    "command": item,
+                    "status": "ok",
+                    "files": [os.path.basename(p)],
+                })
+                known.add(item)
+        metrics["plan_commands"] = commands
+        plane_rec["metrics"] = metrics
+
+    # ⑤ publish 已落账 → 清除 reconcile 误注入的 stage_select 等 stale HITL
+    if _step_completed(steps, "publish") and (state.get("hitl") or {}).get("step"):
+        state.pop("hitl", None)
+
+    state["steps"] = steps
+
+
 def _build_hitl_card(state: dict[str, Any]) -> SduiCardNode | None:
     """HITL 可交互卡（id=hitl-card · 前端路由到左侧会话框）。"""
     hitl = state.get("hitl") or {}
     step_key = hitl.get("step")
     if not step_key:
         return None
+    steps = state.get("steps") or []
+    # 输入件检查已通过 / 磁盘齐备：不展示缺件或 stale「需要确认」弹框
+    if step_key == "input_check":
+        if _step_completed(steps, "input_check") or _inputs_ready_on_disk():
+            return None
     # 选择规划任务：引导用户在对话框输入，不展示快捷按钮
     if step_key == "intent_recognition" and hitl.get("ui") == "plan_request":
         return SduiCardNode(
@@ -600,11 +796,14 @@ def _build_result_cards(state: dict[str, Any]) -> list[SduiNode]:
     """最近完成步骤的结果卡（HTML result · 产物摘要）。"""
     out: list[SduiNode] = []
     m = collect_metrics(state)
+    hitl_step = (state.get("hitl") or {}).get("step")
     for step_key, title, paths in (
         ("lld_integrate", "LLD 融合完成", [m.get("lld_file")] if m.get("lld_file") else []),
         ("ztp_generate", "ZTP 设计文件已生成", [m.get("ztp_file")] if m.get("ztp_file") else []),
         ("publish", "发布完成", []),
     ):
+        if step_key == "publish" and hitl_step == "publish_confirm":
+            continue
         if not _step_completed(state.get("steps") or [], step_key):
             continue
         arts = _artifact_items([p for p in paths if p], f"cv-res-{step_key}")
@@ -643,6 +842,89 @@ def _startup_guidance_body(state: dict[str, Any]) -> str:
     )
 
 
+def _conv_entry_to_node(entry: dict[str, Any], *, bubble_id: str) -> SduiNode | None:
+    kind = entry.get("kind")
+    if kind == "user":
+        text = str(entry.get("text") or "").strip()
+        return _cv_user_message(text, bubble_id=bubble_id) if text else None
+    if kind == "hitl":
+        return _cv_bubble(
+            str(entry.get("title") or "需要确认"),
+            str(entry.get("body") or ""),
+            bubble_id=bubble_id,
+        )
+    if kind == "assistant":
+        return _cv_bubble(
+            str(entry.get("title") or "已收到"),
+            str(entry.get("body") or ""),
+            tone=entry.get("tone"),
+            bubble_id=bubble_id,
+        )
+    return None
+
+
+def _ordered_conv_timeline(state: dict[str, Any], project: dict[str, Any]) -> list[dict[str, Any]]:
+    """按对话实际发生顺序合并 bootstrap + conv_log（seq 升序）。"""
+    status_key, _ = _sd_overall_status(state)
+    steps = state.get("steps") or []
+    chat = [t for t in (project.get("chat") or []) if str(t.get("text") or "").strip()]
+    input_done = _step_completed(steps, "input_check")
+    plane_rec = _latest_step_record(steps, "plane_planning")
+    plane_started = bool(plane_rec and plane_rec.get("status") in ("running", "completed"))
+    scenario = project.get("scenario") or "A3"
+
+    timeline: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+
+    def _add(entry: dict[str, Any], stable_id: str, seq: int) -> None:
+        if stable_id in seen_ids:
+            return
+        seen_ids.add(stable_id)
+        row = dict(entry)
+        row.setdefault("seq", seq)
+        row["_id"] = stable_id
+        timeline.append(row)
+
+    conv_log = project.get("conv_log") or []
+    if steps and status_key != "done" and not conv_log:
+        _add({
+            "kind": "assistant",
+            "title": f"系统设计助手已启动 · {scenario} 场景",
+            "body": _startup_guidance_body(state),
+        }, "boot-greeting", -1000)
+    if input_done and not plane_started and not chat and status_key != "done" and not conv_log:
+        _add({
+            "kind": "assistant",
+            "title": "输入件检查完成",
+            "body": "端口连线表与项目信息收集表校验通过，网络平面配置已读取。请选择要执行的规划任务。",
+        }, "boot-input-done", -999)
+        _add({
+            "kind": "assistant",
+            "title": "选择规划任务",
+            "body": "请在下方对话框直接描述需求并发送即可执行规划，完成多项规划后可一键生成完整 LLD。",
+        }, "boot-plan-request", -998)
+    if project.get("reselect_pending") and status_key != "done":
+        _add({
+            "kind": "assistant",
+            "title": "已取消执行计划",
+            "body": "可重新选择规划任务：在输入框直接描述需求（支持用「、」分隔一次输入多个任务）。",
+        }, "boot-reselect", -997)
+
+    for i, entry in enumerate(project.get("conv_log") or []):
+        if not isinstance(entry, dict):
+            continue
+        row = dict(entry)
+        row.setdefault("seq", i)
+        eid = str(row.get("_id") or row.get("id") or f"conv-{i}")
+        if eid in seen_ids:
+            continue
+        seen_ids.add(eid)
+        timeline.append(row)
+
+    timeline.sort(key=lambda e: (int(e.get("seq", 0)), str(e.get("_id") or "")))
+    return timeline
+
+
 def _build_conversation(state: dict[str, Any]) -> SduiStackNode | None:
     """AIDA 助手对话流（对齐 HTML ConversationPane · 纯读 state/logs/steps）。
 
@@ -667,60 +949,36 @@ def _build_conversation(state: dict[str, Any]) -> SduiStackNode | None:
         ))
         return SduiStackNode(id="sd-conversation", gap="sm", children=children)
 
-    # ── 问答模式（聊天流）：AI 问候 → 输入件就绪引导 → 逐轮「用户提问 → 系统回答」──
+    # ── 问答模式（聊天流）：conv_log 时间线 + 当前轮动态回复 ──
     hitl = state.get("hitl") or {}
-    chat = [t for t in (project.get("chat") or []) if str(t.get("text") or "").strip()]
     result_cards = _build_result_cards(state)
-    input_done = _step_completed(steps, "input_check")
-    plane_rec = _latest_step_record(steps, "plane_planning")
-    plane_started = bool(plane_rec and plane_rec.get("status") in ("running", "completed"))
     cur_cmd = str(m.get("intent_command") or "")
 
-    # 1) AI 问候（启动）
-    if steps and status_key != "done":
-        scenario = project.get("scenario") or "A3"
-        children.append(_cv_bubble(
-            f"系统设计助手已启动 · {scenario} 场景",
-            _startup_guidance_body(state),
-            bubble_id="cv-greeting",
-        ))
+    # 1) 按时间线顺序渲染 conv_log（bootstrap + 规划指令 + HITL 交互 · 不覆盖）
+    for i, entry in enumerate(_ordered_conv_timeline(state, project)):
+        node = _conv_entry_to_node(entry, bubble_id=f"cv-tl-{i}")
+        if node:
+            children.append(node)
 
-    # 2) 输入件检查完成（仅首次进入规划前展示一次，避免续跑 / 多 Banner 重复刷屏）
-    if input_done and not plane_started and not chat and status_key != "done":
-        children.append(_cv_bubble(
-            "输入件检查完成",
-            "端口连线表与项目信息收集表校验通过，网络平面配置已读取。请选择要执行的规划任务。",
-            bubble_id="cv-input-done",
-        ))
-        children.append(_cv_bubble(
-            "选择规划任务",
-            "请在下方对话框直接描述需求并发送即可执行规划，"
-            "完成多项规划后可一键生成完整 LLD。",
-            bubble_id="cv-plan-request",
-        ))
-
-    # 2.5) 已取消执行计划（设计稿 cancel_confirm）：提示重新选择 + 给出快捷指令
-    if project.get("reselect_pending") and status_key != "done":
-        children.append(_cv_bubble(
-            "已取消执行计划",
-            "可重新选择规划任务：在输入框直接描述需求"
-            "（支持用「、」分隔一次输入多个任务）。",
-            bubble_id="cv-reselect",
-        ))
-
-    # 3) 逐轮问答：每条用户指令 → 紧跟系统回答（最近一轮按当前实时状态回答）
+    # 2) 当前轮规划指令的动态回复（尚未写入 conv_log / chat_sealed 的最后一轮）
+    chat = [t for t in (project.get("chat") or []) if str(t.get("text") or "").strip()]
+    chat_sealed = project.get("chat_sealed") or []
+    conv_log = project.get("conv_log") or []
+    logged_users = {
+        str(e.get("text") or "").strip()
+        for e in conv_log if isinstance(e, dict) and e.get("kind") == "user"
+    }
     n = len(chat)
     for i, turn in enumerate(chat):
         text = str(turn.get("text") or "").strip()
-        children.append(_cv_user_message(text, bubble_id=f"cv-user-{i}"))   # 用户气泡
-        is_last = (i == n - 1)
-        if not is_last:
-            children.append(_cv_bubble(
-                f"「{text}」已执行", "结果已并入输出件，可在右侧「输出件」查看 / 下载。",
-                bubble_id=f"cv-bubble-done-{i}",
-            ))
+        if text in logged_users:
             continue
-        # 最近一轮：失败优先于 running / HITL（避免 paused+failed 仍显示「请确认」）
+        if i < len(chat_sealed) and isinstance(chat_sealed[i], dict):
+            continue
+        if i < n - 1:
+            continue
+        children.append(_cv_user_message(text, bubble_id=f"cv-user-live"))
+        is_last = True
         if _execution_failed(state, m):
             err_text = _round_error_text(state, m)
             log_hint = str(m.get("exec_log_path") or "").strip()
@@ -731,6 +989,13 @@ def _build_conversation(state: dict[str, Any]) -> SduiStackNode | None:
                 f"「{cur_cmd or text}」执行失败",
                 body,
                 tone="danger",
+            ))
+        elif m.get("ztp_warnings"):
+            body = "；".join(str(w) for w in m["ztp_warnings"][:3] if str(w).strip())
+            children.append(_cv_bubble(
+                "ZTP 部分步骤已跳过",
+                f"{body}。已继续后续发布流程。",
+                tone="warning",
             ))
         elif status_key == "running":
             children.append(_cv_bubble("已识别", f"识别为「{cur_cmd or text}」，正在执行规划…"))
@@ -810,6 +1075,13 @@ def _build_conversation(state: dict[str, Any]) -> SduiStackNode | None:
             if log_hint and log_hint not in body:
                 body += f"\n\n详细日志：{log_hint}"
             children.append(_cv_bubble("执行失败", body, tone="danger"))
+        elif m.get("ztp_warnings"):
+            body = "；".join(str(w) for w in m["ztp_warnings"][:3] if str(w).strip())
+            children.append(_cv_bubble(
+                "ZTP 部分步骤已跳过",
+                f"{body}。已继续后续发布流程。",
+                tone="warning",
+            ))
         children.extend(result_cards)
 
     # 5) 收尾：可选步跳过 / 发布完成
@@ -819,11 +1091,17 @@ def _build_conversation(state: dict[str, Any]) -> SduiStackNode | None:
             "未提供设备清单 / 命名映射，可选步骤已跳过。",
         ))
     if status_key == "done":
-        children.append(_cv_bubble(
-            "交付完成",
-            "收尾步骤已处理，LLD 设计已发布并写回项目活动进度，本次系统设计任务完成。",
-            tone="success",
-        ))
+        already_done = any(
+            isinstance(e, dict) and e.get("kind") == "assistant"
+            and "发布完成" in str(e.get("title") or "")
+            for e in (project.get("conv_log") or [])
+        )
+        if not already_done:
+            children.append(_cv_bubble(
+                "交付完成",
+                "收尾步骤已处理，LLD 设计已发布并写回项目活动进度，本次系统设计任务完成。",
+                tone="success",
+            ))
 
     if not children:
         return None
@@ -833,13 +1111,22 @@ def _build_conversation(state: dict[str, Any]) -> SduiStackNode | None:
 # ── 通用：整体进度（设计稿 tl-prog「设计进度」/ 覆盖计算复用）──────────────────────
 
 def _progress_pct(state: dict[str, Any]) -> int:
-    """整体设计进度 %：优先 overall_progress，否则按已完成后端步骤比例。"""
+    """整体设计进度 %：优先 overall_progress，否则按蓝图步完成比例（full_restart 续跑时不回退）。"""
+    hitl_step = (state.get("hitl") or {}).get("step")
+    publish_done = _step_completed(state.get("steps") or [], "publish")
     overall = state.get("overall_progress") or 0
-    if overall:
+    if overall and publish_done and hitl_step != "publish_confirm":
         try:
             return max(0, min(100, int(overall)))
         except (TypeError, ValueError):
             pass
+    done_bp = 0
+    total_bp = len(SD_BLUEPRINT)
+    for bp_id, _title, _hint, keys, _optional in SD_BLUEPRINT:
+        if _agg_blueprint_status(state, keys) == "done":
+            done_bp += 1
+    if total_bp:
+        return round(done_bp / total_bp * 100)
     steps = state.get("steps") or []
     total = len(SD_STEP_ORDER)
     done = sum(1 for s in steps if s.get("status") == "completed")
@@ -851,13 +1138,40 @@ def _progress_pct(state: dict[str, Any]) -> int:
 def _agg_blueprint_status(state: dict[str, Any], keys: list[str]) -> str:
     """把一个蓝图步映射的后端 step（真实 status）聚合为 Stepper 状态。
     waiting → 等待；running → 进行中（含 HITL 挂起）；done → 已完成；error → 失败。"""
+    # LLD 蓝图：仅磁盘有 LLD 才标 done；无产物时不信任历史 completed
+    if set(keys) == {"intent_recognition", "exec_confirm", "plane_planning", "lld_integrate"}:
+        if _lld_path_on_disk():
+            return "done"
+        if not _all_output_paths():
+            by_key = {s.get("key", ""): s for s in (state.get("steps") or [])}
+            hitl_step = (state.get("hitl") or {}).get("step")
+            if hitl_step in keys:
+                return "running"
+            if any(
+                by_key.get(k, {}).get("status") in ("running", "hitl")
+                for k in keys
+            ):
+                return "running"
+            return "waiting"
     by_key = {s.get("key", ""): s for s in (state.get("steps") or [])}
     hitl_step = (state.get("hitl") or {}).get("step")
-    # 发布蓝图：publish 已完成且无 publish_confirm HITL → done（续跑 route_to 可能缺 confirm 记录）
+    steps_list = state.get("steps") or []
+    # 发布蓝图：仅 publish 步真实 completed 且无 publish_confirm HITL → done（不凭磁盘摘要误判）
     if set(keys) == {"publish_confirm", "publish"}:
-        pub = by_key.get("publish")
-        if pub and backend_status_to_sdui(pub.get("status", "")) == "done" and hitl_step != "publish_confirm":
+        if hitl_step == "publish_confirm":
+            return "running"
+        if _step_completed(steps_list, "publish"):
             return "done"
+        confs = (state.get("project") or {}).get("confirmations") or {}
+        pub_rec = by_key.get("publish")
+        if pub_rec and pub_rec.get("status") in ("running", "hitl"):
+            return "running"
+        if confs.get("publish"):
+            return "running"
+        return "waiting"
+    # ZTP 蓝图：ztp 已完成 → done
+    if set(keys) == {"ztp_generate"} and _step_completed(steps_list, "ztp_generate"):
+        return "done"
     if hitl_step in keys:
         return "running"
     recs = [by_key[k] for k in keys if k in by_key]
@@ -1101,46 +1415,19 @@ def _dedupe_plan_output_paths(paths: list[str]) -> list[str]:
 
 
 def _scan_output_dir_rel() -> list[str]:
-    """直接扫描 ProjectData/Output（磁盘真值）→ 相对 work_root 的产物路径列表。
-    作为 state.files['out::*'] 的兜底：确保「输出路径里有哪些文件，前端就展示 / 点亮哪些」，
-    不受 full_restart 后当前 run 的 state 尚未回填 out:: 影响（子 skill 产物始终可见）。"""
+    """直接扫描 output/artifacts_dir（磁盘唯一真相）。"""
     try:
-        from .pipelines.path_manifest import abs_artifacts_dir, resolve_data_root
+        from .pipelines.path_manifest import scan_artifacts_rel_paths
 
-        root = resolve_data_root()
-        out_dir = abs_artifacts_dir()
-        if not out_dir.is_dir():
-            return []
-        keep_ext = (".xlsx", ".xls", ".docx", ".doc", ".pdf", ".zip")
-        skip_meta = {"run_meta.csv", "layer_detection.txt", "scenario_detection.txt"}
-        skip_name_fragments = ("计算参数面网段规划",)
-        res: list[str] = []
-        for p in sorted(out_dir.rglob("*")):
-            if not p.is_file() or p.name.startswith("~$") or p.name in skip_meta:
-                continue
-            if any(frag in p.name for frag in skip_name_fragments):
-                continue
-            if p.suffix.lower() not in keep_ext:
-                continue
-            try:
-                res.append(str(p.relative_to(root)).replace("\\", "/"))
-            except Exception:
-                pass
-        return res
+        return scan_artifacts_rel_paths()
     except Exception:
         return []
 
 
-def _all_output_paths(state: dict[str, Any]) -> list[str]:
-    """汇集输出路径下全部产物（相对 work_root）：state.files['out::*' / 'plane_*'] ∪ 磁盘扫描。
-    磁盘扫描兜底保证「Output 有什么就展示什么」，与设计稿/需求一致。"""
-    files = state.get("files") or {}
-    paths: list[str] = []
-    for k, v in files.items():
-        if isinstance(v, str) and v and (k.startswith("out::") or k.startswith("plane_")):
-            paths.append(v)
-    paths.extend(_scan_output_dir_rel())
-    # 按 basename 去重保序
+def _all_output_paths(state: dict[str, Any] | None = None) -> list[str]:
+    """输出路径下全部产物（相对 work_root）：仅磁盘扫描，不合并 run state。"""
+    _ = state
+    paths = _scan_output_dir_rel()
     seen: set[str] = set()
     out: list[str] = []
     for p in paths:
@@ -1152,10 +1439,11 @@ def _all_output_paths(state: dict[str, Any]) -> list[str]:
     return out
 
 
-def _output_basenames(state: dict[str, Any]) -> list[str]:
+def _output_basenames(state: dict[str, Any] | None = None) -> list[str]:
     """输出路径全部产物 → 归一化文件名（去空格 + 去「面」），供规划覆盖矩阵按文件点亮。"""
+    _ = state
     names: list[str] = []
-    for p in _all_output_paths(state):
+    for p in _all_output_paths():
         base = os.path.basename(p)
         if base.lower().endswith((".xlsx", ".xls", ".csv")):
             names.append(base.replace(" ", "").replace("面", ""))
@@ -1163,50 +1451,35 @@ def _output_basenames(state: dict[str, Any]) -> list[str]:
 
 
 def _catalog_status_map(state: dict[str, Any]) -> dict[str, str]:
-    """目录任务名 → 状态（done/running/pending）· 全部来自真实后端信号（无 mock）。
-
-    点亮逻辑（严格对齐设计稿 & 需求②）：输出路径（ProjectData/Output）里有哪个规划产物文件，
-    就点亮对应的指令框。主信号 = 扫描 Output 文件名按平面 + 类别关键词匹配目录项；
-    辅信号 = metrics.plan_commands（已执行且产物仍在的指令账本，用于互联/接入等聚合产物的精确点亮）。
-    """
+    """目录任务名 → 状态（done/running/pending）· 点亮仅来自 output/ 磁盘文件名。"""
     m = collect_metrics(state)
     out: dict[str, str] = {}
 
-    # 1) 输出路径已生成的产物文件 → 点亮对应目录框（done）· 需求②核心
-    out_names = _output_basenames(state)
+    out_names = _output_basenames()
     if out_names:
         for item, groups in _CATALOG_FILE_KW.items():
             for grp in groups:
                 if any(all(tok in fn for tok in grp) for fn in out_names):
                     out[item] = "done"
                     break
+        for p in _all_output_paths():
+            for item in _catalog_items_from_output_basename(os.path.basename(p)):
+                out.setdefault(item, "done")
 
-    # 2) 已执行且产物仍在输出路径的规划指令 → 按指令名精确点亮（补充互联/接入聚合产物）
-    for rec in (m.get("plan_commands") or []):
-        if not isinstance(rec, dict):
-            continue
-        if rec.get("status") != "ok" or not rec.get("files"):
-            continue
-        for it in _match_catalog_items(str(rec.get("command") or "")):
-            out.setdefault(it, "done")
-
-    # 3) 兼容旧信号：project.completed（执行过的规划命令名）→ 点亮（不覆盖已 done）
-    completed = (state.get("project") or {}).get("completed") or state.get("completed") or []
-    for c in completed:
-        for it in _match_catalog_items(str(c or "")):
-            out.setdefault(it, "done")
-
-    # 4) 本批次失败指令 → 目录框标记 error（不覆盖已 done）
+    # 本批次失败指令 → 目录框标记 error（不覆盖已 done）
     for rec in (m.get("command_results") or []):
         if not isinstance(rec, dict) or rec.get("status") != "error":
             continue
         for it in _match_catalog_items(str(rec.get("command") or "")):
             out.setdefault(it, "error")
 
-    # 5) plane_planning 正在执行的单条指令 → 其目录框标记「执行中」（不覆盖已 done/error）
-    plane_running = any(
-        s.get("key") == "plane_planning" and s.get("status") == "running"
-        for s in (state.get("steps") or [])
+    # plane_planning 正在执行的单条指令 → 其目录框标记「执行中」（不覆盖已 done/error）
+    plane_running = (
+        not _lld_path_on_disk()
+        and any(
+            s.get("key") == "plane_planning" and s.get("status") in ("running", "hitl")
+            for s in (state.get("steps") or [])
+        )
     )
     if plane_running:
         for it in _match_catalog_items(str(m.get("intent_command") or "")):
@@ -1396,35 +1669,15 @@ def _classify_output(path: str) -> str:
 
 
 def _collect_outputs(state: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """汇集「全部已生成文件」并分类 关键/规划。
-    来源（按预览/下载友好度优先）：Output 目录全量扫描（files['out::<rel>']，相对路径）
-    → 各平面产物（files['plane_*']）→ 显式关键产物（metrics.lld_file/ztp_file + 执行摘要）。
-    输入件（files['input_*']）不得出现在输出件面板；测试用例仅在发布前检查环节拷贝后才展示。"""
-    m = collect_metrics(state)
-    files = state.get("files") or {}
+    """汇集「全部已生成文件」并分类 关键/规划。来源：仅 output/ 磁盘扫描。"""
     input_paths = _input_artifact_paths(state)
     show_test_case = _should_show_test_case_in_outputs(state)
-    explicit_key_names: set[str] = set()
-    explicit: list[str] = []
-    for k in ("lld_file", "ztp_file"):
-        v = m.get(k) or files.get(k)
-        if v and isinstance(v, str):
-            explicit.append(v)
-            explicit_key_names.add(os.path.basename(v))
-    for fk in ("test_case_file", "exec_summary"):
-        if fk == "test_case_file" and not show_test_case:
-            continue
-        v = files.get(fk)
-        if v and isinstance(v, str):
-            explicit.append(v)
-            explicit_key_names.add(os.path.basename(v))
-    # 输出路径全部产物（state.files ∪ 磁盘扫描兜底）：保证子 skill 产物始终展示在「规划输出件」
-    scanned = _all_output_paths(state)
+    scanned = _all_output_paths()
 
     key_map: dict[str, str] = {}
     plan_map: dict[str, str] = {}
     seen: set[str] = set()
-    for p in [*scanned, *explicit]:   # 相对路径(scan) 优先去重，便于预览/下载
+    for p in scanned:
         bn = os.path.basename(p)
         norm = p.replace("\\", "/")
         if norm in input_paths:
@@ -1434,11 +1687,7 @@ def _collect_outputs(state: dict[str, Any]) -> tuple[list[str], list[str]]:
         if bn in seen:
             continue
         seen.add(bn)
-        if (
-            bn in explicit_key_names
-            or _classify_output(p) == "key"
-            or (show_test_case and _is_test_case_basename(bn))
-        ):
+        if _classify_output(p) == "key" or (show_test_case and _is_test_case_basename(bn)):
             key_map[bn] = p
         else:
             plan_map[bn] = p
@@ -1535,16 +1784,18 @@ def _build_tab_group(state: dict[str, Any]) -> SduiTabGroupNode | None:
             outputs_children.append(empty)
 
     active = "progress"
+    if status_key == "done" and out_count and outputs_view > progress_view:
+        active = "outputs"
     project = state.get("project") or {}
     hitl = state.get("hitl") or {}
     focus_token: int | None = None
     outputs_view = int(project.get("request_outputs_view") or 0)
     progress_view = int(project.get("request_progress_view") or 0)
-    # 默认停留「进度」；仅显式引导才切页（检查测试用例 → 输出件；确认后 → 进度）
-    if hitl.get("step") == "publish_confirm" and hitl.get("ui") == "test_check":
-        active = "outputs"
-        if outputs_view > 0:
-            focus_token = outputs_view
+    if outputs_view > 0:
+        focus_token = outputs_view
+    if hitl.get("step") == "publish_confirm" and hitl.get("ui") in ("test_check", "finalize"):
+        if hitl.get("ui") == "test_check" or focus_token:
+            active = "outputs"
     elif (
         progress_view > 0
         and hitl.get("step") == "publish_confirm"
@@ -1584,6 +1835,21 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
           · 输入件：InputSlotList
           · 输出件：关键 / 规划输出件（带角标）
     """
+    # 投影前重扫磁盘，避免删文件后 state.files / metrics 仍显示旧「已就绪」
+    try:
+        from agent.system_design_files import sync_inputs_into_state, sync_outputs_into_state
+        from agent.skills.system_design.pipelines.path_manifest import resolve_data_root
+
+        root = resolve_data_root()
+        sync_inputs_into_state(root, state)
+        sync_outputs_into_state(root, state)
+    except Exception:
+        pass
+    try:
+        _reconcile_delivery_from_disk(state)
+    except Exception:
+        pass
+
     nodes: list[SduiNode] = [
         build_header(state, default_name="系统设计 · 交付作业", cta_map=SD_CTA, step_order=SD_STEP_ORDER),
     ]
@@ -1593,7 +1859,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if conv:
         nodes.append(conv)
 
-    hitl = _build_hitl_card(state) if not state.get("error") else None
+    hitl = _build_hitl_card(state) if not _blocking_state_error(state) else None
     if hitl:
         nodes.append(hitl)
 
@@ -1611,8 +1877,22 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         "skill": "system_design",
         "run_id": state.get("run_id", ""),
     }
-    if state.get("error"):
-        meta["error"] = str(state["error"])
+    status_key, _ = _sd_overall_status(state)
+    hitl_step = (state.get("hitl") or {}).get("step")
+    blocking_err = _blocking_state_error(state)
+    if blocking_err:
+        meta["phase"] = "error"
+    elif hitl_step:
+        meta["phase"] = "hitl"
+    elif status_key == "done":
+        meta["phase"] = "done"
+    elif status_key == "running":
+        meta["phase"] = "running"
+    elif status_key == "paused":
+        meta["phase"] = "hitl"
+    meta["progress"] = _progress_pct(state)
+    if blocking_err:
+        meta["error"] = blocking_err
         meta["phase"] = "error"
     m_end = collect_metrics(state)
     if m_end.get("exec_log_path"):

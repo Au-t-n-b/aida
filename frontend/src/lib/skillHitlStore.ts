@@ -54,9 +54,14 @@ export function clearSkillHitl(skillId?: string): void {
   }
 }
 
+export function getSkillHitl(): SkillHitlState | null {
+  return _current;
+}
+
 export function useSkillHitlStore(): SkillHitlState | null {
   return useSyncExternalStore(
     (cb) => { _subs.add(cb); return () => { _subs.delete(cb); }; },
+    () => _current,
     () => _current,
   );
 }

@@ -10,7 +10,7 @@
  * 设计沿用 aida 浅色 token，不照搬 nanobot 深色主题。
  */
 import { useEffect, useState } from 'react';
-import { ensureAgentBase } from '@/lib/agentBase';
+import { ensureAgentBase, artifactUrl } from '@/lib/agentBase';
 
 // 仅声明本组件实际调用的 API，避免依赖 xlsx/mammoth 自带类型（库未安装时也能编译）。
 interface XlsxLike {
@@ -29,10 +29,6 @@ type Props = {
 };
 
 type Status = 'loading' | 'ready' | 'error' | 'unsupported';
-
-function artifactUrl(base: string, skillId: string, path: string): string {
-  return `${base}/agent/${skillId}/artifact?path=${encodeURIComponent(path)}`;
-}
 
 export function SduiPreviewModal({ skillId, path, onClose }: Props) {
   const [status, setStatus] = useState<Status>('loading');
@@ -61,12 +57,13 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
 
     void (async () => {
       try {
-        const base = await ensureAgentBase(skillId);
-        if (!cancelled) setAgentBase(base);
-        const res = await fetch(artifactUrl(base, skillId, path));
+        const fetchBase = import.meta.env.DEV ? '' : await ensureAgentBase(skillId);
+        const dlBase = fetchBase || await ensureAgentBase(skillId);
+        if (!cancelled) setAgentBase(dlBase);
+        const res = await fetch(artifactUrl(fetchBase, skillId, path));
         if (!res.ok) throw new Error(`加载失败 (${res.status})`);
 
-        if (ext === 'xlsx' || ext === 'xls') {
+        if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
           const buf = await res.arrayBuffer();
           const XLSX = (await import('xlsx')) as unknown as XlsxLike;
           const wb = XLSX.read(buf, { type: 'array' });

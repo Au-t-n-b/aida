@@ -18,10 +18,13 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        '/api/v1': {
-          target: agentBase,
-          changeOrigin: true,
-        },
+        // Manager（鉴权 / 项目列表）— 比下方 /api/v1 更具体，须写在前面
+        '/api/v1/auth': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        '/api/v1/projects': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        '/api/v1/chat': { target: 'http://127.0.0.1:8000', changeOrigin: true },
+        // Agent（skill / 交付计划 / 产物预览等）
+        '/agent': { target: agentBase, changeOrigin: true },
+        '/api/v1': { target: agentBase, changeOrigin: true },
       },
     },
   };

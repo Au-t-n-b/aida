@@ -33,9 +33,14 @@ export function clearSkillConversation(skillId?: string): void {
   }
 }
 
+export function getSkillConversation(): SkillConversationState | null {
+  return _current;
+}
+
 export function useSkillConversationStore(): SkillConversationState | null {
   return useSyncExternalStore(
     (cb) => { _subs.add(cb); return () => { _subs.delete(cb); }; },
+    () => _current,
     () => _current,
   );
 }

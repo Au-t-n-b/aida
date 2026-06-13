@@ -23,13 +23,22 @@ export function agentBaseSync(): string {
   return envBase() ?? _resolvedBase ?? SYNC_DEFAULT;
 }
 
-/** 解析可用 Agent 基址；system_design 跳过仍使用 ProjectData 的旧实例。 */
+/** 解析可用 Agent 基址；system_design 跳过仍使用 ProjectData 的旧实例。空串 = 同源（走 Vite /agent 代理）。 */
 export async function ensureAgentBase(skillId = 'system_design'): Promise<string> {
   const fromEnv = envBase();
   if (fromEnv) return fromEnv;
+  // 开发期默认走 Vite /agent 代理（与页面同源），避免预览直连错误端口导致 403/404
+  if (import.meta.env.DEV) return '';
   if (_resolvedBase) return _resolvedBase;
   if (!_resolvePromise) _resolvePromise = probeLocalAgent(skillId);
   return _resolvePromise;
+}
+
+/** GET /agent/{skill}/artifact?path= — base 为空时走同源代理。 */
+export function artifactUrl(base: string, skillId: string, path: string): string {
+  const q = encodeURIComponent(path);
+  const prefix = base ? base.replace(/\/$/, '') : '';
+  return `${prefix}/agent/${skillId}/artifact?path=${q}`;
 }
 
 async function probeLocalAgent(skillId: string): Promise<string> {
