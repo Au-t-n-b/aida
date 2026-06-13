@@ -28,8 +28,8 @@ uvicorn manager.main:app --host 0.0.0.0 --port 8000
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `DATA_CENTER_BASE_URL` | `http://127.0.0.1:9000` | 数据中心 Base URL |
+| `DATA_CENTER_BASE_URL` | **必填** | 远端数据中心 API Base URL（例 `http://10.143.2.231:8000`） |
 | `AIDA_AGENT_BASE_URL` | `http://127.0.0.1:7401` | AIDA Agent（chat/access 回传） |
-| `MANAGER_PORT` | `8000` | 监听端口 |
+| `MANAGER_PORT` | `8001` | 监听端口 |
 
 鉴权契约见 `docs/50_数据与接口/接口/auth.md`。

@@ -25,11 +25,16 @@ _load_agent_env()
 
 
 def datacenter_base() -> str:
-    return (
+    url = (
         os.environ.get("DATA_CENTER_BASE_URL")
         or os.environ.get("AIDA_DATACENTER_BASE")
-        or "http://127.0.0.1:9000"
-    ).rstrip("/")
+    )
+    if not url:
+        raise RuntimeError(
+            "DATA_CENTER_BASE_URL 未配置：请在 agent/.env 中设置远端数据中心 API 地址"
+            "（例：DATA_CENTER_BASE_URL=http://10.143.2.231:8000）"
+        )
+    return url.rstrip("/")
 
 
 def aida_agent_base() -> str:
