@@ -5,7 +5,6 @@
 # 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data harbor.aie.rnd.huawei.com/aida/backend:latest
 # ============================================================
 
-# syntax=docker/dockerfile:1
 FROM harbor.aie.rnd.huawei.com/library/python:3.12.13-slim
 
 # 内网 apt 源（Jenkins Agent 无法直连 deb.debian.org）

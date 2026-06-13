@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:1
 # ============================================================
 # AIDA 前端 · Node 20 构建 → Nginx 托管
 # ============================================================
@@ -12,8 +11,7 @@ WORKDIR /build
 ENV NODE_ENV=development
 
 COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
-RUN --mount=type=cache,target=/root/.npm,id=aida-npm-cache \
-    npm install --include=dev --no-audit --no-fund
+RUN npm install --include=dev --no-audit --no-fund
 
 COPY frontend/ ./
 # 镜像构建跳过 prebuild 类型检查，直接 vite 打包（CI 类型检查可另开 Job）
