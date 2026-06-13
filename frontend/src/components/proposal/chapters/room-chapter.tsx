@@ -99,9 +99,9 @@ export function RoomChapter() {
     setExporting(true);
     try {
       const data = await roomRackApi.export(rows);
-      setToast({ type: 'success', message: `已保存到 ${data.saved_path}` });
+      setToast({ type: 'success', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '导出失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
     } finally {
       setExporting(false);
     }
@@ -170,7 +170,7 @@ export function RoomChapter() {
               : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
           }`}
         >
-          {exporting ? '保存中…' : '导出 Excel'}
+          {exporting ? '保存中…' : '保存 Excel'}
         </button>
       </div>
     </ProposalChapterCard>

@@ -1414,10 +1414,10 @@ export const proposalApi = {
       { method: 'DELETE' },
     );
   },
-  exportNetPlanes(rows: NetPlaneRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string }>(
+  exportNetPlanes(rows: NetPlaneRow[], commonPlaneTypes: string[], projectId = DEFAULT_PROJECT_ID) {
+    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/export`,
-      { method: 'POST', body: JSON.stringify({ rows }) },
+      { method: 'POST', body: JSON.stringify({ rows, common_plane_types: commonPlaneTypes }) },
     );
   },
   initializeNetMgmt(projectId = DEFAULT_PROJECT_ID) {
@@ -1443,7 +1443,7 @@ export const proposalApi = {
     );
   },
   exportNetMgmt(rows: NetMgmtRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string }>(
+    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
@@ -1489,7 +1489,7 @@ export const proposalApi = {
     );
   },
   exportClusterDevices(rows: ClusterDeviceRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string }>(
+    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
@@ -1529,7 +1529,7 @@ export const roomRackApi = {
     );
   },
   export(rows: RoomRackRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string }>(
+    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
