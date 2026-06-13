@@ -1,10 +1,7 @@
 /**
- * 交付预案 · 数据加载/缓存/筛选/保存
+ * 交付预案 · 数据加载/缓存/筛选/保存（数据中心优先，mock 降级由后端处理）
  */
-import {
-  DEFAULT_PROJECT_NAME,
-  ProposalMockPaths,
-} from '@/data/project-paths';
+import type { ProjectDataContext } from '@/lib/datacenter/types';
 import type {
   AcceptanceItem,
   AcceptanceTestCase,
@@ -18,14 +15,13 @@ import {
   asPlanActivities,
   asRaciRows,
   asTestCases,
-  fetchMockFile,
-  writeMockFile,
+  fetchTableSlot,
+  writeTableSlot,
 } from '@/lib/xlsx-io';
 
 const DRAFT_RACI_KEY = 'aida:proposal:raci-draft';
-/** v5：计划表改读 项目管理/计划/输入文件/交付计划表.xlsx */
-const PLAN_CACHE_KEY = 'aida:proposal:plan-cache:v5';
-const ACCEPT_CACHE_KEY = 'aida:proposal:accept-cache:v4';
+const PLAN_CACHE_KEY = 'aida:proposal:plan-cache:v6';
+const ACCEPT_CACHE_KEY = 'aida:proposal:accept-cache:v5';
 const TC_UPLOADED_KEY = 'aida:proposal:tc-uploaded';
 const TC_CACHE_KEY = 'aida:proposal:tc-cache';
 const VERSIONS_KEY = 'aida:proposal:versions';
@@ -80,7 +76,6 @@ export function setStoredVersions(projectName: string, v: ProposalTableVersions)
   localStorage.setItem(`${VERSIONS_KEY}:${projectName}`, JSON.stringify(v));
 }
 
-/** 从用例名称提取节点数 → 卡数（节点 × 8） */
 export function extractCaseCardCount(l3: string): number {
   const m = l3.match(/(\d+)\s*节点/);
   if (!m) return 0;
@@ -99,11 +94,25 @@ export function filterTestCases(cases: AcceptanceTestCase[], cardScale: number):
   });
 }
 
-async function safeFetch(path: string): Promise<{ rows: unknown[]; version: number; cardScale?: number } | null> {
+async function safeFetchSlot(
+  ctx: ProjectDataContext,
+  slot: Parameters<typeof fetchTableSlot>[1],
+): Promise<{ rows: unknown[]; version: number; cardScale?: number } | null> {
   try {
-    const data = await fetchMockFile(path);
-    return { rows: data.rows ?? [], version: data.version ?? 0, cardScale: data.cardScale };
-  } catch {
+    const data = await fetchTableSlot(ctx, slot);
+    return {
+      rows: data.rows ?? [],
+      version: data.version ?? 0,
+      cardScale: data.cardScale,
+    };
+  } catch (err) {
+    console.error('[AIDA DC] safeFetchSlot failed', {
+      slot,
+      projectId: ctx.dcProjectId,
+      projectName: ctx.projectName,
+      hasToken: Boolean(ctx.token),
+      error: err instanceof Error ? err.message : String(err),
+    });
     return null;
   }
 }
@@ -116,16 +125,19 @@ function isPlaceholderAcceptance(rows: AcceptanceItem[]): boolean {
   return rows.length === 1 && !rows[0]?.cat?.trim() && !rows[0]?.scheme?.trim();
 }
 
-export async function loadRaciMatrix(projectName: string): Promise<{ rows: RaciRow[]; version: number }> {
+export async function loadRaciMatrix(
+  ctx: ProjectDataContext,
+): Promise<{ rows: RaciRow[]; version: number }> {
+  const { projectName } = ctx;
   const draft = getDraftRaci(projectName);
   if (draft?.length) return { rows: draft, version: getStoredVersions(projectName).raci };
 
-  const saved = await safeFetch(ProposalMockPaths.raciOut);
+  const saved = await safeFetchSlot(ctx, 'raci_out');
   if (saved?.rows.length) {
     return { rows: asRaciRows(saved.rows), version: saved.version || 1 };
   }
 
-  const template = await safeFetch(ProposalMockPaths.raciTemplate);
+  const template = await safeFetchSlot(ctx, 'raci_template');
   if (template?.rows.length) {
     return { rows: asRaciRows(template.rows), version: 0 };
   }
@@ -133,7 +145,8 @@ export async function loadRaciMatrix(projectName: string): Promise<{ rows: RaciR
   return { rows: [{ ...EMPTY_RACI }], version: 0 };
 }
 
-export async function loadPlan(projectName: string): Promise<PlanActivity[]> {
+export async function loadPlan(ctx: ProjectDataContext): Promise<PlanActivity[]> {
+  const { projectName } = ctx;
   if (typeof window !== 'undefined') {
     const cached = sessionStorage.getItem(`${PLAN_CACHE_KEY}:${projectName}`);
     if (cached) {
@@ -146,9 +159,8 @@ export async function loadPlan(projectName: string): Promise<PlanActivity[]> {
     }
   }
 
-  const data = await safeFetch(ProposalMockPaths.planSchedule);
+  const data = await safeFetchSlot(ctx, 'plan');
   if (data === null) {
-    // Agent 未就绪或网络失败：不缓存，便于同会话内 Agent 启动后刷新页面即可加载
     return [{ ...EMPTY_PLAN }];
   }
 
@@ -161,7 +173,8 @@ export async function loadPlan(projectName: string): Promise<PlanActivity[]> {
   return result;
 }
 
-export async function loadAcceptance(projectName: string): Promise<AcceptanceItem[]> {
+export async function loadAcceptance(ctx: ProjectDataContext): Promise<AcceptanceItem[]> {
+  const { projectName } = ctx;
   if (typeof window !== 'undefined') {
     const cached = sessionStorage.getItem(`${ACCEPT_CACHE_KEY}:${projectName}`);
     if (cached) {
@@ -174,7 +187,7 @@ export async function loadAcceptance(projectName: string): Promise<AcceptanceIte
     }
   }
 
-  const saved = await safeFetch(ProposalMockPaths.acceptanceOut);
+  const saved = await safeFetchSlot(ctx, 'acceptance_out');
   if (saved?.rows.length) {
     const rows = asAcceptanceItems(saved.rows);
     if (rows.length && !isPlaceholderAcceptance(rows)) {
@@ -185,7 +198,7 @@ export async function loadAcceptance(projectName: string): Promise<AcceptanceIte
     }
   }
 
-  const data = await safeFetch(ProposalMockPaths.techProposalIn);
+  const data = await safeFetchSlot(ctx, 'acceptance_input');
   if (data === null) {
     return [{ ...EMPTY_ACCEPT }];
   }
@@ -199,8 +212,8 @@ export async function loadAcceptance(projectName: string): Promise<AcceptanceIte
   return result;
 }
 
-export async function loadCardScale(): Promise<number> {
-  const data = await safeFetch(ProposalMockPaths.simulationDeviceMd);
+export async function loadCardScale(ctx: ProjectDataContext): Promise<number> {
+  const data = await safeFetchSlot(ctx, 'card_scale');
   return data?.cardScale ?? 384;
 }
 
@@ -213,24 +226,27 @@ export function testCaseKey(c: AcceptanceTestCase, i: number): string {
   return `tc-${c.id}-${i}`;
 }
 
-async function loadTestCasesFromXlsx(cardScale: number): Promise<AcceptanceTestCase[]> {
-  const data = await safeFetch(ProposalMockPaths.testCasesTemplate);
+async function loadTestCasesFromXlsx(
+  ctx: ProjectDataContext,
+  cardScale: number,
+): Promise<AcceptanceTestCase[]> {
+  const data = await safeFetchSlot(ctx, 'testcases_template');
   if (!data?.rows.length) return [];
   return filterTestCases(asTestCases(data.rows), cardScale);
 }
 
 export interface LoadedTestCases {
   cases: AcceptanceTestCase[];
-  /** null 表示默认全选 */
   selectedKeys: Set<string> | null;
 }
 
-/** 优先读已保存输出表；否则在上传标记存在时读缓存或模板并筛选 */
 export async function loadTestCasesIfReady(
-  projectName: string,
+  ctx: ProjectDataContext,
   cardScale: number,
 ): Promise<LoadedTestCases> {
-  const saved = await safeFetch(ProposalMockPaths.testCasesOut);
+  const { projectName } = ctx;
+
+  const saved = await safeFetchSlot(ctx, 'testcases_out');
   if (saved?.rows.length) {
     const raw = saved.rows as SavedTestCaseRow[];
     const cases = asTestCases(raw);
@@ -257,14 +273,13 @@ export async function loadTestCasesIfReady(
     }
   }
 
-  const cases = await loadTestCasesFromXlsx(cardScale);
+  const cases = await loadTestCasesFromXlsx(ctx, cardScale);
   if (typeof window !== 'undefined') {
     sessionStorage.setItem(`${TC_CACHE_KEY}:${projectName}`, JSON.stringify(cases));
   }
   return { cases, selectedKeys: null };
 }
 
-/** 上传解析成功后：筛选、写缓存、标记已上传 */
 export function applyTestCasesFromUpload(
   projectName: string,
   rows: unknown[],
@@ -284,35 +299,23 @@ export function setAcceptanceCache(projectName: string, items: AcceptanceItem[])
 }
 
 export async function saveRaciTable(
-  projectName: string,
+  ctx: ProjectDataContext,
   rows: RaciRow[],
   version: number,
 ): Promise<void> {
-  await writeMockFile({
-    logicalPath: ProposalMockPaths.raciOut,
-    kind: 'raci',
-    projectName,
-    version,
-    rows,
-  });
+  await writeTableSlot(ctx, 'raci_out', 'raci', ctx.projectName, version, rows);
 }
 
 export async function saveAcceptanceTable(
-  projectName: string,
+  ctx: ProjectDataContext,
   items: AcceptanceItem[],
   version: number,
 ): Promise<void> {
-  await writeMockFile({
-    logicalPath: ProposalMockPaths.acceptanceOut,
-    kind: 'acceptance',
-    projectName,
-    version,
-    rows: items,
-  });
+  await writeTableSlot(ctx, 'acceptance_out', 'acceptance', ctx.projectName, version, items);
 }
 
 export async function saveTestCasesTable(
-  projectName: string,
+  ctx: ProjectDataContext,
   cases: AcceptanceTestCase[],
   selectedKeys: Set<string>,
   keyOf: (c: AcceptanceTestCase, i: number) => string,
@@ -322,13 +325,19 @@ export async function saveTestCasesTable(
     ...c,
     selected: selectedKeys.has(keyOf(c, i)),
   }));
-  await writeMockFile({
-    logicalPath: ProposalMockPaths.testCasesOut,
-    kind: 'testcases',
-    projectName,
-    version,
-    rows,
-  });
+  await writeTableSlot(ctx, 'testcases_out', 'testcases', ctx.projectName, version, rows);
 }
 
-export const PROPOSAL_PROJECT_NAME = DEFAULT_PROJECT_NAME;
+export function buildProjectDataContext(params: {
+  token?: string;
+  dcProjectId: string;
+  projectName: string;
+  projectCode?: string;
+}): ProjectDataContext {
+  return {
+    token: params.token,
+    dcProjectId: params.dcProjectId,
+    projectName: params.projectName,
+    projectCode: params.projectCode,
+  };
+}

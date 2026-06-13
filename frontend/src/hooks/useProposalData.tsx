@@ -9,6 +9,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useAidaSession } from '@/lib/aida-session';
+import { useCurrentProject } from '@/lib/current-project';
 import type {
   AcceptanceItem,
   AcceptanceTestCase,
@@ -16,7 +18,9 @@ import type {
   ProposalTableVersions,
   RaciRow,
 } from '@/types/domain';
+import type { ProjectDataContext } from '@/lib/datacenter/types';
 import {
+  buildProjectDataContext,
   clearDraftRaci,
   getStoredVersions,
   loadAcceptance,
@@ -25,7 +29,6 @@ import {
   loadRaciMatrix,
   applyTestCasesFromUpload,
   loadTestCasesIfReady,
-  PROPOSAL_PROJECT_NAME,
   saveAcceptanceTable,
   saveRaciTable,
   saveTestCasesTable,
@@ -36,9 +39,11 @@ import {
 } from '@/lib/proposal-data-service';
 
 export interface ProposalDataContextValue {
+  projectCtx: ProjectDataContext | null;
   projectName: string;
   loading: boolean;
   dirty: boolean;
+  dataWarnings: string[];
   raciRows: RaciRow[];
   planRows: PlanActivity[];
   acceptanceItems: AcceptanceItem[];
@@ -49,9 +54,10 @@ export interface ProposalDataContextValue {
   updateRaci: (rows: RaciRow[]) => void;
   setSelectedTc: (keys: Set<string>) => void;
   refreshAcceptance: (items: AcceptanceItem[]) => void;
-  saveDraft: () => Promise<void>;
-  saveAndConfirm: () => Promise<void>;
+  saveDraftTables: () => Promise<void>;
+  saveAndConfirmTables: () => Promise<void>;
   setDirty: (v: boolean) => void;
+  reload: () => Promise<void>;
 }
 
 const ProposalDataContext = createContext<ProposalDataContextValue | null>(null);
@@ -61,9 +67,24 @@ function tcKey(c: AcceptanceTestCase, i: number): string {
 }
 
 export function ProposalDataProvider({ children }: { children: ReactNode }) {
-  const projectName = PROPOSAL_PROJECT_NAME;
+  const { session } = useAidaSession();
+  const { project } = useCurrentProject();
+
+  const projectCtx = useMemo<ProjectDataContext | null>(() => {
+    if (!project?.id) return null;
+    return buildProjectDataContext({
+      token: session?.accessToken,
+      dcProjectId: project.id,
+      projectName: project.name,
+      projectCode: project.code,
+    });
+  }, [project?.id, project?.name, project?.code, session?.accessToken]);
+
+  const projectName = project?.name ?? '';
+
   const [loading, setLoading] = useState(true);
   const [dirty, setDirty] = useState(false);
+  const [dataWarnings, setDataWarnings] = useState<string[]>([]);
   const [raciRows, setRaciRows] = useState<RaciRow[]>([]);
   const [planRows, setPlanRows] = useState<PlanActivity[]>([]);
   const [acceptanceItems, setAcceptanceItems] = useState<AcceptanceItem[]>([]);
@@ -72,19 +93,32 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   const [versions, setVersions] = useState<ProposalTableVersions>({ raci: 0, acceptance: 0, testCases: 0 });
   const [cardScale, setCardScale] = useState(384);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
+  const loadAll = useCallback(async () => {
+    if (!projectCtx) {
+      console.warn('[AIDA DC] loadAll skipped: no projectCtx', {
+        projectId: project?.id,
+        projectName: project?.name,
+        hasToken: Boolean(session?.accessToken),
+      });
+      setLoading(false);
+      return;
+    }
+    console.info('[AIDA DC] loadAll start', {
+      projectId: projectCtx.dcProjectId,
+      projectName: projectCtx.projectName,
+      projectCode: projectCtx.projectCode,
+      hasToken: Boolean(projectCtx.token),
+    });
+    setLoading(true);
+    try {
       const stored = getStoredVersions(projectName);
-      const scale = await loadCardScale();
+      const scale = await loadCardScale(projectCtx);
       const [raci, plan, accept, tcLoaded] = await Promise.all([
-        loadRaciMatrix(projectName),
-        loadPlan(projectName),
-        loadAcceptance(projectName),
-        loadTestCasesIfReady(projectName, scale),
+        loadRaciMatrix(projectCtx),
+        loadPlan(projectCtx),
+        loadAcceptance(projectCtx),
+        loadTestCasesIfReady(projectCtx, scale),
       ]);
-      if (cancelled) return;
       setCardScale(scale);
       setRaciRows(raci.rows);
       setVersions({
@@ -98,10 +132,33 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       setSelectedTcKeys(
         tcLoaded.selectedKeys ?? new Set(tcLoaded.cases.map((c, i) => tcKey(c, i))),
       );
+      console.info('[AIDA DC] loadAll done', {
+        raciRows: raci.rows.length,
+        planRows: plan.length,
+        acceptanceItems: accept.length,
+        testCases: tcLoaded.cases.length,
+      });
+    } catch (err) {
+      console.error('[AIDA DC] loadAll failed', err);
+    } finally {
       setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [projectName]);
+    }
+  }, [projectCtx, projectName, project?.id, project?.name, session?.accessToken]);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  useEffect(() => {
+    const onFallback = (e: Event) => {
+      const detail = (e as CustomEvent<{ warnings?: string[] }>).detail;
+      if (detail?.warnings?.length) {
+        setDataWarnings((prev) => [...prev, ...detail.warnings!]);
+      }
+    };
+    window.addEventListener('aida:data-fallback', onFallback);
+    return () => window.removeEventListener('aida:data-fallback', onFallback);
+  }, []);
 
   useEffect(() => {
     const onParsed = (e: Event) => {
@@ -146,6 +203,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   }, [projectName, acceptanceItems]);
 
   const persistAll = useCallback(async (bumpVersion: boolean) => {
+    if (!projectCtx) return;
     const cur = getStoredVersions(projectName);
     const next: ProposalTableVersions = {
       raci: bumpVersion ? Math.max(cur.raci, versions.raci) + 1 : Math.max(cur.raci, versions.raci) || 1,
@@ -159,24 +217,26 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     }
 
     await Promise.all([
-      saveRaciTable(projectName, raciRows, next.raci),
-      saveAcceptanceTable(projectName, acceptanceItems, next.acceptance),
-      saveTestCasesTable(projectName, testCases, selectedTcKeys, tcKey, next.testCases),
+      saveRaciTable(projectCtx, raciRows, next.raci),
+      saveAcceptanceTable(projectCtx, acceptanceItems, next.acceptance),
+      saveTestCasesTable(projectCtx, testCases, selectedTcKeys, tcKey, next.testCases),
     ]);
 
     setStoredVersions(projectName, next);
     setVersions(next);
     clearDraftRaci(projectName);
     setDirty(false);
-  }, [projectName, raciRows, acceptanceItems, testCases, selectedTcKeys, versions]);
+  }, [projectCtx, projectName, raciRows, acceptanceItems, testCases, selectedTcKeys, versions]);
 
-  const saveDraft = useCallback(() => persistAll(false), [persistAll]);
-  const saveAndConfirm = useCallback(() => persistAll(true), [persistAll]);
+  const saveDraftTables = useCallback(() => persistAll(false), [persistAll]);
+  const saveAndConfirmTables = useCallback(() => persistAll(true), [persistAll]);
 
   const value = useMemo<ProposalDataContextValue>(() => ({
+    projectCtx,
     projectName,
     loading,
     dirty,
+    dataWarnings,
     raciRows,
     planRows,
     acceptanceItems,
@@ -187,13 +247,14 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     updateRaci,
     setSelectedTc,
     refreshAcceptance,
-    saveDraft,
-    saveAndConfirm,
+    saveDraftTables,
+    saveAndConfirmTables,
     setDirty,
+    reload: loadAll,
   }), [
-    projectName, loading, dirty, raciRows, planRows, acceptanceItems,
-    testCases, selectedTcKeys, versions, cardScale,
-    updateRaci, setSelectedTc, refreshAcceptance, saveDraft, saveAndConfirm,
+    projectCtx, projectName, loading, dirty, dataWarnings, raciRows, planRows,
+    acceptanceItems, testCases, selectedTcKeys, versions, cardScale,
+    updateRaci, setSelectedTc, refreshAcceptance, saveDraftTables, saveAndConfirmTables, loadAll,
   ]);
 
   return (

@@ -1,5 +1,5 @@
 /**
- * 数据中心 · xlsx/docx 读写客户端
+ * 交付预案 · xlsx 行映射 + 表格 IO（经数据中心 API）
  */
 import type {
   AcceptanceItem,
@@ -8,67 +8,15 @@ import type {
   RaciRow,
   SavedTestCaseRow,
 } from '@/types/domain';
+import type { ProjectDataContext } from '@/lib/datacenter/client';
+import {
+  parseTechProposalUpload,
+  parseTestcasesUpload,
+  readProposalTable,
+  writeProposalTable,
+} from '@/lib/datacenter/client';
 
-interface ApiEnvelope<T> {
-  code: number;
-  message: string;
-  data: T;
-}
-
-interface FileReadData {
-  kind: string;
-  rows?: unknown[];
-  version?: number;
-  cardScale?: number;
-  text?: string;
-}
-
-const API = '/api/v1';
-
-async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API}${path}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const body = (await res.json()) as ApiEnvelope<T>;
-  if (body.code !== 0) throw new Error(body.message || 'API error');
-  return body.data;
-}
-
-async function apiPost<T>(path: string, payload: unknown): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const body = (await res.json()) as ApiEnvelope<T>;
-  if (body.code !== 0) throw new Error(body.message || 'API error');
-  return body.data;
-}
-
-export async function fetchMockFile(logicalPath: string): Promise<FileReadData> {
-  const q = new URLSearchParams({ logicalPath });
-  return apiGet<FileReadData>(`/mock/file?${q}`);
-}
-
-export async function writeMockFile(params: {
-  logicalPath: string;
-  kind: 'raci' | 'acceptance' | 'testcases';
-  projectName: string;
-  version: number;
-  rows: RaciRow[] | AcceptanceItem[] | SavedTestCaseRow[];
-}): Promise<{ path: string; version: number }> {
-  return apiPost('/mock/file', params);
-}
-
-export async function parseTechProposalUpload(file: File): Promise<AcceptanceItem[]> {
-  const fd = new FormData();
-  fd.append('file', file);
-  const res = await fetch(`${API}/proposal/parse/tech-proposal`, { method: 'POST', body: fd });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const body = (await res.json()) as ApiEnvelope<{ rows: AcceptanceItem[] }>;
-  if (body.code !== 0) throw new Error(body.message || 'parse error');
-  return body.data.rows ?? [];
-}
+export type { ProjectDataContext };
 
 export function asRaciRows(rows: unknown[]): RaciRow[] {
   return rows.map((r) => {
@@ -137,3 +85,20 @@ export function asTestCases(rows: unknown[]): AcceptanceTestCase[] {
     };
   });
 }
+
+export async function fetchTableSlot(ctx: ProjectDataContext, slot: Parameters<typeof readProposalTable>[1]) {
+  return readProposalTable(ctx, slot);
+}
+
+export async function writeTableSlot(
+  ctx: ProjectDataContext,
+  slot: 'raci_out' | 'acceptance_out' | 'testcases_out',
+  kind: 'raci' | 'acceptance' | 'testcases',
+  projectName: string,
+  version: number,
+  rows: RaciRow[] | AcceptanceItem[] | SavedTestCaseRow[],
+) {
+  return writeProposalTable(ctx, slot, kind, rows, version);
+}
+
+export { parseTechProposalUpload, parseTestcasesUpload };

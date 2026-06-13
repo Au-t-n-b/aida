@@ -16,6 +16,8 @@ import { startRun } from '@/hooks/useSduiStream';
 import { parseCommissionIntent } from '@/lib/commissionCommands';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
+import { useAidaSession } from '@/lib/aida-session';
+import { useCurrentProject } from '@/lib/current-project';
 import { RAIL_SEND_EVENT } from '@/lib/claw-send';
 
 const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
@@ -164,6 +166,8 @@ const PROPOSAL_DOCS = [
 ];
 
 function ProposalUploadPanel() {
+  const { project } = useCurrentProject();
+  const { session } = useAidaSession();
   const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>({
     hld: '1.8 MB',
     presale: '4.2 MB',
@@ -193,7 +197,9 @@ function ProposalUploadPanel() {
       try {
         const fd = new FormData();
         fd.append('file', file);
-        const res = await fetch('/api/v1/proposal/parse/tech-proposal', { method: 'POST', body: fd });
+        const hdrs: HeadersInit = {};
+        if (session?.accessToken) hdrs.Authorization = `Bearer ${session.accessToken}`;
+        const res = await fetch('/api/v1/proposal/parse/tech-proposal', { method: 'POST', headers: hdrs, body: fd });
         if (res.ok) {
           const body = await res.json();
           const rows = body?.data?.rows ?? [];
@@ -224,10 +230,21 @@ function ProposalUploadPanel() {
     if (docKey === 'scenarioTc') {
       const ext = file.name.toLowerCase();
       if (!ext.endsWith('.docx') && !ext.endsWith('.pdf')) return;
+      if (!project?.id) {
+        window.dispatchEvent(new CustomEvent('aida:progress', {
+          detail: { role: 'ai', body: '请先选择项目后再上传测试用例', chips: ['场景测试用例', '缺少项目'] },
+        }));
+        return;
+      }
       try {
         const fd = new FormData();
         fd.append('file', file);
-        const res = await fetch('/api/v1/proposal/parse/testcases', { method: 'POST', body: fd });
+        fd.append('projectId', project.id);
+        fd.append('projectName', project.name ?? '');
+        if (project.code) fd.append('projectCode', project.code);
+        const hdrs: HeadersInit = {};
+        if (session?.accessToken) hdrs.Authorization = `Bearer ${session.accessToken}`;
+        const res = await fetch('/api/v1/proposal/parse/testcases', { method: 'POST', headers: hdrs, body: fd });
         if (res.ok) {
           const body = await res.json();
           const rows = body?.data?.rows ?? [];

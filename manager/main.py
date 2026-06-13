@@ -22,6 +22,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
 )
+logging.getLogger("aida.manager.dc").setLevel(logging.INFO)
+logging.getLogger("aida.datacenter").setLevel(logging.INFO)
 
 app = FastAPI(title="AIDA Manager", version="0.1.0")
 

@@ -6,9 +6,19 @@ import {
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { ACCEPTANCE_ITEMS } from '../proposal-data';
+import { useProposalData } from '@/hooks/useProposalData';
 
 export function AcceptanceChapter() {
+  const { acceptanceItems, loading } = useProposalData();
+
+  if (loading) {
+    return (
+      <ProposalChapterCard id="panel-accept" title="11. 验收策略">
+        <p className="text-sm text-slate-500">加载中…</p>
+      </ProposalChapterCard>
+    );
+  }
+
   return (
     <ProposalChapterCard id="panel-accept" title="11. 验收策略">
       <ProposalDataTable equalCols leftAlign>
@@ -24,7 +34,7 @@ export function AcceptanceChapter() {
           </tr>
         </ProposalDataTableHead>
         <ProposalDataTableBody>
-          {ACCEPTANCE_ITEMS.map((a, i) => (
+          {acceptanceItems.map((a, i) => (
             <tr key={i}>
               <td>{a.cat}</td>
               <td className="text-xs">{a.scheme}</td>

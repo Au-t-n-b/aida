@@ -4,6 +4,7 @@ import ProposalScreen from '@/components/screens/proposal';
 import ClawRail from '@/components/claw-rail';
 import { TweaksProvider, useTweaks } from '@/lib/tweaks-context';
 import { TweaksPanel } from '@/components/tweaks-panel';
+import { ProposalDataProvider } from '@/hooks/useProposalData';
 
 function ProposalInner() {
   const { tweaks, setTweak } = useTweaks();
@@ -23,7 +24,9 @@ function ProposalInner() {
         />
       }
     >
-      <ProposalScreen />
+      <ProposalDataProvider>
+        <ProposalScreen />
+      </ProposalDataProvider>
     </AppShell>
   );
 }

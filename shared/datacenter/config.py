@@ -1,22 +1,14 @@
-"""Manager 配置（环境变量 / agent/.env）。"""
+"""数据中心连接配置（读环境变量）。"""
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[1]
-
-
-_AIDA_ROOT = _repo_root()
-if str(_AIDA_ROOT) not in sys.path:
-    sys.path.insert(0, str(_AIDA_ROOT))
+from urllib.parse import urlparse
 
 
 def _load_agent_env() -> None:
-    env_path = _repo_root() / "agent" / ".env"
+    aida_root = Path(__file__).resolve().parents[2]
+    env_path = aida_root / "agent" / ".env"
     if not env_path.is_file():
         return
     for line in env_path.read_text(encoding="utf-8").splitlines():
@@ -31,39 +23,21 @@ _load_agent_env()
 
 
 def datacenter_base() -> str:
-    url = (
-        os.environ.get("DATA_CENTER_BASE_URL")
-        or os.environ.get("AIDA_DATACENTER_BASE")
-    )
+    url = os.environ.get("DATA_CENTER_BASE_URL") or os.environ.get("AIDA_DATACENTER_BASE")
     if not url:
         raise RuntimeError(
-            "DATA_CENTER_BASE_URL 未配置：请在 agent/.env 中设置远端数据中心 API 地址"
+            "DATA_CENTER_BASE_URL 未配置：请在 agent/.env 中设置"
             "（例：DATA_CENTER_BASE_URL=http://10.143.2.231:8000）"
         )
     return url.rstrip("/")
 
 
-def aida_agent_base() -> str:
-    return os.environ.get("AIDA_AGENT_BASE_URL", "http://127.0.0.1:7401").rstrip("/")
-
-
-def manager_host() -> str:
-    return os.environ.get("MANAGER_HOST", "0.0.0.0")
-
-
-def manager_port() -> int:
-    return int(os.environ.get("MANAGER_PORT", "8001"))
-
-
 def _is_local_host(url: str) -> bool:
-    from urllib.parse import urlparse
-
     host = (urlparse(url).hostname or "").lower()
     return host in ("127.0.0.1", "localhost", "::1")
 
 
 def http_proxy() -> str | None:
-    # 本地 Mock 数据中心必须直连；显式 proxy 会把 127.0.0.1 交给企业网关 → 504
     if _is_local_host(datacenter_base()):
         return None
     return (

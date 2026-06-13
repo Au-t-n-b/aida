@@ -618,6 +618,28 @@ function proposalUrl(projectId: string, path: string, query?: Record<string, str
   return `${base}?${qs}`;
 }
 
+const PROPOSAL_FETCH_TIMEOUT_MS = 30_000;
+
+/** 禁用浏览器 HTTP 缓存，避免 GET 返回 304 空 body 导致解析失败或 loading 卡住 */
+function withNoCache(init: RequestInit = {}): RequestInit {
+  const headers = new Headers(init.headers);
+  headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+  headers.set('Pragma', 'no-cache');
+  return { ...init, headers, cache: 'no-store' };
+}
+
+function fetchTimeoutSignal(): AbortSignal {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(PROPOSAL_FETCH_TIMEOUT_MS);
+  }
+  if (typeof window !== 'undefined') {
+    const ctrl = new AbortController();
+    window.setTimeout(() => ctrl.abort(), PROPOSAL_FETCH_TIMEOUT_MS);
+    return ctrl.signal;
+  }
+  return new AbortController().signal;
+}
+
 async function proposalFetch<T>(
   projectId: string,
   path: string,
@@ -629,7 +651,18 @@ async function proposalFetch<T>(
     headers.set('Content-Type', 'application/json');
   }
 
-  const resp = await fetch(proposalUrl(projectId, path, query), { ...rest, headers });
+  const doFetch = (extraQuery?: Record<string, string>) =>
+    fetch(
+      proposalUrl(projectId, path, { ...query, ...extraQuery }),
+      withNoCache({ ...rest, headers, signal: fetchTimeoutSignal() }),
+    );
+
+  let resp = await doFetch();
+  if (resp.status === 304) {
+    console.warn('[proposal-api] 304 Not Modified, retry with cache buster', path);
+    resp = await doFetch({ _t: String(Date.now()) });
+  }
+
   const text = await resp.text();
   let json: (ApiEnvelope<T> & ApiErrorBody) | null = null;
   if (text) {
@@ -644,7 +677,7 @@ async function proposalFetch<T>(
     throw new ProposalApiError(
       resp.status,
       json?.error?.code ?? 'HTTP_ERROR',
-      json?.error?.message ?? resp.statusText,
+      json?.error?.message ?? (resp.statusText || `HTTP ${resp.status}`),
     );
   }
   if (!json || !('data' in json)) {
@@ -1314,10 +1347,11 @@ interface LegacyEnvelope<T> {
 }
 
 async function legacyRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const resp = await fetch(url, {
+  const resp = await fetch(url, withNoCache({
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     ...init,
-  });
+    signal: fetchTimeoutSignal(),
+  }));
   const text = await resp.text();
   let json: LegacyEnvelope<T> | null = null;
   if (text) {

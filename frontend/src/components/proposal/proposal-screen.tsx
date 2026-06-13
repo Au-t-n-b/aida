@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { AcceptanceChapter } from './chapters/acceptance-chapter';
 import { CustomerChapterWrapper } from './chapters/customer-chapter';
 import { DeviceChapter } from './chapters/device-chapter';
@@ -44,6 +44,8 @@ import {
   type ProposalVersionItem,
   type VersionInfoMetadata,
 } from '@/lib/proposal-api';
+import { useCurrentProject } from '@/lib/current-project';
+import { useProposalData } from '@/hooks/useProposalData';
 
 const DEFAULT_MANIFEST: DraftManifest = {
   workingVersionLabel: '草稿',
@@ -69,7 +71,14 @@ const FALLBACK_VERSIONS: ProposalVersionItem[] = [
 
 export default function ProposalScreen() {
   const headers = useProposalApiHeaders();
-  const projectId = getDefaultProjectId();
+  const { project } = useCurrentProject();
+  const projectId = project?.code ?? getDefaultProjectId();
+  const {
+    projectCtx,
+    dataWarnings,
+    saveDraftTables,
+    saveAndConfirmTables,
+  } = useProposalData();
 
   const [proposalVersion, setProposalVersion] = useState('draft');
   const [versions, setVersions] = useState<ProposalVersionItem[]>([]);
@@ -90,6 +99,7 @@ export default function ProposalScreen() {
   const [outlineHover, setOutlineHover] = useState(false);
   const [outlinePinned, setOutlinePinned] = useState(false);
   const [outlineHidden, setOutlineHidden] = useState(false);
+  const loadGenRef = useRef(0);
 
   const isEditable = proposalVersion === 'draft';
   const outlineWide = !outlineCollapsed || outlineHover || outlinePinned;
@@ -127,6 +137,7 @@ export default function ProposalScreen() {
   }, [etag, headers, manualChangeLog, projectId]);
 
   const loadProposalState = useCallback(async () => {
+    const gen = ++loadGenRef.current;
     setLoading(true);
     const errors: string[] = [];
 
@@ -135,46 +146,57 @@ export default function ProposalScreen() {
     let changeLog: CumulativeChangeEntry[] = [];
 
     try {
-      draftData = await fetchDraft(projectId, headers);
-    } catch (err) {
-      errors.push(
-        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
-      );
+      try {
+        draftData = await fetchDraft(projectId, headers);
+      } catch (err) {
+        errors.push(
+          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
+        );
+      }
+
+      try {
+        versionList = await fetchVersions(projectId, headers);
+      } catch (err) {
+        errors.push(
+          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
+        );
+      }
+
+      if (draftData) {
+        try {
+          changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
+        } catch (err) {
+          errors.push(
+            err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '修改记录加载失败',
+          );
+        }
+        setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+        setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
+        setEtag(draftData.manifest?.etag);
+        setDirty(draftData.manifest?.dirty ?? false);
+        setCumulativeLog(changeLog);
+        setManualChangeLog(
+          changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+        );
+      } else {
+        setCumulativeLog(changeLog);
+        setManualChangeLog(
+          changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+        );
+      }
+
+      setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
+      setProposalVersion('draft');
+
+      if (errors.length > 0) {
+        console.warn('[proposal] loadProposalState partial errors', errors);
+        fireDocToast(errors[0] ?? '预案加载失败');
+      }
+    } finally {
+      if (gen === loadGenRef.current) {
+        setLoading(false);
+      }
     }
-
-    try {
-      versionList = await fetchVersions(projectId, headers);
-    } catch (err) {
-      errors.push(
-        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
-      );
-    }
-
-    if (draftData) {
-      changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
-      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
-      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
-      setEtag(draftData.manifest?.etag);
-      setDirty(draftData.manifest?.dirty ?? false);
-      setCumulativeLog(changeLog);
-      setManualChangeLog(
-        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-    } else {
-      setCumulativeLog(changeLog);
-      setManualChangeLog(
-        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-    }
-
-    setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
-    setProposalVersion('draft');
-
-    if (errors.length > 0) {
-      fireDocToast(errors[0] ?? '预案加载失败');
-    }
-
-    setLoading(false);
   }, [fireDocToast, headers, projectId]);
 
   useEffect(() => {
@@ -314,6 +336,7 @@ export default function ProposalScreen() {
         logAfterSave.filter((e) => e.editable !== false && e.source !== 'snapshot'),
       );
       if (draftAfterSave.manifest?.etag) setEtag(draftAfterSave.manifest.etag);
+      await saveDraftTables();
       fireDocToast('草稿已保存 · 版本号不变');
     } catch (err) {
       const msg =
@@ -322,7 +345,7 @@ export default function ProposalScreen() {
     } finally {
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manifest, metadata, manualChangeLog, projectId, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, manifest, metadata, manualChangeLog, projectId, saveDraftTables, saveDraftWithEtagRetry]);
 
   const handleConfirm = useCallback(async () => {
     if (!isEditable) {
@@ -332,6 +355,7 @@ export default function ProposalScreen() {
     setActionBusy(true);
     try {
       await saveDraftWithEtagRetry();
+      await saveAndConfirmTables();
       const result = await releaseAndDecide(projectId, headers, {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
@@ -367,7 +391,7 @@ export default function ProposalScreen() {
       fireDocToast(msg);
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
 
   const handleExport = useCallback(async () => {
     setActionBusy(true);
@@ -403,6 +427,16 @@ export default function ProposalScreen() {
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>
+      {!projectCtx && (
+        <div className="proposal-pending-tip" role="alert">
+          请从落地页选择项目后再加载数据中心文件（第 9–12 章）
+        </div>
+      )}
+      {dataWarnings.length > 0 && (
+        <div className="proposal-pending-tip" role="status" style={{ background: '#fef3c7', color: '#92400e' }}>
+          {dataWarnings[dataWarnings.length - 1]}
+        </div>
+      )}
       {pendingTip && (
         <div className="proposal-pending-tip" role="status">
           §{pendingTip.num} 正文体（{pendingTip.panel}）将在后续批次补齐

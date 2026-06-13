@@ -29,9 +29,9 @@
 @loginPassword = admin@123
 
 # --- 项目 ---
-@projectId = 5dd0afe369254a08bcfa1cccc1362df1
-@projectName = 测试项目
-@projectCode = TEST1234
+@projectId = 70e5ca737ae5433e9f0f3134d216acf7
+@projectName = 京东三期
+@projectCode = 56A0TXN
 @customerName = 测试客户
 @bidCode = 
 @stage = install

@@ -1,23 +1,20 @@
 'use client';
 
-import { useState } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { RACI_ROWS } from '../proposal-data';
+import { useProposalData } from '@/hooks/useProposalData';
+import type { RaciRow } from '@/types/domain';
 
-type RaciRow = (typeof RACI_ROWS)[number];
 type RoleField = 'gts' | 'hw' | 'partner' | 'customer';
 
 const ROLE_INPUT =
   'w-full cursor-pointer rounded border border-transparent bg-transparent px-1 py-0.5 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
-/* RACI 取值枚举（下拉，防止填错）·空值显示「—」 */
 const ROLE_OPTIONS = ['', 'R', 'A', 'S', 'C', 'I', 'R/A'];
 
-/** 连续相同 key 的行合并：首行返回跨度，其余返回 0 */
 function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[] {
   return rows.map((row, i) => {
     const prev = rows[i - 1];
@@ -33,12 +30,15 @@ function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[
 }
 
 export function RaciChapter() {
-  const [rows, setRows] = useState<RaciRow[]>(() => RACI_ROWS.map((r) => ({ ...r })));
-  const update = (i: number, key: RoleField, value: string) =>
-    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+  const { raciRows, updateRaci, loading } = useProposalData();
 
-  const stackSpans = spans(rows, (r) => r.stack);
-  const catSpans = spans(rows, (r) => `${r.stack}||${r.cat}`);
+  const update = (i: number, key: RoleField, value: string) => {
+    const next = raciRows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r));
+    updateRaci(next);
+  };
+
+  const stackSpans = spans(raciRows, (r) => r.stack);
+  const catSpans = spans(raciRows, (r) => `${r.stack}||${r.cat}`);
 
   const roleCell = (i: number, key: RoleField, value: string) => (
     <td className="px-1 py-1">
@@ -49,6 +49,14 @@ export function RaciChapter() {
       </select>
     </td>
   );
+
+  if (loading) {
+    return (
+      <ProposalChapterCard id="panel-raci" title="9. 责任矩阵信息">
+        <p className="text-sm text-slate-500">加载中…</p>
+      </ProposalChapterCard>
+    );
+  }
 
   return (
     <ProposalChapterCard id="panel-raci" title="9. 责任矩阵信息">
@@ -75,7 +83,7 @@ export function RaciChapter() {
             </tr>
           </ProposalDataTableHead>
           <ProposalDataTableBody>
-            {rows.map((r, i) => (
+            {raciRows.map((r, i) => (
               <tr key={i}>
                 {(stackSpans[i] ?? 0) > 0 && (
                   <td rowSpan={stackSpans[i] ?? 1} className="align-middle font-semibold text-slate-800">

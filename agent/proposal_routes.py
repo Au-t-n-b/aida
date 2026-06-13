@@ -21,7 +21,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from .proposal_models import (
     ApiResponse,
@@ -212,8 +212,8 @@ def update_net_mgmt(project_id: str, row_id: str, req: NetMgmtUpdateReq) -> ApiR
         raise _handle_store_error(e)
 
 
-@router.delete("/chapters/5.2/net-mgmt/{row_id}", status_code=204)
-def delete_net_mgmt(project_id: str, row_id: str) -> None:
+@router.delete("/chapters/5.2/net-mgmt/{row_id}", status_code=204, response_class=Response)
+def delete_net_mgmt(project_id: str, row_id: str):
     try:
         _store.delete_net_mgmt(project_id, row_id)
     except ValueError as e:
@@ -415,12 +415,12 @@ def update_room_rack(project_id: str, row_id: str, req: RoomRackUpdateReq) -> Ap
         raise _handle_store_error(e)
 
 
-@router.delete("/chapters/7.1/room-rack/{row_id}", status_code=204)
+@router.delete("/chapters/7.1/room-rack/{row_id}", status_code=204, response_class=Response)
 def delete_room_rack(
     project_id: str,
     row_id: str,
     confirm: bool = Query(default=False, description="自动解析行需要 confirm=true"),
-) -> None:
+):
     try:
         _store.delete_room_rack(project_id, row_id, confirm)
     except ValueError as e:

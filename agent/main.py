@@ -18,6 +18,7 @@ AIDA Agent · FastAPI 入口
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import os
 import shutil
 import uuid
@@ -41,6 +42,8 @@ from .proposal.router import router as proposal_router
 from .proposal_routes import router as proposal_chapters_router
 from .sog_routes import router as sog_router
 from .routers.proposal_mock import router as proposal_mock_router
+from .routers.datacenter_files import router as datacenter_files_router
+from .routers.proposal_files import router as proposal_files_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
@@ -72,11 +75,20 @@ def _get_skill_or_404(skill_id: str):
 
 # ─── 全局 ───
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logging.getLogger("aida.datacenter").setLevel(logging.INFO)
+logging.getLogger("aida.proposal.files").setLevel(logging.INFO)
+
 app = FastAPI(title="AIDA Agent · zhgk pilot", version="0.1.0")
 app.include_router(sog_router)
 app.include_router(proposal_router)
 app.include_router(proposal_chapters_router)
+app.include_router(proposal_files_router)
 app.include_router(proposal_mock_router)
+app.include_router(datacenter_files_router)
 
 # 允许前端 (Next.js dev server) 跨域
 app.add_middleware(
