@@ -1,0 +1,850 @@
+{
+  "projectPlanSummary": {
+    "apiName": "projectPlanSummary",
+    "kind": "FUNCTION",
+    "description": "Read-only ontology Function: high-level derived metrics for one delivery project, computed from current object data (not stored).",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "项目计划概要",
+      "description": "按项目聚合活动数、里程碑数、Pod 数、已排程/未排程活动数与计划起止日期；派生值，不落库。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "目标项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "包含 activityCount / milestoneCount / podCount / scheduledActivityCount / unscheduledActivityCount / planStartDate / planEndDate。"
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "project_plan_summary"
+    }
+  },
+  "backwardKeyMilestonesGraph": {
+    "apiName": "backwardKeyMilestonesGraph",
+    "kind": "FUNCTION",
+    "description": "Read-only ontology Function: backward key-milestone dependency graph for one project and optional anchor. Same computation as the legacy queries/backward-key-milestones endpoint, now declared in the Function registry.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "关键里程碑倒排图",
+      "description": "返回项目倒排关键里程碑的依赖图与锚点选项；只读，不写回。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "目标项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "selected_anchor_id": {
+        "displayMetadata": {
+          "displayName": "倒排锚点",
+          "description": "可选 Milestone.milestoneKey；缺省使用当前项目的第一个 BACKWARD_TARGET。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "倒排关键里程碑依赖图，含 nodes / edges / anchorOptions。"
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "get_backward_key_milestones_graph"
+    }
+  },
+  "execute_backward_key_milestones": {
+    "apiName": "execute_backward_key_milestones",
+    "kind": "SKILL",
+    "description": "Dry-run backward scheduling skill. Computes proposed DeliveryPlanRow date mutations without writing to CSV or database state.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "执行倒排沙箱推演",
+      "description": "按项目和可选倒排锚点计算倒排日期差异，仅返回 proposed_mutations。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行倒排推演的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "anchor_id": {
+        "displayMetadata": {
+          "displayName": "倒排锚点",
+          "description": "可选 Milestone.milestoneKey；缺省使用当前项目的第一个 BACKWARD_TARGET。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "execute_backward_key_milestones"
+    }
+  },
+  "execute_forward_key_milestones": {
+    "apiName": "execute_forward_key_milestones",
+    "kind": "SKILL",
+    "description": "Dry-run forward scheduling skill. Computes proposed DeliveryPlanRow date mutations without writing to CSV or database state.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "执行正排沙箱推演",
+      "description": "按项目 FORWARD_START 里程碑计算正排日期差异，仅返回 proposed_mutations。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行正排推演的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "manual_overrides": {
+        "displayMetadata": {
+          "displayName": "人工调整",
+          "description": "甘特图手动调整列表，每项包含 target_id、field、new_value；活动结束时间调整使用 field=endDate。"
+        },
+        "dataType": {
+          "type": "array"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "execute_forward_key_milestones"
+    }
+  },
+  "execute_milestone_compression": {
+    "apiName": "execute_milestone_compression",
+    "kind": "SKILL",
+    "description": "Dry-run milestone compression skill. Shifts all project DeliveryPlanRow dates by the same milestone delta without writing to CSV or database state.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "执行里程碑压缩沙箱推演",
+      "description": "按项目和可选里程碑压缩锚点计算整体平移日期差异，仅返回 proposed_mutations。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行里程碑压缩推演的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "anchor_id": {
+        "displayMetadata": {
+          "displayName": "里程碑压缩锚点",
+          "description": "可选 Milestone.milestoneKey；缺省使用当前项目的第一个 MILESTONE_COMPRESSION_TARGET。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "execute_milestone_compression"
+    }
+  },
+  "execute_plan_compression_decision": {
+    "apiName": "execute_plan_compression_decision",
+    "kind": "SKILL",
+    "description": "Dry-run two-phase plan compression skill. Computes recommended DeliveryPlanRow date mutations and decision advice without writing to CSV or database state.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "计划压缩决策沙箱推演",
+      "description": "第一阶段处理到货到上电，第二阶段处理上电到集群性能调优，仅返回 proposed_mutations 和决策建议。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行计划压缩推演的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "power_on_target_date": {
+        "displayMetadata": {
+          "displayName": "上电目标日期",
+          "description": "第一阶段上电目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "pod_power_on_target_dates": {
+        "displayMetadata": {
+          "displayName": "POD 上电分批目标",
+          "description": "POD 级上电目标日期列表，每项包含 milestoneKey 和 anchorDate；为空时读取已保存 POD 里程碑。"
+        },
+        "dataType": {
+          "type": "array"
+        },
+        "required": false
+      },
+      "cluster_debug_target_date": {
+        "displayMetadata": {
+          "displayName": "集群性能调优目标日期",
+          "description": "第二阶段集群性能调优目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "execute_plan_compression_decision"
+    }
+  },
+  "projectDecisionPoints": {
+    "apiName": "projectDecisionPoints",
+    "kind": "FUNCTION",
+    "description": "Read-only derived decision layer: DecisionPoints as a view over Milestone gates (gateStatus MET/OPEN/BLOCKED, blockers). Palantir-first — derived on the typed substrate, not a hand-authored decision table.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "项目决策点（派生）",
+      "description": "把里程碑及其依赖派生为可交付性闸门视图：MET/OPEN/BLOCKED 与阻塞原因；不落库、不手写决策表。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "目标项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "含 decisionPointCount / statusCounts / actionableGateKeys / decisionPoints。"
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "project_decision_points"
+    }
+  },
+  "projectEmergentRisks": {
+    "apiName": "projectEmergentRisks",
+    "kind": "FUNCTION",
+    "description": "Read-only Emergent layer: surface candidate risks (blocked gates, unscheduled activities) from the typed substrate as suggestions for human adoption/dismissal.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "项目涌现风险（派生）",
+      "description": "在已绑定数据底座上推理浮现风险（阻塞闸门、未排程活动）作为建议值，由人确认采纳；不自动写回。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "目标项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "含 riskCount 与 risks（每项 type/severity/message）。"
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "project_emergent_risks"
+    }
+  },
+  "deriveContingencyRisks": {
+    "apiName": "deriveContingencyRisks",
+    "kind": "FUNCTION",
+    "description": "Read-only Emergent layer for the delivery-contingency-plan ontology: derive candidate RiskItem suggestions from the typed substrate (MaintenancePolicy lifecycle facts) matched against the RiskRule library. Self-fetching — reads its own object data (Dolt system-of-record once loaded via Excel→Dolt, local seed fallback offline), mirroring the default ontology's projectEmergentRisks. Palantir-first / derive-don't-hand-author; forward-ports the EODS 售前风险识别 decision engine. The EOS lane is live; EOM/TR5/ESS are reserved extension points.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "预案涌现风险（派生）",
+      "description": "在维保策略等事实底座上，按风险规则库派生生命周期风险建议（建议值，由人确认采纳）；当前覆盖 EOS 链路，不自动写回。"
+    },
+    "parameters": {
+      "plan_id": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "可选 ContingencyPlan.planId，写入派生 RiskItem.planId 与 riskId 前缀。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "project_key": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "可选 DeliveryProject.projectKey；按项目过滤维保/设备/部件资产并写入派生 RiskItem.projectKey。仅给 plan_id 时由 ContingencyPlan 解析。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "assessment_id": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "可选 DeliverabilityAssessment.assessmentId，写入派生 RiskItem.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "reference_date": {
+        "displayMetadata": {
+          "displayName": "参照日期",
+          "description": "可选 YYYY-MM-DD；缺省取当天，用于 eosDate 与维保结束/参照日的比较。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "含 planId / projectKey / assessmentId / riskCount、risks（每项为 RiskItem 形态的建议记录：riskPoint/riskType/severity/owner/mitigationPlan/impact/description/state + provenance 推导溯源 { engine/referenceDate/horizonDate, rule: 规则行摘要(ruleId/ruleName/riskPoint/source…), subjects: 触发主体记录[{label/objectType/objectTypeLabel/keyValue/reason/evidence{field,value,comparator,threshold,thresholdLabel}}] }）、chapters（交付预案 12 章目录骨架，按本体章节目录生成，每章 id/no/title/decisionPoint/fields + 绑定的 riskIds/state）与 decisionPoints（DecisionPoint：核心 方案可交付性 + 4 子决策点，每个聚合章节/风险 → conclusion/deliverabilityIndex/anchorChapterId）。"
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "derive_contingency_risks_for_plan"
+    }
+  },
+  "deriveEodsPresalesRisks": {
+    "apiName": "deriveEodsPresalesRisks",
+    "kind": "FUNCTION",
+    "description": "Read-only EODS pre-sales risk adapter over the local ontology SDK facade. It reuses deterministic EODS Python-node logic for table/array/result formatting and delegates live fact derivation to deriveContingencyRisks.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "EODS 售前风险识别（派生）",
+      "description": "通过本体 SDK 读取 RiskRule 与事实对象，复用 EODS 确定性节点逻辑并输出 RiskItem 形态的风险建议；不调用 EODS API，不执行 LLM，不自动写回。"
+    },
+    "parameters": {
+      "plan_id": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "可选 ContingencyPlan.planId，写入派生 RiskItem.planId 与 riskId 前缀。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "project_key": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "可选 DeliveryProject.projectKey；按项目过滤本体事实对象。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "assessment_id": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "可选 DeliverabilityAssessment.assessmentId，写入派生 RiskItem.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "reference_date": {
+        "displayMetadata": {
+          "displayName": "参照日期",
+          "description": "可选 YYYY-MM-DD；缺省取当天。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "deriveContingencyRisks 的返回结构，额外包含 engine=eods_presales_risk 与 sourceSummary。"
+    },
+    "sideEffects": {
+      "type": "NONE"
+    },
+    "binding": {
+      "module": "data_connector",
+      "function": "derive_eods_presales_risks_for_plan"
+    }
+  },
+  "generateContingencyNarratives": {
+    "apiName": "generateContingencyNarratives",
+    "kind": "FUNCTION",
+    "description": "用 contingency_narrative 的小型 LangGraph（gather→generate→merge→persist）为预案章节生成成文文字描述。逐章把章节事实（标题、字段、事实底座行、绑定风险、子决策点）交给 LLM（统一 get_chat_llm 入口）撰写正文。融合组章（isGroup, doc-grp-*）：一次产出「融合标题 + 概述导语」——概述落 ChapterNarrative（成员表另行展示，不复述），融合标题回写 ContingencyOutline 组（人工改名 titleBy='human' 永不被覆盖）。人工优先：human_edited 章在 mode=regenerate 时新稿落 pendingGenerated、不覆盖 editedText；mode=smart_merge 把 上一版AI稿+人工改动+最新事实 三方融合为 mergeCandidate 供采纳。持久化到 ChapterNarrative run-record overlay。LLM 不可用时降级（保留既有/空稿、degraded=true）。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "生成预案章节正文",
+      "description": "LangGraph + LLM 逐章生成/重生成/智能融合章节文字描述，落 ChapterNarrative overlay。"
+    },
+    "parameters": {
+      "plan_id": {
+        "displayMetadata": { "displayName": "预案主键", "description": "可选 ContingencyPlan.planId（审计用）。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "可选 DeliveryProject.projectKey；缺省落锚点（京东）。章节正文按 (projectKey, chapterId) 定位。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "scope": {
+        "displayMetadata": { "displayName": "范围", "description": "all=全部章节 / chapter=仅 chapter_id 指定的单章。缺省 all。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "chapter_id": {
+        "displayMetadata": { "displayName": "章节 id", "description": "scope=chapter 时指定的章节 chapter.id。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "mode": {
+        "displayMetadata": { "displayName": "模式", "description": "only_empty=只生成尚无正文的章 / regenerate=重生成（human_edited 章落 pendingGenerated 不覆盖）/ smart_merge=对 human_edited 章产出三方融合候选。缺省 only_empty。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "apply": {
+        "displayMetadata": { "displayName": "直接采纳", "description": "smart_merge 时为真则直接把融合稿写入 editedText，否则只产 mergeCandidate 候选。缺省假。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "reference_date": {
+        "displayMetadata": { "displayName": "参照日期", "description": "可选 YYYY-MM-DD，透传给底层 deriveContingencyRisks 取章节事实。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "{ projectKey, planId, degraded, narratives: [{ chapterId, chapterNo, chapterTitle, status, displayText, generatedText, editedText, pendingGenerated, mergeCandidate, generatedModel, generatedAt }] }。"
+    },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "generate_contingency_narratives"
+    }
+  },
+  "editChapterNarrative": {
+    "apiName": "editChapterNarrative",
+    "kind": "FUNCTION",
+    "description": "保存某章人工修改的正文：写 ChapterNarrative.editedText、status=human_edited、追加 versions(source=human)，并清空该章 pendingGenerated/mergeCandidate（人工选择自行编辑而非采纳 AI 候选）。持久化到 run-record overlay。人工优先的落点：此后重生成绝不覆盖。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "编辑章节正文",
+      "description": "落人工修改稿，人工优先、永不被重生成覆盖。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "chapter_id": {
+        "displayMetadata": { "displayName": "章节 id", "description": "章节 chapter.id。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "text": {
+        "displayMetadata": { "displayName": "正文", "description": "人工修改后的章节正文。" },
+        "dataType": { "type": "text" },
+        "required": true
+      },
+      "edited_by": {
+        "displayMetadata": { "displayName": "修改人", "description": "修改人展示文本。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "更新后的 narrative 行。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "edit_chapter_narrative"
+    }
+  },
+  "acceptChapterMerge": {
+    "apiName": "acceptChapterMerge",
+    "kind": "FUNCTION",
+    "description": "解决某章「待合并」：choice=mine 保留人工稿（清候选）/ new 采纳新 AI 稿(pendingGenerated) / candidate 采纳智能融合稿(mergeCandidate)。采纳即写入 editedText、status=merged（mine 则 human_edited）、追加 versions、清 pendingGenerated/mergeCandidate。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "采纳/合并章节正文",
+      "description": "在 保留我的 / 采纳新稿 / 采纳融合稿 三者中择一落定。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "chapter_id": {
+        "displayMetadata": { "displayName": "章节 id", "description": "章节 chapter.id。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "choice": {
+        "displayMetadata": { "displayName": "采纳选择", "description": "mine / new / candidate。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "edited_by": {
+        "displayMetadata": { "displayName": "操作人", "description": "操作人展示文本。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "更新后的 narrative 行。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "accept_chapter_merge"
+    }
+  },
+  "saveContingencyPlanVersion": {
+    "apiName": "saveContingencyPlanVersion",
+    "kind": "FUNCTION",
+    "description": "整案版本里程碑：把当前各章 displayText 以 versionLabel 打入各 ChapterNarrative.versions[]，计算与上一里程碑的逐章 changed/unchanged diff 摘要，写一行 PlanVersionLog(overlay)：planVersion/status/createdBy/createdAt/changeDescription/cumulativeChangeLog。可整案回滚。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "保存预案版本",
+      "description": "整案打快照为一个版本里程碑（落 PlanVersionLog），带跨版本更新摘要。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "version_label": {
+        "displayMetadata": { "displayName": "版本号", "description": "版本标签，如 V1.2。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "plan_id": {
+        "displayMetadata": { "displayName": "预案主键", "description": "可选 ContingencyPlan.planId（审计用）。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "created_by": {
+        "displayMetadata": { "displayName": "创建人", "description": "版本创建人。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "note": {
+        "displayMetadata": { "displayName": "备注", "description": "本次版本附注（并入 changeDescription）。" },
+        "dataType": { "type": "text" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "{ version: <PlanVersionLog 行>, changeSummary, versions: [<全部里程碑>] }。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "save_contingency_plan_version"
+    }
+  },
+  "listContingencyPlanVersions": {
+    "apiName": "listContingencyPlanVersions",
+    "kind": "FUNCTION",
+    "description": "读取整案版本里程碑列表（PlanVersionLog overlay ∪ Dolt 种子，按 projectKey 过滤，按时间倒序）。只读。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "预案版本列表",
+      "description": "列出已保存的整案版本里程碑。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "可选；缺省落锚点（京东）。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "{ versions: [<PlanVersionLog 行>] }。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "list_contingency_plan_versions"
+    }
+  },
+  "restoreChapterNarrativeVersion": {
+    "apiName": "restoreChapterNarrativeVersion",
+    "kind": "FUNCTION",
+    "description": "把某章正文回滚到其 versions[] 里的某一项（按 seq 或 versionLabel 定位）：editedText=该版本文本、status=human_edited、追加 versions(source=restore)。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "回滚章节正文版本",
+      "description": "单章回滚到历史版本。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "chapter_id": {
+        "displayMetadata": { "displayName": "章节 id", "description": "章节 chapter.id。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "seq": {
+        "displayMetadata": { "displayName": "版本序号", "description": "versions[].seq；与 version_label 二选一。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "version_label": {
+        "displayMetadata": { "displayName": "版本号", "description": "versions[].versionLabel；与 seq 二选一。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "edited_by": {
+        "displayMetadata": { "displayName": "操作人", "description": "操作人展示文本。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "更新后的 narrative 行。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "restore_chapter_narrative_version"
+    }
+  },
+  "assembleContingencyChapters": {
+    "apiName": "assembleContingencyChapters",
+    "kind": "FUNCTION",
+    "description": "用 contingency_assembly 的小型 LangGraph（gather→select→persist）按本项目事实裁剪预案章节目录：把本体派生出的全量章节（每章 id/title/objectType/decisionLabel + 本项目事实行数/绑定风险数）交给 LLM（统一 get_chat_llm 入口）决定哪些章适用本项目、排序与每章一句说明。LLM 输出经 schema 校验（id 必须真实存在，幻觉 id 丢弃）、强制保留有事实/有风险/全局结构章、人工 pin 优先（pinnedInclude 强进 / pinnedExclude 强出，重裁不覆盖）。结果落 ContingencyOutline run-record overlay；deriveContingencyRisks 只读该 overlay（不调 LLM、确定性、可缓存）。LLM 不可用时降级（无既有则回退全量目录、degraded=true）。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "组装预案章节（按本体裁剪）",
+      "description": "LangGraph + LLM 按本项目事实裁剪/排序章节目录，落 ContingencyOutline overlay；报告随之过滤排序。"
+    },
+    "parameters": {
+      "plan_id": {
+        "displayMetadata": { "displayName": "预案主键", "description": "可选 ContingencyPlan.planId（审计用）。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "可选 DeliveryProject.projectKey；缺省落锚点（京东）。裁剪决策按 projectKey 定位。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "mode": {
+        "displayMetadata": { "displayName": "模式", "description": "only_empty=尚无裁剪决策时才生成 / regenerate=重新裁剪（人工 pin 仍优先）。缺省 only_empty。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "reference_date": {
+        "displayMetadata": { "displayName": "参照日期", "description": "可选 YYYY-MM-DD，透传给底层 deriveContingencyRisks 取章节事实。" },
+        "dataType": { "type": "string" },
+        "required": false
+      },
+      "persist": {
+        "displayMetadata": { "displayName": "是否落库", "description": "缺省 true（落 overlay）。false=「AI 建议布局」：只返回建议 include 不写 overlay，由前端预置进拖拽组装器、用户确认后再经 setContingencyChapters 落库。" },
+        "dataType": { "type": "boolean" },
+        "required": false
+      }
+    },
+    "returnType": {
+      "type": "struct",
+      "description": "{ projectKey, planId, degraded, outline: { include:[chapterId], order:[chapterId], notes:{chapterId:说明}, pinnedInclude, pinnedExclude, rationale, status, generatedModel, chapterCount, versions } }。"
+    },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "assemble_contingency_chapters"
+    }
+  },
+  "pinContingencyChapter": {
+    "apiName": "pinContingencyChapter",
+    "kind": "FUNCTION",
+    "description": "人工固定某章的取舍（include=强制纳入 / exclude=强制裁掉 / auto=撤销固定交还 LLM），写 ContingencyOutline.pinnedInclude/pinnedExclude；人工优先、重新 assemble 永不覆盖。已有裁剪结果时立即重算有效 include/order。无 LLM 参与。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "固定/排除预案章节",
+      "description": "人工把某章强制纳入或裁掉（或撤销），重裁剪时优先生效。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey；缺省落锚点（京东）。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "chapter_id": {
+        "displayMetadata": { "displayName": "章节 id", "description": "章节 chapter.id（doc-*）。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "action": {
+        "displayMetadata": { "displayName": "操作", "description": "include / exclude / auto。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "edited_by": {
+        "displayMetadata": { "displayName": "操作人", "description": "操作人展示文本。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "更新后的 ContingencyOutline public 视图。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "pin_contingency_chapter"
+    }
+  },
+  "listContingencyChapters": {
+    "apiName": "listContingencyChapters",
+    "kind": "FUNCTION",
+    "description": "只读：列出本体派生的全量预案章节目录作为可选「本体要素」，供前端拖拽组装器使用。内部 deriveContingencyRisks(apply_outline=False) 取未裁剪全量，每章裁剪成 {id,no,title,objectType,decisionId,decisionPoint,decisionLabel,fields,rowCount,riskCount,consolidatesRisks,structural,adhoc}，并附本项目当前 include（无 overlay 时=全部）。另返回 candidates[]=本体类型库（全部可成章但未入目录的业务 ObjectType，id=doc-ot-<apiName>，按事实行数降序；0 行也可拖入得字段骨架章）。无 LLM、无写回。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "列出本体要素（预案章节目录）",
+      "description": "全量对象类型/章节 + 字段 + 数据/风险数 + 当前纳入集，供拖拽组装。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "可选 DeliveryProject.projectKey；缺省落锚点（京东）。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "{ elements: [本体要素章节], include: [当前纳入的 chapterId，可含融合组 doc-grp-*], candidates: [本体类型库候选（doc-ot-*）], groups: { doc-grp-*: { title, members[], decisionPoint? } } }。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "list_contingency_chapters"
+    }
+  },
+  "setContingencyChapters": {
+    "apiName": "setContingencyChapters",
+    "kind": "FUNCTION",
+    "description": "确定性（无 LLM）地按拖拽结果设定本项目章节选择：按给定顺序原样写 ContingencyOutline.include+order（拖动位置即章节顺序），清空人工 pin，status=manual。校验 id 真实存在（目录章 doc-* 或合格的临时章 doc-ot-<ObjectType>——本体类型库拖入，骨架由 derive 读时现场派生）、强制并入结构章（无 objectType/consolidatesRisks，防误删计划占位章）。chapter_ids 可含融合组 id doc-grp-*（其成员由 groups 定义、折叠成一个组章）。deriveContingencyRisks 据此过滤+排序+折叠报告。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "设定预案章节（拖拽组装）",
+      "description": "把拖拽组装的有序章节集确定性落 overlay；报告随之增删/排序。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey；缺省落锚点（京东）。" },
+        "dataType": { "type": "string" },
+        "required": true
+      },
+      "chapter_ids": {
+        "displayMetadata": { "displayName": "有序章节 id", "description": "按拖动顺序排列的 chapter.id 列表（doc-* / 临时章 doc-ot-* / 融合组 doc-grp-*）；顺序即报告章节顺序。" },
+        "dataType": { "type": "array" },
+        "required": true
+      },
+      "groups": {
+        "displayMetadata": { "displayName": "融合组", "description": "可选。融合组定义 { \"doc-grp-<n>\": { title, members:[成员 chapterId], decisionPoint?, titleBy? } }；成员被折叠成一个复合组章（顶部 AI 融合概述 + 各成员保留原始数据表），成员风险并集仍绑组章。titleBy='human' 表示人工改名（generateContingencyNarratives 的 AI 融合标题永不覆盖）。结构章不可作成员；<2 个有效成员的组自动降级/丢弃。缺省/空对象=无融合组。" },
+        "dataType": { "type": "struct" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "更新后的 ContingencyOutline public 视图（含 groups）。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "set_contingency_chapters"
+    }
+  },
+  "resetContingencyChapters": {
+    "apiName": "resetContingencyChapters",
+    "kind": "FUNCTION",
+    "description": "还原默认章节目录：清空本项目的 ContingencyOutline overlay（include/order/pin 全清）→ deriveContingencyRisks 回到全量本体派生目录，listContingencyChapters 报告全部纳入。无 LLM。",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "还原默认章节目录",
+      "description": "清空裁剪/拖拽决策，章节目录恢复为全量本体派生默认。"
+    },
+    "parameters": {
+      "project_key": {
+        "displayMetadata": { "displayName": "项目主键", "description": "所属 DeliveryProject.projectKey；缺省落锚点（京东）。" },
+        "dataType": { "type": "string" },
+        "required": false
+      }
+    },
+    "returnType": { "type": "struct", "description": "{ projectKey, include:[], order:[], status:'default', chapterCount:0 }。" },
+    "sideEffects": { "type": "NONE" },
+    "binding": {
+      "module": "data_connector",
+      "function": "reset_contingency_chapters"
+    }
+  }
+}

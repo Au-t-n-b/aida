@@ -8,6 +8,7 @@ import ConfigPage from '@/routes/config';
 import DesignPage from '@/routes/design';
 import TwinPage from '@/routes/twin';
 import TwinSurveyPage from '@/routes/twin-survey';
+import TwinDigitalDemoPage from '@/routes/twin-digital-demo';
 import MilestonesPage from '@/routes/milestones';
 import AdminPage from '@/routes/admin';
 import CommissioningPage from '@/routes/commissioning';
@@ -89,6 +90,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <TwinSurveyPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/twin/digital-demo',
+    element: (
+      <RequireAuth>
+        <TwinDigitalDemoPage />
       </RequireAuth>
     ),
   },
