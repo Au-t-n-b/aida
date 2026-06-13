@@ -42,8 +42,10 @@ from .proposal.router import router as proposal_router
 from .proposal_routes import router as proposal_chapters_router
 from .sog_routes import router as sog_router
 from .routers.proposal_mock import router as proposal_mock_router
+
 from .routers.datacenter_files import router as datacenter_files_router
 from .routers.proposal_files import router as proposal_files_router
+from .schedule.router import configure_schedule, router as schedule_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
@@ -89,6 +91,8 @@ app.include_router(proposal_chapters_router)
 app.include_router(proposal_files_router)
 app.include_router(proposal_mock_router)
 app.include_router(datacenter_files_router)
+configure_schedule(app)
+app.include_router(schedule_router)
 
 # 允许前端 (Next.js dev server) 跨域
 app.add_middleware(

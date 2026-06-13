@@ -1,0 +1,81 @@
+flowchart LR
+    %% Source: 计划基线0609.xlsx / 集群集成 + A3液冷场景活动&依赖&工时(1014）
+    %% Scope: rows 65-82. "计算子系统验证-通算服务器" is referenced by baseline row 75 but has no activity row.
+
+    classDef task fill:#F8E8C8,stroke:#A86F1A,stroke-width:1px,color:#222;
+    classDef prereq fill:#E8EEF7,stroke:#5E7FA8,stroke-width:1px,color:#222;
+    classDef external fill:#F7F7F7,stroke:#777,stroke-dasharray:3 3,color:#333;
+    classDef accept fill:#E6F4EA,stroke:#4D8A5F,stroke-width:1px,color:#222;
+
+    subgraph deploy["子系统部署调测"]
+        direction TB
+        compute_deploy_1["8.8 计算子系统部署调测-智算服务器<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+        compute_deploy_2["8.9 计算子系统部署调测-通算服务器<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+        compute_deploy_3["8.10 计算子系统部署调测-灵衢网络<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+        storage_deploy["8.11 存储子系统部署调测<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+        network_deploy["8.7 网络子系统部署调测<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+    end
+
+    subgraph verify["子系统验证"]
+        direction TB
+        verify_compute_1["8.12 计算子系统验证-智算服务器<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+        verify_compute_2["计算子系统验证-通算服务器<br/>基线依赖引用，未定义活动行"]
+        verify_compute_3["8.13 计算子系统验证-灵衢网络<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+        verify_storage["8.14 存储子系统验证<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+        verify_network["8.15 网络子系统验证<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+    end
+
+    subgraph cluster["集群调测"]
+        direction LR
+        compute_manage["9.1 计算管理系统对接<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+        network_manage["9.2 网络管理系统对接<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+        storage_manage["9.3 存储管理系统对接<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+        check["9.4 线序及光链路质量排查<br/>批次级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+        rectification["9.5 综合布线整改<br/>批次级｜标准: 4天｜极限: 1天｜SLA: 固定"]
+        interconnect["9.6 集群通信配置测试<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+        integration["9.7 集群系统集成测试<br/>批次级｜标准: 5天｜极限: 2天｜SLA: 固定"]
+        tune["9.8 集群性能调优<br/>批次级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+    end
+
+    subgraph accept["验收交付"]
+        direction LR
+        customer["12.1 客户集群验收<br/>批次级｜标准: 10天｜极限: 3天｜SLA: 固定"]
+        report["12.2 输出验收报告<br/>批次级｜标准: 5天｜极限: 1天｜SLA: 固定"]
+        communicate["12.3 验收报告沟通<br/>批次级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+        handoff["12.4 移交<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+    end
+
+    compute_deploy_1 -->|FS| verify_compute_1
+    compute_deploy_3 -->|FS| verify_compute_3
+    storage_deploy -->|FS| verify_storage
+    network_deploy -->|FS| verify_network
+
+    compute_deploy_1 -->|FS| compute_manage
+    network_deploy -->|FS| network_manage
+    storage_deploy -->|FS| storage_manage
+
+    compute_deploy_1 -->|FS| check
+    compute_deploy_2 -->|FS| check
+    compute_deploy_3 -->|FS| check
+    storage_deploy -->|FS| check
+    network_deploy -->|FS| check
+    check -->|FS| rectification
+
+    verify_compute_1 -->|FS| interconnect
+    verify_compute_2 -->|FS| interconnect
+    verify_compute_3 -->|FS| interconnect
+    verify_storage -->|FS| interconnect
+    verify_network -->|FS| interconnect
+    rectification -->|FS| interconnect
+
+    interconnect -->|FS| integration
+    integration -->|FS| tune
+    integration -->|FS| customer
+    customer -->|FS| report
+    report -->|FS| communicate
+    communicate -->|FS| handoff
+
+    class compute_deploy_1,compute_deploy_2,compute_deploy_3,storage_deploy,network_deploy prereq;
+    class verify_compute_2 external;
+    class customer,report,communicate,handoff accept;
+    class verify_compute_1,verify_compute_3,verify_storage,verify_network,compute_manage,network_manage,storage_manage,check,rectification,interconnect,integration,tune task;

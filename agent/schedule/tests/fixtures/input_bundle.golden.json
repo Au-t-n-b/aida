@@ -1,0 +1,2384 @@
+{
+  "project": {
+    "project_id": "6336ff05cffc4144aa6d96a87e66a36e",
+    "project_name": "A3液冷集群集成",
+    "start_date": null,
+    "handover_date": null,
+    "scene": "集群集成",
+    "product_form": "A3",
+    "cooling_method": "liquid_cooling",
+    "project_scale": "标准项目",
+    "total_card_count": 3456,
+    "note": null
+  },
+  "rooms": [
+    {
+      "room_id": "B2DH401",
+      "cabling_ready_date": null,
+      "install_ready_date": null,
+      "liquid_ready_date": null,
+      "power_off_windows": [],
+      "note": null
+    },
+    {
+      "room_id": "B2DH403",
+      "cabling_ready_date": null,
+      "install_ready_date": null,
+      "liquid_ready_date": null,
+      "power_off_windows": [],
+      "note": null
+    },
+    {
+      "room_id": "B2DH402",
+      "cabling_ready_date": null,
+      "install_ready_date": null,
+      "liquid_ready_date": null,
+      "power_off_windows": [],
+      "note": null
+    }
+  ],
+  "pods": [
+    {
+      "pod_id": "B2DH401-POD01",
+      "room_id": "B2DH401",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH401-POD02",
+      "room_id": "B2DH401",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH401-POD03",
+      "room_id": "B2DH401",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH401-POD04",
+      "room_id": "B2DH401",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH403-POD09",
+      "room_id": "B2DH403",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH402-POD05",
+      "room_id": "B2DH402",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH402-POD06",
+      "room_id": "B2DH402",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH402-POD07",
+      "room_id": "B2DH402",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    },
+    {
+      "pod_id": "B2DH402-POD08",
+      "room_id": "B2DH402",
+      "compute_cabinet_count": 12,
+      "other_cabinet_count": 4,
+      "note": null
+    }
+  ],
+  "arrivals": [
+    {
+      "arrival_id": "1",
+      "pod_id": "B2DH401-POD01",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "2",
+      "pod_id": "B2DH401-POD01",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "3",
+      "pod_id": "B2DH401-POD01",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "4",
+      "pod_id": "B2DH401-POD01",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "5",
+      "pod_id": "B2DH401-POD02",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "6",
+      "pod_id": "B2DH401-POD02",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "7",
+      "pod_id": "B2DH401-POD02",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "8",
+      "pod_id": "B2DH401-POD02",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "9",
+      "pod_id": "B2DH401-POD03",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "10",
+      "pod_id": "B2DH401-POD03",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "11",
+      "pod_id": "B2DH401-POD03",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "12",
+      "pod_id": "B2DH401-POD03",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "13",
+      "pod_id": "B2DH401-POD04",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "14",
+      "pod_id": "B2DH401-POD04",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "15",
+      "pod_id": "B2DH401-POD04",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "16",
+      "pod_id": "B2DH401-POD04",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-01-10",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "17",
+      "pod_id": "B2DH403-POD09",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "18",
+      "pod_id": "B2DH403-POD09",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-01-18",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "19",
+      "pod_id": "B2DH403-POD09",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-01-18",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "20",
+      "pod_id": "B2DH403-POD09",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-01-18",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "21",
+      "pod_id": "B2DH402-POD05",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "22",
+      "pod_id": "B2DH402-POD05",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "23",
+      "pod_id": "B2DH402-POD05",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "24",
+      "pod_id": "B2DH402-POD05",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "25",
+      "pod_id": "B2DH402-POD06",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "26",
+      "pod_id": "B2DH402-POD06",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "27",
+      "pod_id": "B2DH402-POD06",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "28",
+      "pod_id": "B2DH402-POD06",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "29",
+      "pod_id": "B2DH402-POD07",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "30",
+      "pod_id": "B2DH402-POD07",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "31",
+      "pod_id": "B2DH402-POD07",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "32",
+      "pod_id": "B2DH402-POD07",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "33",
+      "pod_id": "B2DH402-POD08",
+      "device_type": "灵衢线缆",
+      "device_model": "400G MPO线缆",
+      "unit": "根",
+      "quantity": 2688.0,
+      "arrival_date": "2026-01-05",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "34",
+      "pod_id": "B2DH402-POD08",
+      "device_type": "计算柜",
+      "device_model": "Atlas 900 A3 SuperPoD计算柜",
+      "unit": "柜",
+      "quantity": 12.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "35",
+      "pod_id": "B2DH402-POD08",
+      "device_type": "总线设备柜",
+      "device_model": "Atlas 900 A3 SuperPoD总线设备柜",
+      "unit": "柜",
+      "quantity": 4.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    },
+    {
+      "arrival_id": "36",
+      "pod_id": "B2DH402-POD08",
+      "device_type": "网络",
+      "device_model": "CE9866-128DQ",
+      "unit": "台",
+      "quantity": 6.0,
+      "arrival_date": "2026-03-04",
+      "arrival_status": "已到货",
+      "note": null
+    }
+  ],
+  "teams": [
+    {
+      "team_id": "1",
+      "size": 18,
+      "experience": "丰富",
+      "on_site": true,
+      "available_from": null
+    },
+    {
+      "team_id": "2",
+      "size": 18,
+      "experience": "丰富",
+      "on_site": true,
+      "available_from": null
+    }
+  ],
+  "activities": [
+    {
+      "activity_id": "2.3",
+      "activity_name": "机房改造实施",
+      "phase": "L1机房准备",
+      "scope": "机房级",
+      "activity_type": "机房准备",
+      "constraint_source": "站",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "克照",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "3.1",
+      "activity_name": "现场勘测",
+      "phase": "工程勘测",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "克照",
+      "note": "规模：当前基于1个384节点，如果POD增加。。。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "3.2",
+      "activity_name": "远程视频辅助",
+      "phase": null,
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "3.3",
+      "activity_name": "输出工勘报告",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "克照",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "3.4",
+      "activity_name": "工程勘测报告评审",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "克照",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "4.1",
+      "activity_name": "信息分析与确认",
+      "phase": "建模仿真",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "志峰，陈云，王塑飞",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "4.2",
+      "activity_name": "建模仿真设计",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "规模分档",
+      "standard_sla_days": 11,
+      "minimum_sla_days": 9,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "4.3",
+      "activity_name": "建模仿真初稿评审",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "4.4",
+      "activity_name": "建模仿真终稿输出",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "5.1",
+      "activity_name": "集群LLD设计",
+      "phase": "低阶设计",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "田杨敏",
+      "note": "1.活动工作内容说明：主要是CCAE、NCE、DME、K8S，Mindcluster等管理系统的设计。\n2.极限工期关键假设：\n1)需提前获取客户网络规划，公共配置(用户名，密码，NTP, DNS等)信息。正常情况下，网络信息通常至少有天才能获取，因为客户要走审批流程 。公共入息客户可以在1天内提供。\n2)提前预约评审\n3)评审一次通过\n3.风险：如评审不通过，需增加更新设计，重新评审的时间，一般2天以上。\n4.资源投入：1名L2工程师\n5.单POD场景：极限工期1天。\n6.一批次多POD场景：极限工期2天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "5.2",
+      "activity_name": "计算子系统LLD设计",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "田杨敏",
+      "note": "1.活动工作内容说明：设计计算子系统的网段划分，地址规划，Vlan规划，服务器基础信息规划，灵忂网络规划，灵衢ZTP开局规划。\n2.极限工期关键假设：\n1)需提前获取客户网络规划，公共配置(用户名，密码，NTP, DNS等)信息。正常情况下，网络信息通常至少有天才能获取，因为客户要走审批流程 。公共入息客户可以在1天内提供。\n2)提前预约评审\n3)评审一次通过\n风险：如评审不通过，需增加更新设计，重新评审的时间，一般2天以上。\n3.资源投入：1名L2工程师\n4.单POD场景：极限工期1天。\n5.一批次多POD场景：极限工期2天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "5.3",
+      "activity_name": "网络子系统LLD设计",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "田杨敏",
+      "note": "1.活动工作内容说明：设计网络子系统的网段划分，地址规划，Vlan规划，互联规则，设备地址规划。\n2.极限工期关键假设：\n1)需提前获取客户网络规划，公共配置(用户名，密码，NTP, DNS等)信息。正常情况下，网络信息通常至少有天才能获取，因为客户要走审批流程 。公共信息客户可以在1天内提供。\n2)提前预约评审\n3)评审一次通过\n风险：如评审不通过，需增加更新设计，重新评审的时间，一般2天以上。\n3.极限工期计算逻辑：交换机数量：40台极限工期1天，40台到100台极限工期2天，100-200台3天，300-500台4天，500-800台5天。800台以上6天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "5.4",
+      "activity_name": "存储子系统LLD设计",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "田杨敏",
+      "note": "1.活动工作内容说明：设计存储子系统的网段划分，存储集群规划，设备地址规划。\n2.极限工期关键假设：\n1)需提前获取客户网段规划，公共配置(用户名，密码，NTP, DNS等)信息。正常情况下，网络信息通常至少有天才能获取，因为客户要走审批流程 。公共信息客户可以在1天内提供。\n2)提前预约评审\n3)评审一次通过\n风险：如评审不通过，需增加更新设计，重新评审的时间，一般2天以上。\n4.单POD场景：极限工期1天。\n5.一批次多POD场景：极限工期2天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "5.6",
+      "activity_name": "集群验收方案设计",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 25,
+      "minimum_sla_days": 10,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "田杨敏",
+      "note": "1.活动工作内容说明：设计验收标准，验收用例。\n2.极限工期关键假设：\n1)需提前获取客户验收要求，通常需要和客户详细沟通，约2天完成。\n2)提前预约评审\n3)评审一次通过\n风险：如评审不通过，需增加更新设计，重新评审的时间，一般2天以上。\n4.单POD场景：极限工期10天。\n5.一批次多POD场景：极限工期15天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "5.7",
+      "activity_name": "低阶设计评审",
+      "phase": "1",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "田杨敏",
+      "note": "1.提前预约评审，假设一次评审通过，如不通过，需另加时间修正和评审，各项目视情况做计划。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.2",
+      "activity_name": "计算柜到货(含开箱验货)",
+      "phase": "到货",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": "在A3液冷场景下，计算柜到货(含开箱验货) 和总线设备柜到货(含开箱验货)，排期排出的时间一致",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.3",
+      "activity_name": "总线设备柜到货(含开箱验货)",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": "在A3液冷场景下，计算柜到货(含开箱验货) 和总线设备柜到货(含开箱验货)，排期排出的时间一致",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.4",
+      "activity_name": "通用线缆到货(含开箱验货)",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.5",
+      "activity_name": "灵衢线缆到货(含开箱验货)",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.7",
+      "activity_name": "通算到货(含开箱验货)",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.8",
+      "activity_name": "存储到货(含开箱验货)",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.9",
+      "activity_name": "网络到货(含开箱验货)",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "到货",
+      "constraint_source": "货",
+      "duration_mode": "固定",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "6.11",
+      "activity_name": "转运与设备静置",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": {
+        "trigger_logic": "当达到极限工时且是液冷场景下",
+        "risk_name": "设备物理性及凝露损伤风险",
+        "description": "设备物理损坏（刮碰、跌落）或因温差结露导致内部电路板短路",
+        "impact": "1.设备立即损坏，导致高额维修或更换费用，并直接延误后续所有工序。\n2.设备存在隐性损伤，在后期测试或运行中才暴露，导致问题定位困难，整改时间更长。\n3.因设备故障造成项目工期严重滞后，产生违约罚款。",
+        "mitigation": "1.预案先行，路径固化：在设备到场前，联合施工方、保安团队提前规划并实地走通运输路径，清除障碍。确保通道畅通，关键位置（如转角、门口）做好防护。\n2.资源强化，并行作业：增派专业的搬运团队和设备（如液压叉车、重型千斤顶），实现多台设备并行转运，而非串行作业，以人力物力换时间。\n3.强制静置，环境预控：将“设备静置”时间列为不可压缩的关键工期节点。在设备到位前，提前至少12-24小时将机房环境（温湿度）调节至与设备要求一致，最大限度减少温差。设备到位后，必须完成最低要求的静置时间（如4-8小时，依据设备规格和环境差），并记录在案。\n4.开箱检查与上电分离：安排专人立即开箱进行外观检查，但将上电操作与静置完成状态绑定，避免因赶工而提前上电。",
+        "mitigation_owner": "TD"
+      }
+    },
+    {
+      "activity_id": "7.1",
+      "activity_name": "机房洁净度测试",
+      "phase": "工程安装",
+      "scope": "机房级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "汪伟",
+      "note": null,
+      "risk_rule": {
+        "trigger_logic": "当达到极限工时且是液冷场景下",
+        "risk_name": "洁净度测试不达标风险",
+        "description": "在极限工期下，土建、装修、安装等工种交叉作业，扬尘难以控制。为抢时间，可能在洁净度未达标甚至未进行彻底清洁的情况下，仓促进行测试或直接允许设备进场",
+        "impact": "1.测试失败需要重新清洁和再次测试，反而浪费更多时间；\n2.粉尘进入未上电的设备内部，积聚在风扇、散热片和电路板上，影响长期散热效率和稳定性，增加未来故障率。\n3.在客户验收时因设备内部灰尘问题引发争议",
+        "mitigation": "1、作业工具和相关人力资源、人员能力需提前具备\n2、售前阶段已做过洁净度测试，且洁净度达标\n3、机房属于A级以上机房，现场管理规范，一次保洁后洁净度达标\n4、分包商评估项目机房情况可0.5天一次完成保洁",
+        "mitigation_owner": "TD"
+      }
+    },
+    {
+      "activity_id": "7.2",
+      "activity_name": "综合布线与成端-通用线缆",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "通用线缆",
+          "unit": "根",
+          "standard_daily_rate": 145.6,
+          "limit_daily_rate": 242.66666666666666,
+          "assumed_crew": 4
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成管理面、业务面、样本面、参数面等线缆布放、理线、绑扎与成端。\n2.极限工期关键假设：\n1)LLD已完成评审。\n2)液冷柜、总线柜、网络设备柜已上架完成或具备预布线条件。\n3)已完成分线及标签粘贴。\n4)光模块已插入。\n5)多POD并行时，机房内有充足的理线空间\n风险：如出现线缆标签批量打印或粘贴错误，会造成后续大量返工。\n3.资源投入：分线、布线、理线、绑扎工艺师傅  4人\n4.单POD场景：极限工期6天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.3",
+      "activity_name": "综合布线与成端-灵衢线缆",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "灵衢线缆",
+          "unit": "根",
+          "standard_daily_rate": 224.0,
+          "limit_daily_rate": 384.0,
+          "assumed_crew": 10
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成超节点内计算节点L1灵衢交换板到总线柜L2灵衢设备之间的线缆布放、理线、绑扎与成端。\n2.极限工期关键假设：\n1)LLD已完成评审。\n2)液冷柜与总线柜已上架完成或具备预布线条件。\n3)已完成分线及标签粘贴。\n4)光模块已插入。\n5)多POD并行时，机房内有充足的理线空间\n风险：如出现线缆标签批量打印或粘贴错误，会造成后续大量返工。\n3.资源投入：分线、布线、理线、绑扎工艺师傅  8-10人\n4.单POD场景：极限工期6天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.7",
+      "activity_name": "通算服务器安装",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "通算",
+          "unit": "台",
+          "standard_daily_rate": 30.0,
+          "limit_daily_rate": 50.0,
+          "assumed_crew": 4
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成通算服务器安装、上架等：\n1)LLD已完成评审。\n2.资源投入：硬件安装2-4人",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.8",
+      "activity_name": "通算设备上电",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "张升",
+      "note": "需安装上架、电源线、信号线完成。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.9",
+      "activity_name": "通算设备硬件验收",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "上电完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.10",
+      "activity_name": "存储设备安装",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "存储",
+          "unit": "台",
+          "standard_daily_rate": 16.0,
+          "limit_daily_rate": 20.0,
+          "assumed_crew": 4
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成存储设备安装、上架等：\n1)LLD已完成评审。\n风险：若存储硬盘散装发货，会影响安装工期。\n3.资源投入：硬件安装4人",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.11",
+      "activity_name": "存储设备上电",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "张升",
+      "note": "需安装上架、电源线、信号线完成。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.12",
+      "activity_name": "存储设备硬件验收",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "上电完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.13",
+      "activity_name": "网络设备安装",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "盒式",
+          "unit": "台",
+          "standard_daily_rate": 40.0,
+          "limit_daily_rate": 80.0,
+          "assumed_crew": 2
+        },
+        {
+          "workload_source": "框式",
+          "unit": "台",
+          "standard_daily_rate": 16.0,
+          "limit_daily_rate": 24.0,
+          "assumed_crew": 4
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成网络设备安装、上架等：\n1)LLD已完成评审。\n风险：盒式设备电源模块、风扇散装发货，会影响安装工期。\n3.资源投入：盒式2人、 框式4人",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.14",
+      "activity_name": "网络设备上电",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "张升",
+      "note": "需安装上架、电源线、信号线完成。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.15",
+      "activity_name": "网络设备硬件验收",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 1,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "上电完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.19",
+      "activity_name": "液冷计算柜安装",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "计算柜",
+          "unit": "柜",
+          "standard_daily_rate": 48.0,
+          "limit_daily_rate": 48.0,
+          "assumed_crew": 12
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成液冷机柜的上架、固定、调平、并柜、接地、液冷保压、软管连接、通液、压差测试等：\n1)LLD已完成评审。\n2)多机房并行时，现场具备充足的搬运空间、拆包空间。\n3)工勘发现的问题均已处理完毕。\n4)与监理、客户等做好开箱、搬运等流程规划。\n5)液冷二次侧已达到《液冷可部署要求》\n6）具备足量的液冷调测工具包。\n风险：搬运通道不畅（电梯故障等）会造成安装效率降低。 受CDU侧制约（支阀开闭、补液、压差测试）。\n3.资源投入：力工 12人、L1工程督导1人\n4.单POD场景：极限工期硬装1天、液冷调测1天。",
+      "risk_rule": {
+        "trigger_logic": "当达到极限工时且是液冷场景下",
+        "risk_name": "液冷管道密封性与清洁度失控引发的泄漏与失效风险",
+        "description": "为追赶进度，安装人员可能忽略安装精度，导致底座不平、柜体倾斜；在管道连接时，未使用扭力扳手或未达到标准扭力，清洁流程被简化，导致密封不良或杂质进入管路",
+        "impact": "1.灾难性后果：冷却液泄漏，导致相邻贵重的IT设备短路烧毁，并可能引发机房消防系统误动作，造成二次损害。\n2.系统失效：散热系统无法正常工作，导致后续上电的服务器在高负载下因过热批量损坏。\n3.工期灾难：泄漏整改需排空、清洁、重新安装，耗时极长，是整个项目最关键路径上的严重阻塞",
+        "mitigation": "1.工具与工艺强制锁定：强制使用校准后的扭力扳手进行所有连接，安排质检员对每个接口进行扭力值和密封性抽查，并拍照存档。\n2.清洁度专项管理：将管路清洁作为独立检查点，在打开密封盖前后均有清洁记录，严禁在扬尘环境中进行连接作业。\n3.分段压力测试：不等待整个系统安装完成，每完成一个模块（如一个机柜的液冷循环）即进行分段压力测试和保压检查，实现问题早期发现、局部处理。",
+        "mitigation_owner": "TD"
+      }
+    },
+    {
+      "activity_id": "7.20",
+      "activity_name": "液冷计算柜设备上电",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "张升",
+      "note": "需通液、压差测试、电源接线完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.21",
+      "activity_name": "液冷计算柜验收",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 7,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "上电完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.22",
+      "activity_name": "总线设备柜安装",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "弹性",
+      "standard_sla_days": null,
+      "minimum_sla_days": null,
+      "workload_rules": [
+        {
+          "workload_source": "总线设备柜",
+          "unit": "柜",
+          "standard_daily_rate": 48.0,
+          "limit_daily_rate": 48.0,
+          "assumed_crew": 12
+        }
+      ],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "1.活动工作内容说明：按照LLD规划，完成灵衢机柜的上架、固定、调平、并柜、接地等：\n1)LLD已完成评审。\n2)多机房并行时，现场具备充足的搬运空间、拆包空间。\n3)工勘发现的问题均已处理完毕。\n4)与监理、客户等做好开箱、搬运等流程规划。\n风险：搬运通道不畅（电梯故障等）会造成安装效率降低。\n3.资源投入：力工 12人\n4.单POD场景：极限工期硬装1天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.23",
+      "activity_name": "总线设备柜设备上电",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "张升",
+      "note": "需电源接线完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "7.24",
+      "activity_name": "总线设备柜验收",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 7,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "张升",
+      "note": "上电完成",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.1",
+      "activity_name": "基础网络配置",
+      "phase": "单机调测",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：按照LLD规划，完成网络设备的基础配置，包括IP地址等。\n2.极限工期关键假设：\n1)LLD已完成评审，客户已经准确提供IP地址等组网配置信息。\n2)网络设备按时完成上电。",
+      "risk_rule": {
+        "trigger_logic": "当达到极限工时时",
+        "risk_name": "配置错误与文档缺失导致的网络基础架构失稳风险",
+        "description": "工程师为求快，跳过配置评审，直接使用未经验证的脚本进行批量刷入，或修改后未及时更新文档。导致IP冲突、VLAN隔离失效、路由环路或安全策略漏洞",
+        "impact": "1.直接阻塞：集群网络不通或性能不稳，使后续系统集成测试无法开始或频繁中断，浪费大量宝贵时间。\n2.排查困难：网络问题具有隐蔽性和连通性，定位需要逐段排查，耗时极长。\n3.安全隐惠：为未来系统运行埋下重大安全漏洞。",
+        "mitigation": "1.标准化与自动化先行：在项目启动前，即准备好经过多轮评审的“黄金配置”模板和自动化部署脚本（如使用Ansible）。极限工期中，自动化执行的效率和准确性远高于手工配置。\n2.“配置即代码”与版本控制：所有配置变更必须通过脚本进行，并强制提交至Git等版本管理系统。任何修改可追溯，并可一键回滚到上一个稳定版本。\n3.模块化并行配置：将网络划分为管理、计算、存储等独立模块，由不同工程师并行配置，最后进行互联互通测试，缩短整体配置时间。\n4.即时基础验证：每完成一个物理区域或逻辑模块的配置，立即执行基础连通性（Ping）和关键端口状态验证，实现问题的快速发现与闭环",
+        "mitigation_owner": "TD"
+      }
+    },
+    {
+      "activity_id": "8.2",
+      "activity_name": "设备硬装初始化-智算服务器",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：按照LLD规划，完成智算设备的初始化。\n2.极限工期关键假设：\n1)LLD已完成评审，客户已经准确提供IP地址、OS安装等相关信息。\n2)基础网络配置完成\n3）智算设备按时完成上电。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.3",
+      "activity_name": "设备硬装初始化-通算服务器",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：按照LLD规划，完成通算设备的初始化。\n2.极限工期关键假设：\n1)LLD已完成评审，客户已经准确提供IP地址、OS安装等相关信息。\n2)基础网络配置完成\n3)通算设备按时完成上电。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.4",
+      "activity_name": "设备硬装初始化-存储服务器",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：按照LLD规划，完成存储服务器的初始化。\n2.极限工期关键假设：\n1)LLD已完成评审，客户已经准确提供IP地址、OS安装、存储配置等相关信息。\n2)基础网络配置完成\n3)存储设备按时完成上电。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.5",
+      "activity_name": "设备硬装初始化-灵衢网络",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：按照LLD规划，完成灵衢网络的初始化。\n2.极限工期关键假设：\n1)LLD已完成评审，客户已经准确提供IP地址、配置等相关信息。\n2)基础网络配置完成\n3)灵衢设备按时完成上电。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.6",
+      "activity_name": "智算硬件压测",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：按照LLD规划，完成智算硬件压测。\n2.极限工期关键假设：\n1)智算服务器按时完成初始化。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.7",
+      "activity_name": "网络子系统部署调测",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成网络子系统的配置。\n2.极限工期关键假设：\n1)网络子系统按时完成初始化。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.8",
+      "activity_name": "计算子系统部署调测-智算服务器",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成智算子系统的OS安装、昇腾软件安装，连通性测试。\n2.极限工期关键假设：\n1)智算子系统按时完成初始化。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.9",
+      "activity_name": "计算子系统部署调测-通算服务器",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成通算子系统的OS安装等工作。\n2.极限工期关键假设：\n1)通算子系统按时完成初始化。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.10",
+      "activity_name": "计算子系统部署调测-灵衢网络",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成灵衢子系统的配置检查、连通性测试等工作。\n2.极限工期关键假设：\n1)灵衢子系统按时完成初始化。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.11",
+      "activity_name": "存储子系统部署调测",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成存储子系统的部署相关工作。\n2.极限工期关键假设：\n1)存储子系统按时完成初始化。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.12",
+      "activity_name": "计算子系统验证-智算服务器",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成计算子系统的单机综合、单机模型测试等工作。\n2.极限工期关键假设：\n1)计算子系统按时完成部署测试。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.13",
+      "activity_name": "计算子系统验证-灵衢网络",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": "1.活动工作内容说明：完成灵衢子系统的PRBS测试等工作。\n2.极限工期关键假设：\n1)灵衢子系统按时完成部署测试。\n2)备件提前准备，可以及时完成更换。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.14",
+      "activity_name": "存储子系统验证",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.15",
+      "activity_name": "网络子系统验证",
+      "phase": "2",
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "8.16",
+      "activity_name": "计算子系统验证-通算服务器",
+      "phase": null,
+      "scope": "PoD级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": null,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.1",
+      "activity_name": "计算管理系统对接",
+      "phase": "集群调测",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.2",
+      "activity_name": "网络管理系统对接",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.3",
+      "activity_name": "存储管理系统对接",
+      "phase": "2",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.4",
+      "activity_name": "线序及光链路质量排查",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": "1.活动工作内容说明：完成连通性测试，排除连线错误、异常链路问题，保证整个系统的连通性。\n2.极限工期关键假设：\n1)完成智算服务器、灵衢网络设备的初始化和软件部署。\n2)布线质量总体良好，包括走线的弯曲度、连接头与光模块的防尘保护到位、光模块故障率低。\n3)有光纤和光模块备件可以及时更换。\n风险：如出现大批量光纤布线质量、连接头与光模块的防尘等问题，会极大的拉长问题的解决周期。。\n3.资源投入：分线、布线、理线、绑扎工艺师傅  4人，华为现场处理工程 2人\n4.单POD场景：极限工期6天。",
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.5",
+      "activity_name": "综合布线整改",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 4,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.6",
+      "activity_name": "集群通信配置测试",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "9.7",
+      "activity_name": "集群系统集成测试",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 2,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": null,
+      "note": null,
+      "risk_rule": {
+        "trigger_logic": "当达到极限工时时",
+        "risk_name": "测试不充分掩盖系统缺陷导致的带病交付风险",
+        "description": "被迫减少测试用例、降低测试负载或缩短稳定性烤机时间，无法暴露系统在极限压力下的性能瓶颈、稳定性问题和兼容性缺陷",
+        "impact": "1.带病上线：将潜在缺陷（如个别节点不稳定、特定应用下性能不达标）带入生产环境。\n2.验收失败：客户在验收测试中发现问题，导致验收不通过，需要返工，造成更大的工期延误和声誉损失。\n3.运维噩梦：系统上线后运行不稳，频繁宕机，长期运维成本和技术债务激增",
+        "mitigation": "1.风险导向的测试策略：与客户共同明确必须测试的核心功能和高风险项，集中资源进行针对性测试（如100%节点可用性、核心应用性能），牺牲次要功能的测试深度。\n2.自动化测试全覆盖：提前开发高效的自动化测试脚本集，一键执行压力测试（如Linpack）、稳定性烤机和功能验证，用自动化抢回时间，并保证测试过程的一致性。\n3.并行与滚动测试：不等待整个集群集成完毕。集成完成一个批次，就立即对该批次进行测试。测试团队与集成团队并行工作，加速整体流程。\n4.建立快速决策机制：提前约定好各类测试失败的决策流程和阈值。对于非关键指标不达标，是立即整改还是记录后后续处理，避免在测试阶段陷入争论和僵局",
+        "mitigation_owner": "TD"
+      }
+    },
+    {
+      "activity_id": "9.8",
+      "activity_name": "集群性能调优",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "12.1",
+      "activity_name": "客户集群验收",
+      "phase": "验收测试",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 10,
+      "minimum_sla_days": 3,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉、朱见中",
+      "note": null,
+      "risk_rule": {
+        "trigger_logic": "当达到极限工时时",
+        "risk_name": "验收失败与项目滞延风险",
+        "description": "在验收演示时易出现性能不达标、功能缺失或意外故障。客户方因对工期压缩和质量心存疑虑，可能提高验收标准或对微小问题零容忍，导致验收失败",
+        "impact": "1.项目停滞：无法按时交付，尾款无法收回，并可能触发高额延期罚款。\n2。成本激增：需要额外时间进行整改和再次验收，形成项目“烂尾”。\n3.关系损害：双方陷入责任纠纷，严重损害客户关系与公司声誉。",
+        "mitigation": "1.全过程透明与期望管理：从项目开始就向客户坦诚说明极限工期的风险，共同确定验收标准的底线和可妥协范围，并将核心量化指标写入合同附件。\n2.过程证据链完整留存：完整保存所有关键节点的实施记录、测试报告、签字确认单。在验收时，用详实的文档向客户证明工作的规范性和质量受控，建立信任。\n3.内部预验收演练：在正式验收前，组织一次完全模拟客户流程的“预验收”，邀请内部或第三方专家挑刺，提前发现并解决可能被质疑的问题。\n4.备好应急预案与补救承诺：针对最可能出问题的环节，提前准备好备选方案。同时，准备一份清晰的《验收后整改计划与承诺书》，若出现问题，立即向客户出示，展现负责态度和管控能力，争取获得“有条件验收”。",
+        "mitigation_owner": "TD"
+      }
+    },
+    {
+      "activity_id": "12.2",
+      "activity_name": "输出验收报告",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 5,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "12.3",
+      "activity_name": "验收报告沟通",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 3,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "12.4",
+      "activity_name": "移交",
+      "phase": "3",
+      "scope": "批次级",
+      "activity_type": "里程碑",
+      "constraint_source": null,
+      "duration_mode": "固定",
+      "standard_sla_days": 2,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": true,
+      "responsibility": "宏枫、赵小辉",
+      "note": null,
+      "risk_rule": null
+    },
+    {
+      "activity_id": "13.1",
+      "activity_name": "工程安装调测工具准备",
+      "phase": "工具准备",
+      "scope": "项目级",
+      "activity_type": "普通",
+      "constraint_source": "人",
+      "duration_mode": "固定",
+      "standard_sla_days": 10,
+      "minimum_sla_days": 1,
+      "workload_rules": [],
+      "is_default_milestone": false,
+      "responsibility": "汪伟",
+      "note": null,
+      "risk_rule": null
+    }
+  ],
+  "dependencies": [
+    {
+      "from_activity_id": "3.1",
+      "to_activity_id": "3.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.2",
+      "to_activity_id": "3.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.3",
+      "to_activity_id": "3.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.4",
+      "to_activity_id": "5.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.4",
+      "to_activity_id": "5.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.4",
+      "to_activity_id": "5.1",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.4",
+      "to_activity_id": "5.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "3.4",
+      "to_activity_id": "5.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.1",
+      "to_activity_id": "4.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.2",
+      "to_activity_id": "4.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.3",
+      "to_activity_id": "4.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.4",
+      "to_activity_id": "5.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.4",
+      "to_activity_id": "5.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.4",
+      "to_activity_id": "5.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.4",
+      "to_activity_id": "5.1",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "4.4",
+      "to_activity_id": "5.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.1",
+      "to_activity_id": "5.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.2",
+      "to_activity_id": "5.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.3",
+      "to_activity_id": "5.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.4",
+      "to_activity_id": "5.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.6",
+      "to_activity_id": "5.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "2.3",
+      "to_activity_id": "7.10",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.10",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.8",
+      "to_activity_id": "7.10",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.10",
+      "to_activity_id": "7.11",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.11",
+      "to_activity_id": "7.12",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.11",
+      "to_activity_id": "8.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.2",
+      "to_activity_id": "7.11",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.11",
+      "to_activity_id": "8.14",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.11",
+      "to_activity_id": "9.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.4",
+      "to_activity_id": "8.11",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "2.3",
+      "to_activity_id": "7.22",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.22",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.11",
+      "to_activity_id": "7.22",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.3",
+      "to_activity_id": "6.11",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.22",
+      "to_activity_id": "7.23",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.23",
+      "to_activity_id": "8.5",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.23",
+      "to_activity_id": "7.24",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.3",
+      "to_activity_id": "7.23",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.10",
+      "to_activity_id": "8.13",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.5",
+      "to_activity_id": "8.10",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "2.3",
+      "to_activity_id": "7.1",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "2.3",
+      "to_activity_id": "7.19",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.19",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.11",
+      "to_activity_id": "7.19",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.2",
+      "to_activity_id": "6.11",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.19",
+      "to_activity_id": "7.20",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.20",
+      "to_activity_id": "7.21",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.20",
+      "to_activity_id": "8.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.3",
+      "to_activity_id": "7.20",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.2",
+      "to_activity_id": "8.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.2",
+      "to_activity_id": "8.8",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.8",
+      "to_activity_id": "8.12",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.8",
+      "to_activity_id": "9.1",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.5",
+      "to_activity_id": "7.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.1",
+      "to_activity_id": "7.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "2.3",
+      "to_activity_id": "7.13",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.13",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.9",
+      "to_activity_id": "7.13",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.13",
+      "to_activity_id": "7.14",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.14",
+      "to_activity_id": "8.1",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.14",
+      "to_activity_id": "7.15",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.2",
+      "to_activity_id": "7.14",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.1",
+      "to_activity_id": "8.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.7",
+      "to_activity_id": "8.15",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.7",
+      "to_activity_id": "9.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.4",
+      "to_activity_id": "7.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.1",
+      "to_activity_id": "7.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "2.3",
+      "to_activity_id": "7.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.7",
+      "to_activity_id": "7.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.7",
+      "to_activity_id": "7.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.2",
+      "to_activity_id": "7.8",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.7",
+      "to_activity_id": "7.8",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.8",
+      "to_activity_id": "7.9",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "7.8",
+      "to_activity_id": "8.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.3",
+      "to_activity_id": "8.9",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "12.1",
+      "to_activity_id": "12.2",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "12.2",
+      "to_activity_id": "12.3",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "12.3",
+      "to_activity_id": "12.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.10",
+      "to_activity_id": "9.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.11",
+      "to_activity_id": "9.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.12",
+      "to_activity_id": "9.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.13",
+      "to_activity_id": "9.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.14",
+      "to_activity_id": "9.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.15",
+      "to_activity_id": "9.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.16",
+      "to_activity_id": "9.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.7",
+      "to_activity_id": "9.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.8",
+      "to_activity_id": "9.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "8.9",
+      "to_activity_id": "9.4",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "9.4",
+      "to_activity_id": "9.5",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "9.5",
+      "to_activity_id": "9.6",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "9.6",
+      "to_activity_id": "9.7",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "9.7",
+      "to_activity_id": "9.8",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "9.7",
+      "to_activity_id": "12.1",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "5.2",
+      "to_activity_id": "5.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.3",
+      "to_activity_id": "5.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.4",
+      "to_activity_id": "5.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.1",
+      "to_activity_id": "5.2",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.3",
+      "to_activity_id": "5.2",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.4",
+      "to_activity_id": "5.2",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.1",
+      "to_activity_id": "5.3",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.2",
+      "to_activity_id": "5.3",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.4",
+      "to_activity_id": "5.3",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.1",
+      "to_activity_id": "5.4",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.2",
+      "to_activity_id": "5.4",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.3",
+      "to_activity_id": "5.4",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "5.1",
+      "to_activity_id": "5.6",
+      "dep_type": "SS"
+    },
+    {
+      "from_activity_id": "5.2",
+      "to_activity_id": "5.6",
+      "dep_type": "SS"
+    },
+    {
+      "from_activity_id": "5.3",
+      "to_activity_id": "5.6",
+      "dep_type": "SS"
+    },
+    {
+      "from_activity_id": "5.4",
+      "to_activity_id": "5.6",
+      "dep_type": "SS"
+    },
+    {
+      "from_activity_id": "7.19",
+      "to_activity_id": "13.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "6.2",
+      "to_activity_id": "13.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "6.3",
+      "to_activity_id": "13.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "6.4",
+      "to_activity_id": "13.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "6.5",
+      "to_activity_id": "13.1",
+      "dep_type": "FF"
+    },
+    {
+      "from_activity_id": "6.2",
+      "to_activity_id": "7.19",
+      "dep_type": "FS"
+    },
+    {
+      "from_activity_id": "6.3",
+      "to_activity_id": "7.22",
+      "dep_type": "FS"
+    }
+  ],
+  "batches": [
+    {
+      "batch_id": "批次1",
+      "batch_name": "批次1",
+      "pod_ids": [
+        "B2DH401-POD01",
+        "B2DH401-POD02",
+        "B2DH401-POD03",
+        "B2DH401-POD04"
+      ],
+      "power_on_target_date": "2026-01-21",
+      "online_target_date": "2026-02-04"
+    },
+    {
+      "batch_id": "批次2",
+      "batch_name": "批次2",
+      "pod_ids": [
+        "B2DH403-POD09"
+      ],
+      "power_on_target_date": "2026-01-25",
+      "online_target_date": "2026-02-04"
+    },
+    {
+      "batch_id": "批次3",
+      "batch_name": "批次3",
+      "pod_ids": [
+        "B2DH402-POD05",
+        "B2DH402-POD06",
+        "B2DH402-POD07",
+        "B2DH402-POD08"
+      ],
+      "power_on_target_date": "2026-03-17",
+      "online_target_date": "2026-04-04"
+    }
+  ],
+  "anchors": [],
+  "rule_config": {
+    "concentrate_top_k": 5,
+    "skip_weekends": false,
+    "anchor_priority_override": null
+  }
+}

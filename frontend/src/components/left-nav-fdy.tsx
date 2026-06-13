@@ -374,7 +374,10 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const isEarly = pathname.startsWith('/preview') || pathname.startsWith('/proposal');
   const isDesign = pathname.startsWith('/design');
   const isPlan =
-    pathname.startsWith('/plan') || pathname.startsWith('/plan-init') || pathname.startsWith('/plan-adjust');
+    pathname.startsWith('/plan') ||
+    pathname.startsWith('/plan-init') ||
+    pathname.startsWith('/plan-adjust') ||
+    pathname.startsWith('/plan-risk-report');
   const isModulePath = pathname.startsWith('/module/') || pathname.startsWith('/commissioning');
   const isEvals = pathname.startsWith('/evals');
 
@@ -389,14 +392,8 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   ];
   const navPlan: FdySubItem[] = [
     { name: '基本信息', href: '/plan?view=info', status: 'ok' },
-    { name: '计划', href: '/plan?view=plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
-    { name: '任务', href: '/plan?view=task', status: 'ok' },
-    { name: '风险', href: '/plan?view=risk', status: 'alert', statusLabel: '3 红' },
-    { name: '假设', href: '/plan?view=assumption', status: 'warn', statusLabel: '3 项' },
-    { name: '问题', href: '/plan?view=issue', status: 'warn', statusLabel: '2 项' },
-    { name: '变更', href: '/plan?view=change', status: 'ok' },
-    { name: '计划排期（初始化）', href: '/plan-init', status: 'ok' },
-    { name: '计划排期（计划调整）', href: '/plan-adjust', status: 'ok' },
+    { name: '计划排期', href: '/plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
+    { name: '风险报告', href: '/plan-risk-report', status: 'alert', statusLabel: '待办' },
   ];
   const navOps: FdySubItem[] = [
     { name: '智慧工勘', key: 'survey', status: MODULE_STATUS.survey?.state, statusLabel: MODULE_STATUS.survey?.label },

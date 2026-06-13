@@ -1,0 +1,68 @@
+flowchart LR
+    %% Source: 计划基线0609.xlsx / 集群集成 + A3液冷场景活动&依赖&工时(1014）
+    %% Scope: 总线设备柜安装/上电/验收、灵衢布线、灵衢网络初始化/部署/验证。
+
+    classDef task fill:#F8E8C8,stroke:#A86F1A,stroke-width:1px,color:#222;
+    classDef milestone fill:#E8EEF7,stroke:#5E7FA8,stroke-width:1px,color:#222;
+    classDef review fill:#E6F4EA,stroke:#4D8A5F,stroke-width:1px,color:#222;
+    classDef tooling fill:#F7F7F7,stroke:#777,stroke-dasharray:3 3,color:#333;
+
+    subgraph delivery["到货与机房条件"]
+        direction TB
+        compute_arrival["6.2 计算柜到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+        bus_arrival["6.3 总线设备柜到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+        general_cable["6.4 通用线缆到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+        lingqu_cable["6.5 灵衢线缆到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+        transfer["6.11 转运与设备静置<br/>PoD级｜标准: 1天｜极限: 1天｜SLA: 固定"]
+        room_server["2.3 机房改造实施(可装服务器)<br/>机房级｜SLA: —"]
+        clean["7.1 机房洁净度测试<br/>机房级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+        low_review["5.7 低阶设计评审<br/>项目级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+    end
+
+    subgraph bus["总线设备柜"]
+        direction LR
+        bus_install["7.22 总线设备柜安装<br/>PoD级｜标准: 48柜/天｜极限: 48柜/天｜SLA: 弹性"]
+        bus_power["7.23 总线设备柜设备上电<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+        bus_accept["7.24 总线设备柜验收<br/>PoD级｜标准: 7天｜极限: 1天｜SLA: 固定"]
+    end
+
+    subgraph lingqu["灵衢网络"]
+        direction LR
+        lingqu_wiring["7.3 综合布线与成端-灵衢线缆<br/>PoD级｜标准: 2688根/12天｜极限: 2688根/7天｜SLA: 弹性"]
+        init["8.5 设备硬装初始化-灵衢网络<br/>PoD级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+        deploy["8.10 计算子系统部署调测-灵衢网络<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+        verify["8.13 计算子系统验证-灵衢网络<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+    end
+
+    liquid_install_ref["7.19 液冷计算柜安装<br/>外部基线活动｜见“智算子系统部署调测”"]
+    tool_ready["13.1 工程安装调测工具准备<br/>项目级｜标准: 10天｜极限: 1天｜SLA: 固定"]
+
+    compute_arrival -->|FS| transfer
+    room_server -->|FS| clean
+
+    room_server -->|FS| bus_install
+    bus_arrival -->|FS| bus_install
+    transfer -->|FS| bus_install
+    low_review -->|FS| bus_install
+
+    clean -->|FS| lingqu_wiring
+    lingqu_cable -->|FS| lingqu_wiring
+    low_review -->|FS| lingqu_wiring
+
+    bus_install -->|FS| bus_power
+    lingqu_wiring -->|FS| bus_power
+    bus_power -->|FS| bus_accept
+    bus_power -->|FS| init
+    init -->|FS| deploy
+    deploy -->|FS| verify
+
+    liquid_install_ref ==>|FF| tool_ready
+    compute_arrival ==>|FF| tool_ready
+    bus_arrival ==>|FF| tool_ready
+    general_cable ==>|FF| tool_ready
+    lingqu_cable ==>|FF| tool_ready
+
+    class compute_arrival,bus_arrival,general_cable,lingqu_cable milestone;
+    class low_review review;
+    class liquid_install_ref,tool_ready tooling;
+    class transfer,room_server,clean,bus_install,bus_power,bus_accept,lingqu_wiring,init,deploy,verify task;

@@ -8,8 +8,6 @@ import ConfigPage from '@/routes/config';
 import DesignPage from '@/routes/design';
 import TwinPage from '@/routes/twin';
 import TwinSurveyPage from '@/routes/twin-survey';
-import PlanInitPage from '@/routes/plan-init';
-import PlanAdjustPage from '@/routes/plan-adjust';
 import MilestonesPage from '@/routes/milestones';
 import AdminPage from '@/routes/admin';
 import CommissioningPage from '@/routes/commissioning';
@@ -24,6 +22,7 @@ import ModuleRoutePage from '@/routes/module';
 import EvalsPage from '@/routes/evals';
 import ChatPage from '@/routes/chat';
 import SduiPreviewPage from '@/routes/sdui-preview';
+import RiskReportPage from '@/features/schedule/components/risk-report';
 
 export const router = createBrowserRouter([
   { path: '/', element: <RootRedirect /> },
@@ -98,7 +97,7 @@ export const router = createBrowserRouter([
     path: '/plan-init',
     element: (
       <RequireAuth>
-        <PlanInitPage />
+        <Navigate to="/plan?stage=init" replace />
       </RequireAuth>
     ),
   },
@@ -106,7 +105,7 @@ export const router = createBrowserRouter([
     path: '/plan-adjust',
     element: (
       <RequireAuth>
-        <PlanAdjustPage />
+        <Navigate to="/plan?stage=adjust" replace />
       </RequireAuth>
     ),
   },
@@ -163,6 +162,14 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <PlanPage />
+      </RequireAuth>
+    ),
+  },
+  {
+    path: '/plan-risk-report',
+    element: (
+      <RequireAuth>
+        <RiskReportPage />
       </RequireAuth>
     ),
   },
