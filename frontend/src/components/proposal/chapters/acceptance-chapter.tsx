@@ -1,23 +1,46 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { useProposalData } from '@/hooks/useProposalData';
+import { ACCEPTANCE_ITEMS } from '../proposal-data';
 
-export function AcceptanceChapter() {
-  const { acceptanceItems, loading } = useProposalData();
+interface AcceptanceChapterProps {
+  initialRows?: unknown;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
 
-  if (loading) {
-    return (
-      <ProposalChapterCard id="panel-accept" title="11. 验收策略">
-        <p className="text-sm text-slate-500">加载中…</p>
-      </ProposalChapterCard>
-    );
+function _normalizeRows(input: unknown) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return ACCEPTANCE_ITEMS;
   }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row) => {
+      const item = row as Record<string, unknown>;
+      return {
+        cat: String(item.cat ?? ''),
+        scheme: String(item.scheme ?? ''),
+        standard: String(item.standard ?? ''),
+        milestone: String(item.milestone ?? ''),
+        doc: String(item.doc ?? ''),
+        payment: String(item.payment ?? ''),
+        paymentMilestone: String(item.paymentMilestone ?? ''),
+      };
+    });
+  return rows.length ? rows : ACCEPTANCE_ITEMS;
+}
+
+export function AcceptanceChapter({ initialRows, onRowsChange }: AcceptanceChapterProps) {
+  const rows = useMemo(() => _normalizeRows(initialRows), [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(rows.map((row) => ({ ...row })));
+  }, [onRowsChange, rows]);
 
   return (
     <ProposalChapterCard id="panel-accept" title="11. 验收策略">
@@ -34,7 +57,7 @@ export function AcceptanceChapter() {
           </tr>
         </ProposalDataTableHead>
         <ProposalDataTableBody>
-          {acceptanceItems.map((a, i) => (
+          {rows.map((a, i) => (
             <tr key={i}>
               <td>{a.cat}</td>
               <td className="text-xs">{a.scheme}</td>

@@ -1,0 +1,19 @@
+{
+  "chapterKey": "10",
+  "chapterTitle": "10. 计划",
+  "rows": [
+    {
+      "name": "安装",
+      "start": "2026-06-20",
+      "end": "2026-06-30",
+      "actualStart": "",
+      "actualEnd": "",
+      "owner": "张三",
+      "unit": "PMO",
+      "status": "进行中",
+      "progress": 40,
+      "progressTone": "blue"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

@@ -1,0 +1,12 @@
+{
+  "chapterKey": "1",
+  "chapterTitle": "1. 项目背景",
+  "rows": [
+    {
+      "key": "background",
+      "label": "客户项目背景",
+      "value": "背景A"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

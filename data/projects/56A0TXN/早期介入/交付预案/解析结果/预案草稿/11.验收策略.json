@@ -1,0 +1,16 @@
+{
+  "chapterKey": "11",
+  "chapterTitle": "11. 验收策略",
+  "rows": [
+    {
+      "cat": "安装PAC",
+      "scheme": "方案A",
+      "standard": "标准A",
+      "milestone": "M1",
+      "doc": "DocA",
+      "payment": "30%",
+      "paymentMilestone": "里程碑A"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

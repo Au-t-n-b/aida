@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useMemo } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
@@ -8,7 +9,39 @@ import {
 } from '../primitives';
 import { PRE_INTEGRATION } from '../proposal-data';
 
-export function IntegrationChapter() {
+interface IntegrationChapterProps {
+  initialRows?: unknown;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
+
+function _normalizeRows(input: unknown) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return PRE_INTEGRATION.map((row) => ({ ...row }));
+  }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row) => {
+      const item = row as Record<string, unknown>;
+      return {
+        cat: String(item.cat ?? ''),
+        desc: String(item.desc ?? ''),
+        hw: String(item.hw ?? ''),
+        sw: String(item.sw ?? ''),
+        owner: String(item.owner ?? ''),
+        state: String(item.state ?? ''),
+        date: String(item.date ?? ''),
+      };
+    });
+  return rows.length ? rows : PRE_INTEGRATION.map((row) => ({ ...row }));
+}
+
+export function IntegrationChapter({ initialRows, onRowsChange }: IntegrationChapterProps) {
+  const rows = useMemo(() => _normalizeRows(initialRows), [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(rows.map((row) => ({ ...row })));
+  }, [onRowsChange, rows]);
+
   return (
     <ProposalChapterCard id="panel-pre" title="6. 集成验证需求信息">
       <ProposalDataTable equalCols leftAlign>
@@ -24,7 +57,7 @@ export function IntegrationChapter() {
           </tr>
         </ProposalDataTableHead>
         <ProposalDataTableBody>
-          {PRE_INTEGRATION.map((p, i) => (
+          {rows.map((p, i) => (
             <tr key={i}>
               <td>{p.cat}</td>
               <td><div className="proposal-clamp-2" title={p.desc}>{p.desc}</div></td>

@@ -1,0 +1,1044 @@
+{
+  "projectId": "56A0TXN",
+  "saveDraft": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "status": "draft",
+        "baseProposalVersion": "V1.2_20260613163548_DRB",
+        "workingVersionLabel": "草稿",
+        "updatedBy": "何博",
+        "updatedAt": "2026-06-13 16:53",
+        "dirty": false,
+        "etag": "W/\"3040078e6759\"",
+        "metadata": {
+          "projectId": "56A0TXN",
+          "projectName": "56A0TXN项目",
+          "proposalVersion": "草稿",
+          "createdBy": "何博",
+          "createdAt": "2026-06-13 16:27",
+          "updatedBy": "何博",
+          "updatedAt": "2026-06-13 16:53",
+          "changeDescription": "",
+          "documentSummary": "56A0TXN项目交付预案"
+        },
+        "cumulativeChangeLog": [
+          {
+            "seq": 1,
+            "chapter": "2",
+            "changeDescription": "脚本化验证保存草稿",
+            "editable": false,
+            "source": "snapshot"
+          },
+          {
+            "seq": 2,
+            "chapter": "2",
+            "changeDescription": "脚本化验证保存草稿",
+            "editable": false,
+            "source": "snapshot"
+          },
+          {
+            "seq": 3,
+            "chapter": "2",
+            "changeDescription": "脚本化验证保存草稿",
+            "editable": true,
+            "source": "manual"
+          }
+        ],
+        "outputExcelPaths": [
+          "D:\\AIDA项目\\feature_new\\data\\projects\\56A0TXN\\早期介入\\交付预案\\输出结果\\元数据信息.xlsx"
+        ]
+      },
+      "meta": {
+        "projectId": "56A0TXN",
+        "proposalVersion": "draft",
+        "sourceLayer": "draft",
+        "dependencies": []
+      }
+    }
+  },
+  "releaseAndDecide": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "proposalVersion": "V1.3_20260613165304_DRB",
+        "status": "published",
+        "createdBy": "何博",
+        "updatedBy": "何博",
+        "updatedAt": "2026-06-13 16:53",
+        "decisionEvalJobId": "job_V1.3_20260613165304_DRB",
+        "sideEffects": {
+          "tasksCreated": 3,
+          "risksCreated": 3,
+          "integrationRequirementsCreated": 2,
+          "documentsArchived": [
+            "D:\\AIDA项目\\feature_new\\data\\projects\\56A0TXN\\早期介入\\交付预案\\输出结果\\元数据信息.xlsx"
+          ]
+        },
+        "progress": [
+          {
+            "role": "user",
+            "body": "生成预案并决策 · V1.3_20260613165304_DRB"
+          },
+          {
+            "role": "ai",
+            "body": "预案 V1.3_20260613165304_DRB 已发布 · 正在下发任务与风险…",
+            "chips": [
+              "预案已发布"
+            ]
+          },
+          {
+            "role": "ai",
+            "body": "任务下发完成：ConnectX-7 数量确认（何博）/ 样本面接入设备补齐（王明）/ k8s 平台版本确认（TD）已进入计划任务列表。",
+            "chips": [
+              "任务 +3",
+              "已指定责任人"
+            ]
+          },
+          {
+            "role": "ai",
+            "body": "风险已写入项目孪生风险预警：BOQ 冲突（高）/ 组网缺失（高）/ CAD 缺失（中）· 进入孪生看板可见全貌。",
+            "chips": [
+              "风险 +3",
+              "已同步看板"
+            ]
+          }
+        ],
+        "chapters": {
+          "2": {
+            "rows": [
+              {
+                "rowId": "08ed604f-f30f-5ea7-a7b3-ed57cc2ec0a3",
+                "deviceModel": "CloudEngine 16800",
+                "productCode": "OFFE00086780",
+                "quantity": 64.0,
+                "version": "CloudEngine 16800 V300",
+                "lifecycleStatus": "GA",
+                "gaActualDate": "2019-09-30",
+                "gaPlanDate": "2019-09-30",
+                "eomActualDate": null,
+                "eomPlanDate": "2035-12-31",
+                "eosActualDate": null,
+                "eosPlanDate": "2045-12-31",
+                "deviceUHeight": null,
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB",
+                "productPartCategory": "产品",
+                "partCode": "02356FQH",
+                "hardwareSubtype": "主设备",
+                "deviceRole": "交换机",
+                "sourceFile": "京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.normalized.json",
+                "categoryName": "CloudEngine 16800 & XH16800 核心交换机",
+                "pbiProductName": "CloudEngine 16800"
+              },
+              {
+                "rowId": "bad8bbbd-b554-5621-afeb-fed3b5e43641",
+                "deviceModel": "CloudEngine 9800",
+                "productCode": "OFFE00082295",
+                "quantity": 76.0,
+                "version": "CloudEngine 9800 V200R025C00",
+                "lifecycleStatus": "GA",
+                "gaActualDate": "2019-07-30",
+                "gaPlanDate": "2019-07-30",
+                "eomActualDate": null,
+                "eomPlanDate": "2035-12-31",
+                "eosActualDate": null,
+                "eosPlanDate": "2045-12-31",
+                "deviceUHeight": null,
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB",
+                "productPartCategory": "产品",
+                "partCode": "02356TXY",
+                "hardwareSubtype": "主设备",
+                "deviceRole": "交换机",
+                "sourceFile": "JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.normalized.json",
+                "categoryName": "CloudEngine 9800 & XH9000 TOR 交换机",
+                "pbiProductName": "CloudEngine 9800"
+              },
+              {
+                "rowId": "157ada5d-52f8-5fbc-8b08-d09b24866f89",
+                "deviceModel": "CloudEngine XH16800",
+                "productCode": "02356FQH",
+                "quantity": 64.0,
+                "version": "",
+                "lifecycleStatus": "",
+                "gaActualDate": null,
+                "gaPlanDate": null,
+                "eomActualDate": null,
+                "eomPlanDate": null,
+                "eosActualDate": null,
+                "eosPlanDate": null,
+                "deviceUHeight": null,
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB",
+                "productPartCategory": "产品",
+                "partCode": "02356FQH",
+                "hardwareSubtype": "主设备",
+                "deviceRole": "交换机",
+                "sourceFile": "京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.normalized.json",
+                "categoryName": "CloudEngine 16800 & XH16800 核心交换机",
+                "pbiProductName": "CloudEngine XH16800"
+              },
+              {
+                "rowId": "9a843832-970c-50ba-876e-13c1fd959fd9",
+                "deviceModel": "CloudEngine XH9000",
+                "productCode": "02356TXY",
+                "quantity": 76.0,
+                "version": "",
+                "lifecycleStatus": "",
+                "gaActualDate": null,
+                "gaPlanDate": null,
+                "eomActualDate": null,
+                "eomPlanDate": null,
+                "eosActualDate": null,
+                "eosPlanDate": null,
+                "deviceUHeight": null,
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB",
+                "productPartCategory": "产品",
+                "partCode": "02356TXY",
+                "hardwareSubtype": "主设备",
+                "deviceRole": "交换机",
+                "sourceFile": "JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.normalized.json",
+                "categoryName": "CloudEngine 9800 & XH9000 TOR 交换机",
+                "pbiProductName": "CloudEngine XH9000"
+              },
+              {
+                "rowId": "4ebdde23-9dcb-5593-bcc0-4307577aca64",
+                "deviceModel": "Atlas 900 A3 SuperPoD",
+                "productCode": "OFFE01128327",
+                "quantity": 585.0,
+                "version": "Atlas 900 A3 SuperPoD 1.0.T25",
+                "lifecycleStatus": "GA",
+                "gaActualDate": "2025-03-31",
+                "gaPlanDate": "2025-04-30",
+                "eomActualDate": null,
+                "eomPlanDate": "2028-06-30",
+                "eosActualDate": null,
+                "eosPlanDate": "2033-06-30",
+                "deviceUHeight": null,
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB",
+                "productPartCategory": "产品",
+                "partCode": "02315KEE",
+                "hardwareSubtype": "主设备",
+                "deviceRole": "智算服务器",
+                "sourceFile": "JXX项目2025昇腾超节点下单-三期-1-1_0000Hw00478677202512170036_不含价格-POD01.normalized.json;JXX项目2025昇腾超节点下单-三期-1-2_0000Hw00478677202512170020_不含价格-POD02.normalized.json;JXX项目2025昇腾超节点下单-三期-1-3_0000Hw00478677202512170022_不含价格-POD03.normalized.json;JXX项目2025昇腾超节点下单-三期-1-4_0000Hw00478677202512170024_不含价格-POD04.normalized.json;JXX项目2025昇腾超节点下单-三期-2-1_0000Hw00478677202512170026_不含价格-POD05.normalized.json;JXX项目2025昇腾超节点下单-三期-2-2_0000Hw00478677202512170028_不含价格-POD06.normalized.json;JXX项目2025昇腾超节点下单-三期-2-3_0000Hw00478677202512170030_不含价格-POD07.normalized.json;JXX项目2025昇腾超节点下单-三期-2-4_0000Hw00478677202512170032_不含价格-POD08.normalized.json;JXX项目2025昇腾超节点下单-三期-2-5_0000Hw00478677202512170034_不含价格-POD09.normalized.json",
+                "categoryName": "Atlas 900 A3 SuperPoD",
+                "pbiProductName": "Atlas 900 A3 SuperPoD"
+              }
+            ],
+            "proposalVersion": "V1.3_20260613165304_DRB"
+          },
+          "8.1": {
+            "rows": [
+              {
+                "rowId": "b2588c97-6f5a-4d5f-8bc9-8a68da2a6fa9",
+                "serviceMajor": "硬件安装",
+                "serviceItem": "数通设备安装",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "276b34f8-c72f-4be1-9b50-67bbbdfc588b",
+                "serviceMajor": "硬件安装",
+                "serviceItem": "存储设备安装",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "e968a0cf-4f5c-4008-ad90-5e5711c99035",
+                "serviceMajor": "硬件安装",
+                "serviceItem": "昇腾服务器安装",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "717ee879-b273-472f-bbb1-94cc802ae0c8",
+                "serviceMajor": "规划设计与实施",
+                "serviceItem": "数通设备规划设计与实施",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "615f69e0-a74a-4f39-a80e-a3b7cdc79e46",
+                "serviceMajor": "规划设计与实施",
+                "serviceItem": "存储设备规划设计与实施",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "b3b41852-0f98-42ef-aebd-99c985ed66d0",
+                "serviceMajor": "规划设计与实施",
+                "serviceItem": "昇腾设备规划设计与实施",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "16a8a7b9-5ff6-4221-91bc-54d5486d72d1",
+                "serviceMajor": "技术集成服务",
+                "serviceItem": "数通设备技术集成服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "f21c927c-2278-453c-8cfb-1e15b13e2dd1",
+                "serviceMajor": "技术集成服务",
+                "serviceItem": "存储设备技术集成服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "cdc5bef5-c697-4edc-bc44-69b5f99de5d2",
+                "serviceMajor": "技术集成服务",
+                "serviceItem": "昇腾设备技术集成服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "c396b649-c0f2-4c8b-ac54-5f2759346d97",
+                "serviceMajor": "使能服务",
+                "serviceItem": "AI 计算使能服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "664209d1-0ecb-442c-af1c-bd43836ee7c1",
+                "serviceMajor": "运维服务",
+                "serviceItem": "数通设备运维服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "7152b02d-7a1c-4285-a19f-c4d31fd2cebc",
+                "serviceMajor": "运维服务",
+                "serviceItem": "存储设备运维服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "f107f948-bc70-40cd-8358-bbfa5c32e1da",
+                "serviceMajor": "运维服务",
+                "serviceItem": "昇腾设备运维服务",
+                "deliveryChannel": "华为",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              }
+            ],
+            "proposalVersion": "V1.3_20260613165304_DRB"
+          },
+          "8.2": {
+            "rows": [
+              {
+                "rowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "AI计算规划设计与实施服务（训练）",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L1",
+                "parentRowId": null,
+                "saleCode": null,
+                "internalSeq": "1",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "a56c19c5-6da1-404d-af4d-ae7042814fe8",
+                "serviceName": "集群系统集成服务",
+                "serviceContent": "集群系统集成服务",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L1",
+                "parentRowId": null,
+                "saleCode": null,
+                "internalSeq": "1",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "8bea57c0-2565-4eb6-a0e7-88ffd6d51c33",
+                "serviceName": "专项/单次服务",
+                "serviceContent": "专项/单次服务",
+                "quantity": 1.0,
+                "unit": "次",
+                "rowLevel": "L1",
+                "parentRowId": null,
+                "saleCode": null,
+                "internalSeq": "1",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "69cb2c57-16de-4a3a-afb1-660f3af3237d",
+                "serviceName": "卓悦服务",
+                "serviceContent": "卓悦服务",
+                "quantity": 1.0,
+                "unit": "套",
+                "rowLevel": "L1",
+                "parentRowId": null,
+                "saleCode": null,
+                "internalSeq": "2",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "2123f8f4-ac76-4ec7-aeb3-b73d3224c06b",
+                "serviceName": "CCAE",
+                "serviceContent": "CCAE",
+                "quantity": 480.0,
+                "unit": "节点",
+                "rowLevel": "L1",
+                "parentRowId": null,
+                "saleCode": null,
+                "internalSeq": "1",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "de3e2b20-da60-4daa-ae5e-3bf6d27fcd6a",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - 项目管理",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "588a28f2-88c7-45c8-93e2-5bd70bec0b92",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - 计算柜（12*Atlas 900 POD）和网络柜（4*天成灵衢交换机柜）工程安装",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "9d4793c8-95ed-4b85-beb8-5e79775cda6a",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - 超节点的规划设计",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "952a2139-ad85-4a0e-b456-8cd4db932a6d",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - 超节点内综合布线（2688根HCCS MPO线缆-跨柜）",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "61959729-b541-4ef1-9662-5582a7a4cb21",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - 计算柜部署调试",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "e25ef09b-902e-494f-bfb7-ba75d574f70c",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - HCCS网络柜部署调试",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "e9f569a3-071b-46e7-9b5b-6010498f3dba",
+                "serviceName": "AI计算规划设计与实施服务（训练）",
+                "serviceContent": "SuperPoD规划设计与实施服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - 超节点测试验证",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "9bc5c4fc-647b-4113-b18a-31b95f08bbae",
+                "saleCode": "8814283352",
+                "internalSeq": "0001",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "5598c484-cbc6-45b6-9b72-0e1aef487cc1",
+                "serviceName": "集群系统集成服务",
+                "serviceContent": "集群系统集成服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - AI集群系统集成规划设计",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "a56c19c5-6da1-404d-af4d-ae7042814fe8",
+                "saleCode": "8814341929",
+                "internalSeq": "0002",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "3eff2f1c-9b7e-4c2b-8e44-c7fcf7e05c53",
+                "serviceName": "集群系统集成服务",
+                "serviceContent": "集群系统集成服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - AI集群系统集成对接联调",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "a56c19c5-6da1-404d-af4d-ae7042814fe8",
+                "saleCode": "8814341929",
+                "internalSeq": "0002",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "4727aa6e-bbd9-459e-ae63-38179723474a",
+                "serviceName": "集群系统集成服务",
+                "serviceContent": "集群系统集成服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - AI集群系统集成验证",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "a56c19c5-6da1-404d-af4d-ae7042814fe8",
+                "saleCode": "8814341929",
+                "internalSeq": "0002",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "c592d51f-ab97-4a4b-83e2-3d3f729156fa",
+                "serviceName": "集群系统集成服务",
+                "serviceContent": "集群系统集成服务-Atlas 900 A3 SuperPoD_384卡,（1 SuperPoD，12*Atlas 900 POD+4*天成灵衢交换机柜） - AI集群系统集成验收",
+                "quantity": 10.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "a56c19c5-6da1-404d-af4d-ae7042814fe8",
+                "saleCode": "8814341929",
+                "internalSeq": "0002",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "6bd71216-ae86-4deb-91a0-ae72b0cd7fd9",
+                "serviceName": "专项/单次服务",
+                "serviceContent": "运维服务，智算，主动预防服务，液冷保障服务（&gt;50P）； 算力：2930（P）； 服务包数量：1； 订阅时长：36个月；",
+                "quantity": 1.0,
+                "unit": "次",
+                "rowLevel": "L2",
+                "parentRowId": "8bea57c0-2565-4eb6-a0e7-88ffd6d51c33",
+                "saleCode": "8828122025",
+                "internalSeq": "0009",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "38c46765-7f64-43dd-8daf-bb6ce54c294e",
+                "serviceName": "专项/单次服务",
+                "serviceContent": "运维服务，智算，主动预防服务，液冷保障服务（1-50P）； 算力：2930（P）； 服务包数量：1； 订阅时长：36个月；",
+                "quantity": 1.0,
+                "unit": "次",
+                "rowLevel": "L2",
+                "parentRowId": "8bea57c0-2565-4eb6-a0e7-88ffd6d51c33",
+                "saleCode": "8828122024",
+                "internalSeq": "0010",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "b8bee308-de3b-4747-a751-96d93863ecb1",
+                "serviceName": "卓悦服务",
+                "serviceContent": "现场值守，服务时长为60人天，服务有效期为36个月",
+                "quantity": 1.0,
+                "unit": "套",
+                "rowLevel": "L2",
+                "parentRowId": "69cb2c57-16de-4a3a-afb1-660f3af3237d",
+                "saleCode": "88134UGF",
+                "internalSeq": "0011",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "57ae2bd2-04b5-416b-8b1c-6f22280b2027",
+                "serviceName": "CCAE",
+                "serviceContent": "CCAE-全场景互联网基础包 -计算节点管理许可-每节点",
+                "quantity": 480.0,
+                "unit": "节点",
+                "rowLevel": "L2",
+                "parentRowId": "2123f8f4-ac76-4ec7-aeb3-b73d3224c06b",
+                "saleCode": "8803015789",
+                "internalSeq": "0012",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "2817d1f9-f5e4-4bfb-a296-7a5d4676f5d7",
+                "serviceName": "CCAE",
+                "serviceContent": "CCAE-AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)-每节点",
+                "quantity": 480.0,
+                "unit": "节点",
+                "rowLevel": "L2",
+                "parentRowId": "2123f8f4-ac76-4ec7-aeb3-b73d3224c06b",
+                "saleCode": "8803015790",
+                "internalSeq": "0013",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "fc9c585a-62b6-4ca0-a9cf-1170ccf3deb9",
+                "serviceName": "CCAE",
+                "serviceContent": "CCAE-全场景互联网基础包 -计算节点管理许可-3年软件订阅与保障年费-每节点(年费实际起止时间：从 \" PO签订+90天 \" 起算 3 年)",
+                "quantity": 480.0,
+                "unit": "节点",
+                "rowLevel": "L2",
+                "parentRowId": "2123f8f4-ac76-4ec7-aeb3-b73d3224c06b",
+                "saleCode": "88065KVB",
+                "internalSeq": "0014",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "d33fba16-1fa4-405c-bbd3-e2fbc2d09c4d",
+                "serviceName": "CCAE",
+                "serviceContent": "CCAE-AI智算互联网高阶包(适用于Atlas 800T A3同代次产品)-3年软件订阅与保障年费-每节点(年费实际起止时间：从 \" PO签订+90天 \" 起算 3 年)",
+                "quantity": 480.0,
+                "unit": "节点",
+                "rowLevel": "L2",
+                "parentRowId": "2123f8f4-ac76-4ec7-aeb3-b73d3224c06b",
+                "saleCode": "88065KVH",
+                "internalSeq": "0015",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              }
+            ],
+            "proposalVersion": "V1.3_20260613165304_DRB"
+          },
+          "8.3": {
+            "rows": [
+              {
+                "rowId": "c928e447-3d99-4724-b7b2-952a3f07a313",
+                "seq": 1,
+                "productModel": "Atlas 900 A3 SuperPoD",
+                "warrantyPolicy": "按华为标准保修政策",
+                "maintenancePolicy": "3 年 服务器介质保留服务",
+                "maintYears": 3,
+                "maintTypeCode": null,
+                "maintStartDate": "2026-12-13",
+                "maintEndDate": "2029-12-12",
+                "productEosDate": null,
+                "overEos": "否",
+                "overEosApproval": "—",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "9848726d-0334-476e-ba72-18c72f5c031d",
+                "seq": 2,
+                "productModel": "Atlas 900 A3 SuperPoD",
+                "warrantyPolicy": "按华为标准保修政策",
+                "maintenancePolicy": "3 年 Hi-Care高级服务",
+                "maintYears": 3,
+                "maintTypeCode": null,
+                "maintStartDate": "2026-12-13",
+                "maintEndDate": "2029-12-12",
+                "productEosDate": null,
+                "overEos": "否",
+                "overEosApproval": "—",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              }
+            ],
+            "proposalVersion": "V1.3_20260613165304_DRB"
+          },
+          "8.4": {
+            "hardwareSupport": "",
+            "serviceLevel": "标准+",
+            "rows": [
+              {
+                "rowId": "daa55eb1-631a-4005-909b-b0cbcc5aa82f",
+                "seq": "1",
+                "severityLevel": "NA",
+                "coveragePeriod": "7×24×365",
+                "responseTime": "NA",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "热线受理",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "50480474-a406-4018-ad24-71775e7ef1d9",
+                "seq": "2",
+                "severityLevel": "NA",
+                "coveragePeriod": "7×24×365",
+                "responseTime": "NA",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "在线技术支持",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "394efa3f-2b0e-4b3d-8621-f070a52069bf",
+                "seq": "3",
+                "severityLevel": "紧急问题",
+                "coveragePeriod": "7×24",
+                "responseTime": "1 小时",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "远程问题处理（单域）",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "60d3c67a-8737-4343-84e8-9f56dc4a64a6",
+                "seq": "3",
+                "severityLevel": "重要问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "2 小时",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "远程问题处理（单域）",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "44a0607f-87a4-4ed7-aa8f-91408bb111c9",
+                "seq": "3",
+                "severityLevel": "一般问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "4 小时",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "远程问题处理（单域）",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "405c647f-4779-47ea-b867-a8da3556185c",
+                "seq": "3",
+                "severityLevel": "技术咨询",
+                "coveragePeriod": "5×8",
+                "responseTime": "8 小时",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "远程问题处理（单域）",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "0b7440df-722b-46a9-955f-ac65e4a5c4ae",
+                "seq": "4",
+                "severityLevel": "紧急问题",
+                "coveragePeriod": "7×10",
+                "responseTime": "NBD人员到达",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "现场问题处理",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "c9d27290-831d-40c8-94ca-0f08cba62858",
+                "seq": "4",
+                "severityLevel": "重要问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "NBD人员到达",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "现场问题处理",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "488e5fb1-4330-4096-a85b-7f16cfbc494e",
+                "seq": "4",
+                "severityLevel": "一般问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "NBD人员到达",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "现场问题处理",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "11fa3620-e29b-46e5-80d3-2016280c6655",
+                "seq": "5",
+                "severityLevel": "紧急问题",
+                "coveragePeriod": "7×10",
+                "responseTime": "NBD备件送达",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "备件先行",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "7c4eaa72-79f0-4442-ac86-20160ca3f822",
+                "seq": "5",
+                "severityLevel": "重要问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "NBD备件送达",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "备件先行",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "382cb0e0-8b25-4303-a1b3-f8f51150b4f1",
+                "seq": "5",
+                "severityLevel": "一般问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "NBD备件送达",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "备件先行",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "0bc473a7-7f73-48d6-b54b-5d13d8c892dc",
+                "seq": "6",
+                "severityLevel": "紧急问题",
+                "coveragePeriod": "7×10",
+                "responseTime": "NBD完成更换",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "现场硬件更换",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "818d832f-fe61-4552-a872-220489fd7445",
+                "seq": "6",
+                "severityLevel": "重要问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "NBD完成更换",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "现场硬件更换",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "09297379-1aa8-424d-a25d-6649d83f442e",
+                "seq": "6",
+                "severityLevel": "一般问题",
+                "coveragePeriod": "5×8",
+                "responseTime": "NBD完成更换",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "现场硬件更换",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              },
+              {
+                "rowId": "4877fe9a-5e49-4339-8bb5-c7c6155d9c50",
+                "seq": "7",
+                "severityLevel": "NA",
+                "coveragePeriod": "提供",
+                "responseTime": "NA",
+                "restoreTime": "NA",
+                "resolveTime": "NA",
+                "serviceItem": "软件更新授权",
+                "dataSource": "自动解析",
+                "proposalVersion": "V1.3_20260613165304_DRB"
+              }
+            ],
+            "proposalVersion": "V1.3_20260613165304_DRB"
+          }
+        }
+      },
+      "meta": {
+        "projectId": "56A0TXN",
+        "proposalVersion": "V1.3_20260613165304_DRB",
+        "sourceLayer": "output",
+        "dependencies": []
+      }
+    }
+  },
+  "snapshotBefore": {
+    "proposalParse": {
+      "exists": true,
+      "jsonCount": 7,
+      "xlsxCount": 0,
+      "files": [
+        "维保建议书解析结果/维保建议书解析结果.json",
+        "预案草稿/2.设备配置信息.json",
+        "预案草稿/8.1服务交付界面.json",
+        "预案草稿/8.2服务配置.json",
+        "预案草稿/8.3维保策略.json",
+        "预案草稿/8.4维保SLA.json",
+        "预案草稿/manifest.json"
+      ]
+    },
+    "proposalOutput": {
+      "exists": true,
+      "jsonCount": 1,
+      "xlsxCount": 18,
+      "files": [
+        "1.项目背景.xlsx",
+        "10.计划.xlsx",
+        "11.验收策略.xlsx",
+        "12.测试用例.xlsx",
+        "2.设备配置信息.xlsx",
+        "3.部件配置信息.xlsx",
+        "4.软件配置信息.xlsx",
+        "5.1网络平面配置.xlsx",
+        "5.2服务器配置.xlsx",
+        "6.集成验证需求.xlsx",
+        "7.机房信息.xlsx",
+        "8.1服务交付界面.xlsx",
+        "8.2服务配置.xlsx",
+        "8.3维保策略.xlsx",
+        "8.4维保SLA.xlsx",
+        "9.责任矩阵信息.xlsx",
+        "元数据信息.xlsx",
+        "预案版本信息表.records.json",
+        "预案版本信息表.xlsx"
+      ]
+    },
+    "contractParse": {
+      "exists": true,
+      "jsonCount": 27,
+      "xlsxCount": 0,
+      "files": [
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-1_0000Hw00478677202512170036_不含价格-POD01.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-1_0000Hw00478677202512170036_不含价格-POD01.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-2_0000Hw00478677202512170020_不含价格-POD02.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-2_0000Hw00478677202512170020_不含价格-POD02.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-3_0000Hw00478677202512170022_不含价格-POD03.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-3_0000Hw00478677202512170022_不含价格-POD03.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-4_0000Hw00478677202512170024_不含价格-POD04.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-4_0000Hw00478677202512170024_不含价格-POD04.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-1_0000Hw00478677202512170026_不含价格-POD05.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-1_0000Hw00478677202512170026_不含价格-POD05.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-2_0000Hw00478677202512170028_不含价格-POD06.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-2_0000Hw00478677202512170028_不含价格-POD06.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-3_0000Hw00478677202512170030_不含价格-POD07.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-3_0000Hw00478677202512170030_不含价格-POD07.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-4_0000Hw00478677202512170032_不含价格-POD08.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-4_0000Hw00478677202512170032_不含价格-POD08.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-5_0000Hw00478677202512170034_不含价格-POD09.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-5_0000Hw00478677202512170034_不含价格-POD09.normalized.json",
+        "BOQ设备解析原始结果/JXX项目_A3_PoD_第四批_集成+布线_9个POD_from_c00563598_0000Hf00640918202511210008_不含价格.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目_A3_PoD_第四批_集成+布线_9个POD_from_c00563598_0000Hf00640918202511210008_不含价格.normalized.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_年费_0R00Hc00847542202511200004_不含价格.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_年费_0R00Hc00847542202511200004_不含价格.normalized.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.normalized.json",
+        "BOQ设备解析原始结果/京东科技网络设备_64pcsCE16800-X16_拆分_年费_0R00Hc00847542202511200002_不含价格.normalized.json",
+        "BOQ设备解析原始结果/京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.normalized.json",
+        "服务BOQ解析结果/JXX-SBOQ.normalized.json"
+      ]
+    }
+  },
+  "snapshotAfter": {
+    "proposalParse": {
+      "exists": true,
+      "jsonCount": 7,
+      "xlsxCount": 0,
+      "files": [
+        "维保建议书解析结果/维保建议书解析结果.json",
+        "预案草稿/2.设备配置信息.json",
+        "预案草稿/8.1服务交付界面.json",
+        "预案草稿/8.2服务配置.json",
+        "预案草稿/8.3维保策略.json",
+        "预案草稿/8.4维保SLA.json",
+        "预案草稿/manifest.json"
+      ]
+    },
+    "proposalOutput": {
+      "exists": true,
+      "jsonCount": 1,
+      "xlsxCount": 18,
+      "files": [
+        "元数据信息.xlsx",
+        "智算部件配置信息表.xlsx",
+        "服务交付界面表.xlsx",
+        "服务内容表.xlsx",
+        "机房机柜信息表.xlsx",
+        "测试用例.xlsx",
+        "维保SLA表.xlsx",
+        "维保策略表.xlsx",
+        "网管服务器配置表.xlsx",
+        "网络平面配置信息表.xlsx",
+        "计划表.xlsx",
+        "设备信息表.xlsx",
+        "软件配置信息表.xlsx",
+        "项目背景信息表.xlsx",
+        "项目责任矩阵.xlsx",
+        "预案版本信息表.records.json",
+        "预案版本信息表.xlsx",
+        "预集成预验证需求信息表.xlsx",
+        "验收策略.xlsx"
+      ]
+    },
+    "contractParse": {
+      "exists": true,
+      "jsonCount": 27,
+      "xlsxCount": 0,
+      "files": [
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-1_0000Hw00478677202512170036_不含价格-POD01.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-1_0000Hw00478677202512170036_不含价格-POD01.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-2_0000Hw00478677202512170020_不含价格-POD02.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-2_0000Hw00478677202512170020_不含价格-POD02.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-3_0000Hw00478677202512170022_不含价格-POD03.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-3_0000Hw00478677202512170022_不含价格-POD03.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-4_0000Hw00478677202512170024_不含价格-POD04.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-1-4_0000Hw00478677202512170024_不含价格-POD04.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-1_0000Hw00478677202512170026_不含价格-POD05.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-1_0000Hw00478677202512170026_不含价格-POD05.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-2_0000Hw00478677202512170028_不含价格-POD06.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-2_0000Hw00478677202512170028_不含价格-POD06.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-3_0000Hw00478677202512170030_不含价格-POD07.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-3_0000Hw00478677202512170030_不含价格-POD07.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-4_0000Hw00478677202512170032_不含价格-POD08.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-4_0000Hw00478677202512170032_不含价格-POD08.normalized.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-5_0000Hw00478677202512170034_不含价格-POD09.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目2025昇腾超节点下单-三期-2-5_0000Hw00478677202512170034_不含价格-POD09.normalized.json",
+        "BOQ设备解析原始结果/JXX项目_A3_PoD_第四批_集成+布线_9个POD_from_c00563598_0000Hf00640918202511210008_不含价格.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目_A3_PoD_第四批_集成+布线_9个POD_from_c00563598_0000Hf00640918202511210008_不含价格.normalized.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_年费_0R00Hc00847542202511200004_不含价格.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_年费_0R00Hc00847542202511200004_不含价格.normalized.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.normalized.consistency.json",
+        "BOQ设备解析原始结果/JXX项目网络设备_76pcsCE9866_拆分_设备及服务_0X00Hc00847542202511200004_不含价格.normalized.json",
+        "BOQ设备解析原始结果/京东科技网络设备_64pcsCE16800-X16_拆分_年费_0R00Hc00847542202511200002_不含价格.normalized.json",
+        "BOQ设备解析原始结果/京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.normalized.json",
+        "服务BOQ解析结果/JXX-SBOQ.normalized.json"
+      ]
+    }
+  }
+}

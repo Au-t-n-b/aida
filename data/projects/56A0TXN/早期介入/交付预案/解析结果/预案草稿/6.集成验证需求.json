@@ -1,0 +1,16 @@
+{
+  "chapterKey": "6",
+  "chapterTitle": "6. 预集成预验证需求",
+  "rows": [
+    {
+      "cat": "回测版本配置",
+      "desc": "第6章修复校验",
+      "hw": "Atlas",
+      "sw": "CANN",
+      "owner": "TD",
+      "state": "已完成",
+      "date": "20260613"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

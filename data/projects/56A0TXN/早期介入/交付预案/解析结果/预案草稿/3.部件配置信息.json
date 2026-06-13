@@ -1,0 +1,14 @@
+{
+  "chapterKey": "3",
+  "chapterTitle": "3. 部件配置信息",
+  "rows": [
+    {
+      "cat": "DPU",
+      "code": "BF3",
+      "vendor": "NVIDIA",
+      "name": "BlueField",
+      "source": "人工录入"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

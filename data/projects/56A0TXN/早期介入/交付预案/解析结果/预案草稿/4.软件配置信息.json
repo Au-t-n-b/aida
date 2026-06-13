@@ -1,0 +1,15 @@
+{
+  "chapterKey": "4",
+  "chapterTitle": "4. 软件配置信息",
+  "rows": [
+    {
+      "type": "操作系统",
+      "isHW": "否",
+      "software": "EulerOS",
+      "ver": "2.0",
+      "source": "人工录入",
+      "remark": "test"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

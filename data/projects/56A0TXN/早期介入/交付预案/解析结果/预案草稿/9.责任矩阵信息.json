@@ -1,0 +1,16 @@
+{
+  "chapterKey": "9",
+  "chapterTitle": "9. 责任矩阵信息",
+  "rows": [
+    {
+      "stack": "公共",
+      "cat": "项目管理",
+      "act": "计划管理",
+      "gts": "R",
+      "hw": "S",
+      "partner": "S",
+      "customer": "A"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

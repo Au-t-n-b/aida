@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProposalChapterCard } from '../primitives';
 import { SOFTWARE_STACK } from '../proposal-data';
 
@@ -16,22 +16,70 @@ interface SoftRow {
   remark: string;
 }
 type SoftField = 'type' | 'software' | 'ver' | 'source' | 'remark';
+interface SoftwareChapterProps {
+  initialRows?: unknown;
+  readOnly?: boolean;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
 
 const INPUT_CLS =
   'w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
 
-export function SoftwareChapter() {
-  const [rows, setRows] = useState<SoftRow[]>(() =>
-    SOFTWARE_STACK.map((s, i) => ({
-      id: i + 1,
-      type: s.type,
-      isHW: s.isHW,
-      software: s.software,
-      ver: s.ver,
-      source: s.source,
-      remark: s.remark,
-    })),
-  );
+function _defaultRows(): SoftRow[] {
+  return SOFTWARE_STACK.map((s, i) => ({
+    id: i + 1,
+    type: s.type,
+    isHW: s.isHW,
+    software: s.software,
+    ver: s.ver,
+    source: s.source,
+    remark: s.remark,
+  }));
+}
+
+function _normalizeRows(input: unknown): SoftRow[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    return _defaultRows();
+  }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row, idx) => {
+      const item = row as Record<string, unknown>;
+      const isHWValue = String(item.isHW ?? '').trim();
+      return {
+        id: idx + 1,
+        type: String(item.type ?? ''),
+        isHW: isHWValue ? ['是', 'true', '1'].includes(isHWValue.toLowerCase()) : true,
+        software: String(item.software ?? ''),
+        ver: String(item.ver ?? ''),
+        source: String(item.source ?? item.dataSource ?? '人工录入'),
+        remark: String(item.remark ?? ''),
+      } satisfies SoftRow;
+    });
+  return rows.length ? rows : _defaultRows();
+}
+
+function _toPayloadRows(rows: SoftRow[]): Array<Record<string, unknown>> {
+  return rows.map((row) => ({
+    type: row.type,
+    isHW: row.isHW ? '是' : '否',
+    software: row.software,
+    ver: row.ver,
+    source: row.source,
+    remark: row.remark,
+  }));
+}
+
+export function SoftwareChapter({ initialRows, readOnly = false, onRowsChange }: SoftwareChapterProps) {
+  const [rows, setRows] = useState<SoftRow[]>(() => _normalizeRows(initialRows));
+
+  useEffect(() => {
+    setRows(_normalizeRows(initialRows));
+  }, [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(_toPayloadRows(rows));
+  }, [onRowsChange, rows]);
 
   const update = (id: number, key: SoftField, value: string) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
@@ -63,13 +111,14 @@ export function SoftwareChapter() {
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-slate-100 align-middle">
                 <td className="px-2 py-1.5">
-                  <input value={r.type} onChange={(e) => update(r.id, 'type', e.target.value)} className={INPUT_CLS} />
+                  <input value={r.type} onChange={(e) => update(r.id, 'type', e.target.value)} className={INPUT_CLS} disabled={readOnly} />
                 </td>
                 <td className="px-2 py-1.5">
                   <select
                     value={r.isHW ? '是' : '否'}
                     onChange={(e) => updateHW(r.id, e.target.value === '是')}
                     className={`${INPUT_CLS} cursor-pointer`}
+                    disabled={readOnly}
                   >
                     <option value="是">是</option>
                     <option value="否">否</option>
@@ -80,6 +129,7 @@ export function SoftwareChapter() {
                     value={r.software}
                     onChange={(e) => update(r.id, 'software', e.target.value)}
                     className={INPUT_CLS}
+                    disabled={readOnly}
                   />
                 </td>
                 <td className="px-2 py-1.5">
@@ -87,6 +137,7 @@ export function SoftwareChapter() {
                     value={r.ver}
                     onChange={(e) => update(r.id, 'ver', e.target.value)}
                     className={`${INPUT_CLS} font-mono text-xs`}
+                    disabled={readOnly}
                   />
                 </td>
                 <td className="px-2 py-1.5">
@@ -94,6 +145,7 @@ export function SoftwareChapter() {
                     value={r.source}
                     onChange={(e) => update(r.id, 'source', e.target.value)}
                     className={`${INPUT_CLS} cursor-pointer`}
+                    disabled={readOnly}
                   >
                     {(SOURCE_OPTIONS.includes(r.source) ? SOURCE_OPTIONS : [r.source, ...SOURCE_OPTIONS]).map((s) => (
                       <option key={s} value={s}>
@@ -108,6 +160,7 @@ export function SoftwareChapter() {
                     onChange={(e) => update(r.id, 'remark', e.target.value)}
                     placeholder="备注"
                     className={INPUT_CLS}
+                    disabled={readOnly}
                   />
                 </td>
                 <td className="px-2 py-1.5 text-center">
@@ -116,6 +169,7 @@ export function SoftwareChapter() {
                     onClick={() => removeRow(r.id)}
                     title="删除此行"
                     className="rounded p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                    disabled={readOnly}
                   >
                     ✕
                   </button>
@@ -129,6 +183,7 @@ export function SoftwareChapter() {
         type="button"
         onClick={addRow}
         className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-normal text-slate-500 transition-colors hover:border-blue-400 hover:text-blue-600"
+        disabled={readOnly}
       >
         ＋ 新增一行
       </button>
