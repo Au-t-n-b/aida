@@ -1,0 +1,55 @@
+# ============================================================
+# AIDA 本地/生产编排
+# ============================================================
+# 启动：docker compose up -d --build
+# 停止：docker compose down
+# 日志：docker compose logs -f agent
+# ============================================================
+
+services:
+  # ── Agent 后端 ──
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    image: harbor.aie.rnd.huawei.com/library/aida-agent:latest
+    container_name: aida-agent
+    restart: unless-stopped
+    ports:
+      - "7401:7401"
+    env_file:
+      - .env
+    volumes:
+      - aida-data:/app/.data
+    networks:
+      - aida-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:7401/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── 前端（Nginx + API 反代）──
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    image: harbor.aie.rnd.huawei.com/library/aida-frontend:latest
+    container_name: aida-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      agent:
+        condition: service_healthy
+    networks:
+      - aida-net
+
+volumes:
+  aida-data:
+    driver: local
+
+networks:
+  aida-net:
+    driver: bridge
