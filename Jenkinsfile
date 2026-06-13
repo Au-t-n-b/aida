@@ -10,7 +10,7 @@
 //   - 配置凭据 harbor-aie（usernamePassword 类型）
 //   - 配置凭据 ssh-231-root（SSH Username with private key 类型）
 //
-// Webhook 防抖：Jenkins Job 配置 quietPeriod=1800（30 分钟），见 240 aida-deploy config.xml。
+// Webhook 防抖：quietPeriod=1800（30 分钟）+ disableConcurrentBuilds(abortPrevious: true)，见 240 aida-deploy config.xml。
 // ============================================================
 
 pipeline {
@@ -33,7 +33,7 @@ pipeline {
         timeout(time: 30, unit: 'MINUTES')
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
-        disableConcurrentBuilds(abortPrevious: false)
+        disableConcurrentBuilds(abortPrevious: true)
     }
 
     stages {
