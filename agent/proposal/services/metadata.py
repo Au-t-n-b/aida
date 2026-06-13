@@ -53,7 +53,7 @@ CHAPTER_LOADERS: dict[str, Any] = {
 
 
 def _contract_basic_dir(project_id: str) -> Path:
-    rel = proposal_paths(project_id)["contract_project_basic_out"]
+    rel = proposal_paths("")["contract_project_basic_out"]
     return physical_project_root(project_id) / Path(rel)
 
 

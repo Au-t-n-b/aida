@@ -1,0 +1,18 @@
+{
+  "projectId": "56A0TXN",
+  "baseProposalVersion": "V1.0_20260613104951_DRB",
+  "workingVersionLabel": "草稿",
+  "status": "draft",
+  "createdBy": "何博",
+  "createdAt": "2026-06-13T01:53:18.052651+00:00",
+  "updatedBy": "何博",
+  "updatedAt": "2026-06-13T02:50:35.868498+00:00",
+  "dirty": false,
+  "changeDescription": "",
+  "changeRecords": [],
+  "latestReleaseVersion": "V1.0_20260613104951_DRB",
+  "publishedVersions": [
+    "V1.0_20260613104951_DRB"
+  ],
+  "etag": "W/\"f55d8c8e6113\""
+}

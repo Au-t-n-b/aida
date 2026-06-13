@@ -1,16 +1,16 @@
 {
   "net_plane_rows": {
-    "demo-project-001": [
+    "56A0TXN": [
       {
         "row_id": "np-001",
         "type": "参数面汇聚交换机",
         "vendor": "华为",
         "model": "XH9330-128EO",
         "ver": "V100R001C020",
-        "qty": 13,
-        "source": "",
+        "qty": 64,
+        "source": "人工录入",
         "proposal_version": null,
-        "note": "test-auto-export"
+        "note": ""
       },
       {
         "row_id": "np-002",
@@ -18,10 +18,67 @@
         "vendor": "华为",
         "model": "XH9930-128DQ",
         "ver": "V100R001C020",
-        "qty": 22,
-        "source": "",
+        "qty": 174,
+        "source": "人工录入",
         "proposal_version": null,
-        "note": null
+        "note": ""
+      },
+      {
+        "row_id": "np-003",
+        "type": "样本面-存储接入交换机",
+        "vendor": "华为",
+        "model": "XH9930-128DQ",
+        "ver": "V100R001C020",
+        "qty": 6,
+        "source": "人工录入",
+        "proposal_version": null,
+        "note": ""
+      },
+      {
+        "row_id": "np-004",
+        "type": "样本面-汇聚交换机",
+        "vendor": "华为",
+        "model": "XH9930-128DQ",
+        "ver": "V100R001C020",
+        "qty": 16,
+        "source": "人工录入",
+        "proposal_version": null,
+        "note": ""
+      },
+      {
+        "row_id": "np-005",
+        "type": "样本面-计算接入交换机",
+        "vendor": "华为",
+        "model": "XH9930-128DQ",
+        "ver": "V100R001C020",
+        "qty": 22,
+        "source": "人工录入",
+        "proposal_version": null,
+        "note": ""
+      }
+    ],
+    "demo-project-001": [
+      {
+        "row_id": "np-001",
+        "type": "参数面汇聚交换机",
+        "vendor": "华为",
+        "model": "XH9330-128EO",
+        "ver": "V100R001C020",
+        "qty": 64,
+        "source": "人工录入",
+        "proposal_version": null,
+        "note": ""
+      },
+      {
+        "row_id": "np-002",
+        "type": "参数面接入交换机",
+        "vendor": "华为",
+        "model": "XH9930-128DQ",
+        "ver": "V100R001C020",
+        "qty": 174,
+        "source": "人工录入",
+        "proposal_version": null,
+        "note": ""
       },
       {
         "row_id": "np-003",
@@ -59,9 +116,9 @@
     ]
   },
   "room_rack_rows": {
-    "demo-project-001": [
+    "56A0TXN": [
       {
-        "row_id": "dfe29866-7e75-4bcc-825b-d68b6df880e5",
+        "row_id": "b00ab0cd-0378-41f4-9316-80d0af329d4d",
         "pod_name": "POD01",
         "room_name": "",
         "compute": "",
@@ -74,7 +131,7 @@
         "proposal_version": null
       },
       {
-        "row_id": "6037087a-6903-4ce0-bf8d-edfa0c68a613",
+        "row_id": "9c5120e9-a701-46c4-934f-a4a6f88419e3",
         "pod_name": "POD02",
         "room_name": "",
         "compute": "",
@@ -87,7 +144,7 @@
         "proposal_version": null
       },
       {
-        "row_id": "43aed478-6c8b-4e33-9bc1-3a087a696cea",
+        "row_id": "a632a85e-d55a-4bc3-a514-f7e22a931294",
         "pod_name": "POD03",
         "room_name": "",
         "compute": "",
@@ -100,7 +157,61 @@
         "proposal_version": null
       },
       {
-        "row_id": "74c3fb18-0b9d-4657-8150-df3105e6daac",
+        "row_id": "c508b881-ae29-4ef2-b954-4fa3e8977635",
+        "pod_name": "POD04",
+        "room_name": "",
+        "compute": "",
+        "bus": "",
+        "param_leaf": "",
+        "biz_leaf": "",
+        "mgmt": "",
+        "sample_leaf": "",
+        "data_source": "自动解析",
+        "proposal_version": null
+      }
+    ],
+    "demo-project-001": [
+      {
+        "row_id": "4c874a06-5cbb-4c69-8bf0-8f6279b45c27",
+        "pod_name": "POD01",
+        "room_name": "",
+        "compute": "",
+        "bus": "",
+        "param_leaf": "",
+        "biz_leaf": "",
+        "mgmt": "",
+        "sample_leaf": "",
+        "data_source": "自动解析",
+        "proposal_version": null
+      },
+      {
+        "row_id": "bd0fe085-3742-4174-95d9-28387f59cc71",
+        "pod_name": "POD02",
+        "room_name": "",
+        "compute": "",
+        "bus": "",
+        "param_leaf": "",
+        "biz_leaf": "",
+        "mgmt": "",
+        "sample_leaf": "",
+        "data_source": "自动解析",
+        "proposal_version": null
+      },
+      {
+        "row_id": "bfd16c03-47e2-4409-bb9a-8fdda2994fe9",
+        "pod_name": "POD03",
+        "room_name": "",
+        "compute": "",
+        "bus": "",
+        "param_leaf": "",
+        "biz_leaf": "",
+        "mgmt": "",
+        "sample_leaf": "",
+        "data_source": "自动解析",
+        "proposal_version": null
+      },
+      {
+        "row_id": "b3bfce6a-b56f-45d0-bb70-93497af00664",
         "pod_name": "POD04",
         "room_name": "",
         "compute": "",
@@ -115,23 +226,33 @@
     ]
   },
   "net_mgmt_rows": {
-    "demo-project-001": [
+    "56A0TXN": [
       {
-        "row_id": "779aba7c-42d4-406e-8d17-4cc870e135cd",
+        "row_id": "534d6d58-982b-46fc-9b6c-222669447733",
         "server_role": "CCAE",
         "server_model": "",
-        "quantity": 2,
-        "data_source": "人工录入",
+        "quantity": 1,
+        "data_source": "自动解析",
+        "proposal_version": null
+      }
+    ],
+    "demo-project-001": [
+      {
+        "row_id": "2b9c8c0f-33e6-4b38-b2dc-1b642f799e98",
+        "server_role": "CCAE",
+        "server_model": "",
+        "quantity": 1,
+        "data_source": "自动解析",
         "proposal_version": null
       }
     ]
   },
   "cluster_device_rows": {
-    "demo-project-001": [
+    "56A0TXN": [
       {
-        "row_id": "be3f1638-4e5b-49e0-b6a2-746cf554a335",
+        "row_id": "8bccb0ae-f397-4a81-a2d8-4ad576eb8939",
         "source_net_plane_id": "np-001",
-        "max_quantity": 13,
+        "max_quantity": 64,
         "cluster_id": null,
         "cluster_type": "训练",
         "super_pod_id": null,
@@ -145,14 +266,14 @@
         "device_purpose": null,
         "start_device_name": null,
         "end_device_name": null,
-        "quantity": 13,
+        "quantity": 64,
         "data_source": "人工录入",
         "proposal_version": null
       },
       {
-        "row_id": "6bdf1f4a-afa4-4a60-b7c1-3976a9dc9363",
+        "row_id": "361851d6-8d8b-44ab-a790-a09616722db6",
         "source_net_plane_id": "np-002",
-        "max_quantity": 22,
+        "max_quantity": 174,
         "cluster_id": null,
         "cluster_type": "训练",
         "super_pod_id": null,
@@ -166,12 +287,12 @@
         "device_purpose": null,
         "start_device_name": null,
         "end_device_name": null,
-        "quantity": 22,
+        "quantity": 174,
         "data_source": "人工录入",
         "proposal_version": null
       },
       {
-        "row_id": "38a7ef64-57d1-4151-a708-19d3ff0186ec",
+        "row_id": "0140df89-78ce-4ec6-b268-8283484c3d10",
         "source_net_plane_id": "np-003",
         "max_quantity": 6,
         "cluster_id": null,
@@ -192,7 +313,7 @@
         "proposal_version": null
       },
       {
-        "row_id": "17b4beba-af2e-46b0-b7d4-7e06b2a4cd48",
+        "row_id": "7aa3bbaf-9170-433d-8635-031b9d5191ac",
         "source_net_plane_id": "np-004",
         "max_quantity": 16,
         "cluster_id": null,
@@ -213,7 +334,114 @@
         "proposal_version": null
       },
       {
-        "row_id": "c2a0eff3-45ca-4f99-a495-ba1547b5d338",
+        "row_id": "bd083a42-4027-4072-90d9-761b0df06afa",
+        "source_net_plane_id": "np-005",
+        "max_quantity": 22,
+        "cluster_id": null,
+        "cluster_type": "训练",
+        "super_pod_id": null,
+        "storage_cluster_id": null,
+        "zone_id": null,
+        "ccae_cluster_id": null,
+        "dme_cluster_id": null,
+        "device_type": "",
+        "vendor": "华为",
+        "device_model": "XH9930-128DQ",
+        "device_purpose": null,
+        "start_device_name": null,
+        "end_device_name": null,
+        "quantity": 22,
+        "data_source": "人工录入",
+        "proposal_version": null
+      }
+    ],
+    "demo-project-001": [
+      {
+        "row_id": "0fbbcebc-173c-4049-a084-ae2233944aa2",
+        "source_net_plane_id": "np-001",
+        "max_quantity": 64,
+        "cluster_id": null,
+        "cluster_type": "训练",
+        "super_pod_id": null,
+        "storage_cluster_id": null,
+        "zone_id": null,
+        "ccae_cluster_id": null,
+        "dme_cluster_id": null,
+        "device_type": "",
+        "vendor": "华为",
+        "device_model": "XH9330-128EO",
+        "device_purpose": null,
+        "start_device_name": null,
+        "end_device_name": null,
+        "quantity": 64,
+        "data_source": "人工录入",
+        "proposal_version": null
+      },
+      {
+        "row_id": "bcb28823-6c89-4de3-8276-fa07aa264ebe",
+        "source_net_plane_id": "np-002",
+        "max_quantity": 174,
+        "cluster_id": null,
+        "cluster_type": "训练",
+        "super_pod_id": null,
+        "storage_cluster_id": null,
+        "zone_id": null,
+        "ccae_cluster_id": null,
+        "dme_cluster_id": null,
+        "device_type": "",
+        "vendor": "华为",
+        "device_model": "XH9930-128DQ",
+        "device_purpose": null,
+        "start_device_name": null,
+        "end_device_name": null,
+        "quantity": 174,
+        "data_source": "人工录入",
+        "proposal_version": null
+      },
+      {
+        "row_id": "73771517-c5d7-460e-b598-8b6d74a06d61",
+        "source_net_plane_id": "np-003",
+        "max_quantity": 6,
+        "cluster_id": null,
+        "cluster_type": "训练",
+        "super_pod_id": null,
+        "storage_cluster_id": null,
+        "zone_id": null,
+        "ccae_cluster_id": null,
+        "dme_cluster_id": null,
+        "device_type": "",
+        "vendor": "华为",
+        "device_model": "XH9930-128DQ",
+        "device_purpose": null,
+        "start_device_name": null,
+        "end_device_name": null,
+        "quantity": 6,
+        "data_source": "人工录入",
+        "proposal_version": null
+      },
+      {
+        "row_id": "a00688a5-73a6-47c6-9bfd-b26c0ed5432e",
+        "source_net_plane_id": "np-004",
+        "max_quantity": 16,
+        "cluster_id": null,
+        "cluster_type": "训练",
+        "super_pod_id": null,
+        "storage_cluster_id": null,
+        "zone_id": null,
+        "ccae_cluster_id": null,
+        "dme_cluster_id": null,
+        "device_type": "",
+        "vendor": "华为",
+        "device_model": "XH9930-128DQ",
+        "device_purpose": null,
+        "start_device_name": null,
+        "end_device_name": null,
+        "quantity": 16,
+        "data_source": "人工录入",
+        "proposal_version": null
+      },
+      {
+        "row_id": "647f0150-6a7a-472a-8fd0-5a7c6af17c4a",
         "source_net_plane_id": "np-005",
         "max_quantity": 22,
         "cluster_id": null,

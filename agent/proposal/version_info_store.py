@@ -28,7 +28,7 @@ XLSX_HEADERS = [
 
 
 def _paths(project_id: str) -> dict[str, str]:
-    return proposal_paths(project_id)
+    return proposal_paths("")
 
 
 def version_info_dir(project_id: str) -> Path:

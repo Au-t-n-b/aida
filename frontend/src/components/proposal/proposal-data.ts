@@ -272,7 +272,7 @@ export const PROPOSAL_META_BY_SNAP = {
 
 /* 1. 项目背景 */
 export const PROJECT_BACKGROUND = {
-  oppCode: 'K1903',
+  oppCode: '56A0TXN',
   oppName: '京东三期',
   industry: '金融 · 大模型',
   customer: '京东',
@@ -290,7 +290,7 @@ export const PROJECT_BACKGROUND = {
 /* 1.2 合同信息 · 支持多合同 */
 export const CONTRACT_LIST = [
   {
-    id: 'CON-2026-K1903-001', name: '智算一期主合同', amount: '¥ 1.84 亿', signDate: '2026-06-04', party: '客户甲',
+    id: 'CON-2026-56A0TXN-001', name: '智算一期主合同', amount: '¥ 1.84 亿', signDate: '2026-06-04', party: '客户甲',
     boq: [
       { name: 'Atlas 900 A3 SuperPoD', saleType: '硬件', qty: 1 },
       { name: 'ConnectX-7 400G NIC', saleType: '部件', qty: 192 },
@@ -298,7 +298,7 @@ export const CONTRACT_LIST = [
     ],
   },
   {
-    id: 'CON-2026-K1903-SVC', name: '维保与服务附属协议', amount: '¥ 0.12 亿', signDate: '2026-06-04', party: '客户甲',
+    id: 'CON-2026-56A0TXN-SVC', name: '维保与服务附属协议', amount: '¥ 0.12 亿', signDate: '2026-06-04', party: '客户甲',
     boq: [
       { name: '5 年 NBD+4H 维保', saleType: '维保', qty: 1 },
       { name: 'AI 使能培训', saleType: '培训', qty: 2 },

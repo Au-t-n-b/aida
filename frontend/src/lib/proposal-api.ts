@@ -1,10 +1,1250 @@
 /**
- * 交付预案 API 客户端
- *
- * 代理：/api → http://127.0.0.1:7401（vite.config.ts）
+ * 交付预案 API
+ * Base: /api/v1/projects/{projectId}/proposal
  */
+import { useMemo } from 'react';
+import { useAidaSession } from '@/lib/aida-session';
 
-const DEFAULT_PROJECT_ID = 'demo-project-001';
+const DEFAULT_PROJECT_ID = '56A0TXN';
+
+const PROPOSAL_API_BASE =
+  (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)?.replace(/\/$/, '') ?? '';
+
+export type DeliveryChannel = '华为' | '客户';
+export type DataSource = '自动解析' | '人工录入';
+export type ProposalVersionStatus = 'draft' | 'published';
+export type ProductPartCategory = '产品' | '部件';
+export type HardwareSubtype =
+  | '主设备'
+  | '板卡·线卡·主控'
+  | '网卡·CPU 等部件'
+  | '光模块'
+  | '电源·风机·硬盘';
+
+export interface DeviceInfoRow {
+  rowId: string;
+  deviceModel: string;
+  productCode: string;
+  quantity: number;
+  version: string;
+  lifecycleStatus: string;
+  gaActualDate?: string | null;
+  gaPlanDate?: string | null;
+  eomActualDate?: string | null;
+  eomPlanDate?: string | null;
+  eosActualDate?: string | null;
+  eosPlanDate?: string | null;
+  deviceUHeight?: number | null;
+  dataSource: DataSource;
+  proposalVersion?: string | null;
+  productPartCategory: ProductPartCategory;
+  partCode: string;
+  hardwareSubtype: HardwareSubtype;
+  deviceRole: string;
+  sourceFile?: string | null;
+}
+
+export interface ServiceDeliveryUiRow {
+  rowId: string;
+  serviceMajor: string;
+  serviceItem: string;
+  deliveryChannel: DeliveryChannel;
+  dataSource: DataSource;
+  proposalVersion?: string | null;
+}
+
+export type RowLevel = 'L1' | 'L2';
+
+export interface ServiceContentRow {
+  rowId: string;
+  serviceName: string;
+  serviceContent: string;
+  quantity: number;
+  unit: string;
+  rowLevel: RowLevel;
+  parentRowId?: string | null;
+  dataSource: DataSource;
+  proposalVersion?: string | null;
+}
+
+export interface MaintenanceStrategyRow {
+  rowId: string;
+  seq: number;
+  productModel: string;
+  warrantyPolicy: string;
+  maintenancePolicy: string;
+  maintYears?: number | null;
+  maintTypeCode?: string | null;
+  maintStartDate: string;
+  maintEndDate: string;
+  productEosDate?: string | null;
+  overEos: '是' | '否';
+  overEosApproval: string;
+  dataSource: DataSource;
+  proposalVersion?: string | null;
+}
+
+export interface MaintenanceSlaRow {
+  rowId: string;
+  seq?: string;
+  severityLevel: string;
+  coveragePeriod: string;
+  responseTime: string;
+  restoreTime: string;
+  resolveTime: string;
+  serviceItem?: string | null;
+  dataSource: DataSource;
+  proposalVersion?: string | null;
+}
+
+export interface MaintenanceSlaResponse {
+  hardwareSupport: string;
+  serviceLevel: string;
+  rows: MaintenanceSlaRow[];
+  meta?: { hint?: string };
+}
+
+/** @deprecated 累计修改记录改由 cumulative-change-log API 提供 */
+export interface ChangeRecord {
+  seq: number;
+  chapter: string;
+  description: string;
+}
+
+export interface VersionInfoMetadata {
+  projectId?: string;
+  projectName?: string;
+  proposalVersion?: string;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+  changeDescription?: string;
+  documentSummary?: string;
+}
+
+export interface CumulativeChangeEntry {
+  seq: number;
+  /** 发布快照拼接用；手工行用 chapter */
+  proposalVersion?: string;
+  chapter?: string;
+  changeDescription: string;
+  editable?: boolean;
+  source?: 'snapshot' | 'manual';
+}
+
+export interface DraftManifest extends ManifestActivity {
+  projectId?: string;
+  baseProposalVersion?: string | null;
+  workingVersionLabel?: string;
+  status?: ProposalVersionStatus;
+  dirty?: boolean;
+  etag?: string;
+  /** 旧版后端草稿修改记录（新 API 用 cumulativeChangeLog） */
+  changeRecords?: ChangeRecord[];
+  /** 已发布版本号列表（时间升序），用于按版本截止展示修改记录 */
+  publishedVersions?: string[];
+}
+
+export interface DraftPayload {
+  manifest: DraftManifest;
+  metadata?: VersionInfoMetadata;
+  metadataDependencies?: { code: string; message: string }[];
+  cumulativeChangeLog?: CumulativeChangeEntry[];
+  chapters?: Record<string, unknown>;
+}
+
+export interface ProposalVersionItem {
+  proposalVersion: string;
+  status: ProposalVersionStatus;
+  label: string;
+  tone: 'green' | 'amber';
+  baseProposalVersion?: string | null;
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+  isLatest?: boolean;
+  isEditable?: boolean;
+  dirty?: boolean;
+}
+
+export interface SaveDraftResult extends ManifestActivity {
+  status: string;
+  baseProposalVersion?: string | null;
+  workingVersionLabel?: string;
+  dirty: boolean;
+  etag?: string;
+}
+
+export interface ReleaseProgressItem {
+  role: 'user' | 'ai';
+  body: string;
+  chips?: string[];
+  actions?: { label: string; kind: string; icon?: string }[];
+}
+
+export interface ReleaseAndDecideResult {
+  proposalVersion: string;
+  status: string;
+  createdBy?: string;
+  updatedBy?: string;
+  updatedAt?: string;
+  decisionEvalJobId?: string;
+  sideEffects?: {
+    tasksCreated?: number;
+    risksCreated?: number;
+    integrationRequirementsCreated?: number;
+    documentsArchived?: string[];
+  };
+  progress?: ReleaseProgressItem[];
+}
+
+export interface ManifestActivity {
+  createdBy?: string | null;
+  createdAt?: string | null;
+  updatedBy?: string | null;
+  updatedAt?: string | null;
+  /** 章节 PATCH 后 manifest 乐观锁 token，保存草稿时需同步 */
+  etag?: string | null;
+}
+
+interface ApiEnvelope<T> {
+  data: T;
+  meta?: {
+    projectId?: string;
+    proposalVersion?: string;
+    sourceLayer?: string;
+    manifestActivity?: ManifestActivity;
+  };
+}
+
+interface ApiErrorBody {
+  error?: { code?: string; message?: string };
+}
+
+export class ProposalApiError extends Error {
+  readonly status: number;
+  readonly code: string;
+
+  constructor(status: number, code: string, message: string) {
+    super(message);
+    this.name = 'ProposalApiError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+export function mapProposalRole(role: string | undefined): string {
+  if (role === 'td' || role === 'pd' || role === 'admin') return role === 'admin' ? 'td' : role;
+  return 'td';
+}
+
+export function getDefaultProjectId(): string {
+  return DEFAULT_PROJECT_ID;
+}
+
+function normalizeLegacyPublishedUpdatedAt(meta: VersionInfoMetadata): VersionInfoMetadata {
+  const version = meta.proposalVersion;
+  const updatedAt = meta.updatedAt;
+  if (!version || version === 'draft' || version === '草稿' || !updatedAt) return meta;
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(updatedAt)) return meta;
+
+  const ts = version.match(/_(\d{14})(?:_|$)/)?.[1];
+  if (!ts) return meta;
+  const releaseAt = new Date(
+    Number(ts.slice(0, 4)),
+    Number(ts.slice(4, 6)) - 1,
+    Number(ts.slice(6, 8)),
+    Number(ts.slice(8, 10)),
+    Number(ts.slice(10, 12)),
+    Number(ts.slice(12, 14)),
+    0,
+  );
+  const currAt = new Date(
+    Number(updatedAt.slice(0, 4)),
+    Number(updatedAt.slice(5, 7)) - 1,
+    Number(updatedAt.slice(8, 10)),
+    Number(updatedAt.slice(11, 13)),
+    Number(updatedAt.slice(14, 16)),
+    0,
+  );
+  if (Number.isNaN(releaseAt.getTime()) || Number.isNaN(currAt.getTime())) return meta;
+
+  const diffMs = releaseAt.getTime() - currAt.getTime();
+  const eightHours = 8 * 60 * 60 * 1000;
+  const tolerance = 20 * 60 * 1000;
+  if (Math.abs(diffMs - eightHours) > tolerance) return meta;
+
+  const fixed = new Date(currAt.getTime() + eightHours);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    ...meta,
+    updatedAt: `${fixed.getFullYear()}-${pad(fixed.getMonth() + 1)}-${pad(fixed.getDate())} ${pad(fixed.getHours())}:${pad(fixed.getMinutes())}`,
+  };
+}
+
+/** 页头创建/修改时间展示；兼容 ISO 与已格式化的 `yyyy-MM-dd HH:mm` */
+/** 兼容新版 metadata 字段与旧版 manifest / 扁平 version snapshot */
+export function resolveVersionInfoMetadata(
+  source: Record<string, unknown> | DraftPayload | null | undefined,
+  fallback: VersionInfoMetadata,
+  versionItem?: ProposalVersionItem | null,
+): VersionInfoMetadata {
+  const normalize = (meta: VersionInfoMetadata): VersionInfoMetadata =>
+    normalizeLegacyPublishedUpdatedAt(meta);
+
+  const withDefined = (
+    base: VersionInfoMetadata,
+    patch: Partial<VersionInfoMetadata>,
+  ): VersionInfoMetadata => {
+    const next = { ...base };
+    (Object.keys(patch) as Array<keyof VersionInfoMetadata>).forEach((key) => {
+      const value = patch[key];
+      if (value !== undefined) {
+        next[key] = value as never;
+      }
+    });
+    return next;
+  };
+
+  if (!source) {
+    return normalize(versionItem
+      ? {
+          ...fallback,
+          createdBy: versionItem.createdBy ?? fallback.createdBy,
+          createdAt: versionItem.createdAt ?? fallback.createdAt,
+          updatedBy: versionItem.updatedBy ?? fallback.updatedBy,
+          updatedAt: versionItem.updatedAt ?? fallback.updatedAt,
+          proposalVersion:
+            versionItem.proposalVersion === 'draft'
+              ? '草稿'
+              : versionItem.proposalVersion,
+        }
+      : fallback);
+  }
+
+  const rec = source as Record<string, unknown>;
+  const meta = rec.metadata as VersionInfoMetadata | undefined;
+  const manifest = rec.manifest as DraftManifest | undefined;
+
+  if (
+    meta &&
+    (meta.createdBy || meta.createdAt || meta.updatedBy || meta.updatedAt)
+  ) {
+    return normalize(withDefined(
+      withDefined(fallback, meta),
+      versionItem
+        ? {
+            createdBy: meta.createdBy ?? versionItem.createdBy ?? fallback.createdBy,
+            createdAt: meta.createdAt ?? versionItem.createdAt ?? fallback.createdAt,
+            updatedBy: meta.updatedBy ?? versionItem.updatedBy ?? fallback.updatedBy,
+            updatedAt: meta.updatedAt ?? versionItem.updatedAt ?? fallback.updatedAt,
+            proposalVersion:
+              meta.proposalVersion ??
+              (versionItem.proposalVersion === 'draft'
+                ? '草稿'
+                : versionItem.proposalVersion),
+          }
+        : {},
+    ));
+  }
+
+  if (
+    manifest &&
+    (manifest.createdBy || manifest.createdAt || manifest.updatedBy || manifest.updatedAt)
+  ) {
+    const resolved = withDefined(
+      withDefined(fallback, meta ?? {}),
+      {
+        projectId: manifest.projectId ?? meta?.projectId,
+        proposalVersion:
+          meta?.proposalVersion ??
+          (manifest.workingVersionLabel === '草稿' ? '草稿' : manifest.workingVersionLabel) ??
+          fallback.proposalVersion,
+        // 创建字段优先保留 metadata，manifest 仅兜底
+        createdBy: meta?.createdBy ?? manifest.createdBy ?? fallback.createdBy,
+        createdAt: meta?.createdAt ?? manifest.createdAt ?? fallback.createdAt,
+        updatedBy: manifest.updatedBy ?? meta?.updatedBy ?? fallback.updatedBy,
+        updatedAt: manifest.updatedAt ?? meta?.updatedAt ?? fallback.updatedAt,
+      },
+    );
+    return normalize(resolved);
+  }
+
+  if (rec.createdBy || rec.createdAt || rec.updatedBy || rec.updatedAt) {
+    return normalize(withDefined(
+      withDefined(fallback, meta ?? {}),
+      {
+        projectId: (rec.projectId as string) ?? meta?.projectId,
+        projectName: (rec.projectName as string) ?? meta?.projectName,
+        proposalVersion:
+          (rec.proposalVersion as string) ??
+          meta?.proposalVersion ??
+          fallback.proposalVersion,
+        createdBy:
+          meta?.createdBy ??
+          ((rec.createdBy as string | null | undefined) ?? fallback.createdBy),
+        createdAt:
+          meta?.createdAt ??
+          ((rec.createdAt as string | null | undefined) ?? fallback.createdAt),
+        updatedBy:
+          (rec.updatedBy as string | null | undefined) ??
+          meta?.updatedBy ??
+          fallback.updatedBy,
+        updatedAt:
+          (rec.updatedAt as string | null | undefined) ??
+          meta?.updatedAt ??
+          fallback.updatedAt,
+      },
+    ));
+  }
+
+  if (versionItem) {
+    return normalize({
+      ...fallback,
+      ...meta,
+      createdBy: versionItem.createdBy ?? meta?.createdBy ?? fallback.createdBy,
+      createdAt: versionItem.createdAt ?? meta?.createdAt ?? fallback.createdAt,
+      updatedBy: versionItem.updatedBy ?? meta?.updatedBy ?? fallback.updatedBy,
+      updatedAt: versionItem.updatedAt ?? meta?.updatedAt ?? fallback.updatedAt,
+      proposalVersion:
+        versionItem.proposalVersion === 'draft'
+          ? '草稿'
+          : versionItem.proposalVersion,
+    });
+  }
+
+  return normalize(meta ? { ...fallback, ...meta } : fallback);
+}
+
+export function legacyChangeRecordsToCumulative(
+  records: ChangeRecord[] | undefined,
+  source: 'manual' | 'snapshot' = 'manual',
+): CumulativeChangeEntry[] {
+  if (!records?.length) return [];
+  return records.map((r, i) => ({
+    seq: r.seq ?? i + 1,
+    chapter: r.chapter,
+    changeDescription: r.description,
+    editable: source === 'manual',
+    source,
+  }));
+}
+
+export function manualLogToChangeRecords(
+  entries: CumulativeChangeEntry[] | undefined,
+): ChangeRecord[] {
+  if (!entries?.length) return [];
+  return entries
+    .filter((e) => (e.chapter || '').trim() || (e.changeDescription || '').trim())
+    .map((e, i) => ({
+      seq: e.seq ?? i + 1,
+      chapter: (e.chapter || '').trim(),
+      description: e.changeDescription || '',
+    }));
+}
+
+function expandChangeDescriptionText(
+  text: string,
+  startSeq: number,
+): { entries: CumulativeChangeEntry[]; nextSeq: number } {
+  const entries: CumulativeChangeEntry[] = [];
+  let seq = startSeq;
+  const trimmed = text.trim();
+  if (!trimmed || trimmed === '—') return { entries, nextSeq: seq };
+
+  const parts = trimmed.split('；').map((p) => p.trim()).filter(Boolean);
+  for (const part of parts.length ? parts : [trimmed]) {
+    const colon = part.indexOf('：');
+    seq += 1;
+    if (colon >= 0) {
+      entries.push({
+        seq,
+        chapter: part.slice(0, colon).trim(),
+        changeDescription: part.slice(colon + 1).trim(),
+        editable: false,
+        source: 'snapshot',
+      });
+    } else {
+      entries.push({
+        seq,
+        chapter: part,
+        changeDescription: '',
+        editable: false,
+        source: 'snapshot',
+      });
+    }
+  }
+  return { entries, nextSeq: seq };
+}
+
+function snapshotToCumulativeEntries(
+  snap: Record<string, unknown>,
+  startSeq: number,
+): { entries: CumulativeChangeEntry[]; nextSeq: number } {
+  const records = snap.changeRecords as ChangeRecord[] | undefined;
+  if (Array.isArray(records) && records.length > 0) {
+    const entries = legacyChangeRecordsToCumulative(records, 'snapshot').map((e, i) => ({
+      ...e,
+      // 保留发布时写入的累计序号；无 seq 时再按当前拼接位置递增
+      seq: e.seq ?? startSeq + i + 1,
+    }));
+    const nextSeq = entries.reduce((max, e) => Math.max(max, e.seq ?? 0), startSeq);
+    return { entries, nextSeq };
+  }
+  // 不再把快照 changeDescription（章节 diff 自动生成）展开为修改记录行
+  return { entries: [], nextSeq: startSeq };
+}
+
+async function loadSnapshotsChangeLog(
+  projectId: string,
+  headers: HeadersInit,
+  versionIds: string[],
+): Promise<CumulativeChangeEntry[]> {
+  const entries: CumulativeChangeEntry[] = [];
+  let seq = 0;
+  for (const ver of versionIds) {
+    const snap = await fetchVersionSnapshot(projectId, ver, headers);
+    const part = snapshotToCumulativeEntries(snap as Record<string, unknown>, seq);
+    entries.push(...part.entries);
+    seq = part.nextSeq;
+  }
+  return entries;
+}
+
+/** 按版本后缀时间戳升序（V1.10 在 V1.9 之后，而非字符串 V1.1 之前） */
+function sortPublishedVersionsChronologically(versionIds: string[]): string[] {
+  const ts = (id: string) => id.match(/_(\d{14})$/)?.[1] ?? id;
+  return [...versionIds].sort((a, b) => ts(a).localeCompare(ts(b)));
+}
+
+async function resolvePublishedVersionOrder(
+  projectId: string,
+  headers: HeadersInit,
+  draftData?: DraftPayload | null,
+): Promise<string[]> {
+  const fromManifest = draftData?.manifest?.publishedVersions;
+  if (fromManifest && fromManifest.length > 0) {
+    return [...fromManifest];
+  }
+  const versions = await fetchVersions(projectId, headers);
+  const ordered = sortPublishedVersionsChronologically(
+    versions
+      .filter((v) => v.proposalVersion !== 'draft')
+      .map((v) => v.proposalVersion),
+  );
+  return ordered;
+}
+
+/**
+ * 草稿态：各版本手工 changeRecords + 当前草稿可编辑行（不含章节 diff 自动生成）。
+ */
+export async function loadChangeLogForDraft(
+  projectId: string,
+  headers: HeadersInit,
+  draftData?: DraftPayload | null,
+): Promise<CumulativeChangeEntry[]> {
+  try {
+    const fromApi = await fetchCumulativeChangeLog(projectId, headers);
+    if (fromApi.length > 0) {
+      return fromApi;
+    }
+  } catch {
+    /* 旧后端无此路由 */
+  }
+
+  if (draftData?.cumulativeChangeLog && draftData.cumulativeChangeLog.length > 0) {
+    return draftData.cumulativeChangeLog;
+  }
+
+  try {
+    const ordered = await resolvePublishedVersionOrder(projectId, headers, draftData);
+    const snapshotEntries = await loadSnapshotsChangeLog(projectId, headers, ordered);
+    const manual = legacyChangeRecordsToCumulative(draftData?.manifest?.changeRecords, 'manual');
+    let seq = snapshotEntries.reduce((max, e) => Math.max(max, e.seq ?? 0), 0);
+    const manualNumbered = manual.map((row) => {
+      seq += 1;
+      return { ...row, seq: row.seq ?? seq };
+    });
+    return [...snapshotEntries, ...manualNumbered];
+  } catch {
+    return legacyChangeRecordsToCumulative(draftData?.manifest?.changeRecords, 'manual');
+  }
+}
+
+/**
+ * 查看某一已发布版本：仅展示该版本及之前版本的修改记录（时点快照，不含后续版本）。
+ */
+export async function loadChangeLogThroughVersion(
+  projectId: string,
+  headers: HeadersInit,
+  throughVersion: string,
+  draftData?: DraftPayload | null,
+): Promise<CumulativeChangeEntry[]> {
+  try {
+    const ordered = await resolvePublishedVersionOrder(projectId, headers, draftData);
+    const idx = ordered.indexOf(throughVersion);
+    const slice = idx >= 0 ? ordered.slice(0, idx + 1) : [throughVersion];
+    return loadSnapshotsChangeLog(projectId, headers, slice);
+  } catch {
+    const snap = await fetchVersionSnapshot(projectId, throughVersion, headers);
+    return snapshotToCumulativeEntries(snap as Record<string, unknown>, 0).entries;
+  }
+}
+
+/** @deprecated 使用 loadChangeLogForDraft / loadChangeLogThroughVersion */
+export async function loadCumulativeChangeLogSafe(
+  projectId: string,
+  headers: HeadersInit,
+  draftData?: DraftPayload | null,
+): Promise<CumulativeChangeEntry[]> {
+  return loadChangeLogForDraft(projectId, headers, draftData);
+}
+
+export function formatProposalDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(value)) return value;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function proposalUrl(projectId: string, path: string, query?: Record<string, string>): string {
+  const base = `${PROPOSAL_API_BASE}/api/v1/projects/${encodeURIComponent(projectId)}/proposal${path}`;
+  if (!query || Object.keys(query).length === 0) return base;
+  const qs = new URLSearchParams(query).toString();
+  return `${base}?${qs}`;
+}
+
+async function proposalFetch<T>(
+  projectId: string,
+  path: string,
+  init: RequestInit & { query?: Record<string, string> } = {},
+): Promise<T> {
+  const { query, ...rest } = init;
+  const headers = new Headers(rest.headers);
+  if (!headers.has('Content-Type') && rest.body) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const resp = await fetch(proposalUrl(projectId, path, query), { ...rest, headers });
+  const text = await resp.text();
+  let json: (ApiEnvelope<T> & ApiErrorBody) | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<T> & ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json || !('data' in json)) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return json.data;
+}
+
+export function buildProposalHeaders(role: string, account?: string): HeadersInit {
+  return {
+    'X-User-Role': mapProposalRole(role),
+    'X-User-Account': account ?? 'frontend',
+  };
+}
+
+export async function fetchDraft(
+  projectId: string,
+  headers: HeadersInit,
+): Promise<DraftPayload> {
+  return proposalFetch<DraftPayload>(projectId, '/draft', { headers });
+}
+
+export async function fetchMetadata(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<VersionInfoMetadata> {
+  return proposalFetch<VersionInfoMetadata>(projectId, '/metadata', {
+    headers,
+    query: { version },
+  });
+}
+
+export async function patchMetadata(
+  projectId: string,
+  headers: HeadersInit,
+  body: { documentSummary?: string; manualChangeLog?: CumulativeChangeEntry[] },
+): Promise<VersionInfoMetadata> {
+  return proposalFetch<VersionInfoMetadata>(projectId, '/metadata', {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(body),
+    query: { version: 'draft' },
+  });
+}
+
+export async function fetchCumulativeChangeLog(
+  projectId: string,
+  headers: HeadersInit,
+): Promise<CumulativeChangeEntry[]> {
+  const data = await proposalFetch<{ entries: CumulativeChangeEntry[] }>(
+    projectId,
+    '/metadata/cumulative-change-log',
+    { headers },
+  );
+  return data.entries ?? [];
+}
+
+export async function saveDraft(
+  projectId: string,
+  headers: HeadersInit,
+  body: {
+    manualChangeLog?: CumulativeChangeEntry[];
+    changeRecords?: ChangeRecord[];
+    chapters?: Record<string, unknown>;
+  } = {},
+  etag?: string,
+): Promise<SaveDraftResult & { metadata?: VersionInfoMetadata; cumulativeChangeLog?: CumulativeChangeEntry[] }> {
+  const reqHeaders = new Headers(headers);
+  if (etag) reqHeaders.set('If-Match', etag);
+  const changeRecords =
+    body.changeRecords ?? manualLogToChangeRecords(body.manualChangeLog);
+  return proposalFetch<SaveDraftResult>(projectId, '/draft', {
+    method: 'PUT',
+    headers: reqHeaders,
+    body: JSON.stringify({
+      ...body,
+      changeRecords,
+      manualChangeLog: body.manualChangeLog,
+    }),
+  });
+}
+
+export async function fetchVersions(
+  projectId: string,
+  headers: HeadersInit,
+): Promise<ProposalVersionItem[]> {
+  const data = await proposalFetch<{ versions: ProposalVersionItem[] }>(
+    projectId,
+    '/versions',
+    { headers },
+  );
+  return data.versions ?? [];
+}
+
+export async function fetchVersionSnapshot(
+  projectId: string,
+  proposalVersion: string,
+  headers: HeadersInit,
+): Promise<Record<string, unknown>> {
+  return proposalFetch<Record<string, unknown>>(
+    projectId,
+    `/versions/${proposalVersion}`,
+    { headers },
+  );
+}
+
+export async function releaseAndDecide(
+  projectId: string,
+  headers: HeadersInit,
+  body?: {
+    reviewTagHint?: string;
+    changeRecords?: ChangeRecord[];
+  },
+): Promise<ReleaseAndDecideResult> {
+  return proposalFetch<ReleaseAndDecideResult>(projectId, '/release-and-decide', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body ?? {}),
+  });
+}
+
+export async function exportDocument(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<Blob> {
+  const resp = await fetch(
+    proposalUrl(projectId, '/export/document', { version }),
+    { headers },
+  );
+  if (!resp.ok) {
+    const text = await resp.text();
+    let code = 'HTTP_ERROR';
+    let message = resp.statusText;
+    try {
+      const json = JSON.parse(text) as ApiErrorBody;
+      code = json.error?.code ?? code;
+      message = json.error?.message ?? message;
+    } catch {
+      message = text || message;
+    }
+    throw new ProposalApiError(resp.status, code, message);
+  }
+  return resp.blob();
+}
+
+export async function fetchDeviceInfo(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<{ rows: DeviceInfoRow[]; total: number }> {
+  return proposalFetch<{ rows: DeviceInfoRow[]; total: number }>(
+    projectId,
+    '/chapters/2/device-info',
+    { headers, query: { version } },
+  );
+}
+
+export async function parseDeviceBoq(
+  projectId: string,
+  headers: HeadersInit,
+  options?: { force?: boolean; enrich?: boolean; version?: string },
+): Promise<{ rows: DeviceInfoRow[]; total: number }> {
+  const query: Record<string, string> = { version: options?.version ?? 'draft' };
+  if (options?.force) query.force = 'true';
+  if (options?.enrich) query.enrich = 'true';
+  return proposalFetch<{ rows: DeviceInfoRow[]; total: number }>(
+    projectId,
+    '/parse/device-boq',
+    { method: 'POST', headers, query },
+  );
+}
+
+export async function enrichDeviceInfo(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<{ rows: DeviceInfoRow[]; total: number }> {
+  return proposalFetch<{ rows: DeviceInfoRow[]; total: number }>(
+    projectId,
+    '/chapters/2/device-info/enrich',
+    { method: 'POST', headers, query: { version } },
+  );
+}
+
+function deviceRowNeedsEnrichment(row: DeviceInfoRow): boolean {
+  if (!row.deviceModel) return false;
+  return !(
+    row.productCode
+    || row.lifecycleStatus
+    || row.gaActualDate
+    || row.gaPlanDate
+    || row.eomActualDate
+    || row.eomPlanDate
+    || row.eosActualDate
+    || row.eosPlanDate
+  );
+}
+
+export function deviceRowsNeedEnrichment(rows: DeviceInfoRow[]): boolean {
+  return rows.some(deviceRowNeedsEnrichment);
+}
+
+const LEGACY_DEVICE_MODEL = /^[A-Z]{2,}[\dA-Z]*-[A-Z0-9-]+$/i;
+const LEGACY_PART_MODEL = /^X\d{6,}$/i;
+
+/** Detect leaf-level rows from the old assembler (sales_code / part models). */
+export function deviceRowsLookLegacy(rows: DeviceInfoRow[]): boolean {
+  return rows.some((row) => {
+    const model = row.deviceModel.trim();
+    if (!model) return false;
+    if (LEGACY_DEVICE_MODEL.test(model)) return true;
+    if (LEGACY_PART_MODEL.test(model)) return true;
+    if (model === 'Spanner_2') return true;
+    if (/^\d{6,}$/.test(row.productCode) && !row.productCode.startsWith('OFFE')) return true;
+    return false;
+  });
+}
+
+export async function patchDeviceInfoRow(
+  projectId: string,
+  rowId: string,
+  body: Partial<
+    Pick<
+      DeviceInfoRow,
+      | 'deviceModel'
+      | 'productCode'
+      | 'quantity'
+      | 'version'
+      | 'lifecycleStatus'
+      | 'gaActualDate'
+      | 'gaPlanDate'
+      | 'eomActualDate'
+      | 'eomPlanDate'
+      | 'eosActualDate'
+      | 'eosPlanDate'
+      | 'deviceUHeight'
+    >
+  >,
+  headers: HeadersInit,
+): Promise<{ row: DeviceInfoRow; manifestActivity?: ManifestActivity }> {
+  const hdrs = new Headers(headers);
+  hdrs.set('Content-Type', 'application/json');
+  const resp = await fetch(
+    proposalUrl(projectId, `/chapters/2/device-info/${encodeURIComponent(rowId)}`),
+    { method: 'PATCH', headers: hdrs, body: JSON.stringify(body) },
+  );
+  const text = await resp.text();
+  let json: (ApiEnvelope<DeviceInfoRow> & ApiErrorBody) | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<DeviceInfoRow> & ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json?.data) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return { row: json.data, manifestActivity: json.meta?.manifestActivity };
+}
+
+export async function fetchServiceDeliveryUi(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<ServiceDeliveryUiRow[]> {
+  const data = await proposalFetch<{ rows: ServiceDeliveryUiRow[] }>(
+    projectId,
+    '/chapters/8.1/service-delivery-ui',
+    { headers, query: { version } },
+  );
+  return data.rows ?? [];
+}
+
+export async function initializeServiceDeliveryUi(
+  projectId: string,
+  headers: HeadersInit,
+  strategy: 'skip' | 'merge' = 'skip',
+): Promise<ServiceDeliveryUiRow[]> {
+  const data = await proposalFetch<{ rows: ServiceDeliveryUiRow[] }>(
+    projectId,
+    '/chapters/8.1/service-delivery-ui/initialize',
+    { method: 'POST', headers, query: { strategy } },
+  );
+  return data.rows ?? [];
+}
+
+export async function patchServiceDeliveryUiRow(
+  projectId: string,
+  rowId: string,
+  deliveryChannel: DeliveryChannel,
+  headers: HeadersInit,
+): Promise<{ row: ServiceDeliveryUiRow; manifestActivity?: ManifestActivity }> {
+  const hdrs = new Headers(headers);
+  hdrs.set('Content-Type', 'application/json');
+  const resp = await fetch(
+    proposalUrl(projectId, `/chapters/8.1/service-delivery-ui/${encodeURIComponent(rowId)}`),
+    {
+      method: 'PATCH',
+      headers: hdrs,
+      body: JSON.stringify({ deliveryChannel }),
+    },
+  );
+  const text = await resp.text();
+  let json: (ApiEnvelope<ServiceDeliveryUiRow> & ApiErrorBody) | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<ServiceDeliveryUiRow> & ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json?.data) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return {
+    row: json.data,
+    manifestActivity: json.meta?.manifestActivity,
+  };
+}
+
+export async function fetchServiceContent(
+  projectId: string,
+  headers: HeadersInit,
+  options?: {
+    collapse?: boolean;
+    expandOfferingId?: string;
+    version?: string;
+    page?: number;
+    pageSize?: number;
+  },
+): Promise<{ rows: ServiceContentRow[]; total: number }> {
+  const query: Record<string, string> = {
+    version: options?.version ?? 'draft',
+    collapse: String(options?.collapse ?? true),
+  };
+  if (options?.expandOfferingId) query.expandOfferingId = options.expandOfferingId;
+  if (options?.page) query.page = String(options.page);
+  if (options?.pageSize) query.pageSize = String(options.pageSize);
+
+  return proposalFetch<{ rows: ServiceContentRow[]; total: number }>(
+    projectId,
+    '/chapters/8.2/service-content',
+    { headers, query },
+  );
+}
+
+export async function parseServiceBoq(
+  projectId: string,
+  headers: HeadersInit,
+  options?: { force?: boolean; version?: string },
+): Promise<{ rows: ServiceContentRow[]; total: number }> {
+  const query: Record<string, string> = { version: options?.version ?? 'draft' };
+  if (options?.force) query.force = 'true';
+  return proposalFetch<{ rows: ServiceContentRow[]; total: number }>(
+    projectId,
+    '/parse/service-boq',
+    { method: 'POST', headers, query },
+  );
+}
+
+export async function patchServiceContentRow(
+  projectId: string,
+  rowId: string,
+  body: Partial<Pick<ServiceContentRow, 'serviceName' | 'serviceContent' | 'quantity' | 'unit'>>,
+  headers: HeadersInit,
+): Promise<{ row: ServiceContentRow; manifestActivity?: ManifestActivity }> {
+  const hdrs = new Headers(headers);
+  hdrs.set('Content-Type', 'application/json');
+  const resp = await fetch(
+    proposalUrl(projectId, `/chapters/8.2/service-content/${encodeURIComponent(rowId)}`),
+    { method: 'PATCH', headers: hdrs, body: JSON.stringify(body) },
+  );
+  const text = await resp.text();
+  let json: (ApiEnvelope<ServiceContentRow> & ApiErrorBody) | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<ServiceContentRow> & ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json?.data) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return { row: json.data, manifestActivity: json.meta?.manifestActivity };
+}
+
+export async function fetchMaintenanceStrategy(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<MaintenanceStrategyRow[]> {
+  const data = await proposalFetch<{ rows: MaintenanceStrategyRow[] }>(
+    projectId,
+    '/chapters/8.3/maintenance-strategy',
+    { headers, query: { version } },
+  );
+  return data.rows ?? [];
+}
+
+export async function parseMaintenanceBoq(
+  projectId: string,
+  headers: HeadersInit,
+  options?: { force?: boolean; version?: string },
+): Promise<MaintenanceStrategyRow[]> {
+  const query: Record<string, string> = { version: options?.version ?? 'draft' };
+  if (options?.force) query.force = 'true';
+  const data = await proposalFetch<{ rows: MaintenanceStrategyRow[] }>(
+    projectId,
+    '/parse/maintenance-boq',
+    { method: 'POST', headers, query },
+  );
+  return data.rows ?? [];
+}
+
+export async function patchMaintenanceStrategyRow(
+  projectId: string,
+  rowId: string,
+  body: Partial<{
+    productModel: string;
+    warrantyPolicy: string;
+    maintenancePolicy: string;
+    maintStartDate: string;
+    maintEndDate: string;
+    productEosDate: string | null;
+    overEosApproval: string;
+    recalculateEnd: boolean;
+  }>,
+  headers: HeadersInit,
+): Promise<{ row: MaintenanceStrategyRow; manifestActivity?: ManifestActivity }> {
+  const hdrs = new Headers(headers);
+  hdrs.set('Content-Type', 'application/json');
+  const resp = await fetch(
+    proposalUrl(
+      projectId,
+      `/chapters/8.3/maintenance-strategy/${encodeURIComponent(rowId)}`,
+    ),
+    { method: 'PATCH', headers: hdrs, body: JSON.stringify(body) },
+  );
+  const text = await resp.text();
+  let json: (ApiEnvelope<MaintenanceStrategyRow> & ApiErrorBody) | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<MaintenanceStrategyRow> & ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json?.data) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return { row: json.data, manifestActivity: json.meta?.manifestActivity };
+}
+
+export async function fetchMaintenanceSla(
+  projectId: string,
+  headers: HeadersInit,
+  version = 'draft',
+): Promise<MaintenanceSlaResponse> {
+  return proposalFetch<MaintenanceSlaResponse>(
+    projectId,
+    '/chapters/8.4/maintenance-sla',
+    { headers, query: { version } },
+  );
+}
+
+export async function parseMaintenanceProposalDoc(
+  projectId: string,
+  headers: HeadersInit,
+  options?: { force?: boolean; version?: string },
+): Promise<MaintenanceSlaResponse> {
+  const query: Record<string, string> = { version: options?.version ?? 'draft' };
+  if (options?.force) query.force = 'true';
+  return proposalFetch<MaintenanceSlaResponse>(
+    projectId,
+    '/parse/maintenance-proposal-doc',
+    { method: 'POST', headers, query },
+  );
+}
+
+export async function patchMaintenanceSlaRow(
+  projectId: string,
+  rowId: string,
+  body: Partial<{
+    severityLevel: string;
+    coveragePeriod: string;
+    responseTime: string;
+    restoreTime: string;
+    resolveTime: string;
+  }>,
+  headers: HeadersInit,
+): Promise<{ row: MaintenanceSlaRow; manifestActivity?: ManifestActivity }> {
+  const hdrs = new Headers(headers);
+  hdrs.set('Content-Type', 'application/json');
+  const resp = await fetch(
+    proposalUrl(
+      projectId,
+      `/chapters/8.4/maintenance-sla/${encodeURIComponent(rowId)}`,
+    ),
+    { method: 'PATCH', headers: hdrs, body: JSON.stringify(body) },
+  );
+  const text = await resp.text();
+  let json: (ApiEnvelope<MaintenanceSlaRow> & ApiErrorBody) | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<MaintenanceSlaRow> & ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json?.data) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return { row: json.data, manifestActivity: json.meta?.manifestActivity };
+}
+
+export async function patchMaintenanceSlaHardwareSupport(
+  projectId: string,
+  body: { hardwareSupport: string },
+  headers: HeadersInit,
+): Promise<{ hardwareSupport: string; serviceLevel: string; manifestActivity?: ManifestActivity }> {
+  const hdrs = new Headers(headers);
+  hdrs.set('Content-Type', 'application/json');
+  const resp = await fetch(
+    proposalUrl(projectId, '/chapters/8.4/maintenance-sla/hardware-support'),
+    { method: 'PATCH', headers: hdrs, body: JSON.stringify(body) },
+  );
+  const text = await resp.text();
+  let json: (ApiEnvelope<{ hardwareSupport: string; serviceLevel: string }> & ApiErrorBody) | null =
+    null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as ApiEnvelope<{ hardwareSupport: string; serviceLevel: string }> &
+        ApiErrorBody;
+    } catch {
+      throw new ProposalApiError(resp.status, 'PARSE_ERROR', text || resp.statusText);
+    }
+  }
+  if (!resp.ok) {
+    throw new ProposalApiError(
+      resp.status,
+      json?.error?.code ?? 'HTTP_ERROR',
+      json?.error?.message ?? resp.statusText,
+    );
+  }
+  if (!json?.data) {
+    throw new ProposalApiError(resp.status, 'PARSE_ERROR', '响应缺少 data 字段');
+  }
+  return { ...json.data, manifestActivity: json.meta?.manifestActivity };
+}
+
+export function useProposalApiHeaders(): HeadersInit {
+  const { session } = useAidaSession();
+  return useMemo(
+    () => buildProposalHeaders(session?.role ?? 'td', session?.sessionId),
+    [session?.role, session?.sessionId],
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Legacy chapter 5 / 7 compatibility (network-chapters, room-chapter)
+// ---------------------------------------------------------------------------
 
 export interface NetPlaneRow {
   row_id: string;
@@ -18,16 +1258,19 @@ export interface NetPlaneRow {
   note: string | null;
 }
 
-export interface DeviceRoleItem {
-  key: string;
-  label: string;
-}
-
 export interface AvailableDeviceItem {
   vendor: string;
   device_model: string;
   device_version: string;
   boq_quantity: number;
+}
+
+export interface NetMgmtRow {
+  row_id: string;
+  server_role: string;
+  server_model: string;
+  quantity: number;
+  data_source: string;
 }
 
 export interface ClusterDeviceRow {
@@ -52,87 +1295,66 @@ export interface ClusterDeviceRow {
   proposal_version: string | null;
 }
 
-export interface NetMgmtRow {
+export interface RoomRackRow {
   row_id: string;
-  server_role: string;
-  server_model: string;
-  quantity: number;
-  data_source: string;
+  pod_name: string;
+  room_name: string;
+  compute: string;
+  bus: string;
+  param_leaf: string;
+  biz_leaf: string;
+  mgmt: string;
+  sample_leaf: string;
+  data_source?: string;
 }
 
-export interface NetPlaneOption {
-  row_id: string;
-  type: string;
-  vendor: string;
-  model: string;
-  qty: number;
+interface LegacyEnvelope<T> {
+  data?: T;
+  detail?: string | { message?: string };
 }
 
-export interface WarningItem {
-  code: string;
-  message: string;
-}
-
-interface ApiResponse<T> {
-  code: number;
-  data: T;
-  meta: { project_id: string; timestamp: string };
-}
-
-async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+async function legacyRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const resp = await fetch(url, {
+    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+    ...init,
   });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const detail = (body as { detail?: unknown }).detail;
-    if (typeof detail === 'string') throw new Error(detail);
-    if (detail && typeof detail === 'object' && 'message' in detail)
-      throw new Error((detail as { message: string }).message);
-    throw new Error(`HTTP ${res.status}`);
+  const text = await resp.text();
+  let json: LegacyEnvelope<T> | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as LegacyEnvelope<T>;
+    } catch {
+      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      throw new Error('响应解析失败');
+    }
   }
-  if (res.status === 204) return undefined as T;
-  const json: ApiResponse<T> = await res.json();
-  return json.data;
+  if (!resp.ok) {
+    const detail = json?.detail;
+    if (typeof detail === 'string') throw new Error(detail);
+    if (detail && typeof detail === 'object' && detail.message) throw new Error(detail.message);
+    throw new Error(`HTTP ${resp.status}`);
+  }
+  if (json && 'data' in json) return json.data as T;
+  return undefined as T;
 }
 
 export const proposalApi = {
   listNetPlanes(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ rows: NetPlaneRow[] }>(
+    return legacyRequest<{ rows: NetPlaneRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane`,
     );
   },
-
-  listDeviceRoles(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ device_roles: DeviceRoleItem[] }>(
-      `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/device-roles`,
-    );
-  },
-
   listAvailableDevices(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ devices: AvailableDeviceItem[] }>(
+    return legacyRequest<{ devices: AvailableDeviceItem[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/available-devices`,
     );
   },
-
-  exportNetPlanes(rows: NetPlaneRow[], projectId = DEFAULT_PROJECT_ID) {
-    return request<{ saved_path: string }>(
-      `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/export`,
-      { method: 'POST', body: JSON.stringify({ rows }) },
-    );
-  },
-
   createNetPlane(sourceRowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return request<{ row: NetPlaneRow }>(
+    return legacyRequest<{ row: NetPlaneRow }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ source_row_id: sourceRowId }),
-      },
+      { method: 'POST', body: JSON.stringify({ source_row_id: sourceRowId }) },
     );
   },
-
   updateNetPlane(
     rowId: string,
     patch: {
@@ -146,82 +1368,62 @@ export const proposalApi = {
     },
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return request<{ row: NetPlaneRow; warnings: WarningItem[] }>(
+    return legacyRequest<{ row: NetPlaneRow; warnings: { code: string; message: string }[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/${rowId}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
-      },
+      { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
-
   deleteNetPlane(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return request<{ deleted: string }>(
+    return legacyRequest<{ deleted: string }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/${rowId}?confirm=true`,
       { method: 'DELETE' },
     );
   },
-
-  listNetPlaneOptions(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ options: NetPlaneOption[] }>(
-      `/api/v1/projects/${projectId}/proposal/chapters/5.3/net-plane-options`,
+  exportNetPlanes(rows: NetPlaneRow[], projectId = DEFAULT_PROJECT_ID) {
+    return legacyRequest<{ saved_path: string }>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/export`,
+      { method: 'POST', body: JSON.stringify({ rows }) },
     );
   },
-
-  listNetMgmt(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ rows: NetMgmtRow[] }>(
-      `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt`,
-    );
-  },
-
   initializeNetMgmt(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ rows: NetMgmtRow[] }>(
+    return legacyRequest<{ rows: NetMgmtRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/initialize`,
       { method: 'POST' },
     );
   },
-
   updateNetMgmt(
     rowId: string,
     patch: { server_model?: string; quantity?: number },
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return request<NetMgmtRow>(
+    return legacyRequest<NetMgmtRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/${rowId}`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
-
   deleteNetMgmt(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return request<void>(
+    return legacyRequest<void>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/${rowId}`,
       { method: 'DELETE' },
     );
   },
-
   exportNetMgmt(rows: NetMgmtRow[], projectId = DEFAULT_PROJECT_ID) {
-    return request<{ saved_path: string }>(
+    return legacyRequest<{ saved_path: string }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
   },
-
   listClusterDevices(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ rows: ClusterDeviceRow[] }>(
+    return legacyRequest<{ rows: ClusterDeviceRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list`,
     );
   },
-
   createClusterDevice(sourceNetPlaneId: string, projectId = DEFAULT_PROJECT_ID) {
-    return request<ClusterDeviceRow>(
+    return legacyRequest<ClusterDeviceRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ source_net_plane_id: sourceNetPlaneId }),
-      },
+      { method: 'POST', body: JSON.stringify({ source_net_plane_id: sourceNetPlaneId }) },
     );
   },
-
   updateClusterDevice(
     rowId: string,
     patch: {
@@ -240,492 +1442,61 @@ export const proposalApi = {
     },
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return request<ClusterDeviceRow>(
+    return legacyRequest<ClusterDeviceRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/${rowId}`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
-      },
+      { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
-
   deleteClusterDevice(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return request<void>(
+    return legacyRequest<void>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/${rowId}?confirm=true`,
       { method: 'DELETE' },
     );
   },
-
   exportClusterDevices(rows: ClusterDeviceRow[], projectId = DEFAULT_PROJECT_ID) {
-    return request<{ saved_path: string }>(
+    return legacyRequest<{ saved_path: string }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
   },
 };
 
-export interface RoomRackRow {
-  row_id: string;
-  pod_name: string;
-  room_name: string;
-  compute: string;
-  bus: string;
-  param_leaf: string;
-  biz_leaf: string;
-  mgmt: string;
-  sample_leaf: string;
-  data_source: string;
-}
-
-export interface DeviceInfoItem {
-  section: string;
-  device_model: string;
-  device_role: string;
-  device_qty: string;
-  card_model: string;
-  card_qty: number | null;
-  source_basename: string;
-}
-
 export const roomRackApi = {
   list(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ rows: RoomRackRow[] }>(
+    return legacyRequest<{ rows: RoomRackRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack`,
     );
   },
-
-  create(
-    data: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
-    projectId = DEFAULT_PROJECT_ID,
-  ) {
-    return request<RoomRackRow>(
-      `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) },
-    );
-  },
-
   createAfter(
     sourceRowId: string,
-    data: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
+    row: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return request<RoomRackRow>(
+    return legacyRequest<RoomRackRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack?source_row_id=${encodeURIComponent(sourceRowId)}`,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) },
+      { method: 'POST', body: JSON.stringify(row) },
     );
   },
-
   update(
     rowId: string,
-    data: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
+    patch: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return request<RoomRackRow>(
+    return legacyRequest<RoomRackRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/${rowId}`,
-      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) },
+      { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
-
   delete(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return request<void>(
+    return legacyRequest<void>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/${rowId}?confirm=true`,
       { method: 'DELETE' },
     );
   },
-
   export(rows: RoomRackRow[], projectId = DEFAULT_PROJECT_ID) {
-    return request<{ saved_path: string }>(
+    return legacyRequest<{ saved_path: string }>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
   },
-
-  listDeviceInfoTable(projectId = DEFAULT_PROJECT_ID) {
-    return request<{ items: DeviceInfoItem[] }>(
-      `/api/v1/projects/${projectId}/proposal/chapters/7.1/device-info-table`,
-    );
-  },
 };
-
-export class ProposalApiError extends Error {
-  code: string;
-  constructor(message: string, code: string) {
-    super(message);
-    this.name = 'ProposalApiError';
-    this.code = code;
-  }
-}
-
-export interface DraftManifest {
-  workingVersionLabel: string;
-  status: string;
-  etag?: string;
-  dirty?: boolean;
-}
-
-export interface CumulativeChangeEntry {
-  section?: string;
-  field?: string;
-  before?: string;
-  after?: string;
-  source: string;
-  editable?: boolean;
-  seq?: number;
-  chapter?: string;
-  changeDescription?: string;
-}
-
-export interface ManifestActivity {
-  updatedBy?: string;
-  updatedAt?: string;
-  etag?: string;
-}
-
-export interface ProposalVersionItem {
-  proposalVersion: string;
-  status: string;
-  label: string;
-  tone: string;
-  isLatest: boolean;
-  isEditable: boolean;
-}
-
-export interface VersionInfoMetadata {
-  proposalVersion: string;
-  projectName: string;
-  createdBy?: string;
-  createdAt?: string;
-  updatedBy?: string;
-  updatedAt?: string;
-}
-
-export type DeliveryChannel = '华为' | '客户';
-
-export interface MaintenanceSlaRow {
-  rowId: string;
-  seq?: string;
-  serviceItem?: string;
-  severityLevel?: string;
-  coveragePeriod?: string;
-  responseTime?: string;
-  restoreTime?: string;
-  resolveTime?: string;
-  data_source?: string;
-}
-
-export interface MaintenanceStrategyRow {
-  rowId: string;
-  productModel?: string;
-  warrantyPolicy?: string;
-  maintenancePolicy?: string;
-  maintStartDate?: string;
-  maintEndDate?: string;
-  productEosDate?: string | null;
-  overEos?: string;
-  overEosApproval?: string;
-  data_source?: string;
-}
-
-export interface ServiceContentRow {
-  rowId: string;
-  serviceContent?: string;
-  quantity?: string | number;
-  unit?: string;
-  rowLevel?: 'L1' | 'L2' | string;
-  parentId?: string;
-  data_source?: string;
-}
-
-export interface ServiceDeliveryUiRow {
-  rowId: string;
-  serviceMajor?: string;
-  serviceItem?: string;
-  deliveryChannel?: DeliveryChannel;
-  dataSource?: string;
-  data_source?: string;
-}
-
-export interface DeviceInfoRow {
-  rowId: string;
-  deviceModel?: string;
-  productCode?: string;
-  version?: string;
-  quantity?: string | number;
-  deviceUHeight?: string | number;
-  lifecycleStatus?: string;
-  gaActualDate?: string;
-  gaPlanDate?: string;
-  eomActualDate?: string;
-  eomPlanDate?: string;
-  eosActualDate?: string;
-  eosPlanDate?: string;
-  dataSource?: string;
-  data_source?: string;
-}
-
-export function getDefaultProjectId(): string {
-  return DEFAULT_PROJECT_ID;
-}
-
-export function formatProposalDateTime(dt?: string): string {
-  if (!dt) return '—';
-  return dt;
-}
-
-export function useProposalApiHeaders(): Record<string, string> {
-  return { 'Content-Type': 'application/json' };
-}
-
-export async function fetchDraft(projectId: string, _headers?: Record<string, string>) {
-  return request<{ manifest?: DraftManifest } & Record<string, unknown>>(
-    `/api/v1/projects/${projectId}/proposal/draft`,
-  );
-}
-
-export async function fetchVersions(projectId: string, _headers?: Record<string, string>) {
-  return request<ProposalVersionItem[]>(
-    `/api/v1/projects/${projectId}/proposal/versions`,
-  );
-}
-
-export async function fetchVersionSnapshot(
-  projectId: string,
-  version: string,
-  _headers?: Record<string, string>,
-) {
-  return request<Record<string, unknown>>(
-    `/api/v1/projects/${projectId}/proposal/versions/${version}`,
-  );
-}
-
-export async function saveDraft(
-  projectId: string,
-  _headers: Record<string, string>,
-  _payload: Record<string, unknown>,
-  _etag?: string,
-) {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (_etag) headers['If-Match'] = _etag;
-  return request<{ etag?: string; workingVersionLabel?: string; metadata?: Record<string, unknown>; createdBy?: string }>(
-    `/api/v1/projects/${projectId}/proposal/draft`,
-    { method: 'PUT', headers, body: JSON.stringify(_payload) },
-  );
-}
-
-export async function releaseAndDecide(
-  projectId: string,
-  _headers: Record<string, string>,
-  _payload: Record<string, unknown>,
-) {
-  return request<{ progress?: Array<Record<string, unknown>> }>(
-    `/api/v1/projects/${projectId}/proposal/release`,
-    { method: 'POST', body: JSON.stringify(_payload) },
-  );
-}
-
-export async function exportDocument(
-  projectId: string,
-  _headers: Record<string, string>,
-  version: string,
-): Promise<Blob> {
-  const res = await fetch(
-    `/api/v1/projects/${projectId}/proposal/export?version=${encodeURIComponent(version)}`,
-    { headers: _headers },
-  );
-  if (!res.ok) throw new ProposalApiError(`导出失败 (HTTP ${res.status})`, 'EXPORT_FAILED');
-  return res.blob();
-}
-
-export async function loadChangeLogForDraft(
-  _projectId: string,
-  _headers: Record<string, string>,
-  _draftData: unknown,
-): Promise<CumulativeChangeEntry[]> {
-  return [];
-}
-
-export async function loadChangeLogThroughVersion(
-  _projectId: string,
-  _headers: Record<string, string>,
-  _version: string,
-  _draftData: unknown,
-): Promise<CumulativeChangeEntry[]> {
-  return [];
-}
-
-export function resolveVersionInfoMetadata(
-  data: unknown,
-  fallback: VersionInfoMetadata,
-  _verItem?: ProposalVersionItem,
-): VersionInfoMetadata {
-  const d = data as Record<string, unknown>;
-  const meta = (d.metadata ?? {}) as Record<string, unknown>;
-  const manifest = (d.manifest ?? {}) as Record<string, unknown>;
-  return {
-    proposalVersion: String(manifest.workingVersionLabel ?? fallback.proposalVersion),
-    projectName: fallback.projectName,
-    createdBy: String(meta.createdBy ?? manifest.createdBy ?? fallback.createdBy ?? ''),
-    createdAt: String(meta.createdAt ?? manifest.createdAt ?? fallback.createdAt ?? ''),
-    updatedBy: String(meta.updatedBy ?? manifest.updatedBy ?? fallback.updatedBy ?? ''),
-    updatedAt: String(meta.updatedAt ?? manifest.updatedAt ?? fallback.updatedAt ?? ''),
-  };
-}
-
-export function manualLogToChangeRecords(
-  log: CumulativeChangeEntry[],
-): Array<Record<string, unknown>> {
-  return log.map((e) => ({ section: e.section, field: e.field, before: e.before, after: e.after }));
-}
-
-export async function fetchMaintenanceSla(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _proposalVersion?: string,
-) {
-  return request<{ rows: MaintenanceSlaRow[]; meta?: { hint?: string } }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.2/maintenance-sla`,
-  );
-}
-
-export async function fetchMaintenanceStrategy(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _proposalVersion?: string,
-) {
-  return request<MaintenanceStrategyRow[]>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.3/maintenance-strategy`,
-  );
-}
-
-export async function fetchServiceContent(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _opts?: { collapse?: boolean; expandOfferingId?: string; version?: string },
-) {
-  return request<{ rows: ServiceContentRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.1/service-content`,
-  );
-}
-
-export async function fetchServiceDeliveryUi(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _proposalVersion?: string,
-) {
-  return request<ServiceDeliveryUiRow[]>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.4/service-delivery-ui`,
-  );
-}
-
-export async function initializeServiceDeliveryUi(projectId: string, _headers?: Record<string, string>) {
-  return request<ServiceDeliveryUiRow[]>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.4/service-delivery-ui/initialize`,
-    { method: 'POST' },
-  );
-}
-
-export async function parseMaintenanceBoq(projectId: string, _headers?: Record<string, string>) {
-  return request<MaintenanceStrategyRow[]>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.2/parse-boq`,
-    { method: 'POST' },
-  );
-}
-
-export async function parseMaintenanceProposalDoc(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _opts?: { force?: boolean },
-) {
-  return request<{ rows: MaintenanceSlaRow[]; meta?: { hint?: string } }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.3/parse-proposal`,
-    { method: 'POST' },
-  );
-}
-
-export async function parseServiceBoq(projectId: string, _headers?: Record<string, string>) {
-  return request<{ rows: ServiceContentRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.1/parse-boq`,
-    { method: 'POST' },
-  );
-}
-
-export async function patchMaintenanceSlaRow(
-  projectId: string,
-  rowId: string,
-  patch: Record<string, unknown>,
-  _headers?: Record<string, string>,
-) {
-  return request<{ row: MaintenanceSlaRow; manifestActivity?: ManifestActivity }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.2/maintenance-sla/${rowId}`,
-    { method: 'PATCH', body: JSON.stringify(patch) },
-  );
-}
-
-export async function patchMaintenanceStrategyRow(
-  projectId: string,
-  rowId: string,
-  patch: Record<string, unknown>,
-  _headers?: Record<string, string>,
-) {
-  return request<{ row: MaintenanceStrategyRow; manifestActivity?: ManifestActivity }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.3/maintenance-strategy/${rowId}`,
-    { method: 'PATCH', body: JSON.stringify(patch) },
-  );
-}
-
-export async function patchServiceDeliveryUiRow(
-  projectId: string,
-  rowId: string,
-  patch: DeliveryChannel | Record<string, unknown>,
-  _headers?: Record<string, string>,
-) {
-  const body = typeof patch === 'string' ? { delivery_channel: patch } : patch;
-  return request<{ row: ServiceDeliveryUiRow; manifestActivity?: ManifestActivity }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/8.4/service-delivery-ui/${rowId}`,
-    { method: 'PATCH', body: JSON.stringify(body) },
-  );
-}
-
-export async function fetchDeviceInfo(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _proposalVersion?: string,
-) {
-  return request<{ rows: DeviceInfoRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/device-info`,
-  );
-}
-
-export async function patchDeviceInfoRow(
-  projectId: string,
-  rowId: string,
-  patch: Record<string, unknown>,
-  _headers?: Record<string, string>,
-) {
-  return request<{ row: DeviceInfoRow; manifestActivity?: ManifestActivity }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/device-info/${rowId}`,
-    { method: 'PATCH', body: JSON.stringify(patch) },
-  );
-}
-
-export async function parseDeviceBoq(projectId: string, _headers?: Record<string, string>) {
-  return request<{ rows: DeviceInfoRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/parse-boq`,
-    { method: 'POST' },
-  );
-}
-
-export function deviceRowsNeedEnrichment(_rows: DeviceInfoRow[]): boolean {
-  return false;
-}
-
-export async function enrichDeviceInfo(
-  projectId: string,
-  _headers?: Record<string, string>,
-  _proposalVersion?: string,
-) {
-  return request<{ rows: DeviceInfoRow[] }>(
-    `/api/v1/projects/${projectId}/proposal/chapters/6/device-info/enrich`,
-    { method: 'POST' },
-  );
-}

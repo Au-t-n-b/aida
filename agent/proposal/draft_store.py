@@ -29,7 +29,8 @@ def physical_project_root(project_id: str) -> Path:
 
 
 def logical_project_root(project_id: str) -> str:
-    return project_id
+    # Proposal payload now lives directly under projects/<project_id>/...
+    return ""
 
 
 def _paths(project_id: str) -> dict[str, str]:
