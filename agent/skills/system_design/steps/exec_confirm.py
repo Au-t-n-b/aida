@@ -41,6 +41,7 @@ def _expected_io(intent_command: str, state: SkillState | None = None) -> tuple[
 class ExecConfirmStep(BaseStep):
     key = "exec_confirm"
     name = "确认执行计划"
+    internal = True  # HITL 确认门，基础设施步骤，豁免 SKILL.md 后端节点声明
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         confs = (ctx.project or {}).get("confirmations") or {}
