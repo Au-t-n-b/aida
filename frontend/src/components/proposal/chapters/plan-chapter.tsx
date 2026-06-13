@@ -1,12 +1,18 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { useProposalData } from '@/hooks/useProposalData';
+import { PLAN_ACTIVITIES } from '../proposal-data';
+
+interface PlanChapterProps {
+  initialRows?: unknown;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
 
 function PlanProgress({ value, tone }: { value: number; tone: 'blue' | 'green' }) {
   return (
@@ -17,16 +23,44 @@ function PlanProgress({ value, tone }: { value: number; tone: 'blue' | 'green' }
   );
 }
 
-export function PlanChapter() {
-  const { planRows, loading } = useProposalData();
+function _defaultRows() {
+  return PLAN_ACTIVITIES.map((row) => ({ ...row }));
+}
 
-  if (loading) {
-    return (
-      <ProposalChapterCard id="panel-plan" title="10. 计划">
-        <p className="text-sm text-slate-500">加载中…</p>
-      </ProposalChapterCard>
-    );
+function _normalizeRows(input: unknown) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return _defaultRows();
   }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row) => {
+      const item = row as Record<string, unknown>;
+      return {
+        name: String(item.name ?? ''),
+        start: String(item.start ?? ''),
+        end: String(item.end ?? ''),
+        actualStart: String(item.actualStart ?? ''),
+        actualEnd: String(item.actualEnd ?? ''),
+        owner: String(item.owner ?? ''),
+        unit: String(item.unit ?? ''),
+        status: String(item.status ?? ''),
+        progress: Number(item.progress ?? 0) || 0,
+        progressTone: (item.progressTone === 'green' ? 'green' : 'blue') as 'blue' | 'green',
+      };
+    });
+  return rows.length ? rows : _defaultRows();
+}
+
+export function PlanChapter({ initialRows, onRowsChange }: PlanChapterProps) {
+  const [rows, setRows] = useState(() => _normalizeRows(initialRows));
+
+  useEffect(() => {
+    setRows(_normalizeRows(initialRows));
+  }, [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(rows.map((row) => ({ ...row })));
+  }, [onRowsChange, rows]);
 
   return (
     <ProposalChapterCard id="panel-plan" title="10. 计划">
@@ -45,7 +79,7 @@ export function PlanChapter() {
           </tr>
         </ProposalDataTableHead>
         <ProposalDataTableBody>
-          {planRows.map((row, i) => (
+          {rows.map((row, i) => (
             <tr key={i}>
               <td>{row.name}</td>
               <td>{row.start}</td>

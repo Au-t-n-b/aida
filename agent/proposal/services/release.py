@@ -5,40 +5,21 @@ from datetime import datetime, timezone
 import re
 from typing import Any
 
-from openpyxl import Workbook
-
 from agent.integrations.occ_review_client import resolve_review_tag
 from agent.proposal.auth import ProposalSession, proposal_operator_display_name
+from agent.proposal.chapter_files import (
+    sync_output_chapter_excels,
+)
 from agent.proposal.draft_store import (
-    archive_draft_snapshot,
-    device_table_xlsx_path,
     format_display_datetime,
-    load_chapter_02,
-    load_chapter_81,
-    load_chapter_82,
-    load_chapter_83,
-    load_chapter_84,
     load_manifest,
-    maint_sla_xlsx_path,
-    maint_strategy_xlsx_path,
-    output_xlsx_path,
-    rebuild_draft_from_version,
-    save_chapter_02_output,
-    save_chapter_81_output,
-    save_chapter_82_output,
-    save_chapter_83_output,
-    save_chapter_84_output,
     save_manifest,
-    save_version_info,
-    service_content_xlsx_path,
 )
 from agent.proposal.models import ReleaseAndDecideBody
-from agent.proposal.chapter_files import promote_draft_chapters_to_version, sync_all_chapter_excel
-from agent.proposal.services.maintenance_sla import get_sla as get_sla_payload
-from agent.proposal.services.maintenance_strategy import list_rows as list_maint_rows
-from agent.proposal.services.service_content import list_rows as list_content_rows
 from agent.proposal.services import metadata as metadata_service
 from agent.proposal.services.device_info import list_rows as list_device_rows
+from agent.proposal.services.maintenance_strategy import list_rows as list_maint_rows
+from agent.proposal.services.service_content import list_rows as list_content_rows
 from agent.proposal.services.service_delivery_ui import list_rows as list_delivery_rows
 
 
@@ -94,278 +75,25 @@ def _next_version(manifest: dict, *, review_tag_hint: str | None = None) -> str:
     return base
 
 
-def promote_chapter_02(project_id: str, new_version: str) -> dict[str, Any]:
-    rows, _dependencies = list_device_rows(project_id, version="draft")
-    if not rows:
+def _validate_release_inputs(project_id: str) -> None:
+    rows_2, _deps = list_device_rows(project_id, version="draft")
+    if not rows_2:
         raise ValueError("第 2 章设备信息表为空，请先解析设备 BOQ")
 
-    payload = load_chapter_02(project_id, "draft")
-    stamped_rows = []
-    for raw in payload.get("rows") or []:
-        item = dict(raw)
-        item["proposalVersion"] = new_version
-        stamped_rows.append(item)
-    output_payload = {"rows": stamped_rows}
-    save_chapter_02_output(project_id, new_version, output_payload)
-
-    xlsx_path = device_table_xlsx_path(project_id, new_version)
-    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "设备信息表"
-    ws.append([
-        "设备型号",
-        "产品编码",
-        "数量",
-        "版本",
-        "生命周期状态",
-        "GA实际时间",
-        "GA计划时间",
-        "EOM实际时间",
-        "EOM计划时间",
-        "EOS实际时间",
-        "EOS计划时间",
-        "设备U高",
-        "来源",
-        "预案版本号",
-        "产品部件类别",
-        "部件编码",
-        "硬件子类",
-        "设备角色",
-    ])
-    for row in rows:
-        ws.append([
-            row.device_model,
-            row.product_code,
-            row.quantity,
-            row.version,
-            row.lifecycle_status,
-            row.ga_actual_date or "",
-            row.ga_plan_date or "",
-            row.eom_actual_date or "",
-            row.eom_plan_date or "",
-            row.eos_actual_date or "",
-            row.eos_plan_date or "",
-            row.device_u_height if row.device_u_height is not None else "",
-            row.data_source.value,
-            new_version,
-            row.product_part_category.value,
-            row.part_code,
-            row.hardware_subtype.value,
-            row.device_role,
-        ])
-    wb.save(xlsx_path)
-
-    legacy = device_table_xlsx_path(project_id)
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(legacy)
-
-    return {
-        "proposalVersion": new_version,
-        "outputPath": str(xlsx_path),
-        "rowCount": len(rows),
-    }
-
-
-def promote_chapter_81(project_id: str, new_version: str) -> dict[str, Any]:
-    rows = list_delivery_rows(project_id, version="draft")
-    if len(rows) != 13:
+    rows_81 = list_delivery_rows(project_id, version="draft")
+    if len(rows_81) != 13:
         raise ValueError("8.1 须包含 13 行后再 Release；请先 POST initialize")
 
-    payload = load_chapter_81(project_id, "draft")
-    stamped_rows = []
-    for raw in payload.get("rows") or []:
-        item = dict(raw)
-        item["proposalVersion"] = new_version
-        stamped_rows.append(item)
-    output_payload = {"rows": stamped_rows}
-    save_chapter_81_output(project_id, new_version, output_payload)
-
-    xlsx_path = output_xlsx_path(project_id, new_version)
-    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "服务配置"
-    ws.append(["服务大类", "服务细项", "交付界面", "预案版本号"])
-    for row in rows:
-        ws.append([
-            row.service_major,
-            row.service_item,
-            row.delivery_channel.value,
-            new_version,
-        ])
-    wb.save(xlsx_path)
-
-    legacy_xlsx = output_xlsx_path(project_id)
-    legacy_xlsx.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(legacy_xlsx)
-
-    return {
-        "proposalVersion": new_version,
-        "outputPath": str(xlsx_path),
-        "rowCount": len(rows),
-    }
-
-
-def promote_chapter_82(project_id: str, new_version: str) -> dict[str, Any]:
-    rows, _ = list_content_rows(project_id, version="draft", collapse=False)
-    if not rows:
+    rows_82, _ = list_content_rows(project_id, version="draft", collapse=False)
+    if not rows_82:
         raise ValueError("8.2 服务内容为空，请先解析服务 BOQ")
 
-    payload = load_chapter_82(project_id, "draft")
-    stamped_rows = []
-    for raw in payload.get("rows") or []:
-        item = dict(raw)
-        item["proposalVersion"] = new_version
-        stamped_rows.append(item)
-    save_chapter_82_output(project_id, new_version, {"rows": stamped_rows})
-
-    xlsx_path = service_content_xlsx_path(project_id, new_version)
-    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "服务内容"
-    ws.append(["服务名称", "服务内容", "数量", "单位", "预案版本号"])
-    for row in rows:
-        ws.append([
-            row.service_name,
-            row.service_content,
-            row.quantity,
-            row.unit,
-            new_version,
-        ])
-    wb.save(xlsx_path)
-
-    legacy = service_content_xlsx_path(project_id)
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(legacy)
-
-    return {
-        "proposalVersion": new_version,
-        "outputPath": str(xlsx_path),
-        "rowCount": len(rows),
-    }
-
-
-def promote_chapter_83(project_id: str, new_version: str) -> dict[str, Any]:
-    rows = list_maint_rows(project_id, version="draft")
-    if not rows:
+    rows_83 = list_maint_rows(project_id, version="draft")
+    if not rows_83:
         raise ValueError("8.3 维保策略为空，请先解析维保 BOQ")
-
-    payload = load_chapter_83(project_id, "draft")
-    stamped_rows = []
-    for raw in payload.get("rows") or []:
-        item = dict(raw)
-        item["proposalVersion"] = new_version
-        stamped_rows.append(item)
-    save_chapter_83_output(project_id, new_version, {"rows": stamped_rows})
-
-    xlsx_path = maint_strategy_xlsx_path(project_id, new_version)
-    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "维保策略"
-    ws.append([
-        "序号",
-        "产品型号",
-        "保修策略",
-        "维保策略",
-        "维保开始时间",
-        "维保结束时间",
-        "产品EOS时间",
-        "是否超EOS服务",
-        "超EOS审批结论",
-        "预案版本号",
-    ])
-    for row in rows:
-        ws.append([
-            row.seq,
-            row.product_model,
-            row.warranty_policy,
-            row.maintenance_policy,
-            row.maint_start_date,
-            row.maint_end_date,
-            row.product_eos_date or "",
-            row.over_eos.value,
-            row.over_eos_approval,
-            new_version,
-        ])
-    wb.save(xlsx_path)
-
-    legacy = maint_strategy_xlsx_path(project_id)
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(legacy)
-
-    return {
-        "proposalVersion": new_version,
-        "outputPath": str(xlsx_path),
-        "rowCount": len(rows),
-    }
-
-
-def promote_chapter_84(project_id: str, new_version: str) -> dict[str, Any] | None:
-    data = get_sla_payload(project_id, version="draft")
-    rows = data["rows"]
-    if not rows:
-        return None
-
-    payload = load_chapter_84(project_id, "draft")
-    stamped_rows = []
-    for raw in payload.get("rows") or []:
-        item = dict(raw)
-        item["proposalVersion"] = new_version
-        stamped_rows.append(item)
-    output_payload = {
-        "hardwareSupport": payload.get("hardwareSupport") or "",
-        "serviceLevel": payload.get("serviceLevel") or "",
-        "rows": stamped_rows,
-    }
-    save_chapter_84_output(project_id, new_version, output_payload)
-
-    xlsx_path = maint_sla_xlsx_path(project_id, new_version)
-    xlsx_path.parent.mkdir(parents=True, exist_ok=True)
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "维保SLA"
-    ws.append([
-        "问题等级",
-        "服务覆盖时间",
-        "响应时间",
-        "回复时间",
-        "解决时间",
-        "硬件支持",
-        "服务类型",
-        "预案版本号",
-    ])
-    hardware = payload.get("hardwareSupport") or ""
-    service_level = payload.get("serviceLevel") or ""
-    for row in rows:
-        ws.append([
-            row.severity_level,
-            row.coverage_period,
-            row.response_time,
-            row.restore_time,
-            row.resolve_time,
-            hardware,
-            service_level,
-            new_version,
-        ])
-    wb.save(xlsx_path)
-
-    legacy = maint_sla_xlsx_path(project_id)
-    legacy.parent.mkdir(parents=True, exist_ok=True)
-    wb.save(legacy)
-
-    return {
-        "proposalVersion": new_version,
-        "outputPath": str(xlsx_path),
-        "rowCount": len(rows),
-    }
 
 
 def _build_release_change_description(
-    project_id: str,
-    prev_version: str | None,
     manual_records: list[dict[str, Any]],
 ) -> str:
     manual_entries = [
@@ -398,16 +126,12 @@ def release_and_decide(
         pending_manual_records = [r.model_dump() for r in body.change_records]
         manifest["changeRecords"] = pending_manual_records
         save_manifest(project_id, manifest)
-
-    archive_draft_snapshot(project_id, new_version)
-    ch02_result = promote_chapter_02(project_id, new_version)
-    ch81_result = promote_chapter_81(project_id, new_version)
-    ch82_result = promote_chapter_82(project_id, new_version)
-    ch83_result = promote_chapter_83(project_id, new_version)
-    ch84_result = promote_chapter_84(project_id, new_version)
-
-    promote_draft_chapters_to_version(project_id, new_version)
-    sync_all_chapter_excel(project_id, new_version)
+    _validate_release_inputs(project_id)
+    written_xlsx = sync_output_chapter_excels(
+        project_id,
+        proposal_version=new_version,
+        source_version="draft",
+    )
 
     meta_snapshot: dict[str, Any] | None = None
     full_snap: dict[str, Any] = {}
@@ -425,9 +149,7 @@ def release_and_decide(
         meta_snapshot = None
 
     now = _now_iso()
-    legacy_change_description = _build_release_change_description(
-        project_id, prev_version, pending_manual_records
-    )
+    legacy_change_description = _build_release_change_description(pending_manual_records)
 
     if meta_snapshot is None:
         meta_snapshot = {
@@ -453,14 +175,11 @@ def release_and_decide(
         "createdBy": meta_snapshot.get("createdBy"),
         "createdAt": meta_snapshot.get("createdAt"),
         "updatedBy": meta_snapshot.get("updatedBy"),
-        # Keep published version-info timestamp in same display timezone
-        # as metadata API, avoiding UTC/raw drift in UI.
         "updatedAt": meta_snapshot.get("updatedAt") or format_display_datetime(now),
         "changeDescription": change_description,
         "documentSummary": meta_snapshot.get("documentSummary", ""),
         "changeRecords": version_records,
     }
-    save_version_info(project_id, new_version, version_info)
 
     published = list(manifest.get("publishedVersions") or [])
     if new_version not in published:
@@ -468,38 +187,29 @@ def release_and_decide(
     manifest_after = load_manifest(project_id)
     manifest_after["publishedVersions"] = published
     manifest_after["latestReleaseVersion"] = new_version
+    manifest_after["baseProposalVersion"] = new_version
+    manifest_after["workingVersionLabel"] = "草稿"
+    manifest_after["status"] = "draft"
+    manifest_after["dirty"] = False
     manifest_after["changeRecords"] = []
     save_manifest(project_id, manifest_after)
 
-    rebuild_draft_from_version(
-        project_id,
-        new_version,
-        updated_by=operator,
-    )
-    sync_all_chapter_excel(project_id, "draft")
-    manifest_final = load_manifest(project_id)
-    if manifest_final.get("changeRecords"):
-        manifest_final["changeRecords"] = []
-        save_manifest(project_id, manifest_final)
-
-    archived_docs = [
-        str(device_table_xlsx_path(project_id, new_version)),
-        str(output_xlsx_path(project_id, new_version)),
-        str(service_content_xlsx_path(project_id, new_version)),
-        str(maint_strategy_xlsx_path(project_id, new_version)),
-    ]
-    if ch84_result:
-        archived_docs.append(str(maint_sla_xlsx_path(project_id, new_version)))
+    archived_docs = sorted(set(written_xlsx))
 
     label = new_version
-    chapters_result: dict[str, Any] = {
-        "2": ch02_result,
-        "8.1": ch81_result,
-        "8.2": ch82_result,
-        "8.3": ch83_result,
-    }
-    if ch84_result:
-        chapters_result["8.4"] = ch84_result
+    from agent.proposal.services.draft import get_draft
+
+    draft_payload = get_draft(project_id, operator=operator, session=session)
+    chapters_result: dict[str, Any] = dict(draft_payload.get("chapters") or {})
+    for payload in chapters_result.values():
+        if not isinstance(payload, dict):
+            continue
+        rows = payload.get("rows")
+        if isinstance(rows, list):
+            for row in rows:
+                if isinstance(row, dict):
+                    row["proposalVersion"] = new_version
+        payload["proposalVersion"] = new_version
 
     return {
         "proposalVersion": new_version,

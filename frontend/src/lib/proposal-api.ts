@@ -866,9 +866,10 @@ export async function enrichDeviceInfo(
 
 function deviceRowNeedsEnrichment(row: DeviceInfoRow): boolean {
   if (!row.deviceModel) return false;
+  // productCode may be prefilled from partCode fallback, but lifecycle fields are still missing.
+  // Keep enrichment enabled until lifecycle timeline is present.
   return !(
-    row.productCode
-    || row.lifecycleStatus
+    row.lifecycleStatus
     || row.gaActualDate
     || row.gaPlanDate
     || row.eomActualDate

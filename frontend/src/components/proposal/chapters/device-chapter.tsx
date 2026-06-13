@@ -64,6 +64,9 @@ export function DeviceChapter({
       setEnrichNotice('正在补全生命周期与 GA/EOM/EOS…');
       try {
         const data = await enrichDeviceInfo(projectId, headers, proposalVersion);
+        // #region agent log
+        fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H3',location:'frontend/src/components/proposal/chapters/device-chapter.tsx:67',message:'device enrichment succeeded',data:{projectId,proposalVersion,rowCount:data.rows.length},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         setRows(data.rows);
         setEnrichNotice(null);
       } catch (err) {
@@ -73,6 +76,9 @@ export function DeviceChapter({
             : err instanceof Error
               ? err.message
               : '生命周期补全失败';
+        // #region agent log
+        fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H3',location:'frontend/src/components/proposal/chapters/device-chapter.tsx:76',message:'device enrichment failed',data:{projectId,proposalVersion,error:msg},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         setEnrichNotice(msg);
       } finally {
         setEnriching(false);
@@ -90,8 +96,14 @@ export function DeviceChapter({
       let data = await fetchDeviceInfo(projectId, headers, proposalVersion);
       if (proposalVersion === 'draft' && data.rows.length === 0) {
         data = await parseDeviceBoq(projectId, headers);
+        // #region agent log
+        fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H4',location:'frontend/src/components/proposal/chapters/device-chapter.tsx:93',message:'device rows parsed from BOQ',data:{projectId,proposalVersion,rowCount:data.rows.length},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         onDirty?.();
       }
+      // #region agent log
+      fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'post-fix',hypothesisId:'H6',location:'frontend/src/components/proposal/chapters/device-chapter.tsx:96',message:'device rows loaded with enrichment gate state',data:{projectId,proposalVersion,rowCount:data.rows.length,needEnrichment:deviceRowsNeedEnrichment(data.rows),rowsWithoutLifecycle:data.rows.filter((row)=>!(row.lifecycleStatus||row.gaActualDate||row.gaPlanDate||row.eomActualDate||row.eomPlanDate||row.eosActualDate||row.eosPlanDate)).length},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setRows(data.rows);
       setLoading(false);
 
@@ -106,6 +118,9 @@ export function DeviceChapter({
           : err instanceof Error
             ? err.message
             : '加载失败';
+      // #region agent log
+      fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H4',location:'frontend/src/components/proposal/chapters/device-chapter.tsx:109',message:'device rows load failed',data:{projectId,proposalVersion,error:msg},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       setError(msg);
       setLoading(false);
     }

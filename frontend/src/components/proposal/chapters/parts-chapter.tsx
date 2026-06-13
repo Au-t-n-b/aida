@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProposalChapterCard } from '../primitives';
 import { INTEL_PARTS } from '../proposal-data';
 
@@ -17,21 +17,66 @@ interface PartRow {
   source: string;
 }
 type PartField = 'cat' | 'code' | 'vendor' | 'name';
+interface PartsChapterProps {
+  initialRows?: unknown;
+  readOnly?: boolean;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
 
 const INPUT_CLS =
   'w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
 
-export function PartsChapter() {
-  const [rows, setRows] = useState<PartRow[]>(() =>
-    INTEL_PARTS.map((p, i) => ({
-      id: i + 1,
-      cat: p.cat,
-      code: p.code,
-      vendor: p.vendor,
-      name: p.name,
-      source: p.source,
-    })),
-  );
+function _defaultRows(): PartRow[] {
+  return INTEL_PARTS.map((p, i) => ({
+    id: i + 1,
+    cat: p.cat,
+    code: p.code,
+    vendor: p.vendor,
+    name: p.name,
+    source: p.source,
+  }));
+}
+
+function _normalizeRows(input: unknown): PartRow[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    return _defaultRows();
+  }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row, idx) => {
+      const item = row as Record<string, unknown>;
+      return {
+        id: idx + 1,
+        cat: String(item.cat ?? item.productPartCategory ?? ''),
+        code: String(item.code ?? item.partCode ?? ''),
+        vendor: String(item.vendor ?? ''),
+        name: String(item.name ?? item.partName ?? ''),
+        source: String(item.source ?? item.dataSource ?? '人工录入'),
+      } satisfies PartRow;
+    });
+  return rows.length ? rows : _defaultRows();
+}
+
+function _toPayloadRows(rows: PartRow[]): Array<Record<string, unknown>> {
+  return rows.map((row) => ({
+    cat: row.cat,
+    code: row.code,
+    vendor: row.vendor,
+    name: row.name,
+    source: row.source,
+  }));
+}
+
+export function PartsChapter({ initialRows, readOnly = false, onRowsChange }: PartsChapterProps) {
+  const [rows, setRows] = useState<PartRow[]>(() => _normalizeRows(initialRows));
+
+  useEffect(() => {
+    setRows(_normalizeRows(initialRows));
+  }, [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(_toPayloadRows(rows));
+  }, [onRowsChange, rows]);
 
   const update = (id: number, key: PartField, value: string) =>
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, [key]: value } : r)));
@@ -64,6 +109,7 @@ export function PartsChapter() {
                     value={r.cat}
                     onChange={(e) => update(r.id, 'cat', e.target.value)}
                     className={`${INPUT_CLS} cursor-pointer`}
+                    disabled={readOnly}
                   >
                     {(PART_TYPES.includes(r.cat) ? PART_TYPES : [r.cat, ...PART_TYPES]).map((t) => (
                       <option key={t} value={t}>
@@ -77,13 +123,14 @@ export function PartsChapter() {
                     value={r.code}
                     onChange={(e) => update(r.id, 'code', e.target.value)}
                     className={`${INPUT_CLS} font-mono text-xs`}
+                    disabled={readOnly}
                   />
                 </td>
                 <td className="px-2 py-1.5">
-                  <input value={r.vendor} onChange={(e) => update(r.id, 'vendor', e.target.value)} className={INPUT_CLS} />
+                  <input value={r.vendor} onChange={(e) => update(r.id, 'vendor', e.target.value)} className={INPUT_CLS} disabled={readOnly} />
                 </td>
                 <td className="px-2 py-1.5">
-                  <input value={r.name} onChange={(e) => update(r.id, 'name', e.target.value)} className={INPUT_CLS} />
+                  <input value={r.name} onChange={(e) => update(r.id, 'name', e.target.value)} className={INPUT_CLS} disabled={readOnly} />
                 </td>
                 <td className="px-3 py-1.5 text-slate-500">{srcLabel(r.source)}</td>
                 <td className="px-2 py-1.5 text-center">
@@ -92,6 +139,7 @@ export function PartsChapter() {
                     onClick={() => removeRow(r.id)}
                     title="删除此行"
                     className="rounded p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                    disabled={readOnly}
                   >
                     ✕
                   </button>
@@ -105,6 +153,7 @@ export function PartsChapter() {
         type="button"
         onClick={addRow}
         className="mt-3 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-normal text-slate-500 transition-colors hover:border-blue-400 hover:text-blue-600"
+        disabled={readOnly}
       >
         ＋ 新增一行
       </button>
