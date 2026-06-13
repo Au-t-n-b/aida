@@ -103,15 +103,15 @@ pipeline {
                                 REGISTRY="${DOCKER_REGISTRY}" DEPLOY_DIR="${DEPLOY_DIR}" \
                                 bash -s <<'EOS'
 set -euo pipefail
-cd "$DEPLOY_DIR"
-printf '%s' "$HARBOR_PASS" | docker login "$REGISTRY" -u "$HARBOR_USER" --password-stdin
+cd "\$DEPLOY_DIR"
+printf '%s' "\$HARBOR_PASS" | docker login "\$REGISTRY" -u "\$HARBOR_USER" --password-stdin
 docker compose pull
 docker compose up -d --remove-orphans
 docker compose ps
 docker compose ps --status running | grep -q aida-agent
 docker compose ps --status running | grep -q aida-frontend
 docker image prune -f
-docker logout "$REGISTRY"
+docker logout "\$REGISTRY"
 echo '=== Container Status ==='
 docker compose ps
 EOS
