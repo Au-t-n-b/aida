@@ -12,7 +12,7 @@ export const IpoLayer = {
 export type IpoLayerKey = keyof typeof IpoLayer;
 
 /** 默认演示项目根目录 */
-export const DEFAULT_PROJECT_ROOT = 'JD2项目_test-boq';
+export const DEFAULT_PROJECT_ROOT = 'mock_project';
 export const DEFAULT_PROJECT_NAME = '京东三期';
 
 /** 项目 0 级根目录 */

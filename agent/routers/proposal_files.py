@@ -18,6 +18,7 @@ if str(_AIDA_ROOT) not in sys.path:
 from ..services.proposal_dc_files import (
     load_testcases_template_bytes,
     read_table_slot,
+    sync_proposal_slots,
     write_table_slot,
 )
 from ..services.proposal_parse import parse_acceptance_from_docx
@@ -59,6 +60,40 @@ class ReadTableBody(BaseModel):
     projectId: str
     projectName: str = ""
     projectCode: str | None = None
+
+
+class SyncBody(BaseModel):
+    projectId: str
+    projectName: str = ""
+    projectCode: str | None = None
+    slots: list[str] | None = None
+
+
+@router.post("/sync")
+async def sync_local_files(body: SyncBody, authorization: str | None = Header(default=None)):
+    """进入交付预案时：检查本地 mock 目录，缺失则从数据中心下载到固定路径。"""
+    token = _extract_token(authorization)
+    slots = body.slots or sorted(READ_SLOTS)
+    unknown = [s for s in slots if s not in READ_SLOTS]
+    if unknown:
+        raise HTTPException(400, f"unsupported slot: {unknown[0]}")
+    LOG.info(
+        "POST /sync projectId=%s projectName=%s slots=%s hasToken=%s",
+        body.projectId,
+        body.projectName,
+        len(slots),
+        bool(token),
+    )
+    results, warnings = await sync_proposal_slots(
+        token, body.projectId, body.projectName, body.projectCode, slots,
+    )
+    ready = sum(1 for r in results.values() if r.get("status") in ("local", "downloaded"))
+    LOG.info("POST /sync ok ready=%s/%s warnings=%s", ready, len(slots), len(warnings))
+    return _ok(
+        {"slots": results, "ready": ready, "total": len(slots)},
+        source="sync",
+        warnings=warnings,
+    )
 
 
 @router.post("/tables/read")
@@ -204,4 +239,3 @@ async def parse_testcases_upload(
         }
     finally:
         upload_path.unlink(missing_ok=True)
-        xlsx_path.unlink(missing_ok=True)

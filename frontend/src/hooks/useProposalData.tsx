@@ -19,6 +19,7 @@ import type {
   RaciRow,
 } from '@/types/domain';
 import type { ProjectDataContext } from '@/lib/datacenter/types';
+import { syncProposalLocalFiles } from '@/lib/datacenter/client';
 import {
   buildProjectDataContext,
   clearDraftRaci,
@@ -111,6 +112,10 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     });
     setLoading(true);
     try {
+      const syncResult = await syncProposalLocalFiles(projectCtx);
+      if (syncResult.warnings.length) {
+        setDataWarnings(syncResult.warnings);
+      }
       const stored = getStoredVersions(projectName);
       const scale = await loadCardScale(projectCtx);
       const [raci, plan, accept, tcLoaded] = await Promise.all([

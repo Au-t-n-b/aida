@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-DEFAULT_PROJECT = "JD2项目_test-boq"
+DEFAULT_PROJECT = "mock_project"
 
 ORG_ASSET_DIRS = [
     "组织资产/智算部件配置标准库",
