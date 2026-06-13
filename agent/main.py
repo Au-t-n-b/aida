@@ -41,6 +41,13 @@ from .proposal.router import router as proposal_router
 from .sog_routes import router as sog_router
 from .routers.proposal_mock import router as proposal_mock_router
 
+try:
+    from .proposal_routes import router as proposal_chapters_router
+except Exception as _e:
+    import logging as _logging
+    _logging.getLogger(__name__).warning("proposal_chapters_router 未加载: %s", _e)
+    proposal_chapters_router = None
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
 
@@ -74,6 +81,8 @@ def _get_skill_or_404(skill_id: str):
 app = FastAPI(title="AIDA Agent · zhgk pilot", version="0.1.0")
 app.include_router(sog_router)
 app.include_router(proposal_router)
+if proposal_chapters_router is not None:
+    app.include_router(proposal_chapters_router)
 app.include_router(proposal_mock_router)
 
 # 允许前端 (Next.js dev server) 跨域
