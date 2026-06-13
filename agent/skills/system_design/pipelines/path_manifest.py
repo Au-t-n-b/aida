@@ -151,6 +151,30 @@ def abs_artifacts_dir() -> Path:
     return _path(str(_section("output").get("artifacts_dir") or ""))
 
 
+def scan_artifacts_rel_paths() -> list[str]:
+    """扫描 output/artifacts_dir 磁盘 → 相对 data_root 路径（唯一真相 · 不读 run state）。"""
+    root = resolve_data_root()
+    out_dir = abs_artifacts_dir()
+    if not out_dir.is_dir():
+        return []
+    keep_ext = (".xlsx", ".xls", ".docx", ".doc", ".pdf", ".zip")
+    skip_meta = {"run_meta.csv", "layer_detection.txt", "scenario_detection.txt"}
+    skip_name_fragments = ("计算参数面网段规划",)
+    res: list[str] = []
+    for p in sorted(out_dir.rglob("*")):
+        if not p.is_file() or p.name.startswith("~$") or p.name in skip_meta:
+            continue
+        if any(frag in p.name for frag in skip_name_fragments):
+            continue
+        if p.suffix.lower() not in keep_ext:
+            continue
+        try:
+            res.append(str(p.relative_to(root)).replace("\\", "/"))
+        except ValueError:
+            pass
+    return res
+
+
 
 
 

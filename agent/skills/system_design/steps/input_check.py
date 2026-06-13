@@ -37,6 +37,13 @@ class InputCheckStep(BaseStep):
         return {"ok": True, "missing": [], "found": [str(f.path) for f in found.values()], "note": ""}
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
+        from ..pipelines.delivery import should_skip_step
+
+        route = str(state.get("route_to") or "")
+        if route and should_skip_step(self.key, route):
+            emit(f"[{self.key}] 交付续跑 · 跳过（→{route}）")
+            return {"logs": [f"[input_check] 交付续跑跳过（→{route}）"]}
+
         found = collect_inputs(ctx.work_root)
         emit(f"[{self.key}] 识别到 {len(found)}/{len(REQUIRED_DEFAULT)} 个必需输入件")
         for tag, f in found.items():

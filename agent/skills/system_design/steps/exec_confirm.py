@@ -44,6 +44,13 @@ class ExecConfirmStep(BaseStep):
     internal = True  # HITL 确认门，基础设施步骤，豁免 SKILL.md 后端节点声明
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
+        from ..pipelines.delivery import should_skip_step
+
+        route = str(state.get("route_to") or "")
+        if route and should_skip_step(self.key, route):
+            emit(f"[{self.key}] 交付续跑 · 跳过（→{route}）")
+            return {"logs": [f"[exec_confirm] 交付续跑跳过（→{route}）"]}
+
         confs = (ctx.project or {}).get("confirmations") or {}
         if confs.get("exec"):
             emit(f"[{self.key}] 执行计划已确认，进入平面规划")

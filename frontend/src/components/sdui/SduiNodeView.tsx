@@ -940,18 +940,6 @@ function SduiTaskTimelineStrip({ node }: { node: Extract<SduiNode, { type: 'Task
           <DateBox label="实际结束时间" value={node.actualEnd} accent placeholder={done ? '已完成' : '进行中'} />
         </Group>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 30, fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>进度</span>
-          <div style={{ flex: 1, height: 8, borderRadius: 999, background: 'var(--zinc-100)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${pct}%`, background: done ? '#10b981' : '#3551d8',
-              borderRadius: 999, transition: 'width .85s cubic-bezier(.22,.61,.36,1)',
-            }} />
-          </div>
-          <span style={{ width: 38, textAlign: 'right', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', flexShrink: 0 }}>{pct}%</span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2482,66 +2470,8 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'FlowSteps':
       return <SduiFlowSteps node={node} />;
 
-    case 'InputSlotList': {
-      const slots = node.slots ?? [];
-      const btnGhost: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' };
-      const btnPrimary: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid #3551d8', background: '#3551d8', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' };
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {node.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</div>}
-          {slots.map((s, i) => {
-            const ready = !!s.ready;
-            const isAuto = s.source === 'auto';
-            // 缺件高亮：必需缺件红，自动检查中/可选缺件琥珀，就绪绿
-            const accent = ready ? '#10b981' : isAuto ? '#d97706' : s.required ? '#dc2626' : '#d97706';
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
-                border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
-                background: !ready && !isAuto ? 'var(--c-surface-2)' : 'var(--surface)',
-                animation: `sdui-stagger .18s ease-out ${Math.min(i, 8) * 0.04}s both`,
-              }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: accent,
-                  boxShadow: ready ? '0 0 0 3px rgba(16,185,129,.14)' : 'none',
-                  animation: !ready && isAuto ? 'clawStepperPulse 1.4s ease-in-out infinite' : 'none',
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{s.label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: s.required ? '#b45309' : 'var(--text-tertiary)', background: s.required ? '#fdf2dd' : 'var(--c-bg-soft, #eef2f7)' }}>
-                      {s.required ? '必需' : '可选'}
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: isAuto ? 'var(--c-brand-text, #1e34a8)' : 'var(--text-tertiary)', background: isAuto ? 'var(--c-brand-soft, #eef1fc)' : 'var(--c-bg-soft, #eef2f7)' }}>
-                      {isAuto ? '自动 · 仿真' : '手动 · 上传'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3, fontFamily: ready ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ready ? (s.fileName ?? '已就绪') : isAuto ? '检查中…（等待仿真产出）' : '缺失 · 待上传'}
-                  </div>
-                </div>
-                <div style={{ flexShrink: 0 }}>
-                  {ready ? (
-                    s.previewPath ? (
-                      <button onClick={() => { const p = s.previewPath; if (p) onAction({ kind: 'open_preview', path: p }); }} style={btnGhost}>预览</button>
-                    ) : (
-                      <span style={{ fontSize: 11, color: '#0a7350', fontWeight: 600 }}>✓ 就绪</span>
-                    )
-                  ) : isAuto ? (
-                    <span style={{ fontSize: 11, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <i style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid var(--zinc-100)', borderTopColor: '#d97706', display: 'block', animation: 'spin .8s linear infinite' }} />
-                      检查中
-                    </span>
-                  ) : (
-                    <button onClick={() => onAction({ kind: 'post_user_message', text: `上传${s.label}` })} style={btnPrimary}>上传</button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
+    case 'InputSlotList':
+      return <SduiInputSlotList node={node} />;
 
     case 'TaskTimelineStrip':
       return <SduiTaskTimelineStrip node={node} />;
