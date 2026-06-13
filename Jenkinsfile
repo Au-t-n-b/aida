@@ -183,7 +183,7 @@ pipeline {
                             def tag       = "${baseReg}/${AGENT_IMAGE}:${IMAGE_TAG}"
                             def latest    = "${baseReg}/${AGENT_IMAGE}:latest"
 
-                            sh "docker build -f agent/Dockerfile --build-arg REGISTRY=${baseReg} -t ${tag} -t ${latest} ."
+                            sh "docker build -f agent/Dockerfile -t ${tag} -t ${latest} ."
                             env.AGENT_FULL_IMAGE = tag
 
                             if (!params.SKIP_DOCKER_PUSH) {
@@ -198,7 +198,7 @@ pipeline {
                             def tag       = "${baseReg}/${FRONTEND_IMAGE}:${IMAGE_TAG}"
                             def latest    = "${baseReg}/${FRONTEND_IMAGE}:latest"
 
-                            sh "docker build -f frontend/Dockerfile --build-arg REGISTRY=${baseReg} -t ${tag} -t ${latest} ."
+                            sh "docker build -f frontend/Dockerfile -t ${tag} -t ${latest} ."
                             env.FRONTEND_FULL_IMAGE = tag
 
                             if (!params.SKIP_DOCKER_PUSH) {

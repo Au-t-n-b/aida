@@ -1,12 +1,11 @@
 # ============================================================
 # AIDA Agent 后端 · Python 3.11 + FastAPI/Uvicorn
 # ============================================================
-# 构建：docker build -f agent/Dockerfile --build-arg REGISTRY=harbor.aie.rnd.huawei.com/library -t aida-agent:latest .
+# 构建：docker build -f agent/Dockerfile -t aida-agent:latest .
 # 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data aida-agent:latest
 # ============================================================
 
-ARG REGISTRY=docker.io/library
-FROM ${REGISTRY}/python:3.11-slim
+FROM harbor.aie.rnd.huawei.com/library/python:3.11-slim
 
 # 系统依赖（pandas/openpyxl 需要的 libxml 等）
 RUN apt-get update && \
