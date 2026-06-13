@@ -17,7 +17,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ── Stage 2: Nginx 托管 ───────────────────────────────────
-FROM harbor.aie.rnd.huawei.com/library/nginx:1.27-alpine
+FROM harbor.aie.rnd.huawei.com/library/nginx:latest
 
 # 自定义 Nginx 配置（含 Agent/Manager API 反向代理）
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
