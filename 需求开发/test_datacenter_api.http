@@ -1,0 +1,1105 @@
+# AIDA 数据中心 API — HTTP Client 测试集
+# 规范: 需求开发/AIDA数据中心API调用规范2.md
+#       需求开发/05-数据目录与平台规范.md (module_id 等)
+#
+# 使用方式 (Cursor / VS Code):
+#   1. 安装扩展: REST Client (Huachao Mao)
+#   2. 修改本文件顶部 CONFIG 区的 @变量
+#   3. 先执行 usersLogin 获取 token，再测其它需鉴权接口
+#   4. 若代理 504 → Ctrl+Shift+P → Developer: Reload Window
+#
+# Postman 注意:
+#   Method=POST, URL=http://10.143.2.231:8000/api/v1/users/login （末尾不要 /）
+#   Headers: Content-Type: application/json, Accept: application/json
+#   Body: raw JSON → {"username":"admin","password":"admin@123"}
+#   若报 PROXY proxy.huawei.com:8080 → Settings → Proxy 关闭或添加 Bypass: 10.143.2.231
+#
+# REST Client / 代理 504（HIS Proxy Notification 页面）:
+#   说明请求仍走了公司 SWG 代理，代理访问不到内网 10.143.2.231
+#   处理: Reload Window；或 SSH 隧道后把 @baseUrl 改为 http://127.0.0.1:18000
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CONFIG — 修改下方 @变量 即可，无需 json 环境文件
+# 密码含 @ 请用 @loginPassword，勿用 @password
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- 连接与账号 ---
+@baseUrl = http://10.143.2.231:8000
+@username = admin
+@loginPassword = admin@123
+
+# --- 项目 ---
+@projectId = 5dd0afe369254a08bcfa1cccc1362df1
+@projectName = 测试项目
+@projectCode = TEST1234
+@customerName = 测试客户
+@bidCode = 
+@stage = install
+@progress = 0
+@risk = low
+@projectDescription = HTTP Client 测试项目
+@testUsername = admin
+
+# --- 文件/目录 ---
+@moduleCode = proposal
+@fileStage = 输出结果
+@folderSubPath = 
+@fileName = 项目责任矩阵.xlsx
+@uploadFileName = api_test.txt
+@directoryName = api_test_dir
+@directoryRenamedName = api_test_dir_renamed
+
+# --- 组织资产 ---
+@orgAssetKeyword = AI平台白名单
+@orgFileName = 产品基本信息表.xlsx
+@orgAssetDescription = HTTP Client 测试更新
+
+# --- Skill ---
+@skillPk = 1
+@skillId = test.skill.http_client
+@skillName = HTTP Client 测试 Skill
+@skillScope = org
+@skillVersion = 1.0.0
+@skillRelPath = SKILL.md
+@skillTempRelPath = api_test_temp.txt
+@skillChangeLog = HTTP Client 发布
+
+# --- ID / 分页 ---
+@fileId = 1
+@roleId = 1
+@permissionId = 1
+@userProjectRoleId = 1
+@page = 1
+@pageSize = 20
+@modelConfigId = 1
+
+# --- 注册 ---
+@registerUsername = api_test_register
+@registerPassword = Test123456
+@registerEmail = api_test@example.com
+
+# --- 模型 ---
+@modelCode = api_test_model
+@modelName = API测试模型
+@modelNameUpdated = API测试模型更新
+@modelProvider = openai
+
+# --- RBAC ---
+@roleCode = API_TEST_ROLE
+@roleName = API测试角色
+@roleDescription = HTTP Client 创建
+@roleDescriptionUpdated = HTTP Client 更新
+@permissionCode = api:test:read
+@permissionName = API测试权限
+@permissionNameUpdated = API测试权限更新
+
+# --- 用户管理 ---
+@userMgmtUsername = api_test_user_mgmt
+@userMgmtPassword = Test123456
+@userMgmtEmail = mgmt@test.local
+@userMgmtEmailUpdated = updated@test.local
+
+# --- 项目审批文案 ---
+@approverComment = HTTP Client 测试审批
+@rejectComment = HTTP Client 测试驳回
+@archiveComment = HTTP Client 测试归档
+@updateDescription = HTTP Client 测试更新
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 01 认证 — 先执行 usersLogin（或单独打开 test_login.http）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+###
+
+# @name usersLogin
+POST {{baseUrl}}/api/v1/users/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{loginPassword}}"
+}
+
+###
+@token = {{usersLogin.response.body.$.data.token}}
+@userId = {{usersLogin.response.body.$.data.userId}}
+
+# POST /api/v1/auth/login — 外部服务登录（含授权上下文）
+# 入参: username [Body string 必填]; password [Body string 必填]
+
+###
+# @name authLogin
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{loginPassword}}"
+}
+
+###
+@accessToken = {{authLogin.response.body.$.data.accessToken}}
+
+# POST /api/v1/users/register — 注册（写操作，按需执行）
+# 入参:
+#   username [Body string 必填]  全局唯一
+#   password [Body string 必填]
+#   email    [Body string 否]
+
+###
+
+POST {{baseUrl}}/api/v1/users/register
+Content-Type: application/json
+
+{
+  "username": "{{registerUsername}}",
+  "password": "{{registerPassword}}",
+  "email": "{{registerEmail}}"
+}
+
+###
+
+# GET /api/v1/users/me — 当前用户
+# 入参: 无（Authorization Bearer）
+
+###
+
+GET {{baseUrl}}/api/v1/users/me
+Authorization: Bearer {{token}}
+
+###
+
+# DELETE /api/v1/users/{userId} — 删除用户（危险，按需改 userId）
+# 入参:
+#   userId [Path int 必填]  需 user:delete；不可删自己
+
+###
+
+DELETE {{baseUrl}}/api/v1/users/{{userId}}
+Authorization: Bearer {{token}}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 02 健康检查
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/health
+# 入参: 无
+
+###
+
+GET {{baseUrl}}/api/v1/health
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 03 项目 project
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# POST /api/v1/projects — 创建项目（写）
+# 入参:
+#   projectName   [Body string 必填]
+#   bidCode       [Body string 否]
+#   customerName  [Body string 否]
+#   projectCode   [Body string 否]
+#   tdUsername    [Body string 否]  TD 用户名
+#   pdUsername    [Body string 否]
+#   pcmUsername   [Body string 否]
+#   stage         [Body string 否]  示例 install|modeling（API 未枚举）
+#   progress      [Body int 否]     0~100
+#   risk          [Body string 否]  默认 low；示例 low|medium|high
+#   description   [Body string 否]
+#   deliveryTraits [Body array 否]  见 PARAM_ENUMS deliveryTraits
+#   members       [Body array 否]   [{ userId, roleId }]
+
+###
+
+POST {{baseUrl}}/api/v1/projects
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectName": "{{projectName}}",
+  "projectCode": "{{projectCode}}",
+  "customerName": "{{customerName}}",
+  "bidCode": "{{bidCode}}",
+  "stage": "{{stage}}",
+  "progress": {{progress}},
+  "risk": "{{risk}}",
+  "description": "{{projectDescription}}"
+}
+
+###
+
+# @name adminLogin
+POST {{baseUrl}}/api/v1/users/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{loginPassword}}"
+}
+
+###
+@adminToken = {{adminLogin.response.body.$.data.token}}
+
+# GET /api/v1/projects — 全部项目（仅管理员）
+# 入参:
+#   status   [Query string 否]  PENDING_APPROVAL|APPROVED|REJECTED|ARCHIVED
+#   keyword  [Query string 否]
+#   page     [Query int 否]     默认 1
+#   pageSize [Query int 否]     默认 20
+
+###
+
+GET {{baseUrl}}/api/v1/projects?status=&keyword=&page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{adminToken}}
+
+###
+
+# GET /api/v1/projects/my — 我参与的项目
+# 入参:
+#   status   [Query string 否]  同上
+#   keyword  [Query string 否]
+#   page     [Query int 否]
+#   pageSize [Query int 否]
+
+###
+
+GET {{baseUrl}}/api/v1/projects/my?status=&keyword=&page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/users/{username}/projects
+# 入参:
+#   username [Path string 必填]  {{testUsername}}
+#   status   [Query string 否]
+#   keyword  [Query string 否]
+#   page     [Query int 否]
+#   pageSize [Query int 否]
+
+###
+
+GET {{baseUrl}}/api/v1/users/{{testUsername}}/projects?page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/projects/{uuid} — 项目详情
+# 入参:
+#   uuid [Path string 必填]  UUID32，示例 {{projectId}}
+
+###
+
+GET {{baseUrl}}/api/v1/projects/{{projectId}}
+Authorization: Bearer {{token}}
+
+###
+
+# PUT /api/v1/projects/{uuid} — 更新项目（写）
+# 入参: uuid [Path]; projectName|tdUsername|pdUsername|pcmUsername|stage|progress|risk|description|deliveryTraits [Body 均可选]
+
+###
+
+PUT {{baseUrl}}/api/v1/projects/{{projectId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "description": "{{updateDescription}}"
+}
+
+###
+
+# GET /api/v1/projects/{uuid}/tree — 目录树
+# 入参:
+#   uuid             [Path string 必填]
+#   includeFileCount [Query bool 否]  true|false
+
+###
+
+GET {{baseUrl}}/api/v1/projects/{{projectId}}/tree?includeFileCount=true
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/projects/pending-approval — 待审批列表
+# 入参: page, pageSize
+
+###
+
+GET {{baseUrl}}/api/v1/projects/pending-approval?page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/projects/runtime-context — 运行上下文（CLaw）
+# 入参:
+#   user    [Body string 必填]  目标用户名
+#   project [Body string 必填]  项目 UUID32；须 APPROVED 且用户参与
+
+###
+
+POST {{baseUrl}}/api/v1/projects/runtime-context
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "user": "{{testUsername}}",
+  "project": "{{projectId}}"
+}
+
+###
+
+# POST /api/v1/projects/{uuid}/approve — 审批通过（写）
+# 入参:
+#   uuid       [Path string 必填]
+#   approverId [Body int 必填]   审批人 userId
+#   comment    [Body string 否]
+
+###
+
+POST {{baseUrl}}/api/v1/projects/{{projectId}}/approve
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "approverId": {{userId}},
+  "comment": "{{approverComment}}"
+}
+
+###
+
+# POST /api/v1/projects/{uuid}/reject — 驳回（写）
+# 入参: approverId [Body int 必填]; comment [Body string 必填]
+
+###
+
+POST {{baseUrl}}/api/v1/projects/{{projectId}}/reject
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "approverId": {{userId}},
+  "comment": "{{rejectComment}}"
+}
+
+###
+
+# POST /api/v1/projects/{uuid}/resubmit — 重新提交（写）
+
+###
+
+POST {{baseUrl}}/api/v1/projects/{{projectId}}/resubmit
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/projects/{uuid}/archive — 归档（写）
+# 入参: operatorId [Body int 必填]; comment [Body string 否]
+
+###
+
+POST {{baseUrl}}/api/v1/projects/{{projectId}}/archive
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "operatorId": {{userId}},
+  "comment": "{{archiveComment}}"
+}
+
+###
+
+# GET /api/v1/projects/{uuid}/members — 成员列表
+
+###
+
+GET {{baseUrl}}/api/v1/projects/{{projectId}}/members
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/projects/{uuid}/members — 新增成员（写）
+# 入参: userId [Body int 必填]; roleId [Body int 必填]
+
+###
+
+POST {{baseUrl}}/api/v1/projects/{{projectId}}/members
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": {{userId}},
+  "roleId": {{roleId}}
+}
+
+###
+
+# DELETE /api/v1/projects/{uuid}/members/{userProjectRoleId} — 移除成员（写）
+
+###
+
+DELETE {{baseUrl}}/api/v1/projects/{{projectId}}/members/{{userProjectRoleId}}
+Authorization: Bearer {{token}}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 04 文件与目录 file / directory（语义寻址）
+# moduleCode 见 PARAM_ENUMS；fileStage: 输入文件|解析结果|输出结果
+# flat 模块 pm-basic/program-docs 不传 fileStage；org-assets 不传 projectId/fileStage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# POST /api/v1/files/list
+# 入参:
+#   projectId     [Body string 否]  UUID32；不传查组织资产
+#   moduleCode    [Body string 否]  contract|proposal|ops-survey|... (见 PARAM_ENUMS)
+#   fileStage     [Body string 否]  输入文件|解析结果|输出结果
+#   folderSubPath [Body string 否]  示例 HLD / 合同文件/2024
+#   fileKeyword   [Body string 否]
+#   page          [Body int 否]     默认 1
+#   pageSize      [Body int 否]     默认 20
+
+###
+
+POST {{baseUrl}}/api/v1/files/list
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": "{{projectId}}",
+  "moduleCode": "{{moduleCode}}",
+  "fileStage": "{{fileStage}}",
+  "folderSubPath": "{{folderSubPath}}",
+  "page": {{page}},
+  "pageSize": {{pageSize}}
+}
+
+###
+
+# POST /api/v1/files/upload — multipart（写）
+# 入参:
+#   file            [Form file 必填]
+#   projectId       [Form string 否]
+#   moduleCode      [Form string 必填]
+#   fileStage       [Form string 条件]  flat/org-assets 不传
+#   folderSubPath   [Form string 否]
+#   fileDisplayName [Form string 否]
+# 请将下方 < 路径改为本地真实文件
+
+###
+
+POST {{baseUrl}}/api/v1/files/upload
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----AidaFormBoundary
+
+------AidaFormBoundary
+Content-Disposition: form-data; name="file"; filename="{{uploadFileName}}"
+Content-Type: text/plain
+
+AIDA HTTP Client upload test
+------AidaFormBoundary
+Content-Disposition: form-data; name="projectId"
+
+{{projectId}}
+------AidaFormBoundary
+Content-Disposition: form-data; name="moduleCode"
+
+{{moduleCode}}
+------AidaFormBoundary
+Content-Disposition: form-data; name="fileStage"
+
+{{fileStage}}
+------AidaFormBoundary--
+
+###
+
+# GET /api/v1/files/download — 二进制流
+# 入参:
+#   moduleCode    [Query string 必填]
+#   fileName      [Query string 必填]  含扩展名
+#   projectId     [Query string 否]
+#   fileStage     [Query string 条件]
+#   folderSubPath [Query string 否]  含 / 需 URL 编码
+
+###
+
+GET {{baseUrl}}/api/v1/files/download?moduleCode={{moduleCode}}&fileName={{fileName}}&projectId={{projectId}}&fileStage={{fileStage}}
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/files/delete — 删除文件（写，幂等）
+# 入参: projectId|moduleCode|fileStage|folderSubPath|fileName
+
+###
+
+POST {{baseUrl}}/api/v1/files/delete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": "{{projectId}}",
+  "moduleCode": "{{moduleCode}}",
+  "fileStage": "{{fileStage}}",
+  "fileName": "{{fileName}}"
+}
+
+###
+
+# POST /api/v1/files/rename — 重命名文件（写）
+# 入参: fileName [Body 原文件名]; newName [Body 新文件名含扩展名]
+
+###
+
+POST {{baseUrl}}/api/v1/files/rename
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": "{{projectId}}",
+  "moduleCode": "{{moduleCode}}",
+  "fileStage": "{{fileStage}}",
+  "fileName": "{{fileName}}",
+  "newName": "renamed_{{fileName}}"
+}
+
+###
+
+# POST /api/v1/directories/create — 新建目录（写）
+# 入参: directoryName [Body string 必填]; folderSubPath [Body 否] 父目录
+
+###
+
+POST {{baseUrl}}/api/v1/directories/create
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": "{{projectId}}",
+  "moduleCode": "{{moduleCode}}",
+  "fileStage": "{{fileStage}}",
+  "directoryName": "{{directoryName}}"
+}
+
+###
+
+# POST /api/v1/directories/delete — 删除目录（写，级联）
+# 入参: folderSubPath [Body string 必填]  要删目录相对路径，如 BOQ
+
+###
+
+POST {{baseUrl}}/api/v1/directories/delete
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": "{{projectId}}",
+  "moduleCode": "{{moduleCode}}",
+  "fileStage": "{{fileStage}}",
+  "folderSubPath": "{{directoryName}}"
+}
+
+###
+
+# POST /api/v1/directories/rename — 重命名目录（写）
+
+###
+
+POST {{baseUrl}}/api/v1/directories/rename
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "projectId": "{{projectId}}",
+  "moduleCode": "{{moduleCode}}",
+  "fileStage": "{{fileStage}}",
+  "folderSubPath": "{{directoryName}}",
+  "newName": "{{directoryRenamedName}}"
+}
+
+###
+
+# GET /api/v1/storage — 存储统计
+
+###
+
+GET {{baseUrl}}/api/v1/storage
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 05 组织资产 org-asset（文件读写走 §04，moduleCode=org-assets）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/org-assets/tree
+
+###
+
+GET {{baseUrl}}/api/v1/org-assets/tree
+
+###
+
+# GET /api/v1/org-assets — 列表
+# 入参: keyword [Query string 否]  示例 AI平台白名单
+
+###
+
+GET {{baseUrl}}/api/v1/org-assets?keyword={{orgAssetKeyword}}
+
+###
+
+# 组织资产下载（走 files/download，不传 projectId/fileStage）
+
+###
+
+GET {{baseUrl}}/api/v1/files/download?moduleCode=org-assets&fileName={{orgFileName}}
+
+###
+
+# POST /api/v1/org-assets/update — 维护元数据（写）
+# 入参:
+#   assetName          [Body string 必填]  如 AI平台白名单
+#   maintainerUsername [Body string 否]
+#   description        [Body string 否]
+
+###
+
+POST {{baseUrl}}/api/v1/org-assets/update
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "assetName": "{{orgAssetKeyword}}",
+  "maintainerUsername": "{{username}}",
+  "description": "{{orgAssetDescription}}"
+}
+
+###
+# ═══════════════════════════════════════════════════════════════════════════════
+# 06 数据血缘 lineage
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/file-lineage
+# 入参:
+#   fileId    [Query int 必填]   先 files/list 取 fileId
+#   direction [Query string 否]  up|down|both，默认 both
+#   depth     [Query int 否]     1~10，默认 1
+
+###
+
+GET {{baseUrl}}/api/v1/file-lineage?fileId={{fileId}}&direction=both&depth=1
+Authorization: Bearer {{token}}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 07 Skill 中心
+# skillScope/scope/targetScope: org|project|personal
+# status: draft|published|deprecated
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/skills — 列表
+# 入参: scope|projectId|moduleCode|status|page|pageSize
+
+###
+
+GET {{baseUrl}}/api/v1/skills?scope=&moduleCode=&status=&page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/skills/{skillPk} — 详情
+
+###
+
+GET {{baseUrl}}/api/v1/skills/{{skillPk}}
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/skills — 创建（写）
+# 入参:
+#   skillId         [Body string 必填]
+#   skillScope      [Body string 必填]  org|project|personal
+#   skillName       [Body string 必填]
+#   bindsModuleCode [Body string 否]    module_id
+#   projectId       [Body int 否]
+#   ownerId         [Body int 否]
+#   extendsSkillId  [Body string 否]
+
+###
+
+POST {{baseUrl}}/api/v1/skills
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "skillId": "{{skillId}}",
+  "skillScope": "{{skillScope}}",
+  "skillName": "{{skillName}}",
+  "bindsModuleCode": "{{moduleCode}}"
+}
+
+###
+
+# POST /api/v1/skills/{skillPk}/publish — 发布（写）
+# 入参: version [Body string 必填]; changeLog [Body string 否]
+
+###
+
+POST {{baseUrl}}/api/v1/skills/{{skillPk}}/publish
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "version": "{{skillVersion}}",
+  "changeLog": "{{skillChangeLog}}"
+}
+
+###
+
+# POST /api/v1/skills/{skillPk}/deprecate — 废弃（写）
+
+###
+
+POST {{baseUrl}}/api/v1/skills/{{skillPk}}/deprecate
+Authorization: Bearer {{token}}
+
+###
+
+# DELETE /api/v1/skills/{skillPk} — 删除（写）
+
+###
+
+DELETE {{baseUrl}}/api/v1/skills/{{skillPk}}
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/skills/{skillPk}/files — 包内文件列表
+
+###
+
+GET {{baseUrl}}/api/v1/skills/{{skillPk}}/files
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/skills/{skillPk}/files/content
+# 入参: relPath [Query string 必填]  包内相对路径，如 SKILL.md
+
+###
+
+GET {{baseUrl}}/api/v1/skills/{{skillPk}}/files/content?relPath={{skillRelPath}}
+Authorization: Bearer {{token}}
+
+###
+
+# PUT /api/v1/skills/{skillPk}/files — 写包内文件（写）
+# 入参: relPath [Body string 必填]; content [Body string 否]
+
+###
+
+PUT {{baseUrl}}/api/v1/skills/{{skillPk}}/files
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "relPath": "{{skillRelPath}}",
+  "content": "# HTTP Client test\n"
+}
+
+###
+
+# DELETE /api/v1/skills/{skillPk}/files — 删包内文件（写）
+# 入参: relPath [Query string 必填]
+
+###
+
+DELETE {{baseUrl}}/api/v1/skills/{{skillPk}}/files?relPath={{skillTempRelPath}}
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/skills/{skillPk}/download — zip 下载
+
+###
+
+GET {{baseUrl}}/api/v1/skills/{{skillPk}}/download
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/skills/fusion — Skill 融合（写）
+# 入参:
+#   skillId        [Body string 必填]
+#   sourceSkillPks [Body int[] 必填]
+#   targetScope    [Body string 必填]  org|project|personal
+#   approverId     [Body int 必填]
+
+###
+
+POST {{baseUrl}}/api/v1/skills/fusion
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "skillId": "{{skillId}}",
+  "sourceSkillPks": [{{skillPk}}],
+  "targetScope": "{{skillScope}}",
+  "approverId": {{userId}}
+}
+
+###
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 08 配置中心-人员 user-mgmt
+# status: 1 启用 | 0 禁用
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/user-mgmt
+# 入参: keyword|status(1|0)|page|pageSize(上限100)
+
+###
+
+GET {{baseUrl}}/api/v1/user-mgmt?keyword=&status=&page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{token}}
+
+###
+
+# GET /api/v1/user-mgmt/{userId}
+
+###
+
+GET {{baseUrl}}/api/v1/user-mgmt/{{userId}}
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/user-mgmt — 新建（写）
+
+###
+
+POST {{baseUrl}}/api/v1/user-mgmt
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "username": "{{userMgmtUsername}}",
+  "password": "{{userMgmtPassword}}",
+  "email": "{{userMgmtEmail}}",
+  "status": 1
+}
+
+###
+
+# PUT /api/v1/user-mgmt/{userId} — 更新（写）
+
+###
+
+PUT {{baseUrl}}/api/v1/user-mgmt/{{userId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "{{userMgmtEmailUpdated}}",
+  "status": 1
+}
+
+###
+
+# DELETE /api/v1/user-mgmt/{userId} — 删除（写，不可删自己）
+
+###
+
+DELETE {{baseUrl}}/api/v1/user-mgmt/{{userId}}
+Authorization: Bearer {{token}}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 09 配置中心-角色与权限 rbac
+# resourceDomain 示例: file|skill|project|user
+# actionType 示例: read|upload|delete|list
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/roles
+
+###
+
+GET {{baseUrl}}/api/v1/roles?keyword=
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/roles — 新建（写）
+
+###
+
+POST {{baseUrl}}/api/v1/roles
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "roleCode": "{{roleCode}}",
+  "roleName": "{{roleName}}",
+  "description": "{{roleDescription}}"
+}
+
+###
+
+# PUT /api/v1/roles/{roleId} — 更新（写）
+
+###
+
+PUT {{baseUrl}}/api/v1/roles/{{roleId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "description": "{{roleDescriptionUpdated}}"
+}
+
+###
+
+# PUT /api/v1/roles/{roleId}/permissions — 全量覆盖权限（写）
+# 入参: permissionIds [Body int[] 必填]
+
+###
+
+PUT {{baseUrl}}/api/v1/roles/{{roleId}}/permissions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "permissionIds": [{{permissionId}}]
+}
+
+###
+
+# GET /api/v1/permissions
+
+###
+
+GET {{baseUrl}}/api/v1/permissions?resourceDomain=file
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/permissions — 新建（写）
+
+###
+
+POST {{baseUrl}}/api/v1/permissions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "permissionCode": "{{permissionCode}}",
+  "permissionName": "{{permissionName}}",
+  "resourceDomain": "file",
+  "actionType": "read"
+}
+
+###
+
+# PUT /api/v1/permissions/{permissionId} — 更新（写）
+
+###
+
+PUT {{baseUrl}}/api/v1/permissions/{{permissionId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "permissionName": "{{permissionNameUpdated}}"
+}
+
+###
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 10 配置中心-模型 model-config
+# enabled: true|false
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/model-configs
+
+###
+
+GET {{baseUrl}}/api/v1/model-configs?enabled=true&keyword=
+Authorization: Bearer {{token}}
+
+###
+
+# POST /api/v1/model-configs — 新建（写）
+
+###
+
+POST {{baseUrl}}/api/v1/model-configs
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "modelCode": "{{modelCode}}",
+  "modelName": "{{modelName}}",
+  "provider": "{{modelProvider}}",
+  "enabled": true
+}
+
+###
+
+# PUT /api/v1/model-configs/{id} — 更新（写）
+
+###
+
+PUT {{baseUrl}}/api/v1/model-configs/{{modelConfigId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "modelName": "{{modelNameUpdated}}",
+  "enabled": true
+}
+
+###
+
+# DELETE /api/v1/model-configs/{id} — 删除（写）
+
+###
+
+DELETE {{baseUrl}}/api/v1/model-configs/{{modelConfigId}}
+Authorization: Bearer {{token}}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 11 运维中心-审计 audit
+# action 示例: upload_file|rename_file|rename_directory|approve_project
+# startTime/endTime: ISO8601
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# GET /api/v1/audit-logs
+
+###
+
+GET {{baseUrl}}/api/v1/audit-logs?userId=&projectId=&action=upload_file&startTime=&endTime=&page={{page}}&pageSize={{pageSize}}
+Authorization: Bearer {{token}}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PARAM_ENUMS 汇总（05-数据目录 §1.3 module_id / API §3.1）
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# moduleCode (module_id):
+#   org-assets | twin-project | twin-foundation | contract | proposal | delivery-scheme
+#   pm-basic(flat) | pm-plan | pm-task | pm-risk | pm-assumption | pm-issue | pm-change
+#   ops-survey | ops-design | ops-install | ops-deploy | retro | program-docs(flat)
+#   sys-mgr-onto | sys-mgr-skill | sys-mgr-obs | sys-mgr-config | sys-mgr-approval
+#
+# fileStage: 输入文件 | 解析结果 | 输出结果
+# project status: PENDING_APPROVAL | APPROVED | REJECTED | ARCHIVED
+# skillScope: org | project | personal
+# skill status: draft | published | deprecated
+# lineage direction: up | down | both
+# user status: 1 | 0
+# roleCode: TD | PD | PCM | 勘测工程师 | TL | OCC | 管理员 | AIDA
+#
+# deliveryTraits (05 §4.1.1):
+#   部署阶段: 新建|节点扩容  集群形态: 训练|推理|训推一体  大EP: 大EP|非大EP
+#   产品代际: A2|A3  制冷: 风冷|液冷  PoD: 单PoD|多PoD
+#   算力规模: 标准项目|小规模项目  交付模式: 集群集成|集群集成+HCS
+#
+# 动态 ID: 登录后取 userId/token；files/list 取 fileId；skills 取 skillPk；
+#          roles/permissions 取 roleId/permissionId；members 取 userProjectRoleId
