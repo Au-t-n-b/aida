@@ -11,6 +11,7 @@ venv/
 
 # Agent 运行时（checkpoint DB / 评测结果不入库）
 agent/runtime/
+agent/schedule/.local/
 agent/evals/results/
 agent/evals/results/session_logs/
 # 保留 fixtures（golden 断言）和 METRICS 等文档

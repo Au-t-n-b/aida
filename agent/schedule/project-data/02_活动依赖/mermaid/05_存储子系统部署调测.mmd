@@ -1,0 +1,42 @@
+flowchart LR
+    %% Source: 计划基线0609.xlsx / 集群集成 + A3液冷场景活动&依赖&工时(1014）
+    %% Scope: 存储设备安装、通用布线、上电、初始化、部署/验证/管理对接。
+
+    classDef task fill:#F8E8C8,stroke:#A86F1A,stroke-width:1px,color:#222;
+    classDef milestone fill:#E8EEF7,stroke:#5E7FA8,stroke-width:1px,color:#222;
+    classDef review fill:#E6F4EA,stroke:#4D8A5F,stroke-width:1px,color:#222;
+
+    storage_arrival["6.8 存储到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+    room_server["2.3 机房改造实施(可装服务器)<br/>机房级｜SLA: —"]
+    low_review["5.7 低阶设计评审<br/>项目级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+    clean["7.1 机房洁净度测试<br/>机房级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+    general_cable["6.4 通用线缆到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+    general_wiring["7.2 综合布线与成端-通用线缆<br/>PoD级｜标准: 约728根/5天｜极限: 约728根/3天｜SLA: 弹性"]
+    storage_install["7.10 存储设备安装<br/>PoD级｜标准: 16台/天｜极限: 20台/天｜SLA: 弹性"]
+    power_on["7.11 存储设备上电<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+    accept["7.12 存储设备硬件验收<br/>PoD级｜标准: 1天｜极限: 1天｜SLA: 固定"]
+    init["8.4 设备硬装初始化-存储服务器<br/>PoD级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+    deploy["8.11 存储子系统部署调测<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+    verify["8.14 存储子系统验证<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+    manage["9.3 存储管理系统对接<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+
+    storage_arrival -->|FS| storage_install
+    room_server -->|FS| storage_install
+    low_review -->|FS| storage_install
+
+    room_server -->|FS| clean
+    clean -->|FS| general_wiring
+    general_cable -->|FS| general_wiring
+    low_review -->|FS| general_wiring
+
+    storage_install -->|FS| power_on
+    general_wiring -->|FS| power_on
+    power_on -->|FS| accept
+    power_on -->|FS| init
+    init -->|FS| deploy
+    deploy -->|FS| verify
+    deploy -->|FS| manage
+
+    class storage_arrival,general_cable milestone;
+    class low_review review;
+    class room_server,clean,general_wiring,storage_install,power_on,accept,init,deploy,verify,manage task;

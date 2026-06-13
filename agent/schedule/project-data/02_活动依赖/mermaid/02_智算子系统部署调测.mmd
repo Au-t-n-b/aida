@@ -1,0 +1,49 @@
+flowchart LR
+    %% Source: 计划基线0609.xlsx / 集群集成 + A3液冷场景活动&依赖&工时(1014）
+    %% Scope: A3液冷计算柜、灵衢布线、智算初始化/部署/验证/管理对接。
+
+    classDef task fill:#F8E8C8,stroke:#A86F1A,stroke-width:1px,color:#222;
+    classDef milestone fill:#E8EEF7,stroke:#5E7FA8,stroke-width:1px,color:#222;
+    classDef review fill:#E6F4EA,stroke:#4D8A5F,stroke-width:1px,color:#222;
+    classDef tooling fill:#F7F7F7,stroke:#777,stroke-dasharray:3 3,color:#333;
+
+    compute_arrival["6.2 计算柜到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+    transfer["6.11 转运与设备静置<br/>PoD级｜标准: 1天｜极限: 1天｜SLA: 固定"]
+    room_liquid["2.3 机房改造实施(可通液)<br/>机房级｜SLA: —"]
+    room_server["2.3 机房改造实施(可装服务器)<br/>机房级｜SLA: —"]
+    low_review["5.7 低阶设计评审<br/>项目级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+    clean["7.1 机房洁净度测试<br/>机房级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+    lingqu_cable["6.5 灵衢线缆到货(含开箱验货)<br/>PoD级｜标准: /｜极限: /｜SLA: —"]
+    lingqu_wiring["7.3 综合布线与成端-灵衢线缆<br/>PoD级｜标准: 2688根/12天｜极限: 2688根/7天｜SLA: 弹性"]
+    liquid_install["7.19 液冷计算柜安装<br/>PoD级｜标准: 48柜/天｜极限: 48柜/天｜SLA: 弹性"]
+    liquid_power["7.20 液冷计算柜设备上电<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+    liquid_accept["7.21 液冷计算柜验收<br/>PoD级｜标准: 7天｜极限: 1天｜SLA: 固定"]
+    hw_init["8.2 设备硬装初始化-智算服务器<br/>PoD级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+    stress["8.6 智算硬件压测<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+    deploy["8.8 计算子系统部署调测-智算服务器<br/>PoD级｜标准: 5天｜极限: 3天｜SLA: 固定"]
+    verify["8.12 计算子系统验证-智算服务器<br/>PoD级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+    manage["9.1 计算管理系统对接<br/>批次级｜标准: 2天｜极限: 1天｜SLA: 固定"]
+
+    compute_arrival -->|FS| transfer
+    compute_arrival -->|FS| liquid_install
+    transfer -->|FS| liquid_install
+    room_liquid -->|FS| liquid_install
+    low_review -->|FS| liquid_install
+
+    room_server -->|FS| clean
+    clean -->|FS| lingqu_wiring
+    lingqu_cable -->|FS| lingqu_wiring
+    low_review -->|FS| lingqu_wiring
+
+    liquid_install -->|FS| liquid_power
+    lingqu_wiring -->|FS| liquid_power
+    liquid_power -->|FS| liquid_accept
+    liquid_power -->|FS| hw_init
+    hw_init -->|FS| stress
+    hw_init -->|FS| deploy
+    deploy -->|FS| verify
+    deploy -->|FS| manage
+
+    class compute_arrival,lingqu_cable milestone;
+    class low_review review;
+    class transfer,room_liquid,room_server,clean,lingqu_wiring,liquid_install,liquid_power,liquid_accept,hw_init,stress,deploy,verify,manage task;
