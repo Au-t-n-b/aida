@@ -1,20 +1,20 @@
 {
   "schema_version": "system_design.project_paths.v3",
   "description": "系统设计 · 全部为绝对路径。仿真三表扫 xmfz，测试用例扫 ht，上传落 input，产物落 output。",
-  "data_root": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path",
+  "data_root": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理",
   "read": {
     "scan_by_tag": {
-      "resource": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/input",
-      "Interconnection_Relationship": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/xmfz",
-      "Device_Info": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/xmfz",
-      "Location_Information": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/xmfz",
-      "Test_Case": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/ht"
+      "resource": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/交付作业/规划设计/输入文件",
+      "Interconnection_Relationship": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/交付作业/规划设计/输出结果/建模仿真",
+      "Device_Info": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/交付作业/规划设计/输出结果/建模仿真",
+      "Location_Information": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/交付作业/规划设计/输出结果/建模仿真",
+      "Test_Case": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/早期介入/交付预案/输出结果"
     }
   },
   "upload": {
-    "save_dir": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/input"
+    "save_dir": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/交付作业/规划设计/输入文件"
   },
   "output": {
-    "artifacts_dir": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/output"
+    "artifacts_dir": "/opt/aida/aida-data/business/projects/1b9bb4a0d0ce4863925e787bc057ecaf/项目管理/交付作业/规划设计/输出结果/系统设计"
   }
 }
