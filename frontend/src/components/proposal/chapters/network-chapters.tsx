@@ -31,10 +31,12 @@ const PLANE_LABEL_TO_KEY: Record<string, string> = {
 
 function matchesFilter(row: NetPlaneRow, selectedPlanes: Set<string>): boolean {
   if (selectedPlanes.size === 0) return true;
+  let recognized = false;
   for (const [label, key] of Object.entries(PLANE_LABEL_TO_KEY)) {
+    if (row.type.includes(label)) recognized = true;
     if (row.type.includes(label) && selectedPlanes.has(key)) return true;
   }
-  return false;
+  return !recognized;
 }
 
 /* ── 5.1 网络平面配置（字段：设备角色 / 设备型号 / 设备厂家 / 设备版本 / 数量 / 来源 / 备注）── */
@@ -168,10 +170,11 @@ export function NetworkPlanesChapter() {
     setExporting(true);
     setToast(null);
     try {
-      const data = await proposalApi.exportNetPlanes(rows);
-      setToast({ type: 'warning', message: `已保存到 ${data.saved_path}` });
+      const selectedLabels = COMMON_PLANE_TYPES.filter((plane) => selectedPlanes.has(plane.key)).map((plane) => plane.label);
+      const data = await proposalApi.exportNetPlanes(rows, selectedLabels);
+      setToast({ type: 'warning', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '导出失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
     } finally {
       setExporting(false);
     }
@@ -343,7 +346,7 @@ export function NetworkPlanesChapter() {
               : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
           }`}
         >
-          {exporting ? '保存中…' : '导出 Excel'}
+          {exporting ? '保存中…' : '保存 Excel'}
         </button>
       </div>
     </ProposalChapterCard>
@@ -413,9 +416,9 @@ export function MgmtServerChapter() {
     setExporting(true);
     try {
       const data = await proposalApi.exportNetMgmt(rows);
-      setToast({ type: 'warning', message: `已保存到 ${data.saved_path}` });
+      setToast({ type: 'warning', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '导出失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
     } finally {
       setExporting(false);
     }
@@ -492,7 +495,7 @@ export function MgmtServerChapter() {
                 : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
             }`}
           >
-            {exporting ? '保存中…' : '导出 Excel'}
+            {exporting ? '保存中…' : '保存 Excel'}
           </button>
         </div>
       </div>
@@ -601,9 +604,9 @@ export function ClusterDeviceChapter() {
     setExporting(true);
     try {
       const data = await proposalApi.exportClusterDevices(rows);
-      setToast({ type: 'warning', message: `已保存到 ${data.saved_path}` });
+      setToast({ type: 'warning', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '导出失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
     } finally {
       setExporting(false);
     }
@@ -864,7 +867,7 @@ export function ClusterDeviceChapter() {
               : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
           }`}
         >
-          {exporting ? '保存中…' : '导出 Excel'}
+          {exporting ? '保存中…' : '保存 Excel'}
         </button>
       </div>
     </ProposalChapterCard>

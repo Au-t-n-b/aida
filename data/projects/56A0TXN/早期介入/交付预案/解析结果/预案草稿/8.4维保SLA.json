@@ -3,7 +3,7 @@
   "serviceLevel": "标准+",
   "rows": [
     {
-      "rowId": "be65387f-4191-4647-a6d7-5b22b01427db",
+      "rowId": "daa55eb1-631a-4005-909b-b0cbcc5aa82f",
       "seq": "1",
       "severityLevel": "NA",
       "coveragePeriod": "7×24×365",
@@ -15,7 +15,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "a70211f0-3075-460e-b79a-faf8079ead2c",
+      "rowId": "50480474-a406-4018-ad24-71775e7ef1d9",
       "seq": "2",
       "severityLevel": "NA",
       "coveragePeriod": "7×24×365",
@@ -27,7 +27,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "c668c8e5-541f-49c9-9901-3a54035dcc41",
+      "rowId": "394efa3f-2b0e-4b3d-8621-f070a52069bf",
       "seq": "3",
       "severityLevel": "紧急问题",
       "coveragePeriod": "7×24",
@@ -39,7 +39,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "342cb1a1-3d39-4870-a06a-e9a2925f3326",
+      "rowId": "60d3c67a-8737-4343-84e8-9f56dc4a64a6",
       "seq": "3",
       "severityLevel": "重要问题",
       "coveragePeriod": "5×8",
@@ -51,7 +51,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "5b3a24b9-2c22-41de-98ec-48fe0f64d206",
+      "rowId": "44a0607f-87a4-4ed7-aa8f-91408bb111c9",
       "seq": "3",
       "severityLevel": "一般问题",
       "coveragePeriod": "5×8",
@@ -63,7 +63,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "361a5c6f-8175-481a-a953-fe3fbe612a71",
+      "rowId": "405c647f-4779-47ea-b867-a8da3556185c",
       "seq": "3",
       "severityLevel": "技术咨询",
       "coveragePeriod": "5×8",
@@ -75,7 +75,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "97ac73d6-13fa-4d90-9840-0535db14416a",
+      "rowId": "0b7440df-722b-46a9-955f-ac65e4a5c4ae",
       "seq": "4",
       "severityLevel": "紧急问题",
       "coveragePeriod": "7×10",
@@ -87,7 +87,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "89f35eab-d52d-4704-b8bd-e301868a2338",
+      "rowId": "c9d27290-831d-40c8-94ca-0f08cba62858",
       "seq": "4",
       "severityLevel": "重要问题",
       "coveragePeriod": "5×8",
@@ -99,7 +99,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "9aa5ec15-e215-4b6b-9ae6-9a4fcf256ee3",
+      "rowId": "488e5fb1-4330-4096-a85b-7f16cfbc494e",
       "seq": "4",
       "severityLevel": "一般问题",
       "coveragePeriod": "5×8",
@@ -111,7 +111,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "0289f7c8-021d-458c-888f-ff5bf16dccb5",
+      "rowId": "11fa3620-e29b-46e5-80d3-2016280c6655",
       "seq": "5",
       "severityLevel": "紧急问题",
       "coveragePeriod": "7×10",
@@ -123,7 +123,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "315dff91-4aa7-4b4b-8933-5d2d060b32bc",
+      "rowId": "7c4eaa72-79f0-4442-ac86-20160ca3f822",
       "seq": "5",
       "severityLevel": "重要问题",
       "coveragePeriod": "5×8",
@@ -135,7 +135,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "5a892b35-4a8b-4202-ba91-b081c2ae8705",
+      "rowId": "382cb0e0-8b25-4303-a1b3-f8f51150b4f1",
       "seq": "5",
       "severityLevel": "一般问题",
       "coveragePeriod": "5×8",
@@ -147,7 +147,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "68ac4237-719a-4669-a55c-1bf4ed6c1540",
+      "rowId": "0bc473a7-7f73-48d6-b54b-5d13d8c892dc",
       "seq": "6",
       "severityLevel": "紧急问题",
       "coveragePeriod": "7×10",
@@ -159,7 +159,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "e79237d6-9e33-43a9-8bf2-b234c4abaabe",
+      "rowId": "818d832f-fe61-4552-a872-220489fd7445",
       "seq": "6",
       "severityLevel": "重要问题",
       "coveragePeriod": "5×8",
@@ -171,7 +171,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "2904ab66-9bd7-4d1d-9574-a9083998ac35",
+      "rowId": "09297379-1aa8-424d-a25d-6649d83f442e",
       "seq": "6",
       "severityLevel": "一般问题",
       "coveragePeriod": "5×8",
@@ -183,7 +183,7 @@
       "proposalVersion": null
     },
     {
-      "rowId": "8703c983-6215-483b-bf2e-f2863df1ab09",
+      "rowId": "4877fe9a-5e49-4339-8bb5-c7c6155d9c50",
       "seq": "7",
       "severityLevel": "NA",
       "coveragePeriod": "提供",
