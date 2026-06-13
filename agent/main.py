@@ -24,7 +24,7 @@ import uuid
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-import agent.config  # noqa: F401 - load .env and proposal runtime config at startup
+import agent.coanfig  # noqa: F401 - load .env and proposal runtime config at startup
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -1969,7 +1969,7 @@ def _write_preview_boq_map(data: dict[str, list[dict[str, Any]]]) -> None:
 
 def _preview_boq_asset_path(path: str) -> Path:
     """Resolve a preview BOQ asset path recorded relative to agent/assets/boq/."""
-    raw = (path or "").strip()
+    raw = (path or "").strip().replace("\\", "/")
     if not raw:
         raise HTTPException(status_code=400, detail="path 不能为空")
     full = (ASSETS_ROOT / raw).resolve()
@@ -1996,7 +1996,7 @@ async def _save_preview_boq_file(file: UploadFile) -> dict[str, Any]:
     dest.write_bytes(content)
     return {
         "filename": dest.name,
-        "path": str(dest.relative_to(ASSETS_ROOT)),
+        "path": dest.relative_to(ASSETS_ROOT).as_posix(),
         "size": len(content),
         "uploaded_at": datetime.now(timezone.utc).isoformat(),
     }
