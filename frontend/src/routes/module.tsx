@@ -6,16 +6,8 @@ import ClawRail from '@/components/claw-rail';
 import { TweaksProvider, useTweaks } from '@/lib/tweaks-context';
 import { TweaksPanel } from '@/components/tweaks-panel';
 import { ALL_MODULES, MODULE_SCHEMAS } from '@/data/modules-data';
-import { designSkillId, isSystemDesignFull } from '@/config/design-skill';
-
-/* 前端模块 key → 后端 skill_id：已注册后端 skill 的模块走 SDUI 通用作业界面 */
-const MODULE_TO_SKILL: Record<string, string> = {
-  survey: 'zhgk',
-  modeling: 'guihua',
-  design: designSkillId,
-  install: 'device_install',
-  deploy: 'software_deployment',
-};
+import { MODULE_TO_SKILL } from '@/data/module-skill-map';
+import { isSystemDesignFull } from '@/config/design-skill';
 
 /** 已接 LangGraph skill、但尚未写入 MODULE_SCHEMAS 的模块展示名 */
 const MODULE_DISPLAY_NAMES: Record<string, string> = {
@@ -52,6 +44,7 @@ function ModuleInner({ moduleKey }: { moduleKey: string }) {
         }
       >
         <SkillAgentScreen
+          key={skillId}
           skillId={skillId}
           title={name}
           description={schema?.subtitle ?? moduleEntry?.desc}
