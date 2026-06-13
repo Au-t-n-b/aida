@@ -7,6 +7,14 @@
 
 FROM harbor.aie.rnd.huawei.com/library/python:3.12.13-slim
 
+# 内网 apt 源（Jenkins Agent 无法直连 deb.debian.org）
+RUN if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|http://deb.debian.org/debian|http://mirrors.tools.huawei.com/debian|g' /etc/apt/sources.list.d/debian.sources && \
+      sed -i 's|http://deb.debian.org/debian-security|http://mirrors.tools.huawei.com/debian-security|g' /etc/apt/sources.list.d/debian.sources; \
+    elif [ -f /etc/apt/sources.list ]; then \
+      sed -i 's|deb.debian.org|mirrors.tools.huawei.com/debian|g' /etc/apt/sources.list; \
+    fi
+
 # 系统依赖（pandas/openpyxl 需要的 libxml 等）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -17,12 +25,13 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# 安装 Python 依赖（先拷 requirements 利用缓存层）
+# 安装 Python 依赖（-r 保留行内注释；排除 Windows 专用 pywin32）
 COPY agent/requirements.txt ./agent/requirements.txt
-RUN pip install --no-cache-dir \
+RUN grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
+    pip install --no-cache-dir \
     -i http://mirrors.tools.huawei.com/pypi/simple \
     --trusted-host mirrors.tools.huawei.com \
-    $(grep -vE 'pywin32|^#|^$' agent/requirements.txt)
+    -r /tmp/requirements-docker.txt
 
 # 拷入后端代码
 COPY agent/ ./agent/

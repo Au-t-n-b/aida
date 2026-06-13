@@ -12,7 +12,7 @@ import { deriveProjectId, useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
 import { createProject } from '@/lib/claw-manager-client';
 import { formToCreateProjectBody } from '@/lib/landing-projects';
-import { INITIAL_FIELDS, FieldsStep } from './screens/create';
+import { CONTRACT_PRESALE, INITIAL_FIELDS, FieldsStep } from './screens/create';
 
 interface CreateFieldDef {
   key: string;
@@ -24,9 +24,10 @@ type CreatePreset = Record<string, string> | null;
 
 const SAMPLE: Record<string, string> = {
   name: '京东三期',
+  contractType: CONTRACT_PRESALE,
   code: 'PROP-2026-K1903',
-  proposal: 'PROP-2026-K1903',
-  scene: '新增,训推一体',
+  proposal: '',
+  scene: '新建,训推一体',
   pd: '李伟 / 01234568',
   td: '何博 / 01234567',
   pcm: '王婷 / 01234569',
@@ -146,6 +147,7 @@ export default function CreateProjectModal({
             hideCancel
             inModal
             onCancel={onClose}
+            mode={mode}
           />
         </div>
       </div>
