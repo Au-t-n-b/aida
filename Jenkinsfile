@@ -129,6 +129,10 @@ pipeline {
             ║  Agent:    ${env.AGENT_FULL_IMAGE ?: 'N/A'}
             ║  Frontend: ${env.FRONTEND_FULL_IMAGE ?: 'N/A'}
             ║  部署到:   ${env.DEPLOY_HOST}:${env.DEPLOY_DIR}
+            ║
+            ║  🌐 前端访问: http://${env.DEPLOY_HOST}:5401
+            ║  🔧 后端 API: http://${env.DEPLOY_HOST}:7401
+            ║
             ║  分支:     ${env.GIT_BRANCH}
             ║  提交:     ${env.GIT_COMMIT?.take(7) ?: 'N/A'}
             ╚══════════════════════════════════════════════════╝
