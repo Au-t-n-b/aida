@@ -9,6 +9,9 @@
 //   - 在 Jenkins 中创建 Pipeline 项目，指向本仓库
 //   - 配置凭据 harbor-aie（usernamePassword 类型）
 //   - 配置凭据 ssh-231-root（SSH Username with private key 类型）
+//
+// Webhook 部署冷却：Gitea push 触发时，距上次已完成构建不足 30 分钟则跳过；
+// Jenkins UI 手动「Build Now」不受冷却期限制。
 // ============================================================
 
 pipeline {
@@ -31,9 +34,38 @@ pipeline {
         timeout(time: 30, unit: 'MINUTES')
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds(abortPrevious: false)
     }
 
     stages {
+        // ──────────────────────────────────────────────
+        stage('Deploy Cooldown') {
+            steps {
+                script {
+                    def deployCooldownMinutes = 30
+                    def fromWebhook = currentBuild.getBuildCauses().any {
+                        (it.shortDescription ?: '').contains('Gitea push')
+                    }
+                    if (!fromWebhook) {
+                        echo '非 Gitea webhook 触发，跳过部署冷却期检查'
+                        return
+                    }
+                    def prev = currentBuild.previousBuiltBuild
+                    if (prev == null) {
+                        echo '无已完成的历史构建，允许 webhook 部署'
+                        return
+                    }
+                    def elapsedMin = (System.currentTimeMillis() - prev.getTimeInMillis()) / 60000.0
+                    if (elapsedMin < deployCooldownMinutes) {
+                        def remainMin = Math.ceil(deployCooldownMinutes - elapsedMin)
+                        currentBuild.description = "冷却跳过：距 #${prev.number} 仅 ${elapsedMin.intValue()} 分钟，约 ${remainMin.intValue()} 分钟后可再部署"
+                        error("部署冷却期 ${deployCooldownMinutes} 分钟，跳过本次 webhook 构建")
+                    }
+                    echo "距 #${prev.number} 已 ${elapsedMin.intValue()} 分钟，允许 webhook 部署"
+                }
+            }
+        }
+
         // ──────────────────────────────────────────────
         stage('Checkout') {
             steps {
