@@ -1,0 +1,462 @@
+.risk-report-page {
+  flex: 1;
+  overflow: auto;
+  background: var(--c-bg);
+}
+
+.risk-report-inner {
+  padding: 18px 24px 32px;
+}
+
+.risk-report-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.risk-report-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: 0;
+}
+
+.risk-report-title-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--c-danger-soft);
+  color: var(--c-danger);
+  border: 1px solid rgba(220, 38, 38, 0.18);
+}
+
+.risk-report-sub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--c-text-muted);
+  line-height: 1.6;
+}
+
+.risk-report-head-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.risk-report-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  border: 1px solid var(--c-border);
+  background: var(--c-surface);
+  color: var(--c-text-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.risk-report-tag.strong {
+  border-color: rgba(53, 81, 216, 0.22);
+  background: var(--c-brand-soft);
+  color: var(--c-brand-text);
+}
+
+.risk-report-wrap {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.risk-report-sheet {
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 34px 42px;
+  box-shadow: var(--shadow-sm);
+}
+
+.risk-report-cover {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.risk-report-eyebrow {
+  font-size: 11px;
+  color: var(--c-brand-text);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.risk-report-h1 {
+  margin-top: 7px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--c-text);
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.risk-report-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  color: var(--c-text-muted);
+  font-size: 12px;
+}
+
+.risk-report-meta b {
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+.risk-report-cover-side {
+  flex: none;
+  text-align: right;
+  min-width: 140px;
+}
+
+.risk-report-side-label {
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+
+.risk-report-side-value {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.risk-report-divider {
+  height: 1px;
+  background: var(--c-divider);
+  margin: 22px 0;
+}
+
+.risk-report-h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 26px 0 10px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.risk-report-h2::before {
+  content: "";
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--c-brand);
+}
+
+.risk-report-p {
+  font-size: 13px;
+  color: var(--c-text-2);
+  line-height: 1.75;
+}
+
+.risk-report-callout {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: var(--c-warning-soft);
+  color: var(--c-warning-text);
+  border-left: 3px solid var(--c-warning);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.risk-report-callout.red {
+  background: var(--c-danger-soft);
+  color: var(--c-danger-text);
+  border-left-color: var(--c-danger);
+}
+
+.risk-report-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.risk-report-summary-cell {
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-divider);
+}
+
+.risk-report-summary-cell .label {
+  font-size: 11px;
+  color: var(--c-text-muted);
+}
+
+.risk-report-summary-cell .value {
+  margin-top: 3px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.risk-report-summary-cell.danger .value {
+  color: var(--c-danger);
+}
+
+.risk-report-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px 0 6px;
+}
+
+.risk-report-section-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.risk-report-count {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.risk-report-rule-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--c-info-soft);
+  color: var(--c-info-text);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.risk-report-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 12.5px;
+}
+
+.risk-report-table th,
+.risk-report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--c-divider);
+  text-align: left;
+  vertical-align: top;
+}
+
+.risk-report-table th {
+  background: var(--c-bg);
+  color: var(--c-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.risk-report-table .num {
+  width: 42px;
+  color: var(--c-text-muted);
+}
+
+.risk-report-table .date {
+  white-space: nowrap;
+}
+
+.risk-report-severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.risk-report-severity.high {
+  background: var(--c-danger-soft);
+  color: var(--c-danger-text);
+}
+
+.risk-report-severity.mid {
+  background: var(--c-warning-soft);
+  color: var(--c-warning-text);
+}
+
+.risk-report-severity.low {
+  background: var(--c-bg-soft);
+  color: var(--c-text-muted);
+}
+
+.risk-report-todo-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.risk-report-todo {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 6px;
+  background: var(--c-danger-soft);
+  border-left: 3px solid var(--c-danger);
+}
+
+.risk-report-todo-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.risk-report-todo-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.risk-report-todo-reason {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--c-text-2);
+  line-height: 1.6;
+}
+
+.risk-report-activity-tag {
+  display: inline-flex;
+  max-width: 100%;
+  margin-top: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--c-surface);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  color: var(--c-danger-text);
+  font-size: 11px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.risk-report-empty-section {
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 6px;
+  background: var(--c-bg);
+  border: 1px dashed var(--c-border-strong);
+  color: var(--c-text-muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
+.risk-report-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--c-text-muted);
+  font-size: 12px;
+}
+
+.risk-report-empty {
+  max-width: 560px;
+  margin: 96px auto 0;
+  padding: 34px;
+  border-radius: 8px;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+}
+
+.risk-report-empty-icon {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 14px;
+  border-radius: 8px;
+  background: var(--c-brand-soft);
+  color: var(--c-brand-text);
+}
+
+.risk-report-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.risk-report-empty-text {
+  margin-top: 8px;
+  color: var(--c-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.risk-report-empty-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 18px;
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background: var(--c-brand);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .risk-report-inner {
+    padding: 14px 12px 24px;
+  }
+
+  .risk-report-head,
+  .risk-report-cover,
+  .risk-report-footer {
+    flex-direction: column;
+  }
+
+  .risk-report-head-tags,
+  .risk-report-cover-side {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .risk-report-sheet {
+    padding: 24px 18px;
+  }
+
+  .risk-report-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .risk-report-table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
