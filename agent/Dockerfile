@@ -25,12 +25,13 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# 安装 Python 依赖（先拷 requirements 利用缓存层）
+# 安装 Python 依赖（-r 保留行内注释；排除 Windows 专用 pywin32）
 COPY agent/requirements.txt ./agent/requirements.txt
-RUN pip install --no-cache-dir \
+RUN grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
+    pip install --no-cache-dir \
     -i http://mirrors.tools.huawei.com/pypi/simple \
     --trusted-host mirrors.tools.huawei.com \
-    $(grep -vE 'pywin32|^#|^$' agent/requirements.txt)
+    -r /tmp/requirements-docker.txt
 
 # 拷入后端代码
 COPY agent/ ./agent/

@@ -9,9 +9,10 @@
 FROM harbor.aie.rnd.huawei.com/library/node:20-alpine AS builder
 
 WORKDIR /build
+ENV NODE_ENV=development
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm config set registry http://mirrors.tools.huawei.com/npm/ && \
-    npm install --no-audit --no-fund
+    npm install --include=dev --no-audit --no-fund
 
 COPY frontend/ ./
 RUN npm run build
