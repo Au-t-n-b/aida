@@ -1,0 +1,19 @@
+﻿participantKey,projectKey,partyType,partyName,responsibilityScope,supplierKey,description
+京东::participant::908848,京东,PERSON,徐宏斌,PD,,OTT综合交付与服务部
+京东::participant::577381,京东,PERSON,宋时丞,DPD,,北京渠道交付管理与集成使能部
+京东::participant::84198217,京东,PERSON,刘洋洋,PCM,,北京渠道交付管理与集成使能部
+京东::participant::464948,京东,PERSON,张志宏,TD,,OTT综合交付与服务部
+京东::participant::543862,京东,PERSON,张杨,远程交付方案专家,,远程交付
+京东::participant::578443,京东,PERSON,侯克照,DC L1工勘专家,,远程交付
+京东::participant::60094644,京东,PERSON,李佳蒴,建模仿真专家,,远程交付
+京东::participant::880586,京东,PERSON,刘海波,远程项目管理专家,,远程交付
+京东::participant::635652,京东,PERSON,严浩丁,DTD,,北京政企互联网服务部
+京东::participant::579868,京东,PERSON,闫科同,RDPM,,小巧灵突击队
+京东::participant::833367,京东,PERSON,穆良,网络TD,,北京政企互联网服务部
+京东::participant::512490,京东,PERSON,张文科,计算TL/液冷TL,,OTT综合交付与服务部
+京东::participant::854003,京东,PERSON,张伟,计算TL,,OTT综合交付与服务部
+京东::participant::842469,京东,PERSON,周正东,网络TL/灵衢TL,,OTT综合交付与服务部
+京东::participant::60044631,京东,PERSON,袁伟哲,计算TE,,北京网络保障与技术部
+京东::participant::84198518,京东,PERSON,牛泽华,计算TE,,北京网络保障与技术部
+京东::participant::478548,京东,PERSON,贾涛,灵衢TL,,北京政企美团交付与服务
+京东::participant::construction,京东,PARTNER,施工队伍,现场施工,,由 08_施工队伍信息 自动生成的默认参与方。

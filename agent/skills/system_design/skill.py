@@ -118,7 +118,13 @@ class SystemDesignSkill(BaseSkill):
         pass  # 始终读 project_paths.json → data_root
 
     def execute_step(self, step, state, ctx):
-        return super().execute_step(step, state, as_sd_context(ctx))
+        from .pipelines.sheet007_preflight import is_soft_skip_message
+
+        diff = super().execute_step(step, state, as_sd_context(ctx))
+        err = str(diff.get("error") or "").strip()
+        if err and is_soft_skip_message(err):
+            diff = {**diff, "error": ""}
+        return diff
 
     def build_graph(self, checkpointer=None):
         reload_manifest()
@@ -156,10 +162,62 @@ class SystemDesignSkill(BaseSkill):
         # 锚定本次 run 的真实起始日（非 mock 演示日），计划工期默认 21 天；
         # actual_start = 启动当日（工单实际开工日）。剩余天数/状态由前端按当日派生。
         p.setdefault("schedule", _default_schedule())
+        p.setdefault("conv_log", [])
+        p.setdefault("chat_sealed", [])
+        return p
+
+    @staticmethod
+    def _conv_hitl_titles() -> dict[str, str]:
+        return {
+            "input_check": "输入件准备",
+            "intent_recognition": "意图识别 · 请选择",
+            "exec_confirm": "确认执行计划",
+            "stage_select": "输入执行计划",
+            "publish_confirm": "确认发布",
+            "plane_planning": "下一步：继续规划 / 生成完整 LLD",
+        }
+
+    def archive_hitl_prompt(self, project: dict[str, Any], hitl: dict[str, Any]) -> dict[str, Any]:
+        """把当前 HITL 弹框内容写入 conv_log（续跑前归档 · 避免下一门覆盖上一门）。"""
+        p = dict(project or {})
+        step = str((hitl or {}).get("step") or "")
+        if not step:
+            return p
+        log = list(p.get("conv_log") or [])
+        if log and log[-1].get("kind") == "hitl" and log[-1].get("step") == step:
+            return p
+        body = str(hitl.get("reason") or hitl.get("title") or "").strip()
+        for ni in hitl.get("need_inputs") or []:
+            if not isinstance(ni, dict):
+                continue
+            opts = ni.get("options") or []
+            labels = [
+                str(o.get("label") or o.get("value") or "")
+                for o in opts if isinstance(o, dict)
+            ]
+            labels = [x for x in labels if x]
+            if labels:
+                body = (body + "\n选项：" + " / ".join(labels)).strip()
+        return self._conv_append(p, {
+            "kind": "hitl",
+            "step": step,
+            "title": str(hitl.get("title") or self._conv_hitl_titles().get(step, "需要确认")),
+            "body": body or "请在下方卡片确认后继续。",
+        })
+
+    @staticmethod
+    def _conv_append(project: dict[str, Any], entry: dict[str, Any]) -> dict[str, Any]:
+        p = dict(project or {})
+        log = list(p.get("conv_log") or [])
+        row = dict(entry)
+        row.setdefault("seq", len(log))
+        log.append(row)
+        p["conv_log"] = log
         return p
 
     def apply_resume_payload(
-        self, project: dict[str, Any], payload: dict[str, Any], hitl_step: str
+        self, project: dict[str, Any], payload: dict[str, Any], hitl_step: str,
+        prev_hitl: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """HITL 续跑：把用户选择并回 project（跨 full_restart 存活）。
 
@@ -168,9 +226,12 @@ class SystemDesignSkill(BaseSkill):
         - stage_select：执行计划选择 → project.stage = {chosen:True, naming:bool}。"""
         p = dict(project or {})
         payload = payload or {}
+        if prev_hitl and hitl_step and prev_hitl.get("step") == hitl_step:
+            p = self.archive_hitl_prompt(p, prev_hitl)
 
         def _append_chat(text: str) -> None:
             """把用户本轮输入的指令追加到对话轮次日志（去重相邻重复）。"""
+            nonlocal p
             t = str(text or "").strip()
             if not t:
                 return
@@ -178,15 +239,51 @@ class SystemDesignSkill(BaseSkill):
             if not (chat and chat[-1].get("role") == "user" and chat[-1].get("text") == t):
                 chat.append({"role": "user", "text": t})
             p["chat"] = chat
+            log = list(p.get("conv_log") or [])
+            if not (log and log[-1].get("kind") == "user" and log[-1].get("text") == t):
+                p = SystemDesignSkill._conv_append(p, {"kind": "user", "text": t})
+
+        def _seal_last_chat_turn(default_title: str, default_body: str) -> None:
+            """上一规划指令已有结果 → 封存回复，避免下一轮的动态态覆盖。"""
+            nonlocal p
+            chat = list(p.get("chat") or [])
+            if not chat:
+                return
+            sealed = list(p.get("chat_sealed") or [])
+            if len(sealed) >= len(chat):
+                return
+            last_text = str(chat[-1].get("text") or "")
+            title = default_title.format(text=last_text) if "{text}" in default_title else default_title
+            body = default_body
+            sealed.append({"title": title or f"「{last_text}」已执行", "body": body})
+            p["chat_sealed"] = sealed
+            p = SystemDesignSkill._conv_append(p, {
+                "kind": "assistant",
+                "title": title or f"「{last_text}」已执行",
+                "body": body,
+            })
 
         def _set_cmd(raw: str) -> None:
             """把用户本轮指令写回 project：完整文本入对话流；按分隔符拆队列，
             首条 → project.text（供意图识别），其余 → project.plan_queue（plane_planning 串行执行）。
             每次都重置 plan_queue，避免上一轮残留队列被误重跑。"""
+            from .steps.intent_taxonomy import recognize as rule_recognize, canonicalize_command
+            from .pipelines.delivery import is_lld_delivery_intent
+
             t = str(raw or "").strip()
             if not t:
                 return
+            _seal_last_chat_turn(
+                "「{text}」已执行",
+                "结果已并入输出件，可在右侧「输出件」查看 / 下载。",
+            )
             _append_chat(t)
+            if is_lld_delivery_intent(t):
+                t = "生成完整LLD设计"
+            else:
+                m = rule_recognize(t)
+                if m.status == "resolved" and m.command:
+                    t = canonicalize_command(m.command)
             parts = _split_commands(t)
             p["text"] = parts[0] if parts else t
             p["plan_queue"] = parts[1:] if len(parts) > 1 else []
@@ -239,10 +336,25 @@ class SystemDesignSkill(BaseSkill):
                     p["text"] = ""
                     p["plan_queue"] = []
                     p["reselect_pending"] = True
+                    p = self._conv_append(p, {
+                        "kind": "user", "text": choice,
+                    })
+                    p = self._conv_append(p, {
+                        "kind": "assistant",
+                        "title": "已取消执行计划",
+                        "body": "可重新选择规划任务并在对话框输入。",
+                    })
                     return p
                 confs["exec"] = True
                 p["confirmations"] = confs
                 p["reselect_pending"] = False
+                cmd = str(p.get("text") or payload.get("text") or "").strip()
+                p = self._conv_append(p, {"kind": "user", "text": "确认执行"})
+                p = self._conv_append(p, {
+                    "kind": "assistant",
+                    "title": "已确认执行计划",
+                    "body": f"开始执行「{cmd or '规划任务'}」。",
+                })
                 # 用户输入/选择的是具体规划指令（非「确认」占位）→ 作为新意图写回。
                 if choice and choice not in ("confirm", "确认执行计划", "确认执行", "确认"):
                     _set_cmd(choice)
@@ -253,6 +365,12 @@ class SystemDesignSkill(BaseSkill):
             # confirm → publish。
             if hitl_step == "publish_confirm":
                 if choice in ("request_test_check", "检查测试用例"):
+                    p = self._conv_append(p, {"kind": "user", "text": "检查测试用例"})
+                    p = self._conv_append(p, {
+                        "kind": "assistant",
+                        "title": "测试用例已拷贝",
+                        "body": "请在右侧「输出件」页签查看测试用例并确认。",
+                    })
                     from .pipelines.publish_helpers import (
                         copy_test_case_to_output,
                         output_rel_path,
@@ -268,6 +386,12 @@ class SystemDesignSkill(BaseSkill):
                     p["highlight_artifacts"] = [TEST_CASE_ARTIFACT_ID]
                     return p
                 if choice in ("check", "confirm_test_check", "已检查测试用例"):
+                    p = self._conv_append(p, {"kind": "user", "text": "已检查测试用例"})
+                    p = self._conv_append(p, {
+                        "kind": "assistant",
+                        "title": "测试用例确认完成",
+                        "body": "请确认发布并写回项目活动进度。",
+                    })
                     confs["publish_checked"] = True
                     confs["publish_test_check_pending"] = False
                     p["confirmations"] = confs
@@ -276,10 +400,14 @@ class SystemDesignSkill(BaseSkill):
                     p["request_progress_view"] = int(p.get("request_progress_view") or 0) + 1
                     return p
                 if choice in ("confirm", "确认发布", "确认"):
+                    # 确认即发布：不写「开始发布/正在汇总…」过渡卡，直接置 publish 标志，
+                    # 由 publish 步链式执行后写「发布完成」成功卡 + 交付流程蓝图直达「发布完成」。
+                    p = self._conv_append(p, {"kind": "user", "text": "确认发布"})
                     confs["publish_checked"] = True
                     confs["publish_test_check_pending"] = False
                     confs["publish"] = True
                     p["confirmations"] = confs
+                    p["request_progress_view"] = int(p.get("request_progress_view") or 0) + 1
                     return p
                 return p
 
@@ -302,6 +430,24 @@ class SystemDesignSkill(BaseSkill):
         # 输入执行计划：rename_ztp → 执行名称替换；skip_ztp → 跳过名称替换
         if hitl_step == "stage_select":
             choice = str(payload.get("choice") or payload.get("value") or "rename_ztp").lower()
+            labels = {
+                "rename_ztp": "设备名称替换 + 生成 ZTP 开局文件",
+                "skip_ztp": "跳过名称替换，直接生成 ZTP",
+            }
+            label = labels.get(choice, choice)
+            p = self._conv_append(p, {"kind": "user", "text": label})
+            if "skip" in choice:
+                p = self._conv_append(p, {
+                    "kind": "assistant",
+                    "title": "已选择执行计划",
+                    "body": "将跳过设备名称替换，依次生成 ZTP 设计文件与 ZTP 配置文件（zip）。",
+                })
+            else:
+                p = self._conv_append(p, {
+                    "kind": "assistant",
+                    "title": "已选择执行计划",
+                    "body": "将执行设备名称替换，再依次生成 ZTP 设计文件与 ZTP 配置文件（zip）。",
+                })
             stage = dict(p.get("stage") or {})
             stage["chosen"] = True
             stage["naming"] = "rename" in choice  # rename_ztp → True；skip_ztp → False
@@ -335,19 +481,34 @@ class SystemDesignSkill(BaseSkill):
         if not route:
             return extras, project
 
+        prev_progress = int(prev.get("overall_progress") or 0)
+        if prev_progress > 0:
+            extras["overall_progress"] = prev_progress
+
         extras["route_to"] = route
         extras["logs"] = list(prev.get("logs") or [])[-4:] + [
             f"[resume] 交付续跑 · 跳过前置步骤 → {route}",
         ]
-        # 跳过 plane_planning 时仍需 sd_mode=full，供 ztp_generate / naming 判断
+        # 跳过 plane_planning 时仍需 sd_mode=full，供 lld_integrate / ztp / naming 判断
         m: dict[str, Any] = dict(prev.get("metrics") or {})
         for step in reversed(prev.get("steps") or []):
             m.update(step.get("metrics") or {})
-        m.setdefault("sd_mode", "full")
+        m["sd_mode"] = "full"
         if route == "lld_integrate":
             m["intent_command"] = str(
                 (project or {}).get("text") or "生成完整LLD设计"
             ).strip() or "生成完整LLD设计"
+            # 保留 plane_planning 覆盖账本（collect_metrics 只读 steps[]）
+            for rec in reversed(prev.get("steps") or []):
+                if rec.get("key") != "plane_planning":
+                    continue
+                seeded = dict(rec)
+                sm = dict(seeded.get("metrics") or {})
+                sm["sd_mode"] = "full"
+                sm["intent_command"] = m["intent_command"]
+                seeded["metrics"] = sm
+                extras["steps"] = [seeded]
+                break
         if not m.get("lld_file"):
             m["lld_file"] = str(extras["files"].get("lld_file") or "")
         extras["metrics"] = m

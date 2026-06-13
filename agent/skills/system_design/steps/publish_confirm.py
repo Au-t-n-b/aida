@@ -28,7 +28,14 @@ class PublishConfirmStep(BaseStep):
             return {
                 "logs": ["[publish_confirm] 已确认发布"],
                 "metrics": {"publish_confirmed": True},
-                "route_to": "",  # 清除续跑跳转，避免 publish 步 router 回跳本步
+                "route_to": "",
+                "hitl": {},
+                "steps": [self.make_record(
+                    "completed",
+                    ended_at=self._now(),
+                    log_tail=[f"[{self.key}] 已确认发布"],
+                    metrics={"publish_confirmed": True},
+                )],
             }
 
         m = collect_metrics(state)

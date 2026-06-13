@@ -120,7 +120,10 @@ export type ArchiveResponse = {
 const DEFAULT_MANAGER_BASE = 'http://127.0.0.1:8000';
 
 export function managerBase(): string {
-  return (import.meta.env.VITE_CLAWMANAGER_BASE || DEFAULT_MANAGER_BASE).replace(/\/$/, '');
+  const configured = import.meta.env.VITE_CLAWMANAGER_BASE as string | undefined;
+  // 开发态留空 → 同源请求走 Vite proxy 到 Manager，避免跨域 Failed to fetch
+  if (configured === '' || configured === '/') return '';
+  return (configured || DEFAULT_MANAGER_BASE).replace(/\/$/, '');
 }
 
 export async function loginToClawManager(input: {

@@ -1,0 +1,4 @@
+﻿batchKey,projectKey,batchName,sequence,podKeys,targetPowerOnDate,targetGoLiveDate,contractDeadline,status,suggestedRoomReadyDate,suggestedArrivalDate,suggestionSource
+京东::batch::批次1,京东,批次1,1,"B2DH401-POD01,B2DH401-POD02,B2DH401-POD03,B2DH401-POD04",2026-01-21,2026-02-04,,ACTIVE,,,
+京东::batch::批次2,京东,批次2,2,B2DH403-POD09,2026-01-25,2026-02-04,,ACTIVE,,,
+京东::batch::批次3,京东,批次3,3,"B2DH402-POD05,B2DH402-POD06,B2DH402-POD07,B2DH402-POD08",2026-03-17,2026-04-04,,ACTIVE,,,

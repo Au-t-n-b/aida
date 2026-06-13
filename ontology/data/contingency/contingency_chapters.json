@@ -1,0 +1,15 @@
+[
+  {
+    "id": "doc-ch-12",
+    "decisionId": "",
+    "no": "10",
+    "title": "计划",
+    "decisionPoint": "global",
+    "decisionLabel": "全局输入 · 四子决策共同输入",
+    "desc": "交付计划一级活动（delivery_plan_row 投影）：引用计划模块排期输出（站/机房、货、人三维度），跨 PoD 聚合每个一级活动的起止与工期，输出实施甘特图。",
+    "source": "计划模块排期输出",
+    "objectType": "DeliveryPlanRow",
+    "fieldOrder": ["activityId", "activityName", "managementUnit", "startDate", "endDate", "owner"],
+    "fieldExclude": ["equipmentList"]
+  }
+]

@@ -103,6 +103,11 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
   const clearedRunIdRef = useRef<string | null>(null);
 
+  // 最近一次已应用的 SDUI 内容序列化（内容门控：相同则不重渲染，避免轮询/重发抖动）
+  const lastDocJsonRef = useRef<string | null>(null);
+  // close 后的轻量快照轮询定时器（替代 EventSource 自动重连，避免重连风暴打断交互）
+  const pollTimerRef = useRef<number | null>(null);
+
   const useRunLog = RUN_LOG_SKILLS.has(skillId);
 
 
@@ -134,6 +139,13 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
     let sseReceived = false;
 
     let es: EventSource | null = null;
+
+    // 每次重订阅（runId / epoch 变化）重置内容门控与遗留轮询
+    lastDocJsonRef.current = null;
+    if (pollTimerRef.current != null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
 
 
 
@@ -196,6 +208,11 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
           if (result.ok) {
 
             sseReceived = true;
+
+            // 内容门控：与上次应用的树相同则跳过（避免重发/快照导致整树重渲染、握碎交互）
+            const json = JSON.stringify(result.doc);
+            if (json === lastDocJsonRef.current) return;
+            lastDocJsonRef.current = json;
 
             // SSE 增量经 mergeSduiDoc：与后端 display_state 双保险，防 full_restart 闪回低进度
             setDoc(prev => useRunLog ? result.doc : mergeSduiDoc(prev, result.doc));
@@ -261,12 +278,28 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
 
 
-      // 服务端在 run 结束/HITL 暂停时会发 close 事件并关闭连接。EventSource 默认会
-      // 自动重连 → 服务端再次发 close → 无限重连风暴（每次重连重发 sdui 快照，导致整棵
-      // SDUI 树高频重渲染，握碎文件选择等交互）。收到 close 主动 es.close() 终止重连；
-      // resume 时 survey-agent 会 bump streamEpoch 触发本 effect 重订阅，不影响续跑。
+      // 「内容门控的轻量快照轮询」：整段订阅期间常驻运行（不依赖 close 事件时序）。
+      // 后端 SSE 是分段的——run 跑到 HITL 暂停 / 结束就发 close 关连接，期间若错过
+      // 增量（重订阅竞态、close 时序、冻结遮罩等）会导致界面停在旧态，需手动刷新。
+      // 故每 2.5s 拉一次 /ui 快照兜底：内容变化（步骤推进 / 新 HITL 弹框）→ 自动 setDoc
+      // 刷新；内容相同 → 不 setDoc、不重渲染，既不打断交互也不空耗。投影确定性保证
+      // 同一状态序列化一致，不会误判抖动。
+      const startSnapshotPoll = () => {
+        if (pollTimerRef.current != null) return;
+        pollTimerRef.current = window.setInterval(() => {
+          if (cancelled) return;
+          fetchUiSnapshot(skillId, runId, base).then(snap => {
+            if (cancelled || !snap) return;
+            const json = JSON.stringify(snap);
+            if (json === lastDocJsonRef.current) return;  // 无变化：不触发重渲染
+            lastDocJsonRef.current = json;
+            setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
+          }).catch(() => { /* ignore */ });
+        }, 2500);
+      };
+      // 收到 close 主动 es.close() 终止 EventSource 自带的重连风暴（避免整树高频重渲染、
+      // 握碎文件选择）；状态刷新交给常驻的快照轮询。
       const handleClose = () => {
-        cancelled = true;
         es?.close();
         if (esRef.current === es) esRef.current = null;
       };
@@ -298,6 +331,9 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
       };
 
+      // 常驻快照轮询：保证后端状态推进时界面自动刷新，无需手动刷新页面（内容门控防抖动）。
+      startSnapshotPoll();
+
     })();
 
 
@@ -308,6 +344,11 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       es?.close();
 
       esRef.current = null;
+
+      if (pollTimerRef.current != null) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
 
     };
 
@@ -427,6 +468,8 @@ export async function resumeRun(
       payload,
       ...(fromStep ? { from_step: fromStep } : {}),
     }),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(await res.text());
   });
 
 }
