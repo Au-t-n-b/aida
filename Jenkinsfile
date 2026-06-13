@@ -87,23 +87,19 @@ pipeline {
                     passwordVariable: 'HARBOR_PASS'
                 )]) {
                     sshagent(credentials: ['ssh-231-root']) {
-                        sh """
-                            set -e
-
-                            # Create deploy directory
-                            ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}'
-
-                            # Push docker-compose.yml to server
-                            scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
-
-                            # Remote: login Harbor -> pull images -> restart containers
-                            # HARBOR_USER 含美元符号（robot 账号），须由 shell 展开，勿经 Groovy 内嵌
-                            ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \
-                                env HARBOR_PASS="\${HARBOR_PASS}" HARBOR_USER="\${HARBOR_USER}" \
-                                REGISTRY="${DOCKER_REGISTRY}" DEPLOY_DIR="${DEPLOY_DIR}" \
-                                bash -s <<'EOS'
+                        script {
+                            writeFile file: 'harbor-deploy.env', text: """\
+HARBOR_PASS=${env.HARBOR_PASS}
+HARBOR_USER=${env.HARBOR_USER}
+REGISTRY=${env.DOCKER_REGISTRY}
+"""
+                            writeFile file: 'deploy-remote.sh', text: """\
+#!/usr/bin/env bash
 set -euo pipefail
-cd "\$DEPLOY_DIR"
+cd ${env.DEPLOY_DIR}
+set -a
+source /tmp/harbor-deploy.env
+set +a
 printf '%s' "\$HARBOR_PASS" | docker login "\$REGISTRY" -u "\$HARBOR_USER" --password-stdin
 docker compose pull
 docker compose up -d --remove-orphans
@@ -111,11 +107,20 @@ docker compose ps
 docker compose ps --status running | grep -q aida-agent
 docker compose ps --status running | grep -q aida-frontend
 docker image prune -f
-docker logout "\$REGISTRY"
+docker logout "\$REGISTRY" || true
+rm -f /tmp/harbor-deploy.env /tmp/deploy-remote.sh
 echo '=== Container Status ==='
 docker compose ps
-EOS
-                        """
+"""
+                            sh """
+                                set -e
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}'
+                                scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
+                                scp -o StrictHostKeyChecking=no harbor-deploy.env deploy-remote.sh root@${DEPLOY_HOST}:/tmp/
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'chmod +x /tmp/deploy-remote.sh && bash /tmp/deploy-remote.sh'
+                                rm -f harbor-deploy.env deploy-remote.sh
+                            """
+                        }
                     }
                 }
             }
