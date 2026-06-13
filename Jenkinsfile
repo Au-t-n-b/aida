@@ -18,8 +18,8 @@ pipeline {
     environment {
         DOCKER_REGISTRY   = 'harbor.aie.rnd.huawei.com'
         HARBOR_PROJECT    = 'library'
-        AGENT_IMAGE       = 'aida-agent'
-        FRONTEND_IMAGE    = 'aida-frontend'
+        AGENT_IMAGE       = 'aida/backend'
+        FRONTEND_IMAGE    = 'aida/frontend'
         DEPLOY_HOST       = '10.143.2.231'
         DEPLOY_DIR        = '/home/docker_data/aida'
     }

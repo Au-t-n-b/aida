@@ -1,8 +1,8 @@
 # ============================================================
 # AIDA Agent 后端 · Python 3.11 + FastAPI/Uvicorn
 # ============================================================
-# 构建：docker build -f agent/Dockerfile -t aida-agent:latest .
-# 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data aida-agent:latest
+# 构建：docker build -f agent/Dockerfile -t aida/backend:latest .
+# 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data aida/backend:latest
 # ============================================================
 
 FROM harbor.aie.rnd.huawei.com/library/python:3.12.13-slim

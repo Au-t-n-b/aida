@@ -1,8 +1,8 @@
 # ============================================================
 # AIDA 前端 · Node 20 构建 → Nginx 托管
 # ============================================================
-# 构建：docker build -f frontend/Dockerfile -t aida-frontend:latest .
-# 运行（配合 docker-compose）：docker run -d -p 80:80 aida-frontend:latest
+# 构建：docker build -f frontend/Dockerfile -t aida/frontend:latest .
+# 运行（配合 docker-compose）：docker run -d -p 80:80 aida/frontend:latest
 # ============================================================
 
 # ── Stage 1: 构建 ──────────────────────────────────────────
