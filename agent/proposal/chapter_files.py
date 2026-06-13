@@ -109,7 +109,9 @@ def save_chapter_payload(
     json_path = _json_path(project_id, spec, version)
     json_path.parent.mkdir(parents=True, exist_ok=True)
     save_json(json_path, enriched)
-    export_chapter_xlsx(json_path.with_suffix(".xlsx"), spec, enriched)
+    # 元数据章节不再使用独立元数据信息.xlsx，避免继续写入无效产物。
+    if spec.key != "meta":
+        export_chapter_xlsx(json_path.with_suffix(".xlsx"), spec, enriched)
     return json_path
 
 
@@ -124,6 +126,8 @@ def sync_all_chapter_excel(project_id: str, version: str = "draft") -> list[str]
     """Normalize registry chapters to canonical JSON + sibling XLSX; export any extra JSON."""
     written: list[str] = []
     for spec in LEAF_CHAPTERS:
+        if spec.key == "meta":
+            continue
         src = _resolve_read_path(project_id, spec, version)
         if src is None:
             continue
@@ -153,6 +157,8 @@ def promote_draft_chapters_to_version(project_id: str, new_version: str) -> list
     """Copy all draft chapter JSON (+ XLSX) into version folder with version stamp."""
     saved: list[str] = []
     for spec in LEAF_CHAPTERS:
+        if spec.key == "meta":
+            continue
         src = _resolve_read_path(project_id, spec, "draft")
         if src is None:
             continue
@@ -275,7 +281,7 @@ def sync_output_chapter_excels(
     out_dir.mkdir(parents=True, exist_ok=True)
     _normalize_output_excel_names(project_id)
 
-    targets: list[ChapterSpec] = list(LEAF_CHAPTERS)
+    targets: list[ChapterSpec] = [spec for spec in LEAF_CHAPTERS if spec.key != "meta"]
 
     written: list[str] = []
     for spec in targets:
