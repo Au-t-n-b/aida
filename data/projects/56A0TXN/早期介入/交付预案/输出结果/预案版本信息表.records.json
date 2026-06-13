@@ -4,12 +4,12 @@
     "documentSummary": "56A0TXN项目交付预案",
     "manualChangeLog": [],
     "projectId": "56A0TXN",
-    "projectName": "56A0TXN项目",
+    "projectName": "京东三期",
     "proposalVersion": "草稿",
     "createdBy": "何博",
     "createdAt": "2026-06-13T08:27:16.364558+00:00",
     "updatedBy": "何博",
-    "updatedAt": "2026-06-13T11:13:15.271371+00:00"
+    "updatedAt": "2026-06-13T13:15:46.619696+00:00"
   },
   "snapshots": [
     {
@@ -140,6 +140,42 @@
       "createdAt": "2026-06-13T08:27:16.364558+00:00",
       "updatedBy": "何博",
       "updatedAt": "2026-06-13T09:39:33.178866+00:00",
+      "changeDescription": "",
+      "documentSummary": "56A0TXN项目交付预案",
+      "changeRecords": []
+    },
+    {
+      "projectId": "56A0TXN",
+      "projectName": "56A0TXN项目",
+      "proposalVersion": "V1.9_20260613202048_DRB",
+      "createdBy": "何博",
+      "createdAt": "2026-06-13T08:27:16.364558+00:00",
+      "updatedBy": "何博",
+      "updatedAt": "2026-06-13T12:20:49.131981+00:00",
+      "changeDescription": "",
+      "documentSummary": "56A0TXN项目交付预案",
+      "changeRecords": []
+    },
+    {
+      "projectId": "56A0TXN",
+      "projectName": "京东三期",
+      "proposalVersion": "V2.0_20260613205222_DRB",
+      "createdBy": "何博",
+      "createdAt": "2026-06-13T08:27:16.364558+00:00",
+      "updatedBy": "何博",
+      "updatedAt": "2026-06-13T12:52:23.188253+00:00",
+      "changeDescription": "",
+      "documentSummary": "56A0TXN项目交付预案",
+      "changeRecords": []
+    },
+    {
+      "projectId": "56A0TXN",
+      "projectName": "京东三期",
+      "proposalVersion": "V2.1_20260613211416_DRB",
+      "createdBy": "何博",
+      "createdAt": "2026-06-13T08:27:16.364558+00:00",
+      "updatedBy": "何博",
+      "updatedAt": "2026-06-13T13:14:17.255102+00:00",
       "changeDescription": "",
       "documentSummary": "56A0TXN项目交付预案",
       "changeRecords": []

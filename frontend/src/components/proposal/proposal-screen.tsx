@@ -439,36 +439,11 @@ export default function ProposalScreen() {
     setActionBusy(true);
     try {
       await saveDraftWithEtagRetry();
-      const result = await releaseAndDecide(projectId, headers, {
+      await releaseAndDecide(projectId, headers, {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
       setDirty(false);
-
-      if (typeof window !== 'undefined' && result.progress) {
-        result.progress.forEach((item, idx) => {
-          setTimeout(
-            () => window.dispatchEvent(new CustomEvent('aida:progress', { detail: item })),
-            idx === 0 ? 0 : idx * 400,
-          );
-        });
-      }
-
-      const versionList = await fetchVersions(projectId, headers);
-      setVersions(versionList);
-      const draftData = await fetchDraft(projectId, headers);
-      const log = await loadChangeLogForDraft(projectId, headers, draftData);
-      setProposalVersion('draft');
-      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
-      setDraftChapters((draftData.chapters ?? {}) as Record<string, unknown>);
-      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
-      setCumulativeLog(log);
-      setManualChangeLog(
-        log.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-      setEtag(draftData.manifest?.etag);
-
-      const delay = (result.progress?.length ?? 1) * 400 + 400;
-      setTimeout(() => window.location.assign('/cockpit'), Math.max(delay, 2800));
+      window.location.assign('/twin?view=digital');
     } catch (err) {
       const msg =
         err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';
