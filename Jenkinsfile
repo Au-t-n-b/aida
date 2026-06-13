@@ -32,15 +32,15 @@ pipeline {
 
     stages {
         // ──────────────────────────────────────────────
-        stage('检出代码') {
+        stage('Checkout') {
             steps {
                 checkout scm
-                echo "分支: ${env.GIT_BRANCH}, 提交: ${env.GIT_COMMIT}"
+                echo "Branch: ${env.GIT_BRANCH}, Commit: ${env.GIT_COMMIT}"
             }
         }
 
         // ──────────────────────────────────────────────
-        stage('Docker 构建与推送') {
+        stage('Docker Build & Push') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'harbor-aie',
@@ -53,7 +53,7 @@ pipeline {
                         """
 
                         parallel(
-                            'Agent 后端': {
+                            'Agent Backend': {
                                 sh """
                                     docker build -f agent/Dockerfile \
                                         -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:${env.BUILD_NUMBER} \
@@ -63,7 +63,7 @@ pipeline {
                                 """
                                 env.AGENT_FULL_IMAGE = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:${env.BUILD_NUMBER}"
                             },
-                            'Frontend 前端': {
+                            'Frontend': {
                                 sh """
                                     docker build -f frontend/Dockerfile \
                                         -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:${env.BUILD_NUMBER} \
@@ -82,7 +82,7 @@ pipeline {
         }
 
         // ──────────────────────────────────────────────
-        stage('部署到服务器') {
+        stage('Deploy') {
             steps {
                 withCredentials([usernamePassword(
                     credentialsId: 'harbor-aie',
@@ -93,13 +93,13 @@ pipeline {
                         sh """
                             set -e
 
-                            # 创建部署目录
+                            # Create deploy directory
                             ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}'
 
-                            # 推送 docker-compose.yml 到服务器
+                            # Push docker-compose.yml to server
                             scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
 
-                            # 远程执行：登录 Harbor → 拉取镜像 → 重启容器
+                            # Remote: login Harbor -> pull images -> restart containers
                             ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "
                                 cd ${DEPLOY_DIR}
 
@@ -110,7 +110,7 @@ pipeline {
                                 docker image prune -f
                                 docker logout ${DOCKER_REGISTRY}
 
-                                echo '=== 容器状态 ==='
+                                echo '=== Container Status ==='
                                 docker compose ps
                             "
                         """
@@ -125,21 +125,21 @@ pipeline {
         success {
             echo """
             ╔══════════════════════════════════════════════════╗
-            ║  ✅ AIDA 构建 + 部署成功                         ║
+            ║  AIDA Build + Deploy Success                     ║
             ║  Agent:    ${env.AGENT_FULL_IMAGE ?: 'N/A'}
             ║  Frontend: ${env.FRONTEND_FULL_IMAGE ?: 'N/A'}
-            ║  部署到:   ${env.DEPLOY_HOST}:${env.DEPLOY_DIR}
+            ║  Deploy:   ${env.DEPLOY_HOST}:${env.DEPLOY_DIR}
             ║
-            ║  🌐 前端访问: http://${env.DEPLOY_HOST}:5401
-            ║  🔧 后端 API: http://${env.DEPLOY_HOST}:7401
+            ║  Frontend: http://${env.DEPLOY_HOST}:5401
+            ║  API:      http://${env.DEPLOY_HOST}:7401
             ║
-            ║  分支:     ${env.GIT_BRANCH}
-            ║  提交:     ${env.GIT_COMMIT?.take(7) ?: 'N/A'}
+            ║  Branch:   ${env.GIT_BRANCH}
+            ║  Commit:   ${env.GIT_COMMIT?.take(7) ?: 'N/A'}
             ╚══════════════════════════════════════════════════╝
             """
         }
         failure {
-            echo "❌ AIDA 构建失败，请检查日志"
+            echo "AIDA build failed, check logs"
         }
         always {
             sh 'docker image prune -f || true'
