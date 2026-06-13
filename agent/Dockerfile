@@ -5,7 +5,7 @@
 # 运行：docker run -d -p 7401:7401 --env-file .env -v /data/aida:/app/.data aida-agent:latest
 # ============================================================
 
-FROM harbor.aie.rnd.huawei.com/library/python:3.11-slim
+FROM harbor.aie.rnd.huawei.com/library/python:3.12.13-slim
 
 # 系统依赖（pandas/openpyxl 需要的 libxml 等）
 RUN apt-get update && \
