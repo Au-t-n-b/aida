@@ -24,7 +24,7 @@ import uuid
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-import agent.coanfig  # noqa: F401 - load .env and proposal runtime config at startup
+import agent.config  # noqa: F401 - load .env and proposal runtime config at startup
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
