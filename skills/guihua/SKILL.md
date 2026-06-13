@@ -21,11 +21,11 @@ description: 规划设计（建模仿真，jmfz）—— 数据中心机房建�
 
 | Step | 名称 | 关键输入 → 输出 | 后端节点 |
 |---|---|---|---|
-| 1 | 设备适配 | 设备信息表.md → 调仿真 API 匹配 → 设备适配信息表（compat_table.md） | `adapt_build` |
-| 2 | 数据确认 | 适配信息表 → 用户确认「数据准确，创建超节点」（HITL ChoiceCard） | `data_confirm` |
-| 3 | 创建超节点 | 适配表 + 机柜几何 → batchCreateCombo×5（requests.json / combo_created.json） | `combo_create` |
-| 4 | 机柜落位 | 刷新 nVisual（HITL 门）→ batchMoveNodes×162 逐机柜（move_progress.json） | `cabinet_move` |
-| 5 | 移交设备安装 | 用户确认生成参数面（HITL 边界）→ 移交载荷 + 结题报告.md | `handoff` |
+| 1 | 设备适配 | 载入设备适配信息表.md（jmfz/api_adapt 产物）→ compat_table.md + BOQ 概览 | `adapt_build` |
+| 2 | 数据确认 | 「查看详细数据」核对适配表 →「数据准确？」（HITL ChoiceCard，右下「设备数据准确」按钮亦可触发） | `data_confirm` |
+| 3 | 创建超节点 | 「是否创建超节点？」（HITL 门）→ subprocess run_place_api --only-create（batchCreateCombo×5） | `combo_create` |
+| 4 | 机柜落位 | 刷新 nVisual + 「开始落位？」（HITL 门）→ subprocess run_place_api --only-move（batchMoveNodes×162） | `cabinet_move` |
+| 5 | 生成参数面设备 | 「是否生成参数面…？」（HITL 门）→ subprocess csm-rack run_device_install（建 Leaf×54 → 上架×18 → batchCreateLink×2） | `handoff` |
 
 > ⚠️「后端节点」列与 `agent/skills/guihua/steps` 的 `step.key` **逐一一致**（`lint_skill_contract` 校验）。
 
@@ -48,13 +48,14 @@ description: 规划设计（建模仿真，jmfz）—— 数据中心机房建�
 
 ---
 
-## C. HITL 形态（三道确认门 + 可选文件型）
+## C. HITL 形态（四道确认门 + 可选文件型）
 
-- **文件型**（可选）：未上传设备信息表时不阻断，自动复用内置 fixture 离线生成；要用真实数据则上传 `设备信息表.md`（及 `机房机柜信息表.xlsx`）走 `/agent/guihua/upload/batch` → `/resume`。
-- **确认型**（step 2/4/5）：`hitl.need_inputs` → 前端 ChoiceCard → `/resume` 带 `payload:{choice:"confirm"}`。
-  - `data_confirm`：「数据准确，创建超节点」；redo=「重新生成适配表」（连带重置下游创建/落位）。
-  - `cabinet_move`：「已刷新 nVisual，开始落位」（收敛原 CLI 的手动刷新暂停）；redo=「暂不落位」。
-  - `handoff`：「生成参数面，移交设备安装」（模块边界）；redo=「暂不移交」。
+- **文件型**（可选）：未上传时复用 vendored 适配表离线渲染；要用真实数据则上传走 `/agent/guihua/upload/batch` → `/resume`。
+- **确认型**（step 2/3/4/5）：`hitl.need_inputs` → 前端 ChoiceCard → `/resume` 带 `payload:{choice:"confirm"}`。
+  - `data_confirm`：「数据准确？」（右下「设备数据准确」按钮 = 该门 confirm）；redo=「重新生成适配表」（连带重置下游创建/落位/生成）。
+  - `combo_create`：「数据已确认，是否开始创建超节点？」；redo=「暂不创建」。
+  - `cabinet_move`：「超节点已经创建完毕，是否开始机柜落位？」（含手动刷新 nVisual）；redo=「暂不落位」。
+  - `handoff`：「超节点已经创建并且落位完毕，是否生成参数面设备，并且完成设备上架和拓扑生成？」；redo=「暂不生成」。
 
 ---
 
@@ -65,9 +66,9 @@ description: 规划设计（建模仿真，jmfz）—— 数据中心机房建�
 | 1 | `RunTime/compat_table.md`（设备适配信息表） |
 | 3 | `RunTime/requests.json` + `RunTime/combo_created.json`（创建请求 + 哨兵） |
 | 4 | `RunTime/move_progress.json`（逐机柜落位进度 / 断点） |
-| 5 | `RunTime/handoff.json`（移交设备安装载荷）+ `Output/modeling_simulation_workbench_report.md`（结题报告） |
+| 5 | `RunTime/csm_done.json`（参数面生成汇总）+ `Output/modeling_simulation_workbench_report.md`（结题报告）；csm-rack 明细见 `vendor/jmfz/csm-rack/output/execution-result.json` |
 
-> 所有仿真 API 调用（含 dry-run）留痕于 `RunTime/sim_api_calls.jsonl`，payload/响应可回溯。
+> 真跑交付：step 3/4/5 经 subprocess 调 vendored jmfz 脚本（`agent/skills/guihua/vendor/jmfz/`）真发仿真网关 `100.102.191.17:9091`（本次明确豁免 AGENTS「禁 subprocess 调 py」红线，技术债待移植成 services）。
 
 ---
 

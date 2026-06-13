@@ -1,0 +1,520 @@
+{
+  "generated_at": "2026-06-13T06:51:57.169810+00:00",
+  "endpoint": "POST http://100.102.191.17:9091/wapi/v1/ai/device/batchRackDevices",
+  "api": "batchRackDevices",
+  "call_mode": "per_cabinet",
+  "device_diagram": "参数面",
+  "cabinet_diagram": "机房视图",
+  "counts": {
+    "total_calls": 18,
+    "total_leaves": 54
+  },
+  "call_descriptions": [
+    "机房401 A17: ['CSM-LEAF-CE9866-001', 'CSM-LEAF-CE9866-003', 'CSM-LEAF-CE9866-005']",
+    "机房401 A18: ['CSM-LEAF-CE9866-002', 'CSM-LEAF-CE9866-004', 'CSM-LEAF-CE9866-006']",
+    "机房401 B17: ['CSM-LEAF-CE9866-007', 'CSM-LEAF-CE9866-009', 'CSM-LEAF-CE9866-011']",
+    "机房401 B18: ['CSM-LEAF-CE9866-008', 'CSM-LEAF-CE9866-010', 'CSM-LEAF-CE9866-012']",
+    "机房401 C17: ['CSM-LEAF-CE9866-013', 'CSM-LEAF-CE9866-015', 'CSM-LEAF-CE9866-017']",
+    "机房401 C18: ['CSM-LEAF-CE9866-014', 'CSM-LEAF-CE9866-016', 'CSM-LEAF-CE9866-018']",
+    "机房401 D17: ['CSM-LEAF-CE9866-019', 'CSM-LEAF-CE9866-021', 'CSM-LEAF-CE9866-023']",
+    "机房401 D18: ['CSM-LEAF-CE9866-020', 'CSM-LEAF-CE9866-022', 'CSM-LEAF-CE9866-024']",
+    "机房402 A17: ['CSM-LEAF-CE9866-025', 'CSM-LEAF-CE9866-027', 'CSM-LEAF-CE9866-029']",
+    "机房402 A18: ['CSM-LEAF-CE9866-026', 'CSM-LEAF-CE9866-028', 'CSM-LEAF-CE9866-030']",
+    "机房402 B17: ['CSM-LEAF-CE9866-031', 'CSM-LEAF-CE9866-033', 'CSM-LEAF-CE9866-035']",
+    "机房402 B18: ['CSM-LEAF-CE9866-032', 'CSM-LEAF-CE9866-034', 'CSM-LEAF-CE9866-036']",
+    "机房402 C17: ['CSM-LEAF-CE9866-037', 'CSM-LEAF-CE9866-039', 'CSM-LEAF-CE9866-041']",
+    "机房402 C18: ['CSM-LEAF-CE9866-038', 'CSM-LEAF-CE9866-040', 'CSM-LEAF-CE9866-042']",
+    "机房402 D17: ['CSM-LEAF-CE9866-043', 'CSM-LEAF-CE9866-045', 'CSM-LEAF-CE9866-047']",
+    "机房402 D18: ['CSM-LEAF-CE9866-044', 'CSM-LEAF-CE9866-046', 'CSM-LEAF-CE9866-048']",
+    "机房403 A17: ['CSM-LEAF-CE9866-049', 'CSM-LEAF-CE9866-051', 'CSM-LEAF-CE9866-053']",
+    "机房403 A18: ['CSM-LEAF-CE9866-050', 'CSM-LEAF-CE9866-052', 'CSM-LEAF-CE9866-054']"
+  ],
+  "payloads": [
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-001",
+        "CSM-LEAF-CE9866-003",
+        "CSM-LEAF-CE9866-005"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "A17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "A17",
+        "leaf_seqs": [
+          1,
+          3,
+          5
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-002",
+        "CSM-LEAF-CE9866-004",
+        "CSM-LEAF-CE9866-006"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "A18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "A18",
+        "leaf_seqs": [
+          2,
+          4,
+          6
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-007",
+        "CSM-LEAF-CE9866-009",
+        "CSM-LEAF-CE9866-011"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "B17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "B17",
+        "leaf_seqs": [
+          7,
+          9,
+          11
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-008",
+        "CSM-LEAF-CE9866-010",
+        "CSM-LEAF-CE9866-012"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "B18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "B18",
+        "leaf_seqs": [
+          8,
+          10,
+          12
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-013",
+        "CSM-LEAF-CE9866-015",
+        "CSM-LEAF-CE9866-017"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "C17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "C17",
+        "leaf_seqs": [
+          13,
+          15,
+          17
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-014",
+        "CSM-LEAF-CE9866-016",
+        "CSM-LEAF-CE9866-018"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "C18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "C18",
+        "leaf_seqs": [
+          14,
+          16,
+          18
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-019",
+        "CSM-LEAF-CE9866-021",
+        "CSM-LEAF-CE9866-023"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "D17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "D17",
+        "leaf_seqs": [
+          19,
+          21,
+          23
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-020",
+        "CSM-LEAF-CE9866-022",
+        "CSM-LEAF-CE9866-024"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "D18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "401",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "401",
+        "cabinet": "D18",
+        "leaf_seqs": [
+          20,
+          22,
+          24
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-025",
+        "CSM-LEAF-CE9866-027",
+        "CSM-LEAF-CE9866-029"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "A17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "A17",
+        "leaf_seqs": [
+          25,
+          27,
+          29
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-026",
+        "CSM-LEAF-CE9866-028",
+        "CSM-LEAF-CE9866-030"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "A18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "A18",
+        "leaf_seqs": [
+          26,
+          28,
+          30
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-031",
+        "CSM-LEAF-CE9866-033",
+        "CSM-LEAF-CE9866-035"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "B17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "B17",
+        "leaf_seqs": [
+          31,
+          33,
+          35
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-032",
+        "CSM-LEAF-CE9866-034",
+        "CSM-LEAF-CE9866-036"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "B18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "B18",
+        "leaf_seqs": [
+          32,
+          34,
+          36
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-037",
+        "CSM-LEAF-CE9866-039",
+        "CSM-LEAF-CE9866-041"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "C17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "C17",
+        "leaf_seqs": [
+          37,
+          39,
+          41
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-038",
+        "CSM-LEAF-CE9866-040",
+        "CSM-LEAF-CE9866-042"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "C18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "C18",
+        "leaf_seqs": [
+          38,
+          40,
+          42
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-043",
+        "CSM-LEAF-CE9866-045",
+        "CSM-LEAF-CE9866-047"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "D17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "D17",
+        "leaf_seqs": [
+          43,
+          45,
+          47
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-044",
+        "CSM-LEAF-CE9866-046",
+        "CSM-LEAF-CE9866-048"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "D18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "402",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "402",
+        "cabinet": "D18",
+        "leaf_seqs": [
+          44,
+          46,
+          48
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-049",
+        "CSM-LEAF-CE9866-051",
+        "CSM-LEAF-CE9866-053"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "A17"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "403",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "403",
+        "cabinet": "A17",
+        "leaf_seqs": [
+          49,
+          51,
+          53
+        ],
+        "mode": "per_cabinet"
+      }
+    },
+    {
+      "device_range": [
+        "CSM-LEAF-CE9866-050",
+        "CSM-LEAF-CE9866-052",
+        "CSM-LEAF-CE9866-054"
+      ],
+      "device_diagram": "参数面",
+      "cabinet_range": [
+        "A18"
+      ],
+      "cabinet_diagram": "机房视图",
+      "roomName": "403",
+      "startU": 41,
+      "interval": 3,
+      "installationDirection": "F",
+      "allocationDirection": 1,
+      "_meta": {
+        "room": "403",
+        "cabinet": "A18",
+        "leaf_seqs": [
+          50,
+          52,
+          54
+        ],
+        "mode": "per_cabinet"
+      }
+    }
+  ]
+}

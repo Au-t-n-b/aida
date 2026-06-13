@@ -1,85 +1,100 @@
 """
-combo_create · 建模仿真第 3 步「创建超节点」（auto_dragd 创建阶段移植）
+combo_create · 建模仿真第 3 步「创建超节点」（确认型 HITL 门 gate=combo + 真跑 --only-create）
 
-对应 run_place_api.py run --only-create：9 个 POD 平铺创建超节点，按 roomName×model 分 5 次
-batchCreateCombo（统一走 SimApiClient）。请求由 place_api 现建（适配表 + 机房机柜表.xlsx +
-cabinets.json），缺输入时回落 fixtures/requests_fixture.json（已固化 5 创建 + 162 移动）。
+交互：data_confirm「数据准确？」是 之后，左对话框「数据已确认，是否开始创建超节点？」是/否。
+是（gate=combo）→ run() 子进程真跑 vendored run_place_api.py run --only-create
+（9 个 POD 平铺创建，按 roomName×model 分 5 次 batchCreateCombo，真发仿真网关）。
 
-幂等：写 sentinel combo_created.json；full_restart 重跑时若已创建则跳过（避免 live 重复创建），
-跳过时仍回放 metrics 保持 KPI 稳定。下游 cabinet_move 复用本步写出的 requests.json。
+每次进入 run() 均真调脚本，除非本 run 已成功写入 sentinel（run_id 一致）。
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
 
-from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit
-from ..services import FIXTURE_CABINETS, FIXTURE_REQUESTS
-from ..services.place_api import load_or_build_requests, send_create
-from ..services.sim_api import SimApiClient, is_live
+from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..services import VENDOR_AUTODRAGD
+from ..services.sentinel import is_same_run, read_json
+from ..services.sim_api import is_live
+from ..services.subproc import run_script
 
-COMPAT_TABLE_REL = "ProjectData/RunTime/compat_table.md"
 REQUESTS_REL = "ProjectData/RunTime/requests.json"
 CREATED_REL = "ProjectData/RunTime/combo_created.json"
-_XLSX_HINTS = ("机房机柜", "cabinet", "机柜信息")
-_CABINETS_HINTS = ("cabinet",)
 
 
 class ComboCreateStep(BaseStep):
     key = "combo_create"
     name = "创建超节点"
-    artifacts_pattern = [REQUESTS_REL, CREATED_REL]
+    artifacts_pattern = [CREATED_REL]
+
+    def check_inputs(self, ctx: SkillContext) -> CheckResult:
+        confs = (ctx.project or {}).get("confirmations") or {}
+        if confs.get("combo"):
+            return {"ok": True, "missing": [], "found": ["confirmations.combo"], "note": ""}
+        meta = self._requests_meta()
+        combo = meta.get("combo_base_model", "")
+        combo_txt = f"（超节点组合：{combo}）" if combo else ""
+        return {
+            "ok": False,
+            "missing": [],
+            "found": [],
+            "note": f"数据已确认{combo_txt}。是否开始创建超节点（batchCreateCombo ×{meta.get('create_count', 5)}，真发仿真网关）？",
+            "need_inputs": [{
+                "id": "combo",
+                "label": "数据已确认，是否开始创建超节点？",
+                "options": [
+                    {"label": "是，开始创建超节点", "value": "confirm"},
+                    {"label": "否，暂不创建", "value": "redo"},
+                ],
+            }],
+        }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         sentinel = ctx.work_root / CREATED_REL
         redo = bool((ctx.project or {}).get("_redo_create"))
+        meta = self._requests_meta()
 
-        # 幂等：已创建且非重做 → 跳过，回放 metrics
-        if sentinel.is_file() and not redo:
-            try:
-                prev = json.loads(sentinel.read_text(encoding="utf-8"))
-                emit(f"[{self.key}] 超节点已创建（{prev.get('created_count', 0)} 组），跳过重复创建")
-                return {"metrics": self._metrics(prev)}
-            except Exception:
-                pass
+        prev = read_json(sentinel)
+        if is_same_run(prev, ctx.run_id) and prev.get("ok") and not redo:
+            emit(f"[{self.key}] 本 run 超节点已创建（{prev.get('created_count', 0)} 组），跳过重复创建")
+            return {"metrics": self._metrics(prev)}
 
-        # 现建 / 回落请求
-        adapt_md = ctx.work_root / COMPAT_TABLE_REL
-        xlsx = self._find_input(ctx, _XLSX_HINTS, (".xlsx", ".xls"))
-        grid = self._find_input(ctx, _CABINETS_HINTS, (".json",)) or FIXTURE_CABINETS
-        doc = load_or_build_requests(
-            adapt_md=adapt_md, xlsx_path=xlsx, grid_path=grid,
-            fixture_path=FIXTURE_REQUESTS, emit=emit,
+        emit(f"[{self.key}] 仿真 API 模式：{'LIVE（真发仿真网关）' if is_live() else 'dry-run'}")
+        result = run_script(
+            VENDOR_AUTODRAGD,
+            ["scripts/run_place_api.py", "run", "--only-create"],
+            emit=emit,
         )
-        meta = doc.get("meta", {})
-        combo_base = meta.get("combo_base_model", "")
-        pod_count = meta.get("pod_count", 0)
-
-        # 落 requests.json 供下游 cabinet_move 复用
-        req_path = ctx.work_root / REQUESTS_REL
-        req_path.parent.mkdir(parents=True, exist_ok=True)
-        req_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
-
-        emit(f"[{self.key}] 仿真 API 模式：{'LIVE' if is_live() else 'dry-run（不发真请求，全量留痕）'}")
-        client = SimApiClient(work_root=ctx.work_root, emit=emit)
-        result = send_create(client, doc, emit=emit)
 
         record = {
             "ok": result.get("ok", False),
-            "created_count": result.get("total", len(doc.get("create", []))),
-            "move_total": len(doc.get("move", [])),
-            "pod_count": pod_count,
-            "combo_base": combo_base,
+            "run_id": ctx.run_id,
+            "created_count": meta.get("create_count", 0),
+            "move_total": meta.get("move_count", 0),
+            "pod_count": meta.get("pod_count", 0),
+            "combo_base": meta.get("combo_base_model", ""),
             "live": is_live(),
-            "error": result.get("error", ""),
+            "exit_code": result.get("exit_code"),
         }
+        sentinel.parent.mkdir(parents=True, exist_ok=True)
         sentinel.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        if not result.get("ok"):
-            emit(f"[{self.key}] ⚠ 创建失败于第 {result.get('failed_at')} 组：{result.get('error')}")
+        if not record["ok"]:
+            emit(f"[{self.key}] ⚠ 创建失败（exit_code={record['exit_code']}），请检查仿真网关/视图名/token")
         else:
-            emit(f"[{self.key}] 超节点创建完成：{record['created_count']} 组 / {pod_count} 个 POD")
+            emit(f"[{self.key}] 超节点创建完成：{record['created_count']} 组 / {record['pod_count']} 个 POD")
         return {"metrics": self._metrics(record)}
+
+    # ── helpers ──
+    @staticmethod
+    def _requests_meta() -> dict:
+        req = Path(VENDOR_AUTODRAGD) / "requests.json"
+        if req.is_file():
+            try:
+                return json.loads(req.read_text(encoding="utf-8")).get("meta", {})
+            except Exception:
+                return {}
+        return {}
 
     @staticmethod
     def _metrics(record: dict) -> dict:
@@ -91,14 +106,3 @@ class ComboCreateStep(BaseStep):
             "sim_live": record.get("live", False),
             "create_ok": record.get("ok", False),
         }
-
-    @staticmethod
-    def _find_input(ctx: SkillContext, hints: tuple[str, ...], exts: tuple[str, ...]) -> Path | None:
-        cands = [p for p in sorted(ctx.input_dir.glob("*"))
-                 if p.is_file() and p.suffix.lower() in exts]
-        if not cands:
-            return None
-        for p in cands:
-            if any(h in p.name.lower() for h in hints):
-                return p
-        return cands[0]

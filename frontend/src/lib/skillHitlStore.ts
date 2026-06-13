@@ -23,7 +23,7 @@ export interface SkillHitlState {
   node: SduiNode;
   /** ChoiceCard 提交回调（直连 SkillAgentScreen.handleChoiceSubmit → resume）。*/
   onChoiceSubmit: (value: string, stepId?: string) => void;
-  /** Button / 快捷指令回调（system_design 左栏 NL 指令 → resume）。*/
+  /** Button / 快捷指令回调（system_design 左栏 NL 指令 → resume；guihua completion-card 切页签）。*/
   onAction?: (action: SduiAction) => void;
   /** HitlForm 提交回调（software_deployment：直连 SkillAgentScreen.handleFormSubmit → resume）。*/
   onFormSubmit?: (payload: Record<string, unknown>, stepId?: string) => void;

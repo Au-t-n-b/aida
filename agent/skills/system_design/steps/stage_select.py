@@ -19,6 +19,7 @@ from agent.sdui.projector_base import collect_metrics
 class StageSelectStep(BaseStep):
     key = "stage_select"
     name = "输入执行计划"
+    internal = True  # HITL 选择门，基础设施步骤，豁免 SKILL.md 后端节点声明
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         from ..pipelines.delivery import should_skip_step

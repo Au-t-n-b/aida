@@ -1,0 +1,153 @@
+{
+  "timestamp": "2026-06-11T06:36:52.157121+00:00",
+  "endpoint": "http://100.102.191.17:9091/wapi/v1/ai/combo/batchCreateCombo",
+  "total": 5,
+  "ok": 5,
+  "failed": 0,
+  "results": [
+    {
+      "index": 1,
+      "label": "401/A3 900 液冷384卡-上",
+      "http_status": 200,
+      "ok": true,
+      "request": {
+        "model": "A3 900 液冷384卡-上",
+        "diagram": "JDJL1",
+        "roomName": "401",
+        "items": [
+          {
+            "x": 231.89,
+            "y": 129.66,
+            "sp_num": 1,
+            "rack_prefix": "A"
+          },
+          {
+            "x": 231.89,
+            "y": 210.52,
+            "sp_num": 3,
+            "rack_prefix": "C"
+          }
+        ]
+      },
+      "response": {
+        "code": 200,
+        "message": "success",
+        "data": null
+      }
+    },
+    {
+      "index": 2,
+      "label": "401/A3 900 液冷384卡-下",
+      "http_status": 200,
+      "ok": true,
+      "request": {
+        "model": "A3 900 液冷384卡-下",
+        "diagram": "JDJL1",
+        "roomName": "401",
+        "items": [
+          {
+            "x": 231.89,
+            "y": 187.13,
+            "sp_num": 2,
+            "rack_prefix": "B"
+          },
+          {
+            "x": 231.89,
+            "y": 267.99,
+            "sp_num": 4,
+            "rack_prefix": "D"
+          }
+        ]
+      },
+      "response": {
+        "code": 200,
+        "message": "success",
+        "data": null
+      }
+    },
+    {
+      "index": 3,
+      "label": "402/A3 900 液冷384卡-上",
+      "http_status": 200,
+      "ok": true,
+      "request": {
+        "model": "A3 900 液冷384卡-上",
+        "diagram": "JDJL1",
+        "roomName": "402",
+        "items": [
+          {
+            "x": 397.88,
+            "y": 130.45,
+            "sp_num": 5,
+            "rack_prefix": "A"
+          },
+          {
+            "x": 397.88,
+            "y": 211.31,
+            "sp_num": 7,
+            "rack_prefix": "C"
+          }
+        ]
+      },
+      "response": {
+        "code": 200,
+        "message": "success",
+        "data": null
+      }
+    },
+    {
+      "index": 4,
+      "label": "402/A3 900 液冷384卡-下",
+      "http_status": 200,
+      "ok": true,
+      "request": {
+        "model": "A3 900 液冷384卡-下",
+        "diagram": "JDJL1",
+        "roomName": "402",
+        "items": [
+          {
+            "x": 397.88,
+            "y": 187.13,
+            "sp_num": 6,
+            "rack_prefix": "B"
+          },
+          {
+            "x": 397.88,
+            "y": 267.99,
+            "sp_num": 8,
+            "rack_prefix": "D"
+          }
+        ]
+      },
+      "response": {
+        "code": 200,
+        "message": "success",
+        "data": null
+      }
+    },
+    {
+      "index": 5,
+      "label": "403/A3 900 液冷384卡-上",
+      "http_status": 200,
+      "ok": true,
+      "request": {
+        "model": "A3 900 液冷384卡-上",
+        "diagram": "JDJL1",
+        "roomName": "403",
+        "items": [
+          {
+            "x": 583.37,
+            "y": 129.66,
+            "sp_num": 9,
+            "rack_prefix": "A"
+          }
+        ]
+      },
+      "response": {
+        "code": 200,
+        "message": "success",
+        "data": null
+      }
+    }
+  ]
+}

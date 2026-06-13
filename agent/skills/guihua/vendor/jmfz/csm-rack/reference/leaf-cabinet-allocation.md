@@ -1,0 +1,66 @@
+# 参数面 Leaf 机柜落位表
+
+共 54 台 CE9866 Leaf（`CSM-LEAF-CE9866-001` ~ `CSM-LEAF-CE9866-054`），分布在 401 / 402 / 403 三个机房。
+
+## 落位规则
+
+| 规则项 | 说明 |
+|--------|------|
+| 机柜位置 | 每列（A/B/C/D）仅使用 **17 柜** 和 **18 柜** |
+| 奇偶分配 | **奇数编号** Leaf → **17 柜**；**偶数编号** Leaf → **18 柜** |
+| 列内数量 | 每列 6 台（17 柜 3 台 + 18 柜 3 台） |
+| 401 机房 | Leaf **001 ~ 024**，A/B/C/D 四列共 24 台 |
+| 402 机房 | Leaf **025 ~ 048**，规则同 401，A/B/C/D 四列共 24 台 |
+| 403 机房 | Leaf **049 ~ 054**，仅 **A 列** A17 / A18，共 6 台 |
+
+---
+
+## 401 机房（24 台）
+
+| 机柜 | Leaf 设备（3 台/柜） |
+|------|---------------------|
+| A17 | CSM-LEAF-CE9866-001、CSM-LEAF-CE9866-003、CSM-LEAF-CE9866-005 |
+| A18 | CSM-LEAF-CE9866-002、CSM-LEAF-CE9866-004、CSM-LEAF-CE9866-006 |
+| B17 | CSM-LEAF-CE9866-007、CSM-LEAF-CE9866-009、CSM-LEAF-CE9866-011 |
+| B18 | CSM-LEAF-CE9866-008、CSM-LEAF-CE9866-010、CSM-LEAF-CE9866-012 |
+| C17 | CSM-LEAF-CE9866-013、CSM-LEAF-CE9866-015、CSM-LEAF-CE9866-017 |
+| C18 | CSM-LEAF-CE9866-014、CSM-LEAF-CE9866-016、CSM-LEAF-CE9866-018 |
+| D17 | CSM-LEAF-CE9866-019、CSM-LEAF-CE9866-021、CSM-LEAF-CE9866-023 |
+| D18 | CSM-LEAF-CE9866-020、CSM-LEAF-CE9866-022、CSM-LEAF-CE9866-024 |
+
+---
+
+## 402 机房（24 台）
+
+| 机柜 | Leaf 设备（3 台/柜） |
+|------|---------------------|
+| A17 | CSM-LEAF-CE9866-025、CSM-LEAF-CE9866-027、CSM-LEAF-CE9866-029 |
+| A18 | CSM-LEAF-CE9866-026、CSM-LEAF-CE9866-028、CSM-LEAF-CE9866-030 |
+| B17 | CSM-LEAF-CE9866-031、CSM-LEAF-CE9866-033、CSM-LEAF-CE9866-035 |
+| B18 | CSM-LEAF-CE9866-032、CSM-LEAF-CE9866-034、CSM-LEAF-CE9866-036 |
+| C17 | CSM-LEAF-CE9866-037、CSM-LEAF-CE9866-039、CSM-LEAF-CE9866-041 |
+| C18 | CSM-LEAF-CE9866-038、CSM-LEAF-CE9866-040、CSM-LEAF-CE9866-042 |
+| D17 | CSM-LEAF-CE9866-043、CSM-LEAF-CE9866-045、CSM-LEAF-CE9866-047 |
+| D18 | CSM-LEAF-CE9866-044、CSM-LEAF-CE9866-046、CSM-LEAF-CE9866-048 |
+
+---
+
+## 403 机房（6 台）
+
+| 机柜 | Leaf 设备（3 台/柜） |
+|------|---------------------|
+| A17 | CSM-LEAF-CE9866-049、CSM-LEAF-CE9866-051、CSM-LEAF-CE9866-053 |
+| A18 | CSM-LEAF-CE9866-050、CSM-LEAF-CE9866-052、CSM-LEAF-CE9866-054 |
+
+---
+
+## 汇总
+
+| 机房 | 涉及机柜 | Leaf 编号范围 | 台数 |
+|------|---------|--------------|------|
+| 401 | A17/A18、B17/B18、C17/C18、D17/D18 | 001 ~ 024 | 24 |
+| 402 | A17/A18、B17/B18、C17/C18、D17/D18 | 025 ~ 048 | 24 |
+| 403 | A17、A18 | 049 ~ 054 | 6 |
+| **合计** | **18 个机柜** | **001 ~ 054** | **54** |
+
+> 机柜内 U 位落位、上架 API 参数及批量调用方式见 [`rack-mounting-rules.md`](rack-mounting-rules.md)。

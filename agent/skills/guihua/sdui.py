@@ -1,12 +1,12 @@
 """
 guihua SDUI 投影器 · SkillState → SduiDocument（纯函数 · 无副作用 · 可单测）
 
-建模仿真（规划设计前半段）作业界面：
+建模仿真（规划设计前半段）作业界面（精简版）：
   - Idle：流程说明引导卡
-  - 执行态：右侧「仿真软件 / 设备数据」双页签（EmbeddedWeb iframe + 适配表 Markdown）
-  - data_confirm HITL：展示适配信息表供核对
-  - cabinet_move HITL：提示刷新 nVisual + 创建概览；执行中显示 162 条落位进度条
-  - handoff HITL：展示创建/落位概览（移交设备安装）
+  - 执行态：三页签工作台（仿真软件 / 设备数据 / 输出文件）
+  - data_confirm HITL：适配表展示 + 「设备数据准确」确认按钮
+  - cabinet_move / handoff HITL：交互在左侧会话框，右侧不再重复上下文/进度卡
+  - done 态：左侧 completion-card 引导输出文件（「确认输出文件」→ 切右侧「输出文件」页签）
 
 依赖 step 写入 metrics：
   adapt_build  → combo_model / device_count / matched_count / compat_table_md / adapt_mode
@@ -19,193 +19,224 @@ from typing import Any
 
 from agent.sdui.builder import (
     SduiDocument, SduiNode, SduiStackNode, SduiCardNode,
-    SduiAlertNode, SduiDividerNode, SduiTextNode, SduiProgressBarNode,
+    SduiTextNode,
     SduiMarkdownNode, SduiTabGroupNode, SduiTabPanel, SduiEmbeddedWebNode,
-    SduiMacroStepRailNode, SduiMacroStep,
-    SduiStatisticRowItem, dump_sdui_json,
+    SduiDataTableNode,
+    SduiOutputDocsGridNode, SduiOutputDocItem, SduiOutputDocCategory,
+    SduiRowNode, SduiButtonNode,
+    SduiPostUserMessage, dump_sdui_json,
 )
 from agent.sdui.projector_base import (
     collect_metrics, overall_status,
-    build_header, build_stepper, build_metrics_card,
-    build_artifacts, build_summary_card, build_hitl,
+    build_hitl,
 )
-from .services.sim_api import web_url, is_live
+from .services.sim_api import web_url
 
 GUIHUA_STEP_NAMES: dict[str, str] = {
     "adapt_build":  "设备适配",
     "data_confirm": "数据确认",
     "combo_create": "创建超节点",
     "cabinet_move": "机柜落位",
-    "handoff":      "移交设备安装",
+    "handoff":      "生成参数面设备",
 }
 GUIHUA_STEP_ORDER = list(GUIHUA_STEP_NAMES.keys())
 
-GUIHUA_CTA: dict[str, tuple[str, str, str]] = {
-    "idle":   ("启动建模仿真", "primary", "/start_guihua"),
-    "paused": ("提交并继续",   "primary", "/resume_guihua"),
-    "done":   ("查看结论",     "primary", "/view_report"),
-    "failed": ("重试",         "primary", "/retry_guihua"),
-}
+# nVisual 内嵌 iframe 固定高度（原 560，略增高以减少下方留白）
+GUIHUA_SIM_IFRAME_HEIGHT = 780
 
-# 宏观阶段：把 5 个 micro step 折叠成 4 个用户可感知的大阶段（顶部 MacroStepRail）——
-# 与 zhgk 同骨架（P1 统一空间范式）。
-GUIHUA_MACRO_PHASES: list[tuple[str, str, str, list[str]]] = [
-    ("adapt",   "设备适配", "解析信息表 · 匹配型号", ["adapt_build"]),
-    ("confirm", "数据确认", "核对适配表",           ["data_confirm"]),
-    ("build",   "创建落位", "超节点 · 162 柜落位",   ["combo_create", "cabinet_move"]),
-    ("handoff", "移交安装", "移交设备安装",         ["handoff"]),
+# ── 输出文件（mock · 复刻 simulation_v3 app.jsx OUTPUT_DOCS）──────────────────────
+GUIHUA_OUTPUT_CATEGORIES: list[tuple[str, str]] = [
+    ("LLD", "LLD · 低阶设计"),
+    ("设备安装", "设备安装"),
+    ("交付准备", "交付准备"),
+]
+GUIHUA_OUTPUT_DOCS: list[dict[str, str]] = [
+    {"no": "001", "name": "设备信息概览", "fullName": "建模仿真输出文档001-设备信息概览For LLD.xlsx",
+     "category": "LLD", "tag": "LLD", "desc": "全量设备清单、型号规格、数量汇总"},
+    {"no": "002", "name": "对象命名规则", "fullName": "建模仿真输出文档002-对象命名规则For LLD.xlsx",
+     "category": "LLD", "tag": "LLD", "desc": "设备、端口、链路的统一命名规范"},
+    {"no": "005", "name": "机柜和设备汇总信息", "fullName": "建模仿真输出文档005-机柜和设备汇总信息For LLD.xlsx",
+     "category": "LLD", "tag": "LLD", "desc": "机柜清单、设备归属与占位汇总"},
+    {"no": "007", "name": "端口互联关系", "fullName": "建模仿真输出文档007-端口互联关系 for LLD.xlsx",
+     "category": "LLD", "tag": "LLD", "desc": "设备间端口到端口连接拓扑表"},
+    {"no": "003", "name": "设备板位图", "fullName": "建模仿真输出文档003-设备板位图For 设备安装.xlsx",
+     "category": "设备安装", "tag": "设备安装", "desc": "各设备槽位、板卡安装位置示意"},
+    {"no": "004", "name": "设备位置信息", "fullName": "建模仿真输出文档004-设备位置信息For 设备安装.xlsx",
+     "category": "设备安装", "tag": "设备安装", "desc": "机房平面坐标与机柜 U 位分配"},
+    {"no": "006", "name": "设备落位图", "fullName": "建模仿真输出文档006-设备落位图For 设备安装.xlsx",
+     "category": "设备安装", "tag": "设备安装", "desc": "三维机房设备落位示意与路由"},
+    {"no": "009", "name": "项目线缆信息", "fullName": "建模仿真输出文档009-项目线缆信息For 交付准备.xlsx",
+     "category": "交付准备", "tag": "交付准备", "desc": "全量线缆规格、长度与路由规划"},
+    {"no": "010", "name": "布线临时标签方案", "fullName": "建模仿真输出文档010-布线临时标签方案For 设备安装.xlsx",
+     "category": "交付准备", "tag": "交付准备", "desc": "施工期临时标签编码与张贴规则"},
 ]
 
+_DATA_CONFIRM_HINT = (
+    "BOQ数据已经解析完毕，放到数据中心，可以查看详细数据以开启建模仿真"
+)
 
-def _build_macro_rail(state: dict[str, Any]) -> SduiMacroStepRailNode | None:
-    """顶部宏观阶段条：5 micro step 折叠成 4 大阶段，让用户始终知道在哪个大阶段。"""
-    by_key = {s.get("key", ""): s for s in (state.get("steps") or [])}
-    if not by_key:
+
+def _parse_section_table(compat_md: str, section_keyword: str) -> tuple[list[str], list[list[str]]] | None:
+    """解析适配表指定【…】段的 Markdown 表 → (columns, rows)。"""
+    if not compat_md:
         return None
-    macro_steps: list[SduiMacroStep] = []
-    current_id: str | None = None
-    for pid, title, hint, micro_keys in GUIHUA_MACRO_PHASES:
-        statuses = [(by_key.get(k) or {}).get("status", "pending") for k in micro_keys]
-        if any(s in ("running", "hitl", "failed") for s in statuses):
-            status, is_current = "running", True
-        elif all(s == "completed" for s in statuses):
-            status, is_current = "done", False
-        elif any(s == "completed" for s in statuses):
-            status, is_current = "running", True  # 部分完成 = 进行中
-        else:
-            status, is_current = "pending", False
-        if is_current and current_id is None:
-            current_id = pid
-        macro_steps.append(SduiMacroStep(
-            id=pid, title=title, hint=hint, status=status,  # type: ignore[arg-type]
-        ))
-    if current_id is None and macro_steps and all(s.status == "done" for s in macro_steps):
-        current_id = macro_steps[-1].id
-    return SduiMacroStepRailNode(id="macro-rail", steps=macro_steps, currentId=current_id)
+    in_section = False
+    header: list[str] = []
+    rows: list[list[str]] = []
+    for line in compat_md.splitlines():
+        s = line.strip()
+        if s.startswith("【"):
+            in_section = section_keyword in s
+            if not in_section and header:
+                break
+            continue
+        if not in_section or not s.startswith("|"):
+            continue
+        cells = [c.strip() for c in s.strip("|").split("|")]
+        if set("".join(cells)) <= set("-: "):
+            continue
+        if not header:
+            header = cells
+            continue
+        rows.append(cells)
+    if header and rows:
+        return header, rows
+    return None
 
 
-# ── 业务 KPI ──────────────────────────────────────────────────────────────────
+def _parse_supernode_table(compat_md: str) -> tuple[list[str], list[list[str]]] | None:
+    """解析【超节点概述】段 Markdown 表。"""
+    return _parse_section_table(compat_md, "超节点概述")
 
-def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
-    m = collect_metrics(state)
-    items: list[SduiStatisticRowItem] = []
-    combo = m.get("combo_model") or m.get("combo_base")
-    if combo:
-        items.append(SduiStatisticRowItem(title="超节点组合", value=str(combo), color="accent"))
-    if "device_count" in m:
-        items.append(SduiStatisticRowItem(
-            title="适配设备", value=f"{m['device_count']} 项", color="subtle"))
-    if "created_count" in m:
-        items.append(SduiStatisticRowItem(
-            title="创建超节点", value=f"{m['created_count']} 组", color="accent"))
-    if "move_total" in m:
-        sent, total = m.get("move_sent", 0), m.get("move_total", 0)
-        items.append(SduiStatisticRowItem(
-            title="机柜落位", value=f"{sent}/{total} 柜",
-            color="success" if m.get("move_done") else "subtle"))
-    # 仿真 API 模式
-    if state.get("steps"):
-        live = m.get("sim_live", is_live())
-        items.append(SduiStatisticRowItem(
-            title="仿真接口", value="LIVE" if live else "dry-run",
-            color="warning" if not live else "success"))
-    return items
+
+def _parse_device_table(compat_md: str) -> tuple[list[str], list[list[str]]] | None:
+    """解析适配表的【网络平面：参数面】段 Markdown 表 → (columns, rows)。
+
+    列：设备型号 / 设备角色 / 设备数量 / 板卡型号 / 板卡数量。解析不到则返回 None（回退 Markdown）。
+    """
+    return _parse_section_table(compat_md, "网络平面")
 
 
 # ── 仿真软件 / 设备数据 双页签 ─────────────────────────────────────────────────
 
 def _build_sim_tabs(state: dict[str, Any]) -> SduiTabGroupNode | None:
-    """右侧双页签：① 仿真软件（nVisual iframe）② 设备数据（适配信息表）。
+    """右侧三页签（对齐 simulation_v3 SimAgentView）：
+      ① 仿真软件（nVisual iframe + 刷新 / 新页打开 / 创建后自动刷新）
+      ② 设备数据（适配信息表 → DataTable，Markdown 兜底 + 设备数据准确按钮）
+      ③ 输出文件（分类输出文件网格，done 前锁定）
     适配表生成后（有 compat_table_md）才出现「设备数据」页。"""
     m = collect_metrics(state)
     compat_md = m.get("compat_table_md") or ""
-    offline = not is_live()
-    sim_offline_note = None if not offline else (
-        "仿真软件访问页（nVisual）。当前为离线/内网不可达环境，已用占位兜底；"
-        "到内网后将自动嵌入，或点「新页打开」。"
-    )
+    steps = state.get("steps") or []
+    all_done = bool(steps) and all(s.get("status") == "completed" for s in steps)
+    # 创建超节点成功后自增 reloadToken → 前端自动刷新仿真画布（对齐 v3 创建后刷新）。
+    reload_token = 1 if m.get("create_ok") else 0
+
+    # 真跑交付：仿真软件可达，始终内嵌实时画布（保留刷新 / 新页打开），不走离线占位。
     tabs: list[SduiTabPanel] = [
         SduiTabPanel(
             id="sim", label="仿真软件",
             children=[SduiEmbeddedWebNode(
                 id="sim-iframe", url=web_url(), title="nVisual 仿真软件",
-                note=sim_offline_note, height=560, openInNewTab=True,
-                offline=offline or None,  # P5：离线时渲染骨架占位而非空白 iframe
+                height=GUIHUA_SIM_IFRAME_HEIGHT, openInNewTab=True, reloadToken=reload_token,
             )],
         ),
     ]
+    hitl_step = (state.get("hitl") or {}).get("step")
     if compat_md:
-        truncated = m.get("compat_table_truncated")
-        body: list[SduiNode] = [SduiMarkdownNode(id="compat-md", content=compat_md)]
-        if truncated:
-            body.append(SduiTextNode(
-                id="compat-trunc", variant="caption", color="subtle",
-                content="表格较长已截断，完整见 ProjectData/RunTime/compat_table.md"))
+        body: list[SduiNode] = []
+        supernode = _parse_supernode_table(compat_md)
+        parsed = _parse_device_table(compat_md)
+        if supernode or parsed:
+            if supernode:
+                sn_cols, sn_rows = supernode
+                body.append(SduiDataTableNode(
+                    id="supernode-table", columns=sn_cols, rows=sn_rows,
+                    title="超节点概述", subtitle=f"{len(sn_rows)} 组合行",
+                ))
+            if parsed:
+                cols, rows = parsed
+                body.append(SduiDataTableNode(
+                    id="device-table", columns=cols, rows=rows,
+                    title="参数面设备适配", subtitle=f"{len(rows)} 型号行",
+                ))
+        else:
+            # 解析失败兜底：原样渲染适配表 Markdown。
+            body.append(SduiMarkdownNode(id="compat-md", content=compat_md))
+            if m.get("compat_table_truncated"):
+                body.append(SduiTextNode(
+                    id="compat-trunc", variant="caption", color="subtle",
+                    content="表格较长已截断，完整见 ProjectData/RunTime/compat_table.md"))
+        # 右下角「设备数据准确」按钮：仅在「数据准确？」确认门待办时出现，点击 = 确认 data 门。
+        if hitl_step == "data_confirm":
+            body.append(SduiRowNode(
+                id="data-confirm-row", justify="end",
+                children=[SduiButtonNode(
+                    id="data-accurate-btn", label="设备数据准确", variant="primary",
+                    action=SduiPostUserMessage(text="/resume_guihua"),
+                )],
+            ))
         tabs.append(SduiTabPanel(id="data", label="设备数据", children=body))
 
-    # HITL 在数据确认时，引导切到「设备数据」页核对
-    hitl_step = (state.get("hitl") or {}).get("step")
-    active = "data" if (hitl_step == "data_confirm" and compat_md) else "sim"
-    return SduiTabGroupNode(id="guihua-tabs", tabs=tabs, activeTab=active)
+    # 输出文件页（mock 占位）：done 前锁定，done 后解锁。
+    tabs.append(SduiTabPanel(
+        id="docs", label="输出文件",
+        badge=str(len(GUIHUA_OUTPUT_DOCS)) if all_done else None,
+        children=[SduiOutputDocsGridNode(
+            id="output-docs",
+            unlocked=all_done,
+            categories=[SduiOutputDocCategory(key=k, label=l) for k, l in GUIHUA_OUTPUT_CATEGORIES],
+            docs=[SduiOutputDocItem(**d) for d in GUIHUA_OUTPUT_DOCS],
+        )],
+    ))
+
+    # 默认停在「仿真软件」；「查看详细数据」按钮 / 直接点页签 切到「设备数据」（前端本地切换）。
+    return SduiTabGroupNode(id="guihua-tabs", tabs=tabs, activeTab="sim", keepAlive=True)
 
 
-# ── HITL 上下文卡 ─────────────────────────────────────────────────────────────
-
-def _build_move_context(state: dict[str, Any]) -> SduiCardNode | None:
-    """cabinet_move HITL 前：提示刷新 nVisual + 创建概览。"""
-    if (state.get("hitl") or {}).get("step") != "cabinet_move":
+def _build_guihua_hitl(state: dict[str, Any]) -> SduiCardNode | None:
+    """HITL 卡：data_confirm 为引导文案 + 查看详细数据；其余步走通用 build_hitl。"""
+    hitl = state.get("hitl") or {}
+    step_key = hitl.get("step")
+    if not step_key:
         return None
-    m = collect_metrics(state)
-    return SduiCardNode(
-        id="move-context-card", title="超节点已创建，准备机柜落位", tone="info",
-        children=[
-            SduiAlertNode(
-                id="refresh-hint", tone="warning",
-                title="请先刷新 nVisual",
-                message=(
-                    f"已创建超节点 {m.get('created_count', 0)} 组 / {m.get('pod_count', 0)} 个 POD。"
-                    "请在「仿真软件」页签手动刷新一次，确认超节点已显示，再开始逐机柜落位"
-                    f"（共 {m.get('move_total', 0)} 条）。"
+    if step_key == "data_confirm":
+        return SduiCardNode(
+            id="hitl-card", title="建模仿真",
+            children=[
+                SduiTextNode(
+                    id="data-confirm-hint", variant="body",
+                    content=hitl.get("reason") or _DATA_CONFIRM_HINT,
                 ),
+                SduiRowNode(
+                    id="data-view-row", justify="start",
+                    children=[SduiButtonNode(
+                        id="boq-view-btn-left", label="查看详细数据", variant="primary",
+                        action=SduiPostUserMessage(text="__activate_tab__:data"),
+                    )],
+                ),
+            ],
+        )
+    return build_hitl(state, card_title="需要确认", default_choice_title="请确认")
+
+
+def _build_completion_card() -> SduiCardNode:
+    """全流程完成：左侧引导用户查看输出文件（按钮切右侧 docs 页签）。"""
+    return SduiCardNode(
+        id="completion-card", title="建模仿真",
+        children=[
+            SduiTextNode(
+                id="completion-hint", variant="body",
+                content="已完成建模仿真，请问是否输出文件？",
+            ),
+            SduiRowNode(
+                id="output-confirm-row", justify="start",
+                children=[SduiButtonNode(
+                    id="output-confirm-btn", label="确认输出文件", variant="primary",
+                    action=SduiPostUserMessage(text="__activate_tab__:docs"),
+                )],
             ),
         ],
-    )
-
-
-def _build_handoff_context(state: dict[str, Any]) -> SduiCardNode | None:
-    """handoff HITL 前：创建 + 落位概览（移交设备安装）。"""
-    if (state.get("hitl") or {}).get("step") != "handoff":
-        return None
-    m = collect_metrics(state)
-    return SduiCardNode(
-        id="handoff-context-card", title="超节点已创建并落位完毕", tone="success",
-        children=[SduiAlertNode(
-            id="handoff-hint", tone="info",
-            message=(
-                f"超节点组合「{m.get('combo_base') or m.get('combo_model') or '—'}」，"
-                f"创建 {m.get('created_count', 0)} 组，落位 {m.get('move_sent', 0)}/{m.get('move_total', 0)} 柜。"
-                "确认后将生成参数面设备并移交「设备安装」模块（建模仿真到此结束）。"
-            ),
-        )],
-    )
-
-
-def _build_move_progress(state: dict[str, Any]) -> SduiCardNode | None:
-    """cabinet_move 执行中/完成：162 条落位进度条。"""
-    m = collect_metrics(state)
-    total = m.get("move_total")
-    if not total or "move_sent" not in m:
-        return None
-    sent = m.get("move_sent", 0)
-    pct = round(100 * sent / total) if total else 0
-    done = bool(m.get("move_done"))
-    return SduiCardNode(
-        id="move-progress-card",
-        title=f"机柜落位进度 {sent}/{total}（{pct}%）",
-        tone="success" if done else "default",
-        children=[SduiProgressBarNode(
-            id="move-bar", value=pct, label="batchMoveNodes 逐机柜",
-            tone="success" if done else "warning")],
     )
 
 
@@ -213,33 +244,13 @@ def _build_intro_card() -> SduiCardNode:
     return SduiCardNode(
         id="guihua-intro", title="建模仿真任务说明（规划设计前半段）",
         children=[SduiMarkdownNode(content=(
-            "· 解析《建模仿真设备信息表》→ 调仿真 API 匹配设备型号 / 板卡 → 生成**设备适配信息表**\n"
-            "· **数据确认（HITL）**：核对适配表「设备数据」无误后开始创建超节点\n"
-            "· **创建超节点**：batchCreateCombo ×5（9 个 POD 平铺创建）\n"
+            "· **BOQ 已解析**：载入《建模仿真设备适配信息表》→「查看详细数据」核对设备数据\n"
+            "· **数据准确（HITL）** → **是否创建超节点（HITL）**：batchCreateCombo ×5（9 个 POD 平铺创建）\n"
             "· **机柜落位（HITL）**：刷新 nVisual 后 batchMoveNodes ×162 逐机柜落位\n"
-            "· **移交设备安装（HITL 边界）**：生成参数面设备 → 移交设备安装模块，建模仿真结束\n\n"
-            "> 仿真 API 默认 dry-run（离线复用样本兜底）；置 `SIM_API_LIVE=1` 接内网真跑。"
+            "· **生成参数面设备（HITL）**：csm-rack 建 Leaf 54 台 → 跨视图上架 18 次 → batchCreateLink 双轨拓扑\n\n"
+            "> 真跑模式经 subprocess 调 jmfz 脚本真发仿真网关（100.102.191.17:9091）。"
         ))],
     )
-
-
-# ── 摘要 ──────────────────────────────────────────────────────────────────────
-
-def _build_summary(state: dict[str, Any]) -> SduiCardNode | None:
-    m = collect_metrics(state)
-    bits: list[str] = []
-    if m.get("combo_model") or m.get("combo_base"):
-        combo = m.get("combo_model") or m.get("combo_base")
-        dc = m.get("device_count")
-        bits.append(f"适配组合「{combo}」" + (f"，设备 {dc} 项" if dc else ""))
-    if m.get("created_count"):
-        bits.append(f"创建超节点 {m['created_count']} 组 / {m.get('pod_count', 0)} 个 POD")
-    if "move_total" in m:
-        bits.append(f"机柜落位 {m.get('move_sent', 0)}/{m['move_total']} 柜"
-                    + ("（完成）" if m.get("move_done") else ""))
-    if m.get("handed_off"):
-        bits.append("已移交设备安装模块，建模仿真结题")
-    return build_summary_card(bits, state)
 
 
 # ── 顶层入口 ──────────────────────────────────────────────────────────────────
@@ -249,60 +260,24 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     status_key, _ = overall_status(state, GUIHUA_STEP_ORDER)
     is_idle = status_key == "idle"
 
-    nodes: list[SduiNode] = [
-        build_header(state, default_name="建模仿真", cta_map=GUIHUA_CTA,
-                     step_order=GUIHUA_STEP_ORDER),
-    ]
-
     if is_idle:
-        nodes.append(_build_intro_card())
         doc = SduiDocument(
-            root=SduiStackNode(id="guihua-root", gap="md", children=nodes),
+            root=SduiStackNode(id="guihua-root", gap="md", children=[_build_intro_card()]),
             meta={"skill": "guihua", "run_id": state.get("run_id", "")},
         )
         return dump_sdui_json(doc)
 
-    # ── 执行态（统一信息架构 P1：header → macro-rail → KPI 带 → 可折叠明细 → 工作台 → 分节）──
-    #   与 zhgk 同顶部骨架；工作台（宽 nVisual iframe）保持单列全宽，不强塞窄数据栅格。
-
-    # P1：顶部宏观阶段条（4 大阶段，与 zhgk 同款进度模型）
-    macro_rail = _build_macro_rail(state)
-    if macro_rail:
-        nodes.append(macro_rail)
-
-    # P3：KPI 黄金指标通栏扫读带（紧贴 macro-rail，数据焦点）
-    metrics_band = build_metrics_card(state, step_order=GUIHUA_STEP_ORDER, kpi_items=_kpi_items(state))
-    if metrics_band:
-        nodes.append(metrics_band)
-
-    # HITL 置顶通栏（id=hitl-card；前端据此路由到左侧会话）
-    hitl_card = build_hitl(state, card_title="需要确认", default_choice_title="请确认")
+    # ── 执行态：右侧仅三页签工作台（无顶栏 header 卡；HITL 路由左侧）──
+    nodes: list[SduiNode] = []
+    hitl_card = _build_guihua_hitl(state)
     if hitl_card:
         nodes.append(hitl_card)
+    elif status_key == "done":
+        nodes.append(_build_completion_card())
 
-    # P2：micro-step 明细折叠卡（默认收起；macro-rail/donut 已承载概览）
-    nodes.append(build_stepper(
-        state, step_names=GUIHUA_STEP_NAMES,
-        collapsible=True, default_collapsed=True,
-    ))
-
-    # 工作台（全宽）：仿真双页签 + 落位进度 + HITL 上下文
-    for node in (
-        _build_sim_tabs(state),
-        _build_move_progress(state),
-        _build_move_context(state),
-        _build_handoff_context(state),
-    ):
-        if node:
-            nodes.append(node)
-
-    # P3 分节：产出与摘要
-    output_group: list[SduiNode] = [
-        n for n in (build_artifacts(state), _build_summary(state)) if n
-    ]
-    if output_group:
-        nodes.append(SduiDividerNode(id="grp-output", label="产出与摘要"))
-        nodes.extend(output_group)
+    sim_tabs = _build_sim_tabs(state)
+    if sim_tabs:
+        nodes.append(sim_tabs)
 
     doc = SduiDocument(
         root=SduiStackNode(id="guihua-root", gap="md", children=nodes),

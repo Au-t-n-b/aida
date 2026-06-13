@@ -1,0 +1,3372 @@
+{
+  "meta": {
+    "generated_at": "2026-06-10T18:39:04",
+    "diagram": "机房视图",
+    "combo_base_model": "A3 900 液冷384卡",
+    "api_base": "http://100.102.191.17:9091",
+    "create_path": "/wapi/v1/ai/combo/batchCreateCombo",
+    "move_path": "/wapi/v1/ai/nodes/batchMoveNodes",
+    "spawn": {
+      "x0": 150.0,
+      "y": 60.0,
+      "dx": 100.0
+    },
+    "pod_count": 9,
+    "create_count": 5,
+    "move_count": 162,
+    "note": "逐机柜移动用机柜中心点 ctr_x/ctr_y；创建后需手动刷新 nVisual 一次再移动。"
+  },
+  "create": [
+    {
+      "_label": "A3 900 液冷384卡-上 @401 列[A,C] sp_num[1,3]",
+      "path": "/wapi/v1/ai/combo/batchCreateCombo",
+      "body": {
+        "model": "A3 900 液冷384卡-上",
+        "diagram": "机房视图",
+        "roomName": "401",
+        "items": [
+          {
+            "x": 150.0,
+            "y": 60.0,
+            "sp_num": 1,
+            "rack_prefix": "A"
+          },
+          {
+            "x": 350.0,
+            "y": 60.0,
+            "sp_num": 3,
+            "rack_prefix": "C"
+          }
+        ]
+      }
+    },
+    {
+      "_label": "A3 900 液冷384卡-下 @401 列[B,D] sp_num[2,4]",
+      "path": "/wapi/v1/ai/combo/batchCreateCombo",
+      "body": {
+        "model": "A3 900 液冷384卡-下",
+        "diagram": "机房视图",
+        "roomName": "401",
+        "items": [
+          {
+            "x": 250.0,
+            "y": 60.0,
+            "sp_num": 2,
+            "rack_prefix": "B"
+          },
+          {
+            "x": 450.0,
+            "y": 60.0,
+            "sp_num": 4,
+            "rack_prefix": "D"
+          }
+        ]
+      }
+    },
+    {
+      "_label": "A3 900 液冷384卡-上 @402 列[A,C] sp_num[5,7]",
+      "path": "/wapi/v1/ai/combo/batchCreateCombo",
+      "body": {
+        "model": "A3 900 液冷384卡-上",
+        "diagram": "机房视图",
+        "roomName": "402",
+        "items": [
+          {
+            "x": 550.0,
+            "y": 60.0,
+            "sp_num": 5,
+            "rack_prefix": "A"
+          },
+          {
+            "x": 750.0,
+            "y": 60.0,
+            "sp_num": 7,
+            "rack_prefix": "C"
+          }
+        ]
+      }
+    },
+    {
+      "_label": "A3 900 液冷384卡-下 @402 列[B,D] sp_num[6,8]",
+      "path": "/wapi/v1/ai/combo/batchCreateCombo",
+      "body": {
+        "model": "A3 900 液冷384卡-下",
+        "diagram": "机房视图",
+        "roomName": "402",
+        "items": [
+          {
+            "x": 650.0,
+            "y": 60.0,
+            "sp_num": 6,
+            "rack_prefix": "B"
+          },
+          {
+            "x": 850.0,
+            "y": 60.0,
+            "sp_num": 8,
+            "rack_prefix": "D"
+          }
+        ]
+      }
+    },
+    {
+      "_label": "A3 900 液冷384卡-上 @403 列[A] sp_num[9]",
+      "path": "/wapi/v1/ai/combo/batchCreateCombo",
+      "body": {
+        "model": "A3 900 液冷384卡-上",
+        "diagram": "机房视图",
+        "roomName": "403",
+        "items": [
+          {
+            "x": 950.0,
+            "y": 60.0,
+            "sp_num": 9,
+            "rack_prefix": "A"
+          }
+        ]
+      }
+    }
+  ],
+  "move": [
+    {
+      "_label": "POD1 401 A01",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A01",
+      "_grid_code": "A1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A01",
+            "x": 316.39,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A02",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A02",
+      "_grid_code": "A2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A02",
+            "x": 311.63,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A03",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A03",
+      "_grid_code": "A3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A03",
+            "x": 306.88,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A04",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A04",
+      "_grid_code": "A4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A04",
+            "x": 301.8,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A05",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A05",
+      "_grid_code": "A5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A05",
+            "x": 297.05,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A06",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A06",
+      "_grid_code": "A6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A06",
+            "x": 292.29,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A07",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A07",
+      "_grid_code": "A7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A07",
+            "x": 287.54,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A08",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A08",
+      "_grid_code": "A8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A08",
+            "x": 282.46,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A09",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A09",
+      "_grid_code": "A9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A09",
+            "x": 277.7,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A10",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A10",
+      "_grid_code": "A10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A10",
+            "x": 272.95,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A11",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A11",
+      "_grid_code": "A11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A11",
+            "x": 268.19,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A12",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A12",
+      "_grid_code": "A12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A12",
+            "x": 263.12,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A13",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A13",
+      "_grid_code": "A13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A13",
+            "x": 258.36,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A14",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A14",
+      "_grid_code": "A14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A14",
+            "x": 253.6,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A15",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A15",
+      "_grid_code": "A15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A15",
+            "x": 248.85,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A16",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A16",
+      "_grid_code": "A16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A16",
+            "x": 243.78,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A17",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A17",
+      "_grid_code": "A17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A17",
+            "x": 239.02,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD1 401 A18",
+      "_pod": 1,
+      "_room": "401",
+      "_col": "A",
+      "_cabinet": "A18",
+      "_grid_code": "A18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "A18",
+            "x": 234.26,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B01",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B01",
+      "_grid_code": "B1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B01",
+            "x": 316.39,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B02",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B02",
+      "_grid_code": "B2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B02",
+            "x": 311.63,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B03",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B03",
+      "_grid_code": "B3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B03",
+            "x": 306.88,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B04",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B04",
+      "_grid_code": "B4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B04",
+            "x": 301.8,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B05",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B05",
+      "_grid_code": "B5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B05",
+            "x": 297.05,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B06",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B06",
+      "_grid_code": "B6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B06",
+            "x": 292.29,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B07",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B07",
+      "_grid_code": "B7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B07",
+            "x": 287.54,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B08",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B08",
+      "_grid_code": "B8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B08",
+            "x": 282.46,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B09",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B09",
+      "_grid_code": "B9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B09",
+            "x": 277.7,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B10",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B10",
+      "_grid_code": "B10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B10",
+            "x": 272.95,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B11",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B11",
+      "_grid_code": "B11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B11",
+            "x": 268.19,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B12",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B12",
+      "_grid_code": "B12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B12",
+            "x": 263.12,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B13",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B13",
+      "_grid_code": "B13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B13",
+            "x": 258.36,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B14",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B14",
+      "_grid_code": "B14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B14",
+            "x": 253.6,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B15",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B15",
+      "_grid_code": "B15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B15",
+            "x": 248.85,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B16",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B16",
+      "_grid_code": "B16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B16",
+            "x": 243.78,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B17",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B17",
+      "_grid_code": "B17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B17",
+            "x": 239.02,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD2 401 B18",
+      "_pod": 2,
+      "_room": "401",
+      "_col": "B",
+      "_cabinet": "B18",
+      "_grid_code": "B18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "B18",
+            "x": 234.26,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C01",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C01",
+      "_grid_code": "C1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C01",
+            "x": 316.39,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C02",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C02",
+      "_grid_code": "C2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C02",
+            "x": 311.63,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C03",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C03",
+      "_grid_code": "C3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C03",
+            "x": 306.88,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C04",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C04",
+      "_grid_code": "C4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C04",
+            "x": 301.8,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C05",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C05",
+      "_grid_code": "C5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C05",
+            "x": 297.05,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C06",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C06",
+      "_grid_code": "C6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C06",
+            "x": 292.29,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C07",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C07",
+      "_grid_code": "C7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C07",
+            "x": 287.54,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C08",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C08",
+      "_grid_code": "C8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C08",
+            "x": 282.46,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C09",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C09",
+      "_grid_code": "C9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C09",
+            "x": 277.7,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C10",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C10",
+      "_grid_code": "C10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C10",
+            "x": 272.95,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C11",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C11",
+      "_grid_code": "C11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C11",
+            "x": 268.19,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C12",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C12",
+      "_grid_code": "C12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C12",
+            "x": 263.12,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C13",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C13",
+      "_grid_code": "C13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C13",
+            "x": 258.36,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C14",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C14",
+      "_grid_code": "C14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C14",
+            "x": 253.6,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C15",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C15",
+      "_grid_code": "C15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C15",
+            "x": 248.85,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C16",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C16",
+      "_grid_code": "C16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C16",
+            "x": 243.78,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C17",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C17",
+      "_grid_code": "C17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C17",
+            "x": 239.02,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD3 401 C18",
+      "_pod": 3,
+      "_room": "401",
+      "_col": "C",
+      "_cabinet": "C18",
+      "_grid_code": "C18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "C18",
+            "x": 234.26,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D01",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D01",
+      "_grid_code": "D1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D01",
+            "x": 316.39,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D02",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D02",
+      "_grid_code": "D2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D02",
+            "x": 311.63,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D03",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D03",
+      "_grid_code": "D3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D03",
+            "x": 306.88,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D04",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D04",
+      "_grid_code": "D4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D04",
+            "x": 301.8,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D05",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D05",
+      "_grid_code": "D5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D05",
+            "x": 297.05,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D06",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D06",
+      "_grid_code": "D6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D06",
+            "x": 292.29,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D07",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D07",
+      "_grid_code": "D7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D07",
+            "x": 287.54,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D08",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D08",
+      "_grid_code": "D8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D08",
+            "x": 282.46,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D09",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D09",
+      "_grid_code": "D9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D09",
+            "x": 277.7,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D10",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D10",
+      "_grid_code": "D10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D10",
+            "x": 272.95,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D11",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D11",
+      "_grid_code": "D11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D11",
+            "x": 268.19,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D12",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D12",
+      "_grid_code": "D12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D12",
+            "x": 263.12,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D13",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D13",
+      "_grid_code": "D13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D13",
+            "x": 258.36,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D14",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D14",
+      "_grid_code": "D14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D14",
+            "x": 253.6,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D15",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D15",
+      "_grid_code": "D15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D15",
+            "x": 248.85,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D16",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D16",
+      "_grid_code": "D16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D16",
+            "x": 243.78,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D17",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D17",
+      "_grid_code": "D17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D17",
+            "x": 239.02,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD4 401 D18",
+      "_pod": 4,
+      "_room": "401",
+      "_col": "D",
+      "_cabinet": "D18",
+      "_grid_code": "D18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "401",
+        "nodes": [
+          {
+            "name": "D18",
+            "x": 234.26,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A01",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A01",
+      "_grid_code": "A1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A01",
+            "x": 482.38,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A02",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A02",
+      "_grid_code": "A2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A02",
+            "x": 477.62,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A03",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A03",
+      "_grid_code": "A3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A03",
+            "x": 472.87,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A04",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A04",
+      "_grid_code": "A4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A04",
+            "x": 468.11,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A05",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A05",
+      "_grid_code": "A5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A05",
+            "x": 463.04,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A06",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A06",
+      "_grid_code": "A6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A06",
+            "x": 458.28,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A07",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A07",
+      "_grid_code": "A7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A07",
+            "x": 453.52,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A08",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A08",
+      "_grid_code": "A8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A08",
+            "x": 448.77,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A09",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A09",
+      "_grid_code": "A9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A09",
+            "x": 443.69,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A10",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A10",
+      "_grid_code": "A10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A10",
+            "x": 438.94,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A11",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A11",
+      "_grid_code": "A11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A11",
+            "x": 434.19,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A12",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A12",
+      "_grid_code": "A12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A12",
+            "x": 429.11,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A13",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A13",
+      "_grid_code": "A13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A13",
+            "x": 424.36,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A14",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A14",
+      "_grid_code": "A14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A14",
+            "x": 419.6,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A15",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A15",
+      "_grid_code": "A15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A15",
+            "x": 414.84,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A16",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A16",
+      "_grid_code": "A16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A16",
+            "x": 409.77,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A17",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A17",
+      "_grid_code": "A17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A17",
+            "x": 405.01,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD5 402 A18",
+      "_pod": 5,
+      "_room": "402",
+      "_col": "A",
+      "_cabinet": "A18",
+      "_grid_code": "A18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "A18",
+            "x": 400.25,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B01",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B01",
+      "_grid_code": "B1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B01",
+            "x": 482.38,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B02",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B02",
+      "_grid_code": "B2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B02",
+            "x": 477.62,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B03",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B03",
+      "_grid_code": "B3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B03",
+            "x": 472.87,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B04",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B04",
+      "_grid_code": "B4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B04",
+            "x": 468.11,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B05",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B05",
+      "_grid_code": "B5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B05",
+            "x": 463.04,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B06",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B06",
+      "_grid_code": "B6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B06",
+            "x": 458.28,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B07",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B07",
+      "_grid_code": "B7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B07",
+            "x": 453.52,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B08",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B08",
+      "_grid_code": "B8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B08",
+            "x": 448.77,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B09",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B09",
+      "_grid_code": "B9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B09",
+            "x": 443.69,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B10",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B10",
+      "_grid_code": "B10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B10",
+            "x": 438.94,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B11",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B11",
+      "_grid_code": "B11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B11",
+            "x": 434.19,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B12",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B12",
+      "_grid_code": "B12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B12",
+            "x": 429.11,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B13",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B13",
+      "_grid_code": "B13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B13",
+            "x": 424.36,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B14",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B14",
+      "_grid_code": "B14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B14",
+            "x": 419.6,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B15",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B15",
+      "_grid_code": "B15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B15",
+            "x": 414.84,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B16",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B16",
+      "_grid_code": "B16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B16",
+            "x": 409.77,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B17",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B17",
+      "_grid_code": "B17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B17",
+            "x": 405.01,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD6 402 B18",
+      "_pod": 6,
+      "_room": "402",
+      "_col": "B",
+      "_cabinet": "B18",
+      "_grid_code": "B18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "B18",
+            "x": 400.25,
+            "y": 191.69
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C01",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C01",
+      "_grid_code": "C1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C01",
+            "x": 482.38,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C02",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C02",
+      "_grid_code": "C2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C02",
+            "x": 477.62,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C03",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C03",
+      "_grid_code": "C3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C03",
+            "x": 472.87,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C04",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C04",
+      "_grid_code": "C4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C04",
+            "x": 468.11,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C05",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C05",
+      "_grid_code": "C5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C05",
+            "x": 463.04,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C06",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C06",
+      "_grid_code": "C6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C06",
+            "x": 458.28,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C07",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C07",
+      "_grid_code": "C7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C07",
+            "x": 453.52,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C08",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C08",
+      "_grid_code": "C8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C08",
+            "x": 448.77,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C09",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C09",
+      "_grid_code": "C9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C09",
+            "x": 443.69,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C10",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C10",
+      "_grid_code": "C10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C10",
+            "x": 438.94,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C11",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C11",
+      "_grid_code": "C11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C11",
+            "x": 434.19,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C12",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C12",
+      "_grid_code": "C12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C12",
+            "x": 429.11,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C13",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C13",
+      "_grid_code": "C13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C13",
+            "x": 424.36,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C14",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C14",
+      "_grid_code": "C14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C14",
+            "x": 419.6,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C15",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C15",
+      "_grid_code": "C15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C15",
+            "x": 414.84,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C16",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C16",
+      "_grid_code": "C16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C16",
+            "x": 409.77,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C17",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C17",
+      "_grid_code": "C17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C17",
+            "x": 405.01,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD7 402 C18",
+      "_pod": 7,
+      "_room": "402",
+      "_col": "C",
+      "_cabinet": "C18",
+      "_grid_code": "C18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "C18",
+            "x": 400.25,
+            "y": 215.07
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D01",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D01",
+      "_grid_code": "D1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D01",
+            "x": 482.38,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D02",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D02",
+      "_grid_code": "D2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D02",
+            "x": 477.62,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D03",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D03",
+      "_grid_code": "D3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D03",
+            "x": 472.87,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D04",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D04",
+      "_grid_code": "D4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D04",
+            "x": 468.11,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D05",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D05",
+      "_grid_code": "D5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D05",
+            "x": 463.04,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D06",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D06",
+      "_grid_code": "D6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D06",
+            "x": 458.28,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D07",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D07",
+      "_grid_code": "D7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D07",
+            "x": 453.52,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D08",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D08",
+      "_grid_code": "D8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D08",
+            "x": 448.77,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D09",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D09",
+      "_grid_code": "D9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D09",
+            "x": 443.69,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D10",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D10",
+      "_grid_code": "D10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D10",
+            "x": 438.94,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D11",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D11",
+      "_grid_code": "D11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D11",
+            "x": 434.19,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D12",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D12",
+      "_grid_code": "D12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D12",
+            "x": 429.11,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D13",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D13",
+      "_grid_code": "D13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D13",
+            "x": 424.36,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D14",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D14",
+      "_grid_code": "D14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D14",
+            "x": 419.6,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D15",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D15",
+      "_grid_code": "D15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D15",
+            "x": 414.84,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D16",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D16",
+      "_grid_code": "D16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D16",
+            "x": 409.77,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D17",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D17",
+      "_grid_code": "D17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D17",
+            "x": 405.01,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD8 402 D18",
+      "_pod": 8,
+      "_room": "402",
+      "_col": "D",
+      "_cabinet": "D18",
+      "_grid_code": "D18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "402",
+        "nodes": [
+          {
+            "name": "D18",
+            "x": 400.25,
+            "y": 272.55
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A01",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A01",
+      "_grid_code": "A1",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A01",
+            "x": 585.75,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A02",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A02",
+      "_grid_code": "A2",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A02",
+            "x": 590.5,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A03",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A03",
+      "_grid_code": "A3",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A03",
+            "x": 595.26,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A04",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A04",
+      "_grid_code": "A4",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A04",
+            "x": 600.34,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A05",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A05",
+      "_grid_code": "A5",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A05",
+            "x": 605.09,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A06",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A06",
+      "_grid_code": "A6",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A06",
+            "x": 609.85,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A07",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A07",
+      "_grid_code": "A7",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A07",
+            "x": 614.61,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A08",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A08",
+      "_grid_code": "A8",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A08",
+            "x": 619.68,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A09",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A09",
+      "_grid_code": "A9",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A09",
+            "x": 624.43,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A10",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A10",
+      "_grid_code": "A10",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A10",
+            "x": 629.19,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A11",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A11",
+      "_grid_code": "A11",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A11",
+            "x": 633.95,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A12",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A12",
+      "_grid_code": "A12",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A12",
+            "x": 639.02,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A13",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A13",
+      "_grid_code": "A13",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A13",
+            "x": 643.77,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A14",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A14",
+      "_grid_code": "A14",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A14",
+            "x": 648.53,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A15",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A15",
+      "_grid_code": "A15",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A15",
+            "x": 653.29,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A16",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A16",
+      "_grid_code": "A16",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A16",
+            "x": 658.36,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A17",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A17",
+      "_grid_code": "A17",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A17",
+            "x": 663.12,
+            "y": 134.22
+          }
+        ]
+      }
+    },
+    {
+      "_label": "POD9 403 A18",
+      "_pod": 9,
+      "_room": "403",
+      "_col": "A",
+      "_cabinet": "A18",
+      "_grid_code": "A18",
+      "path": "/wapi/v1/ai/nodes/batchMoveNodes",
+      "body": {
+        "diagram": "机房视图",
+        "roomName": "403",
+        "nodes": [
+          {
+            "name": "A18",
+            "x": 667.88,
+            "y": 134.22
+          }
+        ]
+      }
+    }
+  ]
+}
