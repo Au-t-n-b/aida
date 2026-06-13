@@ -1,0 +1,15 @@
+[
+  {
+    "planVersionLogId": "PVL-京东-V1.1",
+    "projectKey": "京东",
+    "planId": "JD_A3_CONTINGENCY",
+    "planVersion": "V1.1",
+    "status": "ACTIVE",
+    "createdBy": "数字孪生决策台",
+    "createdAt": "2026-06-11T11:12:38+08:00",
+    "lastModifiedBy": "数字孪生决策台",
+    "modifiedAt": "2026-06-11T11:12:38+08:00",
+    "changeDescription": "V1.1：更新 2 章（项目背景、风险&假设信息）",
+    "cumulativeChangeLog": "2026-06-11T11:12:38+08:00 V1.1 V1.1：更新 2 章（项目背景、风险&假设信息）"
+  }
+]

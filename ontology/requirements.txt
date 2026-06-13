@@ -1,0 +1,29 @@
+# ontology - standalone Foundry-style Ontology API service dependencies
+# Run: cd ontology && .venv\Scripts\python -m uvicorn backend_app:create_app --factory --port 8010
+# Note: own .venv; plan-compression reuses aida/agent's unified LLM entry (agent/llm.py),
+#       so langchain-openai IS required. langgraph IS now required for contingency_narrative/.
+
+fastapi>=0.110            # create_app() API framework
+uvicorn[standard]>=0.29   # ASGI server
+python-multipart>=0.0.9   # dataset files:upload (multipart) endpoints
+
+PyYAML>=6.0               # schema/datasource-bindings.yaml parsing
+SQLAlchemy>=2.0           # Dolt mirror / writeback overlay
+PyMySQL>=1.1              # Dolt (MySQL protocol) connection
+openpyxl>=3.1             # xlsx reads (lazy, on demand)
+python-dotenv>=1.0        # langgraph_agent.config (plan_compression recommender) loads .env
+langchain-openai>=0.2     # plan_compression + contingency_narrative reuse agent/llm.py's ChatOpenAI
+langgraph>=1.0            # contingency_narrative/ chapter-narrative StateGraph (gather→gen→merge→persist)
+
+# Plan-compression recommender (langgraph_agent/) is itself kept LEAN: only config + llm +
+# recommenders, no graph/service. llm.py's get_chat_llm() DELEGATES to aida/agent's unified
+# entry agent/llm.py (the project's only approved ChatOpenAI holder, ZHIPU/百炼 + Langfuse): it
+# adds the repo root to sys.path and imports agent.llm lazily. If langchain-openai is missing or
+# the key is unset it returns None and the deterministic path is used.
+# contingency_narrative/ DOES use a small langgraph StateGraph (gather→generate→merge→persist) for
+# predefined-plan chapter-narrative generation; it reuses the same get_chat_llm() entry. Hence
+# langgraph is now a dependency (langgraph_agent/ itself still holds no graph).
+#
+# The llm_openrouter_* schedule modules call OpenRouter via stdlib urllib,
+# so `requests` is NOT required. LLM summary is optional and off by default;
+# enable it by setting OPENROUTER_API_KEY (and related) env vars.

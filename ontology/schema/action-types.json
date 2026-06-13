@@ -1,0 +1,3449 @@
+{
+  "modifyDeliveryPlanStartDate": {
+    "apiName": "modifyDeliveryPlanStartDate",
+    "description": "Palantir-style local Action Type: modify DeliveryPlanRow.startDate.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryPlanRow",
+    "displayMetadata": {
+      "displayName": "修改活动开始日期",
+      "description": "更新 DeliveryPlanRow.startDate；对应源列「开始日期」。"
+    },
+    "parameters": {
+      "targetRow": {
+        "displayMetadata": {
+          "displayName": "目标活动行",
+          "description": "要修改的交付计划行（Object Type: DeliveryPlanRow；主键 rowKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryPlanRow"
+        },
+        "required": true
+      },
+      "startDate": {
+        "displayMetadata": {
+          "displayName": "开始日期",
+          "description": "新开始日期 YYYY-MM-DD，空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRow",
+        "propertyUpdates": {
+          "startDate": "${startDate}"
+        }
+      }
+    ]
+  },
+  "modifyDeliveryPlanEndDate": {
+    "apiName": "modifyDeliveryPlanEndDate",
+    "description": "Palantir-style local Action Type: modify DeliveryPlanRow.endDate.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryPlanRow",
+    "displayMetadata": {
+      "displayName": "修改活动结束日期",
+      "description": "更新 DeliveryPlanRow.endDate；对应源列「结束日期」。"
+    },
+    "parameters": {
+      "targetRow": {
+        "displayMetadata": {
+          "displayName": "目标活动行",
+          "description": "要修改的交付计划行（Object Type: DeliveryPlanRow；主键 rowKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryPlanRow"
+        },
+        "required": true
+      },
+      "endDate": {
+        "displayMetadata": {
+          "displayName": "结束日期",
+          "description": "新结束日期 YYYY-MM-DD，空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRow",
+        "propertyUpdates": {
+          "endDate": "${endDate}"
+        }
+      }
+    ]
+  },
+  "modifyDeliveryPlanSla": {
+    "apiName": "modifyDeliveryPlanSla",
+    "description": "Palantir-style local Action Type: modify DeliveryPlanRow.sla.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryPlanRow",
+    "displayMetadata": {
+      "displayName": "修改活动 SLA",
+      "description": "更新 DeliveryPlanRow.sla；对应源列「SLA」。"
+    },
+    "parameters": {
+      "targetRow": {
+        "displayMetadata": {
+          "displayName": "目标活动行",
+          "description": "要修改的交付计划行（Object Type: DeliveryPlanRow；主键 rowKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryPlanRow"
+        },
+        "required": true
+      },
+      "sla": {
+        "displayMetadata": {
+          "displayName": "SLA",
+          "description": "新 SLA 文本，如「3天」；可空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRow",
+        "propertyUpdates": {
+          "sla": "${sla}"
+        }
+      }
+    ]
+  },
+  "modifyDeliveryPlanStandardDuration": {
+    "apiName": "modifyDeliveryPlanStandardDuration",
+    "description": "Palantir-style local Action Type: modify DeliveryPlanRow.standardDuration.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryPlanRow",
+    "displayMetadata": {
+      "displayName": "修改标准工期",
+      "description": "更新 DeliveryPlanRow.standardDuration；对应源列「标准工期」。"
+    },
+    "parameters": {
+      "targetRow": {
+        "displayMetadata": {
+          "displayName": "目标活动行",
+          "description": "要修改的交付计划行（Object Type: DeliveryPlanRow；主键 rowKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryPlanRow"
+        },
+        "required": true
+      },
+      "standardDuration": {
+        "displayMetadata": {
+          "displayName": "标准工期",
+          "description": "新的标准工期文本；可空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRow",
+        "propertyUpdates": {
+          "standardDuration": "${standardDuration}"
+        }
+      }
+    ]
+  },
+  "modifyDeliveryPlanLimitDuration": {
+    "apiName": "modifyDeliveryPlanLimitDuration",
+    "description": "Palantir-style local Action Type: modify DeliveryPlanRow.limitDuration.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryPlanRow",
+    "displayMetadata": {
+      "displayName": "修改极限工期",
+      "description": "更新 DeliveryPlanRow.limitDuration；对应源列「极限工期」。"
+    },
+    "parameters": {
+      "targetRow": {
+        "displayMetadata": {
+          "displayName": "目标活动行",
+          "description": "要修改的交付计划行（Object Type: DeliveryPlanRow；主键 rowKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryPlanRow"
+        },
+        "required": true
+      },
+      "limitDuration": {
+        "displayMetadata": {
+          "displayName": "极限工期",
+          "description": "新的极限工期文本；可空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRow",
+        "propertyUpdates": {
+          "limitDuration": "${limitDuration}"
+        }
+      }
+    ]
+  },
+  "modifyMilestonePlannedDate": {
+    "apiName": "modifyMilestonePlannedDate",
+    "description": "Palantir-style local Action Type: modify Milestone.plannedDate.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "Milestone",
+    "displayMetadata": {
+      "displayName": "修改里程碑计划日期",
+      "description": "更新 Milestone.plannedDate；对应源列「plannedDate」。"
+    },
+    "parameters": {
+      "targetMilestone": {
+        "displayMetadata": {
+          "displayName": "目标里程碑",
+          "description": "要修改的里程碑（Object Type: Milestone；主键 milestoneKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "Milestone"
+        },
+        "required": true
+      },
+      "plannedDate": {
+        "displayMetadata": {
+          "displayName": "计划日期",
+          "description": "新计划日期 YYYY-MM-DD，空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMilestone",
+        "propertyUpdates": {
+          "plannedDate": "${plannedDate}"
+        }
+      }
+    ]
+  },
+  "modifyMilestoneActualDate": {
+    "apiName": "modifyMilestoneActualDate",
+    "description": "Palantir-style local Action Type: modify Milestone.actualDate.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "Milestone",
+    "displayMetadata": {
+      "displayName": "修改里程碑实际日期",
+      "description": "更新 Milestone.actualDate；对应源列「actualDate」。"
+    },
+    "parameters": {
+      "targetMilestone": {
+        "displayMetadata": {
+          "displayName": "目标里程碑",
+          "description": "要修改的里程碑（Object Type: Milestone；主键 milestoneKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "Milestone"
+        },
+        "required": true
+      },
+      "actualDate": {
+        "displayMetadata": {
+          "displayName": "实际日期",
+          "description": "新实际日期 YYYY-MM-DD，空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMilestone",
+        "propertyUpdates": {
+          "actualDate": "${actualDate}"
+        }
+      }
+    ]
+  },
+  "modifyMilestoneDependencyMilestoneTypes": {
+    "apiName": "modifyMilestoneDependencyMilestoneTypes",
+    "description": "Palantir-style local Action Type: modify Milestone.dependencyMilestoneTypes.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "Milestone",
+    "displayMetadata": {
+      "displayName": "修改里程碑依赖类型",
+      "description": "更新 Milestone.dependencyMilestoneTypes；对应源列「dependencyMilestoneTypes」。"
+    },
+    "parameters": {
+      "targetMilestone": {
+        "displayMetadata": {
+          "displayName": "目标里程碑",
+          "description": "要修改的里程碑（Object Type: Milestone；主键 milestoneKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "Milestone"
+        },
+        "required": true
+      },
+      "dependencyMilestoneTypes": {
+        "displayMetadata": {
+          "displayName": "依赖里程碑类型",
+          "description": "英文逗号分隔的上游 milestoneType；空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMilestone",
+        "propertyUpdates": {
+          "dependencyMilestoneTypes": "${dependencyMilestoneTypes}"
+        }
+      }
+    ]
+  },
+  "modifyMilestoneDescription": {
+    "apiName": "modifyMilestoneDescription",
+    "description": "Palantir-style local Action Type: modify Milestone.description.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "Milestone",
+    "displayMetadata": {
+      "displayName": "修改里程碑说明",
+      "description": "更新 Milestone.description；对应源列「description」。"
+    },
+    "parameters": {
+      "targetMilestone": {
+        "displayMetadata": {
+          "displayName": "目标里程碑",
+          "description": "要修改的里程碑（Object Type: Milestone；主键 milestoneKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "Milestone"
+        },
+        "required": true
+      },
+      "description": {
+        "displayMetadata": {
+          "displayName": "说明",
+          "description": "里程碑说明文本；空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMilestone",
+        "propertyUpdates": {
+          "description": "${description}"
+        }
+      }
+    ]
+  },
+  "modifyMilestoneDirectionRole": {
+    "apiName": "modifyMilestoneDirectionRole",
+    "description": "Palantir-style local Action Type: modify Milestone.directionRole.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "Milestone",
+    "displayMetadata": {
+      "displayName": "修改里程碑排程角色",
+      "description": "更新 Milestone.directionRole；对应源列「directionRole」。"
+    },
+    "parameters": {
+      "targetMilestone": {
+        "displayMetadata": {
+          "displayName": "目标里程碑",
+          "description": "要修改的里程碑（Object Type: Milestone；主键 milestoneKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "Milestone"
+        },
+        "required": true
+      },
+      "directionRole": {
+        "displayMetadata": {
+          "displayName": "排程角色",
+          "description": "FORWARD_START、BACKWARD_TARGET 或 MILESTONE_COMPRESSION_TARGET；空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMilestone",
+        "propertyUpdates": {
+          "directionRole": "${directionRole}"
+        }
+      }
+    ]
+  },
+  "modifyPodPowerOnMilestoneAnchorDate": {
+    "apiName": "modifyPodPowerOnMilestoneAnchorDate",
+    "description": "Palantir-style local Action Type: modify POD-scoped POWER_ON Milestone.anchorDate.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "Milestone",
+    "targetConstraints": {
+      "scopeType": "POD",
+      "milestoneType": "POWER_ON"
+    },
+    "displayMetadata": {
+      "displayName": "修改 Pod 上电里程碑锚点",
+      "description": "仅更新 POD 级上电 Milestone.anchorDate；对应源列「anchorDate」。"
+    },
+    "parameters": {
+      "targetPodPowerOnMilestone": {
+        "displayMetadata": {
+          "displayName": "目标 Pod 上电里程碑",
+          "description": "要修改的 POD 级上电里程碑（Object Type: Milestone；scopeType=POD；milestoneType=POWER_ON）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "Milestone"
+        },
+        "required": true
+      },
+      "anchorDate": {
+        "displayMetadata": {
+          "displayName": "上电锚点日期",
+          "description": "新的 POD 上电锚点日期，格式 YYYY-MM-DD。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetPodPowerOnMilestone",
+        "propertyUpdates": {
+          "anchorDate": "${anchorDate}"
+        }
+      }
+    ]
+  },
+  "modifyChangeOrderStatus": {
+    "apiName": "modifyChangeOrderStatus",
+    "description": "Palantir-style local Action Type: modify ChangeOrder.status.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "ChangeOrder",
+    "displayMetadata": {
+      "displayName": "修改变更工单状态",
+      "description": "更新 ChangeOrder.status，用于供应商审批流转。"
+    },
+    "parameters": {
+      "targetChangeOrder": {
+        "displayMetadata": {
+          "displayName": "目标变更工单",
+          "description": "要修改的变更工单（Object Type: ChangeOrder；主键 changeOrderKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "ChangeOrder"
+        },
+        "required": true
+      },
+      "status": {
+        "displayMetadata": {
+          "displayName": "工单状态",
+          "description": "DRAFT、PENDING_SUPPLIER_APPROVAL、APPROVED、PARTIALLY_APPROVED、REJECTED 或 CANCELLED。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetChangeOrder",
+        "propertyUpdates": {
+          "status": "${status}"
+        }
+      }
+    ],
+    "stateTransitions": {
+      "field": "status",
+      "initialStates": [
+        "DRAFT",
+        "PENDING_SUPPLIER_APPROVAL"
+      ],
+      "allowed": {
+        "DRAFT": [
+          "PENDING_SUPPLIER_APPROVAL",
+          "CANCELLED"
+        ],
+        "PENDING_SUPPLIER_APPROVAL": [
+          "APPROVED",
+          "PARTIALLY_APPROVED",
+          "REJECTED",
+          "CANCELLED"
+        ],
+        "PARTIALLY_APPROVED": [
+          "APPROVED",
+          "CANCELLED"
+        ],
+        "APPROVED": [],
+        "REJECTED": [],
+        "CANCELLED": []
+      }
+    }
+  },
+  "modifyChangeOrderApprovedAdvanceDays": {
+    "apiName": "modifyChangeOrderApprovedAdvanceDays",
+    "description": "Palantir-style local Action Type: modify ChangeOrder.approvedAdvanceDays and optional decisionReason. This action should usually be paired with modifyChangeOrderStatus; when approvedAdvanceDays is lower than requestedAdvanceDays, caller should set status to PARTIALLY_APPROVED and trigger a second supply-shift refresh.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "ChangeOrder",
+    "displayMetadata": {
+      "displayName": "修改工单审批提前天数",
+      "description": "更新 ChangeOrder.approvedAdvanceDays，并可同步更新审批说明。"
+    },
+    "parameters": {
+      "targetChangeOrder": {
+        "displayMetadata": {
+          "displayName": "目标变更工单",
+          "description": "要修改的变更工单（Object Type: ChangeOrder；主键 changeOrderKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "ChangeOrder"
+        },
+        "required": true
+      },
+      "approvedAdvanceDays": {
+        "displayMetadata": {
+          "displayName": "审批提前天数",
+          "description": "供应商审批后的可执行提前天数，建议填整数文本。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "decisionReason": {
+        "displayMetadata": {
+          "displayName": "审批说明",
+          "description": "部分通过或拒绝时的补充说明。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetChangeOrder",
+        "propertyUpdates": {
+          "approvedAdvanceDays": "${approvedAdvanceDays}",
+          "decisionReason": "${decisionReason}"
+        }
+      }
+    ],
+    "submissionCriteria": [
+      {
+        "name": "approvedNotExceedRequested",
+        "message": "审批提前天数不能超过申请提前天数。",
+        "condition": {
+          "any": [
+            {
+              "field": "approvedAdvanceDays",
+              "op": "empty"
+            },
+            {
+              "field": "approvedAdvanceDays",
+              "op": "lte",
+              "field2": "requestedAdvanceDays"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "modifySupplierCompanyStatus": {
+    "apiName": "modifySupplierCompanyStatus",
+    "description": "Palantir-style local Action Type: modify SupplierCompany.status.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "SupplierCompany",
+    "displayMetadata": {
+      "displayName": "修改供应商状态",
+      "description": "更新 SupplierCompany.status。"
+    },
+    "parameters": {
+      "targetSupplier": {
+        "displayMetadata": {
+          "displayName": "目标供应商",
+          "description": "要修改的供应商（Object Type: SupplierCompany；主键 supplierKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "SupplierCompany"
+        },
+        "required": true
+      },
+      "status": {
+        "displayMetadata": {
+          "displayName": "供应商状态",
+          "description": "ACTIVE、INACTIVE 或 BLACKLISTED。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetSupplier",
+        "propertyUpdates": {
+          "status": "${status}"
+        }
+      }
+    ],
+    "stateTransitions": {
+      "field": "status",
+      "initialStates": [
+        "ACTIVE"
+      ],
+      "allowed": {
+        "ACTIVE": [
+          "INACTIVE",
+          "BLACKLISTED"
+        ],
+        "INACTIVE": [
+          "ACTIVE",
+          "BLACKLISTED"
+        ],
+        "BLACKLISTED": [
+          "ACTIVE"
+        ]
+      }
+    }
+  },
+  "modifyEquipmentConfigChapterFields": {
+    "apiName": "modifyEquipmentConfigChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on EquipmentConfig rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "EquipmentConfig",
+    "displayMetadata": {
+      "displayName": "修改设备配置章节字段",
+      "description": "更新设备配置章节表中可人工修订的字段；不允许改主键、项目主键或数据来源。"
+    },
+    "parameters": {
+      "targetEquipment": {
+        "displayMetadata": {
+          "displayName": "目标设备配置",
+          "description": "要修改的设备配置（Object Type: EquipmentConfig；主键 equipmentId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "EquipmentConfig" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetEquipment",
+        "propertyUpdates": {
+          "model": "${model}",
+          "productCode": "${productCode}",
+          "version": "${version}",
+          "lifecycleStatus": "${lifecycleStatus}",
+          "quantity": "${quantity}",
+          "unitSpace": "${unitSpace}",
+          "totalSpace": "${totalSpace}",
+          "unitPower": "${unitPower}",
+          "totalPower": "${totalPower}"
+        }
+      }
+    ]
+  },
+  "modifyComponentConfigChapterFields": {
+    "apiName": "modifyComponentConfigChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on ComponentConfig rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "ComponentConfig",
+    "displayMetadata": {
+      "displayName": "修改部件配置章节字段",
+      "description": "更新部件配置章节表中可人工修订的字段；不允许改主键、项目主键或数据来源。"
+    },
+    "parameters": {
+      "targetComponent": {
+        "displayMetadata": {
+          "displayName": "目标部件配置",
+          "description": "要修改的部件配置（Object Type: ComponentConfig；主键 componentId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "ComponentConfig" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetComponent",
+        "propertyUpdates": {
+          "componentType": "${componentType}",
+          "componentCode": "${componentCode}",
+          "vendor": "${vendor}",
+          "componentName": "${componentName}"
+        }
+      }
+    ]
+  },
+  "modifySoftwareConfigChapterFields": {
+    "apiName": "modifySoftwareConfigChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on SoftwareConfig rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "SoftwareConfig",
+    "displayMetadata": {
+      "displayName": "修改软件配置章节字段",
+      "description": "更新软件配置章节表中可人工修订的字段；不允许改主键、项目主键或数据来源。"
+    },
+    "parameters": {
+      "targetSoftware": {
+        "displayMetadata": {
+          "displayName": "目标软件配置",
+          "description": "要修改的软件配置（Object Type: SoftwareConfig；主键 softwareId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "SoftwareConfig" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetSoftware",
+        "propertyUpdates": {
+          "softwareType": "${softwareType}",
+          "isHuaweiSoftware": "${isHuaweiSoftware}",
+          "softwareModel": "${softwareModel}",
+          "softwareVersion": "${softwareVersion}",
+          "remark": "${remark}"
+        }
+      }
+    ]
+  },
+  "modifyNetworkConfigChapterFields": {
+    "apiName": "modifyNetworkConfigChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on NetworkConfig rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "NetworkConfig",
+    "displayMetadata": {
+      "displayName": "修改组网配置章节字段",
+      "description": "更新组网配置章节表中可人工修订的字段；不允许改主键、项目主键或数据来源。"
+    },
+    "parameters": {
+      "targetNetwork": {
+        "displayMetadata": {
+          "displayName": "目标组网配置",
+          "description": "要修改的组网配置（Object Type: NetworkConfig；主键 networkId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "NetworkConfig" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetNetwork",
+        "propertyUpdates": {
+          "networkType": "${networkType}",
+          "deviceVendor": "${deviceVendor}",
+          "model": "${model}",
+          "version": "${version}",
+          "quantity": "${quantity}",
+          "remark": "${remark}"
+        }
+      }
+    ]
+  },
+  "modifyMachineRoomConfigChapterFields": {
+    "apiName": "modifyMachineRoomConfigChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on MachineRoomConfig rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "MachineRoomConfig",
+    "displayMetadata": {
+      "displayName": "修改机房配置章节字段",
+      "description": "更新机房配置章节表中可人工修订的字段；不允许改主键或项目主键。"
+    },
+    "parameters": {
+      "targetMachineRoom": {
+        "displayMetadata": {
+          "displayName": "目标机房配置",
+          "description": "要修改的机房配置（Object Type: MachineRoomConfig；主键 machineRoomId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "MachineRoomConfig" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMachineRoom",
+        "propertyUpdates": {
+          "machineRoomName": "${machineRoomName}",
+          "location": "${location}",
+          "cabinetType": "${cabinetType}",
+          "quantity": "${quantity}",
+          "remark": "${remark}"
+        }
+      }
+    ]
+  },
+  "modifyMaintenancePolicyChapterFields": {
+    "apiName": "modifyMaintenancePolicyChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on MaintenancePolicy rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "MaintenancePolicy",
+    "displayMetadata": {
+      "displayName": "修改维保策略章节字段",
+      "description": "更新维保策略章节表中可人工修订的字段；不允许改主键、项目主键或数据来源。"
+    },
+    "parameters": {
+      "targetMaintenancePolicy": {
+        "displayMetadata": {
+          "displayName": "目标维保策略",
+          "description": "要修改的维保策略（Object Type: MaintenancePolicy；主键 maintenancePolicyId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "MaintenancePolicy" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetMaintenancePolicy",
+        "propertyUpdates": {
+          "productModel": "${productModel}",
+          "warrantyPolicy": "${warrantyPolicy}",
+          "maintenancePolicy": "${maintenancePolicy}",
+          "startDate": "${startDate}",
+          "endDate": "${endDate}",
+          "eosDate": "${eosDate}",
+          "isOverEos": "${isOverEos}",
+          "overEosApprovalConclusion": "${overEosApprovalConclusion}"
+        }
+      }
+    ]
+  },
+  "modifyAcceptanceStrategyChapterFields": {
+    "apiName": "modifyAcceptanceStrategyChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on AcceptanceStrategy rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "AcceptanceStrategy",
+    "displayMetadata": {
+      "displayName": "修改验收策略章节字段",
+      "description": "更新验收策略章节表中可人工修订的字段；不允许改主键或项目主键。"
+    },
+    "parameters": {
+      "targetAcceptanceStrategy": {
+        "displayMetadata": {
+          "displayName": "目标验收策略",
+          "description": "要修改的验收策略（Object Type: AcceptanceStrategy；主键 acceptanceStrategyId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "AcceptanceStrategy" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetAcceptanceStrategy",
+        "propertyUpdates": {
+          "category": "${category}",
+          "acceptancePlan": "${acceptancePlan}",
+          "acceptanceCriteria": "${acceptanceCriteria}",
+          "acceptanceMilestone": "${acceptanceMilestone}",
+          "acceptanceDocument": "${acceptanceDocument}",
+          "paymentTerms": "${paymentTerms}",
+          "paymentMilestone": "${paymentMilestone}"
+        }
+      }
+    ]
+  },
+  "modifyTestCaseChapterFields": {
+    "apiName": "modifyTestCaseChapterFields",
+    "description": "Palantir-style local Action Type: modify safe chapter-visible fields on TestCase rows from the contingency report table.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "TestCase",
+    "displayMetadata": {
+      "displayName": "修改测试用例章节字段",
+      "description": "更新测试用例章节表中可人工修订的字段；不允许改主键或项目主键。"
+    },
+    "parameters": {
+      "targetTestCase": {
+        "displayMetadata": {
+          "displayName": "目标测试用例",
+          "description": "要修改的测试用例（Object Type: TestCase；主键 testCaseId）。"
+        },
+        "dataType": { "type": "ontologyObject", "objectTypeApiName": "TestCase" },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetTestCase",
+        "propertyUpdates": {
+          "level3Category": "${level3Category}",
+          "testCaseName": "${testCaseName}",
+          "caseCode": "${caseCode}",
+          "testPurpose": "${testPurpose}"
+        }
+      }
+    ]
+  },
+  "UpdateMilestoneDate": {
+    "apiName": "UpdateMilestoneDate",
+    "description": "OSDK-style Batch Action: apply approved milestone dry-run date mutations to DeliveryPlanRow.startDate/endDate.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryPlanRow",
+    "displayMetadata": {
+      "displayName": "确认下发里程碑日期",
+      "description": "仅在用户确认正排/倒排/里程碑压缩沙箱推演 diff 后，批量更新交付计划行日期。"
+    },
+    "parameters": {
+      "milestoneId": {
+        "displayMetadata": {
+          "displayName": "计划行主键",
+          "description": "兼容字段名，实际对应 DeliveryPlanRow.rowKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "dateField": {
+        "displayMetadata": {
+          "displayName": "日期字段",
+          "description": "startDate 或 endDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "newDate": {
+        "displayMetadata": {
+          "displayName": "新日期",
+          "description": "确认写回的日期，格式 YYYY-MM-DD。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "reason": {
+        "displayMetadata": {
+          "displayName": "推演原因",
+          "description": "来自 dry-run proposed_mutations 的推演说明。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "OSDK_BATCH_ACTION"
+    }
+  },
+  "executeBackwardKeyMilestones": {
+    "apiName": "executeBackwardKeyMilestones",
+    "description": "Deprecated writeback entry. Backward scheduling must run as dry-run skill and write only through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "displayMetadata": {
+      "displayName": "执行倒排",
+      "description": "仅保留历史动作元数据；实际执行会被 Action Exclusive 规则拒绝。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行倒排的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "anchor_id": {
+        "displayMetadata": {
+          "displayName": "倒排锚点",
+          "description": "可选 Milestone.milestoneKey；缺省使用当前项目的第一个 BACKWARD_TARGET。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_backward_key_milestones",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "executeForwardKeyMilestones": {
+    "apiName": "executeForwardKeyMilestones",
+    "description": "Deprecated writeback entry. Forward scheduling must run as dry-run skill and write only through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "displayMetadata": {
+      "displayName": "执行正排",
+      "description": "仅保留历史动作元数据；实际执行会被 Action Exclusive 规则拒绝。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行正排的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "manual_overrides": {
+        "displayMetadata": {
+          "displayName": "人工调整",
+          "description": "甘特图手动调整列表，每项包含 target_id、field、new_value；活动结束时间调整使用 field=endDate。"
+        },
+        "dataType": {
+          "type": "array"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_forward_key_milestones",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "executePlanCompressionDecision": {
+    "apiName": "executePlanCompressionDecision",
+    "description": "Deprecated writeback entry. Plan compression must run as dry-run skill and write only through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "displayMetadata": {
+      "displayName": "计划压缩",
+      "description": "执行两阶段计划压缩决策干跑，仅返回 proposed_mutations 和决策建议。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行计划压缩的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "power_on_target_date": {
+        "displayMetadata": {
+          "displayName": "上电目标日期",
+          "description": "第一阶段上电目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "pod_power_on_target_dates": {
+        "displayMetadata": {
+          "displayName": "POD 上电分批目标",
+          "description": "POD 级上电目标日期列表，每项包含 milestoneKey 和 anchorDate；为空时读取已保存 POD 里程碑。"
+        },
+        "dataType": {
+          "type": "array"
+        },
+        "required": false
+      },
+      "cluster_debug_target_date": {
+        "displayMetadata": {
+          "displayName": "集群性能调优目标日期",
+          "description": "第二阶段集群性能调优目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_plan_compression_decision",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "executePlanCompressionSupplyShift": {
+    "apiName": "executePlanCompressionSupplyShift",
+    "description": "Palantir-style local Action Type metadata for the plan-compression supply-shift dry-run strategy. Physical writeback must still go through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "strategy": "SUPPLY_ADVANCE_SHIFT",
+    "displayMetadata": {
+      "displayName": "计划压缩：供应平移",
+      "description": "执行供应提前/后移整体平移沙箱推演，仅返回 proposed_mutations 和决策建议。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行计划压缩的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "power_on_target_date": {
+        "displayMetadata": {
+          "displayName": "上电目标日期",
+          "description": "第一阶段上电目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "cluster_debug_target_date": {
+        "displayMetadata": {
+          "displayName": "集群性能调优目标日期",
+          "description": "第二阶段集群性能调优目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_plan_compression_decision",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "executePlanCompressionDurationTopNSlack": {
+    "apiName": "executePlanCompressionDurationTopNSlack",
+    "description": "Palantir-style local Action Type metadata for the plan-compression TopN slack duration-compression dry-run strategy. Physical writeback must still go through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "strategy": "TOPN_SLACK",
+    "displayMetadata": {
+      "displayName": "计划压缩：TopN 空闲压缩",
+      "description": "执行关键路径 TopN 空闲工期压缩沙箱推演，仅返回 proposed_mutations 和决策建议。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行计划压缩的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "power_on_target_date": {
+        "displayMetadata": {
+          "displayName": "上电目标日期",
+          "description": "第一阶段上电目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "cluster_debug_target_date": {
+        "displayMetadata": {
+          "displayName": "集群性能调优目标日期",
+          "description": "第二阶段集群性能调优目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_plan_compression_decision",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "executePlanCompressionDurationProportional": {
+    "apiName": "executePlanCompressionDurationProportional",
+    "description": "Palantir-style local Action Type metadata for the plan-compression proportional duration-compression dry-run strategy. Physical writeback must still go through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "strategy": "PROPORTIONAL",
+    "displayMetadata": {
+      "displayName": "计划压缩：工期等比压缩",
+      "description": "执行关键路径工期等比分摊压缩沙箱推演，仅返回 proposed_mutations 和决策建议。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行计划压缩的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "power_on_target_date": {
+        "displayMetadata": {
+          "displayName": "上电目标日期",
+          "description": "第一阶段上电目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "cluster_debug_target_date": {
+        "displayMetadata": {
+          "displayName": "集群性能调优目标日期",
+          "description": "第二阶段集群性能调优目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_plan_compression_decision",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "executePlanCompressionDurationProportionalExtension": {
+    "apiName": "executePlanCompressionDurationProportionalExtension",
+    "description": "Palantir-style local Action Type metadata for the plan-compression proportional duration-extension dry-run strategy used when target dates are delayed. Physical writeback must still go through UpdateMilestoneDate batch action.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliveryProject",
+    "strategy": "PROPORTIONAL_EXTENSION",
+    "displayMetadata": {
+      "displayName": "计划压缩：目标延后等比延长",
+      "description": "执行目标延后时关键路径工期等比延长沙箱推演，仅返回 proposed_mutations 和决策建议。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要执行计划压缩的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "power_on_target_date": {
+        "displayMetadata": {
+          "displayName": "上电目标日期",
+          "description": "第一阶段上电目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "cluster_debug_target_date": {
+        "displayMetadata": {
+          "displayName": "集群性能调优目标日期",
+          "description": "第二阶段集群性能调优目标日期，格式 YYYY-MM-DD；为空时使用 Milestone.anchorDate。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "execute_plan_compression_decision",
+      "writebackActionApiName": "UpdateMilestoneDate"
+    }
+  },
+  "modifyEquipmentRoomCustomerEntryDate": {
+    "apiName": "modifyEquipmentRoomCustomerEntryDate",
+    "description": "Palantir-style local Action Type (planned extension): modify EquipmentRoom.customerEntryDate.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "EquipmentRoom",
+    "displayMetadata": {
+      "displayName": "修改客户入场日期",
+      "description": "更新机房（站）客户允许入场日期；站的时间变化会传导到货与人。"
+    },
+    "parameters": {
+      "targetRoom": {
+        "displayMetadata": {
+          "displayName": "目标机房",
+          "description": "要修改的机房（Object Type: EquipmentRoom；主键 roomKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "EquipmentRoom"
+        },
+        "required": true
+      },
+      "customerEntryDate": {
+        "displayMetadata": {
+          "displayName": "客户入场日期",
+          "description": "新客户允许入场日期 YYYY-MM-DD，空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRoom",
+        "propertyUpdates": {
+          "customerEntryDate": "${customerEntryDate}"
+        }
+      }
+    ]
+  },
+  "modifyEquipmentArrivalItemModifiedArrivalDate": {
+    "apiName": "modifyEquipmentArrivalItemModifiedArrivalDate",
+    "description": "Palantir-style local Action Type (planned extension): modify EquipmentArrivalItem.modifiedArrivalDate (adjusted arrival date), aligned to T_ARRIVAL_INFO.modified_arrival_date; never overwrites the original arrivalDate source column.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "EquipmentArrivalItem",
+    "displayMetadata": {
+      "displayName": "修改调整到货日期",
+      "description": "更新到货明细（货）的调整到货日期；承载「可更新」的到货变更，保留原始到货日期不变。"
+    },
+    "parameters": {
+      "targetArrivalItem": {
+        "displayMetadata": {
+          "displayName": "目标到货明细",
+          "description": "要修改的到货明细（Object Type: EquipmentArrivalItem；主键 arrivalItemKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "EquipmentArrivalItem"
+        },
+        "required": true
+      },
+      "modifiedArrivalDate": {
+        "displayMetadata": {
+          "displayName": "调整到货日期",
+          "description": "新调整到货日期 YYYY-MM-DD，空表示清空（回退到原始到货日期）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetArrivalItem",
+        "propertyUpdates": {
+          "modifiedArrivalDate": "${modifiedArrivalDate}"
+        }
+      }
+    ]
+  },
+  "modifyDeliveryBatchTargetGoLiveDate": {
+    "apiName": "modifyDeliveryBatchTargetGoLiveDate",
+    "description": "Palantir-style local Action Type (planned extension): modify DeliveryBatch.targetGoLiveDate.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "DeliveryBatch",
+    "displayMetadata": {
+      "displayName": "修改批次上线目标",
+      "description": "更新上线批次的上线目标日期；倒排会据此反推就位建议。"
+    },
+    "parameters": {
+      "targetBatch": {
+        "displayMetadata": {
+          "displayName": "目标批次",
+          "description": "要修改的上线批次（Object Type: DeliveryBatch；主键 batchKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryBatch"
+        },
+        "required": true
+      },
+      "targetGoLiveDate": {
+        "displayMetadata": {
+          "displayName": "上线目标日期",
+          "description": "新上线目标日期 YYYY-MM-DD，空表示清空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetBatch",
+        "propertyUpdates": {
+          "targetGoLiveDate": "${targetGoLiveDate}"
+        }
+      }
+    ]
+  },
+  "modifyScheduleRiskStatus": {
+    "apiName": "modifyScheduleRiskStatus",
+    "description": "Palantir-style local Action Type (planned extension): modify ScheduleRisk.status.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "ScheduleRisk",
+    "displayMetadata": {
+      "displayName": "修改风险状态",
+      "description": "更新排期风险状态 OPEN / MITIGATED / ACCEPTED / CLOSED，支撑风险闭环与协同。"
+    },
+    "parameters": {
+      "targetRisk": {
+        "displayMetadata": {
+          "displayName": "目标风险",
+          "description": "要修改的排期风险（Object Type: ScheduleRisk；主键 riskKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "ScheduleRisk"
+        },
+        "required": true
+      },
+      "status": {
+        "displayMetadata": {
+          "displayName": "风险状态",
+          "description": "OPEN、MITIGATED、ACCEPTED 或 CLOSED。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRisk",
+        "propertyUpdates": {
+          "status": "${status}"
+        }
+      }
+    ]
+  },
+  "simulateDeliveryScenario": {
+    "apiName": "simulateDeliveryScenario",
+    "description": "Palantir-style local Action Type (planned extension): run a sandbox scheduling simulation that produces SchedulePlanOption and ScheduleRisk without writing back to the live plan.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "DeliveryScenario",
+    "displayMetadata": {
+      "displayName": "执行沙箱推演",
+      "description": "在沙箱场景中执行排期推演，仅产出方案与风险，不写回正式计划。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "要推演的项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "scenario_type": {
+        "displayMetadata": {
+          "displayName": "场景类型",
+          "description": "BACKWARD、FORWARD、ADJUST 或 COMPRESSION。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "trigger_event": {
+        "displayMetadata": {
+          "displayName": "触发事件",
+          "description": "触发推演的事件，例如机房延期、到货延期、断电窗口变化、返工。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "DRY_RUN_ONLY",
+      "skillApiName": "simulate_delivery_scenario",
+      "writebackActionApiName": "acceptDeliveryScenario"
+    }
+  },
+  "acceptDeliveryScenario": {
+    "apiName": "acceptDeliveryScenario",
+    "description": "Palantir-style local Action Type (planned extension): accept a scenario; sets status=ACCEPTED and publishes the underlying Dolt preview branch back to main.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "DeliveryScenario",
+    "displayMetadata": {
+      "displayName": "接受沙箱场景",
+      "description": "接受推演结果并写回正式计划；环境假设场景（isEnvSimulation=true）禁止接受。"
+    },
+    "parameters": {
+      "targetScenario": {
+        "displayMetadata": {
+          "displayName": "目标场景",
+          "description": "要接受的沙箱场景（Object Type: DeliveryScenario；主键 scenarioKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryScenario"
+        },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetScenario",
+        "propertyUpdates": {
+          "status": "ACCEPTED"
+        }
+      }
+    ]
+  },
+  "discardDeliveryScenario": {
+    "apiName": "discardDeliveryScenario",
+    "description": "Palantir-style local Action Type (planned extension): discard a scenario; sets status=DISCARDED and discards the underlying Dolt preview branch.",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "DeliveryScenario",
+    "displayMetadata": {
+      "displayName": "丢弃沙箱场景",
+      "description": "丢弃推演结果并销毁沙盘分支，不影响正式计划。"
+    },
+    "parameters": {
+      "targetScenario": {
+        "displayMetadata": {
+          "displayName": "目标场景",
+          "description": "要丢弃的沙箱场景（Object Type: DeliveryScenario；主键 scenarioKey）。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "DeliveryScenario"
+        },
+        "required": true
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetScenario",
+        "propertyUpdates": {
+          "status": "DISCARDED"
+        }
+      }
+    ]
+  },
+  "insertReworkEvent": {
+    "apiName": "insertReworkEvent",
+    "description": "Palantir-style local Action Type (planned extension): record a rework event (30 §9). Application inserts an independent DeliveryPlanRow with activityType=REWORK and never mutates the original activity (13 §5).",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "ReworkEvent",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "录入返工事件",
+      "description": "录入现场返工事件（名称、插入位置、工期、触发原因、影响范围、是否阻断后续）；落地时插入独立返工活动行、不改原活动，并重算其后依赖区段与关键路径。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "所属项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "rework_name": {
+        "displayMetadata": {
+          "displayName": "返工活动名称",
+          "description": "插入的返工活动展示名称。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "insert_after_row_key": {
+        "displayMetadata": {
+          "displayName": "插入位置",
+          "description": "返工活动的前置活动行（DeliveryPlanRow.rowKey）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "duration_days": {
+        "displayMetadata": {
+          "displayName": "持续时间",
+          "description": "返工活动工期天数，整数文本。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "trigger_reason": {
+        "displayMetadata": {
+          "displayName": "触发原因",
+          "description": "返工触发原因，例如洁净度不达标、安装质量问题。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "impact_scope": {
+        "displayMetadata": {
+          "displayName": "影响范围",
+          "description": "返工影响范围说明；精确影响以推演结果为准。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "blocks_downstream": {
+        "displayMetadata": {
+          "displayName": "是否阻断后续",
+          "description": "true/false：返工是否阻断后续活动开工。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "ReworkEvent",
+        "propertyUpdates": {
+          "projectKey": "${project_id}",
+          "reworkName": "${rework_name}",
+          "insertAfterRowKey": "${insert_after_row_key}",
+          "durationDays": "${duration_days}",
+          "triggerReason": "${trigger_reason}",
+          "impactScope": "${impact_scope}",
+          "blocksDownstream": "${blocks_downstream}",
+          "status": "PENDING"
+        }
+      }
+    ],
+    "rules": [
+      "Rework never mutates the original activity: application inserts a new DeliveryPlanRow (activityType=REWORK) and backfills insertedRowKey.",
+      "A rework event enters the same 攒变更 lifecycle as adjustment requests: PENDING items accumulate and only enter sandbox simulation after confirmation (13 §1).",
+      "After application the dependency segment downstream of the insertion point and the critical path must be recomputed (12 §4.1)."
+    ]
+  },
+  "submitAdjustmentRequest": {
+    "apiName": "submitAdjustmentRequest",
+    "description": "Palantir-style local Action Type (planned extension): submit a user adjustment request (30 §8) — target + direction + amount + strategy preference + reason. Requests dedupe by target entity and enter sandbox simulation only after confirmation. Distinct from ChangeOrder (supplier-approval work order).",
+    "status": "PLANNED",
+    "targetObjectTypeApiName": "AdjustmentRequest",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "提交调整诉求",
+      "description": "提交排期调整诉求：调整对象 + 方向（提前/延后/某日期前完成）+ 调整量 + 策略偏好 + 触发原因；跨页累计、按实体去重、人确认后才进入沙箱推演。"
+    },
+    "parameters": {
+      "project_id": {
+        "displayMetadata": {
+          "displayName": "项目",
+          "description": "所属项目标识，对应 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "target_type": {
+        "displayMetadata": {
+          "displayName": "调整对象类型",
+          "description": "PLAN_ROW、MILESTONE、BATCH、ROOM 或 ARRIVAL_ITEM。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "target_key": {
+        "displayMetadata": {
+          "displayName": "调整对象主键",
+          "description": "按 target_type 对应对象的主键（rowKey / milestoneKey / batchKey / roomKey / arrivalItemKey）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "target_label": {
+        "displayMetadata": {
+          "displayName": "调整对象名称",
+          "description": "调整对象的业务展示名。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "direction": {
+        "displayMetadata": {
+          "displayName": "调整方向",
+          "description": "ADVANCE 提前 / DELAY 延后 / DEADLINE 某日期前完成。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "adjust_days": {
+        "displayMetadata": {
+          "displayName": "调整量",
+          "description": "提前/延后的天数 K，整数文本；direction=DEADLINE 时可空。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "deadline_date": {
+        "displayMetadata": {
+          "displayName": "期限日期",
+          "description": "direction=DEADLINE 时的目标日 YYYY-MM-DD。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "preferred_strategy": {
+        "displayMetadata": {
+          "displayName": "策略偏好",
+          "description": "可选：PROPORTIONAL / TOPN_SLACK / SUPPLY_ADVANCE / PROPORTIONAL_EXTENSION / ADD_HEADCOUNT；空表示由引擎多策略比选。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "reason": {
+        "displayMetadata": {
+          "displayName": "触发原因",
+          "description": "诉求触发原因，例如客户要求提前、现场异常。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "AdjustmentRequest",
+        "propertyUpdates": {
+          "projectKey": "${project_id}",
+          "targetType": "${target_type}",
+          "targetKey": "${target_key}",
+          "targetLabel": "${target_label}",
+          "direction": "${direction}",
+          "adjustDays": "${adjust_days}",
+          "deadlineDate": "${deadline_date}",
+          "preferredStrategy": "${preferred_strategy}",
+          "reason": "${reason}",
+          "status": "PENDING"
+        }
+      }
+    ],
+    "rules": [
+      "requestKey = projectKey::targetType::normalized(targetKey) dedupes by target entity: resubmitting for the same entity overwrites the pending request instead of stacking (13 §1, 20 §5).",
+      "Only CONFIRMED requests enter sandbox simulation; simulation backfills scenarioKey and flips status to SIMULATED.",
+      "Impact (which rows move) is a simulation product surfaced via the scenario's options and risks, not predicted at submission time (13 §6)."
+    ]
+  },
+  "CreateGapItem": {
+    "apiName": "CreateGapItem",
+    "description": "Palantir-style local Action Type: create a GapItem for a deliverability assessment.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "GapItem",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "登记差异项",
+      "description": "在交付评估下登记新的差异项。"
+    },
+    "parameters": {
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "关联 DeliverabilityAssessment.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "title": {
+        "displayMetadata": {
+          "displayName": "差异标题",
+          "description": "差异展示标题。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "description": {
+        "displayMetadata": {
+          "displayName": "差异描述",
+          "description": "差异详细描述。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": true
+      },
+      "severity": {
+        "displayMetadata": {
+          "displayName": "严重度",
+          "description": "差异严重度。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "gapType": {
+        "displayMetadata": {
+          "displayName": "差异类型",
+          "description": "配置、资源、计划、服务、验收等。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "sourceSummary": {
+        "displayMetadata": {
+          "displayName": "来源说明",
+          "description": "差异来源说明。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "GapItem",
+        "propertyUpdates": {
+          "planId": "${planId}",
+          "assessmentId": "${assessmentId}",
+          "gapName": "${title}",
+          "description": "${description}",
+          "severity": "${severity}",
+          "gapType": "${gapType}",
+          "sourceSummary": "${sourceSummary}",
+          "status": "OPEN"
+        }
+      }
+    ],
+    "rules": [
+      "A new GapItem is attached to DeliverabilityAssessment by assessmentId.",
+      "Creating a gap expresses that the related assessment has unresolved business differences."
+    ]
+  },
+  "CloseGapItem": {
+    "apiName": "CloseGapItem",
+    "description": "Palantir-style local Action Type: close an existing GapItem.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "GapItem",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "关闭差异项",
+      "description": "将差异项标记为关闭并记录关闭原因。"
+    },
+    "parameters": {
+      "targetGap": {
+        "displayMetadata": {
+          "displayName": "目标差异",
+          "description": "要关闭的 GapItem 对象。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "GapItem"
+        },
+        "required": true
+      },
+      "closureReason": {
+        "displayMetadata": {
+          "displayName": "关闭原因",
+          "description": "差异关闭原因。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": true
+      },
+      "closedBy": {
+        "displayMetadata": {
+          "displayName": "关闭人",
+          "description": "执行关闭动作的人员。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "closedAt": {
+        "displayMetadata": {
+          "displayName": "关闭时间",
+          "description": "关闭时间。"
+        },
+        "dataType": {
+          "type": "datetime"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetGap",
+        "propertyUpdates": {
+          "status": "CLOSED",
+          "closureReason": "${closureReason}",
+          "closedBy": "${closedBy}",
+          "closedAt": "${closedAt}"
+        }
+      }
+    ],
+    "stateTransitions": {
+      "field": "status",
+      "initialStates": [
+        "OPEN"
+      ],
+      "allowed": {
+        "OPEN": [
+          "CLOSED"
+        ],
+        "IN_PROGRESS": [
+          "CLOSED"
+        ],
+        "CLOSED": []
+      }
+    },
+    "rules": [
+      "Only OPEN or IN_PROGRESS gaps should be closed.",
+      "Closing a gap records business evidence that the difference has been resolved or accepted."
+    ]
+  },
+  "PublishContingencyFindings": {
+    "apiName": "PublishContingencyFindings",
+    "description": "Publish derived contingency risks, remediation tasks, and blocking issues from the digital twin run into the existing project-management Excel workbooks.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "发布预案风险任务问题",
+      "description": "将 deriveContingencyRisks 的派生结果写入项目管理风险、任务、问题 Excel。"
+    },
+    "parameters": {
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "派生预案 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "projectKey": {
+        "displayMetadata": {
+          "displayName": "项目标识",
+          "description": "当前仅支持京东，解析到京东三期项目管理输出结果目录。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "可交付评估 DeliverabilityAssessment.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "referenceDate": {
+        "displayMetadata": {
+          "displayName": "参考日期",
+          "description": "可选派生参考日期，格式 YYYY-MM-DD。"
+        },
+        "dataType": {
+          "type": "date"
+        },
+        "required": false
+      }
+    },
+    "sideEffects": {
+      "type": "LOCAL_PYTHON",
+      "module": "data_connector",
+      "function": "publish_contingency_findings_action"
+    }
+  },
+  "GenerateRemediationTask": {
+    "apiName": "GenerateRemediationTask",
+    "description": "Palantir-style local Action Type: create a RemediationTask for an assessment or gap.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "RemediationTask",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "生成整改任务",
+      "description": "根据评估或差异生成整改任务，并记录目标基础设施对象。"
+    },
+    "parameters": {
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "关联 DeliverabilityAssessment.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "gapId": {
+        "displayMetadata": {
+          "displayName": "差异主键",
+          "description": "可选关联 GapItem.gapId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "title": {
+        "displayMetadata": {
+          "displayName": "任务标题",
+          "description": "整改任务标题。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "owner": {
+        "displayMetadata": {
+          "displayName": "责任人",
+          "description": "整改任务责任人。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "dueDate": {
+        "displayMetadata": {
+          "displayName": "计划完成时间",
+          "description": "整改任务计划完成时间。"
+        },
+        "dataType": {
+          "type": "date"
+        },
+        "required": false
+      },
+      "targetObjectType": {
+        "displayMetadata": {
+          "displayName": "目标对象类型",
+          "description": "目标基础设施对象类型，如 EquipmentConfig、SoftwareConfig、NetworkConfig。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "targetObjectId": {
+        "displayMetadata": {
+          "displayName": "目标对象主键",
+          "description": "目标基础设施对象主键。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "sourceSummary": {
+        "displayMetadata": {
+          "displayName": "来源说明",
+          "description": "任务生成来源说明。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "RemediationTask",
+        "propertyUpdates": {
+          "planId": "${planId}",
+          "assessmentId": "${assessmentId}",
+          "gapId": "${gapId}",
+          "taskName": "${title}",
+          "owner": "${owner}",
+          "dueDate": "${dueDate}",
+          "targetObjectType": "${targetObjectType}",
+          "targetObjectId": "${targetObjectId}",
+          "sourceSummary": "${sourceSummary}",
+          "status": "OPEN"
+        }
+      },
+      {
+        "type": "MODIFY_OBJECT",
+        "objectTypeApiName": "GapItem",
+        "lookupBy": {
+          "gapId": "${gapId}"
+        },
+        "propertyUpdates": {
+          "status": "IN_PROGRESS"
+        },
+        "stateTransitions": {
+          "field": "status",
+          "initialStates": [
+            "IN_PROGRESS"
+          ],
+          "allowed": {
+            "OPEN": [
+              "IN_PROGRESS"
+            ],
+            "IN_PROGRESS": [],
+            "CLOSED": []
+          }
+        }
+      }
+    ],
+    "rules": [
+      "The task is attached to the assessment by assessmentId.",
+      "When targetObjectType and targetObjectId are supplied, the task expresses an intended change to that reusable infrastructure asset.",
+      "Concrete asset linkage is materialized by the matching target property such as targetEquipmentId or targetNetworkId.",
+      "Dispatching against a gap (gapId supplied) advances that GapItem OPEN -> IN_PROGRESS via the follow-on lifecycle edit; the gap must exist, a CLOSED gap rejects new tasks, and tasks without gapId leave gap state untouched."
+    ]
+  },
+  "UpdateRiskStatus": {
+    "apiName": "UpdateRiskStatus",
+    "description": "Palantir-style local Action Type: update status and mitigation plan for a RiskItem.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "RiskItem",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "更新风险状态",
+      "description": "更新风险状态、责任人和应对策略。"
+    },
+    "parameters": {
+      "targetRisk": {
+        "displayMetadata": {
+          "displayName": "目标风险",
+          "description": "要更新的 RiskItem 对象。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "RiskItem"
+        },
+        "required": true
+      },
+      "status": {
+        "displayMetadata": {
+          "displayName": "风险状态",
+          "description": "新的风险状态。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "mitigationPlan": {
+        "displayMetadata": {
+          "displayName": "应对策略",
+          "description": "风险应对策略。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "owner": {
+        "displayMetadata": {
+          "displayName": "责任人",
+          "description": "风险责任人。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetRisk",
+        "propertyUpdates": {
+          "status": "${status}",
+          "mitigationPlan": "${mitigationPlan}",
+          "owner": "${owner}"
+        }
+      }
+    ],
+    "rules": [
+      "Risk status changes represent the current treatment state of an assessment risk.",
+      "Mitigation plan updates should keep the risk connected to its original assessmentId."
+    ]
+  },
+  "ApproveContingencyPlan": {
+    "apiName": "ApproveContingencyPlan",
+    "description": "Palantir-style local Action Type: approve a ContingencyPlan.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "ContingencyPlan",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "确认预案版本",
+      "description": "确认当前预案版本并记录确认意见。"
+    },
+    "parameters": {
+      "targetPlan": {
+        "displayMetadata": {
+          "displayName": "目标预案",
+          "description": "要确认的 ContingencyPlan 对象。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "ContingencyPlan"
+        },
+        "required": true
+      },
+      "approvedBy": {
+        "displayMetadata": {
+          "displayName": "确认人",
+          "description": "预案确认人。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "approvalComment": {
+        "displayMetadata": {
+          "displayName": "确认意见",
+          "description": "确认意见。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "approvedAt": {
+        "displayMetadata": {
+          "displayName": "确认时间",
+          "description": "确认时间。"
+        },
+        "dataType": {
+          "type": "datetime"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetPlan",
+        "propertyUpdates": {
+          "status": "APPROVED",
+          "approvedBy": "${approvedBy}",
+          "approvalComment": "${approvalComment}",
+          "approvedAt": "${approvedAt}"
+        }
+      }
+    ],
+    "stateTransitions": {
+      "field": "status",
+      "initialStates": [
+        "DRAFT"
+      ],
+      "allowed": {
+        "DRAFT": [
+          "APPROVED"
+        ],
+        "ASSESSING": [
+          "APPROVED"
+        ],
+        "APPROVED": []
+      }
+    },
+    "rules": [
+      "Approval marks the contingency plan as accepted for the current version.",
+      "Approval should happen after required assessment, gap and risk review has been completed by the business process."
+    ]
+  },
+  "ModifyInfrastructureConfig": {
+    "apiName": "ModifyInfrastructureConfig",
+    "description": "Palantir-style local Action Type: record an intended infrastructure configuration adjustment through a RemediationTask.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "RemediationTask",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "调整业务配置",
+      "description": "记录对基础设施资产的调整意图，由整改任务承载。"
+    },
+    "parameters": {
+      "targetTask": {
+        "displayMetadata": {
+          "displayName": "目标任务",
+          "description": "承载调整意图的 RemediationTask 对象。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "RemediationTask"
+        },
+        "required": true
+      },
+      "targetObjectType": {
+        "displayMetadata": {
+          "displayName": "目标对象类型",
+          "description": "目标基础设施对象类型。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "targetObjectId": {
+        "displayMetadata": {
+          "displayName": "目标对象主键",
+          "description": "目标基础设施对象主键。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "changeSummary": {
+        "displayMetadata": {
+          "displayName": "调整摘要",
+          "description": "调整内容摘要。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": true
+      },
+      "proposedValue": {
+        "displayMetadata": {
+          "displayName": "建议值",
+          "description": "建议调整后的业务值。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "reason": {
+        "displayMetadata": {
+          "displayName": "调整原因",
+          "description": "提出调整的业务原因。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetTask",
+        "propertyUpdates": {
+          "targetObjectType": "${targetObjectType}",
+          "targetObjectId": "${targetObjectId}",
+          "changeSummary": "${changeSummary}",
+          "proposedValue": "${proposedValue}",
+          "reason": "${reason}",
+          "status": "IN_PROGRESS"
+        }
+      }
+    ],
+    "stateTransitions": {
+      "field": "status",
+      "initialStates": [
+        "OPEN",
+        "IN_PROGRESS"
+      ],
+      "allowed": {
+        "OPEN": [
+          "IN_PROGRESS"
+        ],
+        "IN_PROGRESS": [],
+        "DONE": [],
+        "CANCELLED": []
+      }
+    },
+    "rules": [
+      "Reusable infrastructure assets do not carry planId.",
+      "The remediation task is the process object that records which asset is intended to change.",
+      "File pointers are resolved through task or evidence links, not by direct infrastructure-to-file links."
+    ]
+  },
+  "UpdateConfigFilePointer": {
+    "apiName": "UpdateConfigFilePointer",
+    "description": "Palantir-style local Action Type: update storage pointer metadata for a ConfigurationFile.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "ConfigurationFile",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "更新配置文件指针",
+      "description": "更新配置文件的存储路由和版本哈希。"
+    },
+    "parameters": {
+      "targetFile": {
+        "displayMetadata": {
+          "displayName": "目标配置文件",
+          "description": "要更新的 ConfigurationFile 指针对象。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "ConfigurationFile"
+        },
+        "required": true
+      },
+      "storageUri": {
+        "displayMetadata": {
+          "displayName": "存储路由",
+          "description": "新的外部存储路由。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "versionHash": {
+        "displayMetadata": {
+          "displayName": "版本哈希",
+          "description": "新的文件哈希、Commit ID 或版本指纹。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "sourceSystem": {
+        "displayMetadata": {
+          "displayName": "来源系统",
+          "description": "指针更新来源系统。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetFile",
+        "propertyUpdates": {
+          "storageUri": "${storageUri}",
+          "versionHash": "${versionHash}",
+          "sourceSystem": "${sourceSystem}"
+        }
+      }
+    ],
+    "rules": [
+      "The action only updates pointer metadata.",
+      "Raw configuration bytes remain outside the ontology and are retrieved by storageUri plus versionHash."
+    ]
+  },
+  "AdoptDerivedRisk": {
+    "apiName": "AdoptDerivedRisk",
+    "description": "Palantir-style local Action Type: adopt a derived risk suggestion (建议值 from the deriveContingencyRisks Function) as a persisted RiskItem, moving it out of the read-only emergent layer into the assessment's tracked risk lifecycle (then governable by UpdateRiskStatus).",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "RiskItem",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "采纳派生风险",
+      "description": "将派生的风险建议固化为正式 RiskItem，纳入评估的风险跟踪生命周期。"
+    },
+    "parameters": {
+      "riskId": {
+        "displayMetadata": {
+          "displayName": "风险主键",
+          "description": "采纳的派生建议 riskId；缺省时由 planId 与 riskPoint 组合生成。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "projectKey": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "所属 DeliveryProject.projectKey（取自派生建议；用于多项目隔离）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "关联 DeliverabilityAssessment.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "riskName": {
+        "displayMetadata": {
+          "displayName": "风险名称",
+          "description": "风险展示名称（取派生建议的 riskName）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "riskPoint": {
+        "displayMetadata": {
+          "displayName": "风险点",
+          "description": "生命周期风险点（EOM风险/TR5风险/EOS风险/ESS风险）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "riskType": {
+        "displayMetadata": {
+          "displayName": "类型",
+          "description": "风险类型。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "severity": {
+        "displayMetadata": {
+          "displayName": "风险等级",
+          "description": "风险等级（受 RiskLevel 值类型约束：高/中/低）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "owner": {
+        "displayMetadata": {
+          "displayName": "责任人",
+          "description": "风险责任人。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "mitigationPlan": {
+        "displayMetadata": {
+          "displayName": "应对策略",
+          "description": "风险应对策略。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "impact": {
+        "displayMetadata": {
+          "displayName": "影响",
+          "description": "风险影响。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "description": {
+        "displayMetadata": {
+          "displayName": "描述",
+          "description": "风险描述。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "state": {
+        "displayMetadata": {
+          "displayName": "状态",
+          "description": "风险处理状态（受 RiskState 值类型约束：处理中/已关闭）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "RiskItem",
+        "propertyUpdates": {
+          "riskId": "${riskId}",
+          "planId": "${planId}",
+          "projectKey": "${projectKey}",
+          "assessmentId": "${assessmentId}",
+          "riskName": "${riskName}",
+          "riskPoint": "${riskPoint}",
+          "riskType": "${riskType}",
+          "severity": "${severity}",
+          "owner": "${owner}",
+          "mitigationPlan": "${mitigationPlan}",
+          "impact": "${impact}",
+          "description": "${description}",
+          "state": "${state}",
+          "status": "处理中",
+          "source": "售前风险（采纳自派生建议）"
+        }
+      }
+    ],
+    "rules": [
+      "Adoption materializes a read-only emergent suggestion into a tracked RiskItem under the assessment.",
+      "The new RiskItem is attached to its DeliverabilityAssessment by assessmentId and to the plan by planId.",
+      "severity and state are validated against their RiskLevel / RiskState value types before persistence."
+    ]
+  },
+  "CreateContingencyPlan": {
+    "apiName": "CreateContingencyPlan",
+    "description": "Palantir-style local Action Type: materialize one contingency-plan generation run as a persisted ContingencyPlan header. deriveContingencyRisks output is an ephemeral suggestion; this action pins the run to a planId so downstream records (DecisionRecord / RiskItem / GapItem / RemediationTask) have a governable anchor and ApproveContingencyPlan has a target.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "ContingencyPlan",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "创建交付预案",
+      "description": "把一次预案生成固化为预案实例（DRAFT），作为决策、风险、差异、整改任务的归属锚点。"
+    },
+    "parameters": {
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "稳定预案主键（如 JD_A3_PLAN_20260610）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "projectKey": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "所属 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "planName": {
+        "displayMetadata": {
+          "displayName": "预案名称",
+          "description": "预案展示名称。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "planVersion": {
+        "displayMetadata": {
+          "displayName": "预案版本",
+          "description": "预案版本号。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "customerName": {
+        "displayMetadata": {
+          "displayName": "客户",
+          "description": "客户名称。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "projectName": {
+        "displayMetadata": {
+          "displayName": "项目名称",
+          "description": "预案对应项目名称。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "sourceSummary": {
+        "displayMetadata": {
+          "displayName": "来源说明",
+          "description": "生成来源说明（如 deriveContingencyRisks 派生批次、参考日期）。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "updatedBy": {
+        "displayMetadata": {
+          "displayName": "创建人",
+          "description": "发起固化的人员。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "updatedAt": {
+        "displayMetadata": {
+          "displayName": "创建时间",
+          "description": "固化时间。"
+        },
+        "dataType": {
+          "type": "datetime"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "ContingencyPlan",
+        "propertyUpdates": {
+          "planId": "${planId}",
+          "projectKey": "${projectKey}",
+          "planName": "${planName}",
+          "planVersion": "${planVersion}",
+          "customerName": "${customerName}",
+          "projectName": "${projectName}",
+          "sourceSummary": "${sourceSummary}",
+          "updatedBy": "${updatedBy}",
+          "updatedAt": "${updatedAt}",
+          "status": "DRAFT"
+        }
+      }
+    ],
+    "rules": [
+      "One generation run materializes at most one ContingencyPlan per planId (re-runs upsert by primary key).",
+      "The plan starts in DRAFT and is closed out by ApproveContingencyPlan (status state machine: DRAFT/ASSESSING -> APPROVED)."
+    ]
+  },
+  "CreateDeliverabilityAssessment": {
+    "apiName": "CreateDeliverabilityAssessment",
+    "description": "Palantir-style local Action Type: persist one deliverability assessment under a contingency plan. Bridges the generation run and decision/risk records: AdoptDerivedRisk / CreateGapItem / GenerateRemediationTask all reference assessmentId, which this action makes a real object instead of a dangling string.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DeliverabilityAssessment",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "登记交付评估",
+      "description": "把一次可交付性评估固化为评估实例，作为风险/差异/整改任务的 assessmentId 锚点。"
+    },
+    "parameters": {
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "稳定评估主键；缺省由 planId 与 decisionId 组合生成。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "projectKey": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "所属 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "decisionId": {
+        "displayMetadata": {
+          "displayName": "关联决策点",
+          "description": "关联 DecisionPoint.decisionId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "assessmentName": {
+        "displayMetadata": {
+          "displayName": "评估名称",
+          "description": "评估展示名称。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "conclusion": {
+        "displayMetadata": {
+          "displayName": "评估结论",
+          "description": "可交付 / 存在差异 / 不可交付（受 DeliverabilityConclusion 值类型约束）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "deliverabilityIndex": {
+        "displayMetadata": {
+          "displayName": "可交付指数",
+          "description": "0-100 的可交付性评分（取派生输出）。"
+        },
+        "dataType": {
+          "type": "number"
+        },
+        "required": false
+      },
+      "gapSummary": {
+        "displayMetadata": {
+          "displayName": "差异摘要",
+          "description": "主要差异摘要。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "assessedAt": {
+        "displayMetadata": {
+          "displayName": "评估时间",
+          "description": "评估发生时间。"
+        },
+        "dataType": {
+          "type": "datetime"
+        },
+        "required": false
+      },
+      "sourceSummary": {
+        "displayMetadata": {
+          "displayName": "来源说明",
+          "description": "评估来源说明（如派生批次）。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "DeliverabilityAssessment",
+        "propertyUpdates": {
+          "assessmentId": "${assessmentId}",
+          "projectKey": "${projectKey}",
+          "planId": "${planId}",
+          "decisionId": "${decisionId}",
+          "assessmentName": "${assessmentName}",
+          "conclusion": "${conclusion}",
+          "deliverabilityIndex": "${deliverabilityIndex}",
+          "gapSummary": "${gapSummary}",
+          "assessedAt": "${assessedAt}",
+          "sourceSummary": "${sourceSummary}",
+          "status": "ASSESSED"
+        }
+      },
+      {
+        "type": "MODIFY_OBJECT",
+        "objectTypeApiName": "ContingencyPlan",
+        "lookupBy": {
+          "planId": "${planId}"
+        },
+        "propertyUpdates": {
+          "status": "ASSESSING"
+        },
+        "stateTransitions": {
+          "field": "status",
+          "initialStates": [
+            "ASSESSING"
+          ],
+          "allowed": {
+            "DRAFT": [
+              "ASSESSING"
+            ],
+            "ASSESSING": [],
+            "APPROVED": []
+          }
+        }
+      }
+    ],
+    "rules": [
+      "The assessment is attached to its plan by planId and to its decision point by decisionId.",
+      "conclusion is validated against the DeliverabilityConclusion value type before persistence.",
+      "Registering an assessment advances the owning ContingencyPlan DRAFT -> ASSESSING via the follow-on lifecycle edit: the plan must already exist (CreateContingencyPlan first), and APPROVED is terminal — re-materialize the plan to start a new assessment round."
+    ]
+  },
+  "RecordContingencyDecision": {
+    "apiName": "RecordContingencyDecision",
+    "description": "Palantir-style local Action Type: persist one human-confirmed contingency decision as a DecisionRecord. The deriveContingencyRisks decision points (core + 4 sub-decisions, 可交付指数) are ephemeral derivations; this action pins the conclusion — confirmed as-is or overridden — into an auditable run record.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "DecisionRecord",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "记录预案决策",
+      "description": "把派生决策点的结论经人工确认/覆盖后固化为决策记录，含决策人、意见与时点指数。"
+    },
+    "parameters": {
+      "decisionRecordId": {
+        "displayMetadata": {
+          "displayName": "决策记录主键",
+          "description": "稳定决策记录主键；缺省由 planId 与 decisionId 组合生成。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "projectKey": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "所属 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "关联评估",
+          "description": "关联 DeliverabilityAssessment.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "decisionId": {
+        "displayMetadata": {
+          "displayName": "关联决策点",
+          "description": "关联 DecisionPoint.decisionId（核心决策或子决策点）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "decisionName": {
+        "displayMetadata": {
+          "displayName": "决策名称",
+          "description": "决策点展示名称（取派生输出）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "decisionLevel": {
+        "displayMetadata": {
+          "displayName": "决策层级",
+          "description": "core（核心决策）/ sub（子决策），沿用 DecisionPoint 取值；受 DecisionLevel 值类型约束。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "derivedConclusion": {
+        "displayMetadata": {
+          "displayName": "派生结论",
+          "description": "机器派生结论（可交付/存在风险），用于覆盖比对。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "conclusion": {
+        "displayMetadata": {
+          "displayName": "确认结论",
+          "description": "人工确认（或覆盖）后的结论；受 DecisionConclusion 值类型约束。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "deliverabilityIndex": {
+        "displayMetadata": {
+          "displayName": "可交付指数",
+          "description": "决策时点的可交付指数（0-100）。"
+        },
+        "dataType": {
+          "type": "number"
+        },
+        "required": false
+      },
+      "riskIds": {
+        "displayMetadata": {
+          "displayName": "关联风险",
+          "description": "决策覆盖的 riskId 清单（逗号分隔）。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "decidedBy": {
+        "displayMetadata": {
+          "displayName": "决策人",
+          "description": "做出决策确认的人员。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "decisionComment": {
+        "displayMetadata": {
+          "displayName": "决策意见",
+          "description": "决策意见与依据；覆盖派生结论时必述理由。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "decidedAt": {
+        "displayMetadata": {
+          "displayName": "决策时间",
+          "description": "决策确认时间。"
+        },
+        "dataType": {
+          "type": "datetime"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "DecisionRecord",
+        "propertyUpdates": {
+          "decisionRecordId": "${decisionRecordId}",
+          "planId": "${planId}",
+          "projectKey": "${projectKey}",
+          "assessmentId": "${assessmentId}",
+          "decisionId": "${decisionId}",
+          "decisionName": "${decisionName}",
+          "decisionLevel": "${decisionLevel}",
+          "derivedConclusion": "${derivedConclusion}",
+          "conclusion": "${conclusion}",
+          "deliverabilityIndex": "${deliverabilityIndex}",
+          "riskIds": "${riskIds}",
+          "decidedBy": "${decidedBy}",
+          "decisionComment": "${decisionComment}",
+          "decidedAt": "${decidedAt}",
+          "status": "CONFIRMED"
+        }
+      }
+    ],
+    "rules": [
+      "A decision record pins one decision point's conclusion for one plan; re-recording the same planId+decisionId upserts by primary key.",
+      "conclusion and derivedConclusion are validated against the DecisionConclusion value type (可交付/存在风险, aligned with the derive output).",
+      "A conclusion that differs from derivedConclusion constitutes a human override and should carry decisionComment."
+    ]
+  },
+  "DismissDerivedRisk": {
+    "apiName": "DismissDerivedRisk",
+    "description": "Palantir-style local Action Type: dismiss a derived risk suggestion (建议值 from the deriveContingencyRisks Function) with an auditable trace. Counterpart of AdoptDerivedRisk: the suggestion is persisted as a RiskItem in state 已驳回 so re-derives can be cross-referenced by riskId instead of resurfacing the same suggestion unanswered.",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "RiskItem",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "驳回派生风险",
+      "description": "驳回派生的风险建议并留痕（state=已驳回），避免同一建议反复出现且无人答复。"
+    },
+    "parameters": {
+      "riskId": {
+        "displayMetadata": {
+          "displayName": "风险主键",
+          "description": "被驳回的派生建议 riskId；缺省时由 planId 与 riskPoint 组合生成。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "planId": {
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "projectKey": {
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "所属 DeliveryProject.projectKey（取自派生建议）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "assessmentId": {
+        "displayMetadata": {
+          "displayName": "评估主键",
+          "description": "关联 DeliverabilityAssessment.assessmentId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "riskName": {
+        "displayMetadata": {
+          "displayName": "风险名称",
+          "description": "风险展示名称（取派生建议的 riskName）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      },
+      "riskPoint": {
+        "displayMetadata": {
+          "displayName": "风险点",
+          "description": "生命周期风险点（EOM风险/TR5风险/EOS风险/ESS风险等）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "riskType": {
+        "displayMetadata": {
+          "displayName": "类型",
+          "description": "风险类型。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "severity": {
+        "displayMetadata": {
+          "displayName": "风险等级",
+          "description": "风险等级（受 RiskLevel 值类型约束）。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "impact": {
+        "displayMetadata": {
+          "displayName": "影响",
+          "description": "风险影响。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "description": {
+        "displayMetadata": {
+          "displayName": "描述",
+          "description": "风险描述。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "dismissReason": {
+        "displayMetadata": {
+          "displayName": "驳回原因",
+          "description": "不纳入跟踪的业务理由（如误报、已由其他预案覆盖）。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": true
+      },
+      "dismissedBy": {
+        "displayMetadata": {
+          "displayName": "驳回人",
+          "description": "执行驳回的人员。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "dismissedAt": {
+        "displayMetadata": {
+          "displayName": "驳回时间",
+          "description": "驳回时间（落 closedAt）。"
+        },
+        "dataType": {
+          "type": "date"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "CREATE_OBJECT",
+        "objectTypeApiName": "RiskItem",
+        "propertyUpdates": {
+          "riskId": "${riskId}",
+          "planId": "${planId}",
+          "projectKey": "${projectKey}",
+          "assessmentId": "${assessmentId}",
+          "riskName": "${riskName}",
+          "riskPoint": "${riskPoint}",
+          "riskType": "${riskType}",
+          "severity": "${severity}",
+          "impact": "${impact}",
+          "description": "${description}",
+          "sourceSummary": "${dismissReason}",
+          "owner": "${dismissedBy}",
+          "closedAt": "${dismissedAt}",
+          "state": "已驳回",
+          "status": "已驳回",
+          "source": "售前风险（驳回派生建议）"
+        }
+      }
+    ],
+    "rules": [
+      "Dismissal persists the suggestion in state 已驳回 — an explicit no, not a deletion; the trace shares the RiskItem store with adopted risks and is distinguished by state.",
+      "dismissReason is recorded in sourceSummary and the dismissing user in owner; dismissedAt lands in closedAt.",
+      "Adopting the same riskId later (AdoptDerivedRisk) upserts by primary key and supersedes the dismissal."
+    ]
+  },
+  "CompleteRemediationTask": {
+    "apiName": "CompleteRemediationTask",
+    "description": "Palantir-style local Action Type: mark a RemediationTask as DONE with completion evidence. Closes the task half of the contingency lifecycle (GenerateRemediationTask -> ModifyInfrastructureConfig -> CompleteRemediationTask).",
+    "status": "ACTIVE",
+    "targetObjectTypeApiName": "RemediationTask",
+    "writeback": "run_record",
+    "displayMetadata": {
+      "displayName": "完成整改任务",
+      "description": "将整改任务标记为完成（DONE）并记录完成说明、完成人与完成时间。"
+    },
+    "parameters": {
+      "targetTask": {
+        "displayMetadata": {
+          "displayName": "目标任务",
+          "description": "要完成的 RemediationTask 对象。"
+        },
+        "dataType": {
+          "type": "ontologyObject",
+          "objectTypeApiName": "RemediationTask"
+        },
+        "required": true
+      },
+      "completionNote": {
+        "displayMetadata": {
+          "displayName": "完成说明",
+          "description": "完成情况与验证结论说明。"
+        },
+        "dataType": {
+          "type": "text"
+        },
+        "required": false
+      },
+      "completedBy": {
+        "displayMetadata": {
+          "displayName": "完成人",
+          "description": "确认任务完成的人员。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      },
+      "completedAt": {
+        "displayMetadata": {
+          "displayName": "完成时间",
+          "description": "任务完成时间。"
+        },
+        "dataType": {
+          "type": "datetime"
+        },
+        "required": false
+      }
+    },
+    "edits": [
+      {
+        "type": "MODIFY_OBJECT",
+        "targetParameter": "targetTask",
+        "propertyUpdates": {
+          "status": "DONE",
+          "completionNote": "${completionNote}",
+          "completedBy": "${completedBy}",
+          "completedAt": "${completedAt}"
+        }
+      }
+    ],
+    "stateTransitions": {
+      "field": "status",
+      "initialStates": [
+        "OPEN",
+        "IN_PROGRESS"
+      ],
+      "allowed": {
+        "OPEN": [
+          "DONE"
+        ],
+        "IN_PROGRESS": [
+          "DONE"
+        ],
+        "DONE": [],
+        "CANCELLED": []
+      }
+    },
+    "rules": [
+      "Only OPEN or IN_PROGRESS tasks can be completed; DONE and CANCELLED are terminal.",
+      "Completion records who closed the task, when, and the verification note."
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "documentId": "doc-hld-jd-demo",
+  "projectId": "京东",
+  "docType": "hld",
+  "sourceFile": "HLD解析结果.json",
+  "sourceMediaItemRid": "",
+  "parseVersion": "v1",
+  "parsedAt": "2026-06-02T00:00:00Z",
+  "sections": [
+    {
+      "sectionId": "doc-hld-jd-demo::001",
+      "titlePath": "HLD解析结果 > 交付范围",
+      "headingLevel": 2,
+      "orderIndex": 1,
+      "markdownContent": "## 交付范围\n本期交付预案覆盖京东项目 HLD 中的设备部署、机房实施和上电依赖。",
+      "plainText": "本期交付预案覆盖京东项目 HLD 中的设备部署、机房实施和上电依赖。",
+      "facts": [
+        {
+          "factType": "scope",
+          "name": "交付范围",
+          "value": "设备部署、机房实施、上电依赖"
+        }
+      ]
+    },
+    {
+      "titlePath": "HLD解析结果 > 网络架构",
+      "headingLevel": 2,
+      "orderIndex": 2,
+      "markdownContent": "## 网络架构\n管理网与业务网需要隔离，部署前应确认网络连通性和地址规划。",
+      "plainText": "管理网与业务网需要隔离，部署前应确认网络连通性和地址规划。",
+      "facts": [
+        {
+          "factType": "constraint",
+          "name": "网络隔离要求",
+          "value": "管理网与业务网隔离"
+        }
+      ]
+    }
+  ]
+}

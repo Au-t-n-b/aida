@@ -1,0 +1,628 @@
+{
+  "MilestoneType": {
+    "apiName": "MilestoneType",
+    "description": "Palantir-style local Value Type: closed enumeration for Milestone.milestoneType.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "里程碑类型",
+      "description": "里程碑节点类型的封闭枚举；语义约束写在此处，引擎据此校验，不再仅写在属性描述里。HANDOVER=移交（项目级终点、优先级 1 锚点，12 §3）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "ROOM_IMPLEMENTATION_DONE",
+          "ARRIVAL",
+          "POWER_ON",
+          "CLUSTER_DEBUG",
+          "HANDOVER",
+          "MILESTONE_COMPRESSION"
+        ]
+      }
+    ]
+  },
+  "MilestoneDirectionRole": {
+    "apiName": "MilestoneDirectionRole",
+    "description": "Palantir-style local Value Type: closed enumeration for Milestone.directionRole.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "里程碑排程角色",
+      "description": "正排起始 / 倒排目标 / 里程碑压缩目标的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "FORWARD_START",
+          "BACKWARD_TARGET",
+          "MILESTONE_COMPRESSION_TARGET"
+        ]
+      }
+    ]
+  },
+  "MilestoneScopeType": {
+    "apiName": "MilestoneScopeType",
+    "description": "Palantir-style local Value Type: closed enumeration for Milestone.scopeType.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "里程碑范围类型",
+      "description": "PROJECT 项目全局；ROOM 按机房（机房就位）；BATCH 按上线批次（上电/上线，同批统一，10 §5）；POD 按 Pod / 管理单元（到货及存量 POD 级上电）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "PROJECT",
+          "ROOM",
+          "BATCH",
+          "POD"
+        ]
+      }
+    ]
+  },
+  "ChangeOrderStatus": {
+    "apiName": "ChangeOrderStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for ChangeOrder.status.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "变更工单状态",
+      "description": "变更工单审批流转状态的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "DRAFT",
+          "PENDING_SUPPLIER_APPROVAL",
+          "APPROVED",
+          "PARTIALLY_APPROVED",
+          "REJECTED",
+          "CANCELLED"
+        ]
+      }
+    ]
+  },
+  "SupplierStatus": {
+    "apiName": "SupplierStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for SupplierCompany.status.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "供应商状态",
+      "description": "供应商主数据状态的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "ACTIVE",
+          "INACTIVE",
+          "BLACKLISTED"
+        ]
+      }
+    ]
+  },
+  "AdvanceDays": {
+    "apiName": "AdvanceDays",
+    "description": "Palantir-style local Value Type: non-negative integer day count for supply advance/delay.",
+    "status": "ACTIVE",
+    "baseType": "integer",
+    "displayMetadata": {
+      "displayName": "提前天数",
+      "description": "供应提前 / 后移天数，必须为非负整数；演示求值器除枚举外也支持整数与范围约束。"
+    },
+    "constraints": [
+      {
+        "type": "integer"
+      },
+      {
+        "type": "range",
+        "minimum": 0
+      }
+    ]
+  },
+  "DecisionLevel": {
+    "apiName": "DecisionLevel",
+    "description": "Palantir-style local Value Type: closed enumeration for DecisionPoint.decisionLevel / DecisionRecord.decisionLevel. Lowercase core/sub mirrors the derive engine output and the Dolt-seeded decision model verbatim, so derived points and recorded decisions validate without remapping.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "决策层级",
+      "description": "核心决策 core 与子决策 sub 的封闭枚举；与派生引擎/Dolt 决策模型词表一致，引擎据此校验，不再仅写在属性描述里。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "core",
+          "sub"
+        ]
+      }
+    ]
+  },
+  "DeliverabilityDomain": {
+    "apiName": "DeliverabilityDomain",
+    "description": "Palantir-style local Value Type: closed enumeration for DecisionPoint.domain.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "可交付性业务域",
+      "description": "子决策业务域的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "NETWORK",
+          "EQUIPMENT",
+          "SERVICE",
+          "ACCEPTANCE"
+        ]
+      }
+    ]
+  },
+  "DeliverabilityConclusion": {
+    "apiName": "DeliverabilityConclusion",
+    "description": "Palantir-style local Value Type: closed enumeration for DeliverabilityAssessment.conclusion.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "交付评估结论",
+      "description": "可交付 / 存在差异 / 不可交付 的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "可交付",
+          "存在差异",
+          "不可交付"
+        ]
+      }
+    ]
+  },
+  "PlanStatus": {
+    "apiName": "PlanStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for ContingencyPlan.status. DRAFT is set by CreateContingencyPlan, ASSESSING by CreateDeliverabilityAssessment's follow-on lifecycle edit on the owning plan, APPROVED by ApproveContingencyPlan (terminal; re-materialize the plan to start a new round).",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "预案状态",
+      "description": "预案实例状态流转的封闭枚举：DRAFT（创建交付预案）→ ASSESSING（登记交付评估时联动推进）→ APPROVED（确认预案版本，终态）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "DRAFT",
+          "ASSESSING",
+          "APPROVED"
+        ]
+      }
+    ]
+  },
+  "GapStatus": {
+    "apiName": "GapStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for GapItem.status. OPEN is set by CreateGapItem, IN_PROGRESS by GenerateRemediationTask's follow-on lifecycle edit when dispatched against a gap (gapId supplied), CLOSED by CloseGapItem (terminal).",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "差异状态",
+      "description": "差异项状态的封闭枚举：OPEN（登记差异）→ IN_PROGRESS（对差异派发整改任务时联动推进）→ CLOSED（关闭差异，终态）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "OPEN",
+          "IN_PROGRESS",
+          "CLOSED"
+        ]
+      }
+    ]
+  },
+  "AssetStatus": {
+    "apiName": "AssetStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for reusable asset/template object status.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "资产状态",
+      "description": "可复用模板资产状态的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "ACTIVE",
+          "INACTIVE"
+        ]
+      }
+    ]
+  },
+  "DeliveryBoundary": {
+    "apiName": "DeliveryBoundary",
+    "description": "Palantir-style local Value Type: closed enumeration for ServiceConfig.deliveryBoundary.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "交付界面",
+      "description": "服务交付界面的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "华为",
+          "伙伴",
+          "客户"
+        ]
+      }
+    ]
+  },
+  "DataSource": {
+    "apiName": "DataSource",
+    "description": "Palantir-style local Value Type: closed enumeration for *.dataSource (设备/部件/软件/组网/服务 来源).",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "数据来源",
+      "description": "配置项数据来源渠道的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "BOQ",
+          "自动解析",
+          "人工录入"
+        ]
+      }
+    ]
+  },
+  "CompletionStatus": {
+    "apiName": "CompletionStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for IntegrationVerificationRequirement.completionStatus.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "完成状态",
+      "description": "集成验证需求完成状态的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "已完成",
+          "未完成"
+        ]
+      }
+    ]
+  },
+  "RiskLevel": {
+    "apiName": "RiskLevel",
+    "description": "Palantir-style local Value Type: closed enumeration for RiskItem.severity / RiskRule.riskLevel (风险等级). 高/中/低 are the EODS lifecycle levels; 风险/重大/待定 are forward-ported verbatim from 04 §19.3 风险规则库 (e.g. DEV-LC-05/NET-PLN-01/ACC-TC-01 标「风险」, SVC-WB-01 标「重大」, NET-VER-01 标「待定」).",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "风险等级",
+      "description": "风险等级的封闭枚举：高/中/低 + §19.3 的 风险/重大/待定。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "高",
+          "中",
+          "低",
+          "风险",
+          "重大",
+          "待定"
+        ]
+      }
+    ]
+  },
+  "RiskState": {
+    "apiName": "RiskState",
+    "description": "Palantir-style local Value Type: closed enumeration for RiskItem.state (风险处理状态). 已驳回 marks a derived suggestion dismissed by DismissDerivedRisk — kept in the same store so re-derives can be cross-referenced by riskId.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "风险状态",
+      "description": "风险处理状态的封闭枚举：处理中 / 已关闭 / 已驳回（驳回的派生建议留痕）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "处理中",
+          "已关闭",
+          "已驳回"
+        ]
+      }
+    ]
+  },
+  "NarrativeStatus": {
+    "apiName": "NarrativeStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for ChapterNarrative.status — the human-edit-vs-AI lifecycle of a chapter's prose. ai_draft=AI 生成、未经人工改动；human_edited=人工已修改（重生成绝不覆盖 editedText）；merged=已采纳新稿/智能融合稿为正文；regen_pending=人工改后又重生成、新 AI 稿暂存 pendingGenerated 待人合并。",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "章节正文状态",
+      "description": "章节正文的人工/AI 融合状态封闭枚举：ai_draft / human_edited / merged / regen_pending。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "ai_draft",
+          "human_edited",
+          "merged",
+          "regen_pending"
+        ]
+      }
+    ]
+  },
+  "RiskPoint": {
+    "apiName": "RiskPoint",
+    "description": "Palantir-style local Value Type: closed enumeration for RiskRule.riskPoint. Mirrors the EODS 售前风险识别 rule_point vocabulary (生命周期 EOM/TR5/EOS/ESS) plus the full delivery-contingency 风险规则库 forward-ported from 04 §19.3 (设备②/服务③/组网①/验收④ + 任务跟踪 TRK). The 5 lifecycle/acceptance lanes are wired into deriveContingencyRisks subject-gathering today; the remaining points back dormant rule-library rows until the engine gains their gather predicates.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "风险点",
+      "description": "风险点封闭枚举：生命周期 EOM/TR5/EOS/ESS + 验收到货里程碑缺失风险（已接线），以及 §19.3 设备/服务/组网/验收/任务跟踪 全量风险点（规则库，待接线）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "EOM风险",
+          "TR5风险",
+          "EOS风险",
+          "ESS风险",
+          "验收到货里程碑缺失风险",
+          "光模块端口一致性风险",
+          "部件兼容性风险",
+          "接地线工勘差异风险",
+          "线缆工勘差异风险",
+          "灵渠总线设备缺失风险",
+          "华为云组网交换机缺失风险",
+          "网络平面配置缺失风险",
+          "参数面交换机缺失风险",
+          "三方集成配套缺失风险",
+          "解决方案配套缺失风险",
+          "服务漏配（非互联网大规模）风险",
+          "服务漏配（非互联网小规模）风险",
+          "AI使能需求漏配风险",
+          "服务漏配（互联网）风险",
+          "设备集成维保漏配风险",
+          "产品GA晚于维保开始风险",
+          "维保SLA超标风险",
+          "服务等级不一致风险",
+          "责任矩阵偏离风险",
+          "参数面组网选型风险",
+          "服务器网络CCAE配套风险",
+          "组网C/R版本匹配风险",
+          "设备DOA风险",
+          "物料齐套性风险",
+          "测试用例性能不达标风险",
+          "海外伙伴维护技能不足风险",
+          "首个智算验收标准未确认风险",
+          "海外伙伴交付能力不足风险",
+          "光模块丢失风险",
+          "分包商能力不足风险"
+        ]
+      }
+    ]
+  },
+  "DecisionConclusion": {
+    "apiName": "DecisionConclusion",
+    "description": "Palantir-style local Value Type: closed enumeration for DecisionRecord.conclusion / derivedConclusion. Mirrors the deriveContingencyRisks decision-point output verbatim (可交付 / 存在风险) so a derived conclusion can be recorded without remapping.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "决策结论",
+      "description": "预案决策点结论的封闭枚举，与派生引擎输出对齐：可交付 / 存在风险。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "可交付",
+          "存在风险"
+        ]
+      }
+    ]
+  },
+  "TaskStatus": {
+    "apiName": "TaskStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for RemediationTask.status. OPEN is set by GenerateRemediationTask, IN_PROGRESS by ModifyInfrastructureConfig, DONE by CompleteRemediationTask; CANCELLED is reserved for a future cancellation action.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "整改任务状态",
+      "description": "整改任务生命周期状态的封闭枚举。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "OPEN",
+          "IN_PROGRESS",
+          "DONE",
+          "CANCELLED"
+        ]
+      }
+    ]
+  },
+  "ActivityScope": {
+    "apiName": "ActivityScope",
+    "description": "Palantir-style local Value Type: closed enumeration for DeliveryPlanRow.scope / ActivityTemplate.scope. Mirrors 业务语义 10 §3 活动作用域 — the scope tag decides how many instances a template activity expands into and where parallel PoD chains converge (POWER_ON and go-live converge at BATCH).",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "活动作用域",
+      "description": "活动作用域封闭枚举（10 §3）：PROJECT 项目级一次 / ROOM 机房级一次（机房内 PoD 共享）/ BATCH 批次级一次（批内 PoD 统一汇合）/ POD 每 PoD 各一份（可并行）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "PROJECT",
+          "ROOM",
+          "BATCH",
+          "POD"
+        ]
+      }
+    ]
+  },
+  "ActivityKind": {
+    "apiName": "ActivityKind",
+    "description": "Palantir-style local Value Type: closed enumeration for DeliveryPlanRow.activityType. Mirrors 业务语义 10 §2 活动五分类 (普通执行/里程碑/到货/机房准备/返工); REWORK rows are inserted by ReworkEvent application and never mutate the original activity.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "活动分类",
+      "description": "活动五分类封闭枚举（10 §2）：NORMAL 普通执行 / MILESTONE 里程碑 / ARRIVAL 到货 / ROOM_PREP 机房准备 / REWORK 返工。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "NORMAL",
+          "MILESTONE",
+          "ARRIVAL",
+          "ROOM_PREP",
+          "REWORK"
+        ]
+      }
+    ]
+  },
+  "AnchorPriority": {
+    "apiName": "AnchorPriority",
+    "description": "Palantir-style local Value Type: anchor priority 1-5 for Milestone.anchorPriority (12 §3). Smaller is higher priority: 1 delivery milestones (go-live/power-on/handover), 2 arrival, 3 room readiness, 4 other activity anchors, 5 customer soft preferences.",
+    "status": "ACTIVE",
+    "baseType": "integer",
+    "displayMetadata": {
+      "displayName": "锚点优先级",
+      "description": "锚点优先级 1–5（12 §3），数值越小越优先；多锚点冲突时优先满足高优先级。"
+    },
+    "constraints": [
+      {
+        "type": "integer"
+      },
+      {
+        "type": "range",
+        "minimum": 1,
+        "maximum": 5
+      }
+    ]
+  },
+  "AnchorKind": {
+    "apiName": "AnchorKind",
+    "description": "Palantir-style local Value Type: closed enumeration for Milestone.anchorKind (12 §3). HARD anchors are delivery milestones and locked upstream inputs; SOFT anchors are customer preferences (convertible to HARD when the customer commits to a date). Unlocked arrival/room-ready inputs stay HARD but remain pull-able by strategy C until locked.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "锚点硬软",
+      "description": "锚点硬/软封闭枚举（12 §3）：HARD 硬约束 / SOFT 软约束（客户偏好类，明确日期后可转硬）。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "HARD",
+          "SOFT"
+        ]
+      }
+    ]
+  },
+  "AdjustmentDirection": {
+    "apiName": "AdjustmentDirection",
+    "description": "Palantir-style local Value Type: closed enumeration for AdjustmentRequest.direction (30 §8 用户诉求方向).",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "调整方向",
+      "description": "调整诉求方向封闭枚举：ADVANCE 提前 K 天 / DELAY 延后 K 天 / DEADLINE 某日期前完成。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "ADVANCE",
+          "DELAY",
+          "DEADLINE"
+        ]
+      }
+    ]
+  },
+  "AdjustmentTargetType": {
+    "apiName": "AdjustmentTargetType",
+    "description": "Palantir-style local Value Type: closed enumeration for AdjustmentRequest.targetType — which object kind a user adjustment request points at.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "调整对象类型",
+      "description": "调整对象类型封闭枚举：PLAN_ROW 活动行 / MILESTONE 里程碑 / BATCH 批次 / ROOM 机房 / ARRIVAL_ITEM 到货明细。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "PLAN_ROW",
+          "MILESTONE",
+          "BATCH",
+          "ROOM",
+          "ARRIVAL_ITEM"
+        ]
+      }
+    ]
+  },
+  "AdjustmentStatus": {
+    "apiName": "AdjustmentStatus",
+    "description": "Palantir-style local Value Type: closed enumeration shared by AdjustmentRequest.status and ReworkEvent.status — the 攒变更 → 确认 → 推演 → 写回 lifecycle of 13 §1. PENDING accumulates and dedupes by entity; only CONFIRMED items enter sandbox simulation.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "调整生命周期状态",
+      "description": "攒变更生命周期封闭枚举（13 §1）：PENDING 已录入待确认 / CONFIRMED 已确认待推演 / SIMULATED 已推演 / APPLIED 已写回 / DISCARDED 已丢弃。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "PENDING",
+          "CONFIRMED",
+          "SIMULATED",
+          "APPLIED",
+          "DISCARDED"
+        ]
+      }
+    ]
+  },
+  "ScheduleVersionStatus": {
+    "apiName": "ScheduleVersionStatus",
+    "description": "Palantir-style local Value Type: closed enumeration for SchedulePlanVersion.status. ACTIVE is the live plan version; accepting a new scenario flips the previous ACTIVE to SUPERSEDED; rolling back marks the abandoned version ROLLED_BACK.",
+    "status": "ACTIVE",
+    "baseType": "string",
+    "displayMetadata": {
+      "displayName": "排期版本状态",
+      "description": "排期计划版本状态封闭枚举：ACTIVE 当前生效 / SUPERSEDED 已被覆盖 / ROLLED_BACK 已回滚弃用。"
+    },
+    "constraints": [
+      {
+        "type": "oneOf",
+        "values": [
+          "ACTIVE",
+          "SUPERSEDED",
+          "ROLLED_BACK"
+        ]
+      }
+    ]
+  }
+}

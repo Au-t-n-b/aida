@@ -1,0 +1,46 @@
+{
+  "recomputePlanSummaryOnPlanRowChange": {
+    "apiName": "recomputePlanSummaryOnPlanRowChange",
+    "description": "Palantir-style local Automation: when a DeliveryPlanRow changes, recompute the project's plan summary and surface it as an advisory suggestion (read-only, no auto-write).",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "计划行变更后重算项目概要",
+      "description": "交付计划活动行被修改后，自动以只读方式重算该项目的计划概要作为建议值；不自动写回，遵循派生→人确认红线。"
+    },
+    "trigger": {
+      "objectTypeApiName": "DeliveryPlanRow",
+      "on": [
+        "UPDATE"
+      ]
+    },
+    "effect": {
+      "type": "RUN_FUNCTION",
+      "functionApiName": "projectPlanSummary",
+      "parameterMapping": {
+        "project_id": "projectKey"
+      }
+    }
+  },
+  "surfaceEmergentRisksOnPlanRowChange": {
+    "apiName": "surfaceEmergentRisksOnPlanRowChange",
+    "description": "Palantir-style local Automation: when a DeliveryPlanRow changes, re-derive the project's emergent risks (blocked gates, unscheduled activities) and surface them as advisory suggestions (read-only, no auto-write).",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "计划行变更后浮现涌现风险",
+      "description": "交付计划活动行被修改后，自动以只读方式重算该项目的涌现风险作为建议值；连通决策层派生与建议通道，不自动写回。"
+    },
+    "trigger": {
+      "objectTypeApiName": "DeliveryPlanRow",
+      "on": [
+        "UPDATE"
+      ]
+    },
+    "effect": {
+      "type": "RUN_FUNCTION",
+      "functionApiName": "projectEmergentRisks",
+      "parameterMapping": {
+        "project_id": "projectKey"
+      }
+    }
+  }
+}

@@ -1,0 +1,2193 @@
+{
+  "ProjectPlanRows": {
+    "apiName": "ProjectPlanRows",
+    "description": "Palantir-style local Link Type: one DeliveryProject contains many DeliveryPlanRow objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目计划行关系",
+      "description": "一个交付项目包含多条交付计划活动行。"
+    },
+    "forwardLink": {
+      "apiName": "planRows",
+      "displayMetadata": {
+        "displayName": "计划活动行",
+        "description": "当前项目包含的交付计划活动行。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前计划活动行所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DeliveryPlanRow",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "ProjectPods": {
+    "apiName": "ProjectPods",
+    "description": "Palantir-style local Link Type: one DeliveryProject contains many DeliveryPod objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "DeliveryPod",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目 Pod 关系",
+      "description": "一个交付项目包含多个 Pod / 管理单元。"
+    },
+    "forwardLink": {
+      "apiName": "pods",
+      "displayMetadata": {
+        "displayName": "Pod",
+        "description": "当前项目包含的 Pod / 管理单元。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前 Pod 所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DeliveryPod",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "PodPlanRows": {
+    "apiName": "PodPlanRows",
+    "description": "Palantir-style local Link Type: many-to-many membership between DeliveryPod and DeliveryPlanRow, derived from splitting DeliveryPlanRow.managementUnit.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryPod",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "DERIVED_MEMBERSHIP",
+    "displayMetadata": {
+      "displayName": "Pod 计划行关系",
+      "description": "Pod 与计划活动行的多对多归属关系；一条计划行可属于多个 Pod。"
+    },
+    "forwardLink": {
+      "apiName": "planRows",
+      "displayMetadata": {
+        "displayName": "计划活动行",
+        "description": "当前 Pod 关联的计划活动行。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "pods",
+      "displayMetadata": {
+        "displayName": "Pod",
+        "description": "当前计划活动行关联的 Pod / 管理单元。"
+      }
+    },
+    "derivedMembership": {
+      "sourceObjectTypeApiName": "DeliveryPlanRow",
+      "sourcePropertyApiName": "managementUnit",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryPod",
+      "targetMatchPropertyApiName": "managementUnit",
+      "targetIdentityPropertyApiName": "podKey"
+    },
+    "localGeneration": {
+      "note": "This is local ontology metadata. A real Foundry backing link would typically materialize sourceRowKey -> podKey pairs in a dataset."
+    }
+  },
+  "PodMilestones": {
+    "apiName": "PodMilestones",
+    "description": "Palantir-style local Link Type: one DeliveryPod owns many POD-scoped Milestone objects through Milestone.scopeKey.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryPod",
+    "linkedObjectTypeApiName": "Milestone",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "Pod 里程碑关系",
+      "description": "一个 Pod / 管理单元可维护多个 POD 级里程碑。"
+    },
+    "forwardLink": {
+      "apiName": "milestones",
+      "displayMetadata": {
+        "displayName": "Pod 里程碑",
+        "description": "当前 Pod 关联的 POD 级里程碑。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "pod",
+      "displayMetadata": {
+        "displayName": "所属 Pod",
+        "description": "当前 POD 级里程碑所属的 Pod / 管理单元。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "Milestone",
+      "sourcePropertyApiName": "scopeKey",
+      "targetObjectTypeApiName": "DeliveryPod",
+      "targetPropertyApiName": "managementUnit",
+      "scopePropertyApiName": "projectKey",
+      "sourceFilter": {
+        "scopeType": "POD"
+      }
+    }
+  },
+  "PlanRowDependencies": {
+    "apiName": "PlanRowDependencies",
+    "description": "Palantir-style local Link Type: resolved dependency edges between DeliveryPlanRow objects. Resolution is scoped by projectKey.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryPlanRow",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "NAME_RESOLUTION",
+    "displayMetadata": {
+      "displayName": "活动依赖关系",
+      "description": "活动须在前置活动完成后开始；源字段 dependencyActivities 仅保留原始文本，link 表达解析后的行间依赖。"
+    },
+    "forwardLink": {
+      "apiName": "dependsOn",
+      "displayMetadata": {
+        "displayName": "前置依赖",
+        "description": "当前活动所依赖的上游活动。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "isPrerequisiteFor",
+      "displayMetadata": {
+        "displayName": "后置影响",
+        "description": "当前活动作为上游前置时影响的下游活动。"
+      }
+    },
+    "nameResolution": {
+      "sourcePropertyApiName": "dependencyActivities",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetMatchPropertyApiName": "activityName",
+      "targetIdentityPropertyApiName": "rowKey",
+      "disambiguationPropertyApiNames": [
+        "managementUnit",
+        "serial"
+      ]
+    },
+    "resolvedEdgeShape": {
+      "sourcePropertyApiName": "rowKey",
+      "targetPropertyApiName": "rowKey"
+    },
+    "localGeneration": {
+      "note": "Current Python code resolves dependencyActivities into local Activity.dependency_keys; a Palantir-style backing link should materialize rowKey -> dependency rowKey pairs."
+    }
+  },
+  "ProjectChangeOrders": {
+    "apiName": "ProjectChangeOrders",
+    "description": "Palantir-style local Link Type: one DeliveryProject contains many ChangeOrder objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "ChangeOrder",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目变更工单关系",
+      "description": "一个交付项目包含多条变更工单。"
+    },
+    "forwardLink": {
+      "apiName": "changeOrders",
+      "displayMetadata": {
+        "displayName": "变更工单",
+        "description": "当前项目关联的变更工单。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前变更工单所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ChangeOrder",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "SupplierChangeOrders": {
+    "apiName": "SupplierChangeOrders",
+    "description": "Palantir-style local Link Type: one SupplierCompany reviews many ChangeOrder objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "SupplierCompany",
+    "linkedObjectTypeApiName": "ChangeOrder",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "供应商变更工单关系",
+      "description": "一个供应商可审批多条变更工单。"
+    },
+    "forwardLink": {
+      "apiName": "changeOrders",
+      "displayMetadata": {
+        "displayName": "变更工单",
+        "description": "当前供应商负责审批的变更工单。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "supplier",
+      "displayMetadata": {
+        "displayName": "审批供应商",
+        "description": "当前变更工单的审批供应商。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ChangeOrder",
+      "sourcePropertyApiName": "supplierKey",
+      "targetObjectTypeApiName": "SupplierCompany",
+      "targetPropertyApiName": "supplierKey"
+    }
+  },
+  "ChangeOrderImpactedRows": {
+    "apiName": "ChangeOrderImpactedRows",
+    "description": "Palantir-style local Link Type: many-to-many impacted DeliveryPlanRow objects resolved from ChangeOrder.impactedActivityRowKeys.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "ChangeOrder",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "NAME_RESOLUTION",
+    "displayMetadata": {
+      "displayName": "工单影响活动关系",
+      "description": "变更工单与受影响交付活动行的多对多关系。"
+    },
+    "forwardLink": {
+      "apiName": "impactedRows",
+      "displayMetadata": {
+        "displayName": "受影响活动",
+        "description": "当前变更工单影响的计划活动行。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "changeOrders",
+      "displayMetadata": {
+        "displayName": "关联工单",
+        "description": "当前活动行关联的变更工单。"
+      }
+    },
+    "nameResolution": {
+      "sourcePropertyApiName": "impactedActivityRowKeys",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetMatchPropertyApiName": "rowKey",
+      "targetIdentityPropertyApiName": "rowKey"
+    },
+    "resolvedEdgeShape": {
+      "sourcePropertyApiName": "changeOrderKey",
+      "targetPropertyApiName": "rowKey"
+    }
+  },
+  "ProjectSuppliers": {
+    "apiName": "ProjectSuppliers",
+    "description": "Palantir-style local Link Type: many-to-many membership between DeliveryProject and SupplierCompany from DeliveryProject.supplierKeys.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "SupplierCompany",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "DERIVED_MEMBERSHIP",
+    "displayMetadata": {
+      "displayName": "项目供应商关系",
+      "description": "项目与供应商公司的多对多关系。"
+    },
+    "forwardLink": {
+      "apiName": "suppliers",
+      "displayMetadata": {
+        "displayName": "供应商",
+        "description": "当前项目关联的供应商公司。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "projects",
+      "displayMetadata": {
+        "displayName": "关联项目",
+        "description": "当前供应商参与的交付项目。"
+      }
+    },
+    "derivedMembership": {
+      "sourceObjectTypeApiName": "DeliveryProject",
+      "sourcePropertyApiName": "supplierKeys",
+      "sourceDelimiterPattern": "[,，]",
+      "targetObjectTypeApiName": "SupplierCompany",
+      "targetMatchPropertyApiName": "supplierKey",
+      "targetIdentityPropertyApiName": "supplierKey"
+    }
+  },
+  "SupplierPlanRows": {
+    "apiName": "SupplierPlanRows",
+    "description": "Palantir-style local Link Type: many-to-many membership between SupplierCompany and DeliveryPlanRow from DeliveryPlanRow.supplierKeys.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "SupplierCompany",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "DERIVED_MEMBERSHIP",
+    "displayMetadata": {
+      "displayName": "供应商活动关系",
+      "description": "供应商公司与交付活动行的多对多关系。"
+    },
+    "forwardLink": {
+      "apiName": "planRows",
+      "displayMetadata": {
+        "displayName": "计划活动行",
+        "description": "当前供应商关联的交付活动行。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "suppliers",
+      "displayMetadata": {
+        "displayName": "供应商",
+        "description": "当前活动行涉及的供应商公司。"
+      }
+    },
+    "derivedMembership": {
+      "sourceObjectTypeApiName": "DeliveryPlanRow",
+      "sourcePropertyApiName": "supplierKeys",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "SupplierCompany",
+      "targetMatchPropertyApiName": "supplierKey",
+      "targetIdentityPropertyApiName": "supplierKey"
+    }
+  },
+  "ProjectParticipants": {
+    "apiName": "ProjectParticipants",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject has many ProjectParticipant objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "ProjectParticipant",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目参与方关系",
+      "description": "一个交付项目包含多个参与方。"
+    },
+    "forwardLink": {
+      "apiName": "participants",
+      "displayMetadata": {
+        "displayName": "参与方",
+        "description": "当前项目的参与方。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前参与方所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ProjectParticipant",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "ParticipantResourceTeams": {
+    "apiName": "ParticipantResourceTeams",
+    "description": "Palantir-style local Link Type (planned extension): one ProjectParticipant provides many ResourceTeam objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "ProjectParticipant",
+    "linkedObjectTypeApiName": "ResourceTeam",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "参与方队伍关系",
+      "description": "一个参与方可提供多支资源队伍。"
+    },
+    "forwardLink": {
+      "apiName": "resourceTeams",
+      "displayMetadata": {
+        "displayName": "资源队伍",
+        "description": "当前参与方提供的资源队伍。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "participant",
+      "displayMetadata": {
+        "displayName": "所属参与方",
+        "description": "当前队伍所属的参与方。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ResourceTeam",
+      "sourcePropertyApiName": "participantKey",
+      "targetObjectTypeApiName": "ProjectParticipant",
+      "targetPropertyApiName": "participantKey"
+    }
+  },
+  "ResourceTeamCapabilities": {
+    "apiName": "ResourceTeamCapabilities",
+    "description": "Palantir-style local Link Type (planned extension): one ResourceTeam has many TeamCapabilityProfile objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "ResourceTeam",
+    "linkedObjectTypeApiName": "TeamCapabilityProfile",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "队伍能力关系",
+      "description": "一支队伍对不同活动类型有多条能力画像。"
+    },
+    "forwardLink": {
+      "apiName": "capabilities",
+      "displayMetadata": {
+        "displayName": "能力画像",
+        "description": "当前队伍的能力画像。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "team",
+      "displayMetadata": {
+        "displayName": "所属队伍",
+        "description": "当前能力画像所属的队伍。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "TeamCapabilityProfile",
+      "sourcePropertyApiName": "teamKey",
+      "targetObjectTypeApiName": "ResourceTeam",
+      "targetPropertyApiName": "teamKey"
+    }
+  },
+  "PlanRowResourceAssignments": {
+    "apiName": "PlanRowResourceAssignments",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryPlanRow has many ActivityResourceAssignment objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryPlanRow",
+    "linkedObjectTypeApiName": "ActivityResourceAssignment",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "活动队伍分配关系",
+      "description": "一条计划活动行可分配多支队伍。"
+    },
+    "forwardLink": {
+      "apiName": "resourceAssignments",
+      "displayMetadata": {
+        "displayName": "队伍分配",
+        "description": "当前活动行的队伍分配。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "planRow",
+      "displayMetadata": {
+        "displayName": "所属活动行",
+        "description": "当前分配所属的计划活动行。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ActivityResourceAssignment",
+      "sourcePropertyApiName": "rowKey",
+      "targetObjectTypeApiName": "DeliveryPlanRow",
+      "targetPropertyApiName": "rowKey"
+    }
+  },
+  "ResourceTeamAssignments": {
+    "apiName": "ResourceTeamAssignments",
+    "description": "Palantir-style local Link Type (planned extension): one ResourceTeam holds many ActivityResourceAssignment objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "ResourceTeam",
+    "linkedObjectTypeApiName": "ActivityResourceAssignment",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "队伍分配关系",
+      "description": "一支队伍可被分配到多条活动。"
+    },
+    "forwardLink": {
+      "apiName": "assignments",
+      "displayMetadata": {
+        "displayName": "活动分配",
+        "description": "当前队伍承担的活动分配。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "team",
+      "displayMetadata": {
+        "displayName": "执行队伍",
+        "description": "当前分配的执行队伍。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ActivityResourceAssignment",
+      "sourcePropertyApiName": "teamKey",
+      "targetObjectTypeApiName": "ResourceTeam",
+      "targetPropertyApiName": "teamKey"
+    }
+  },
+  "PlanRowSlaEstimates": {
+    "apiName": "PlanRowSlaEstimates",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryPlanRow has many ActivitySlaEstimate objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryPlanRow",
+    "linkedObjectTypeApiName": "ActivitySlaEstimate",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "活动 SLA 推导关系",
+      "description": "一条活动行可有多条 SLA 推导结果（不同队伍/场景）。"
+    },
+    "forwardLink": {
+      "apiName": "slaEstimates",
+      "displayMetadata": {
+        "displayName": "SLA 推导结果",
+        "description": "当前活动行的 SLA 推导结果。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "planRow",
+      "displayMetadata": {
+        "displayName": "所属活动行",
+        "description": "当前推导结果所属的计划活动行。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ActivitySlaEstimate",
+      "sourcePropertyApiName": "rowKey",
+      "targetObjectTypeApiName": "DeliveryPlanRow",
+      "targetPropertyApiName": "rowKey"
+    }
+  },
+  "ProjectWorkCalendars": {
+    "apiName": "ProjectWorkCalendars",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject can bind many WorkCalendar objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "WorkCalendar",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目工作日历关系",
+      "description": "一个项目可绑定多个工作日历。"
+    },
+    "forwardLink": {
+      "apiName": "workCalendars",
+      "displayMetadata": {
+        "displayName": "工作日历",
+        "description": "当前项目绑定的工作日历。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前日历绑定的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "WorkCalendar",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "WorkCalendarExceptions": {
+    "apiName": "WorkCalendarExceptions",
+    "description": "Palantir-style local Link Type (planned extension): one WorkCalendar has many CalendarException objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "WorkCalendar",
+    "linkedObjectTypeApiName": "CalendarException",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "日历例外关系",
+      "description": "一个工作日历包含多段例外事件。"
+    },
+    "forwardLink": {
+      "apiName": "exceptions",
+      "displayMetadata": {
+        "displayName": "例外事件",
+        "description": "当前日历的例外事件。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "calendar",
+      "displayMetadata": {
+        "displayName": "所属日历",
+        "description": "当前例外事件所属的工作日历。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "CalendarException",
+      "sourcePropertyApiName": "calendarKey",
+      "targetObjectTypeApiName": "WorkCalendar",
+      "targetPropertyApiName": "calendarKey"
+    }
+  },
+  "ProjectRooms": {
+    "apiName": "ProjectRooms",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject has many EquipmentRoom objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "EquipmentRoom",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目机房关系",
+      "description": "一个交付项目包含多个客户机房（站）。"
+    },
+    "forwardLink": {
+      "apiName": "rooms",
+      "displayMetadata": {
+        "displayName": "机房",
+        "description": "当前项目的客户机房。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前机房所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "EquipmentRoom",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "RoomPods": {
+    "apiName": "RoomPods",
+    "description": "Palantir-style local Link Type (planned extension): many-to-many membership between EquipmentRoom and DeliveryPod from EquipmentRoom.podKeys.",
+    "status": "PLANNED",
+    "objectTypeApiName": "EquipmentRoom",
+    "linkedObjectTypeApiName": "DeliveryPod",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "DERIVED_MEMBERSHIP",
+    "displayMetadata": {
+      "displayName": "机房 PoD 关系",
+      "description": "一个机房承载多个 PoD；货与人随站的就绪进场。"
+    },
+    "forwardLink": {
+      "apiName": "pods",
+      "displayMetadata": {
+        "displayName": "承载 PoD",
+        "description": "当前机房承载的 PoD。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "rooms",
+      "displayMetadata": {
+        "displayName": "所在机房",
+        "description": "当前 PoD 所在的机房。"
+      }
+    },
+    "derivedMembership": {
+      "sourceObjectTypeApiName": "EquipmentRoom",
+      "sourcePropertyApiName": "podKeys",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryPod",
+      "targetMatchPropertyApiName": "podKey",
+      "targetIdentityPropertyApiName": "podKey"
+    }
+  },
+  "ProjectArrivalItems": {
+    "apiName": "ProjectArrivalItems",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject has many EquipmentArrivalItem objects (foreign key on projectKey).",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "EquipmentArrivalItem",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目到货明细关系",
+      "description": "一个交付项目包含多条设备到货明细（来自到货表）。"
+    },
+    "forwardLink": {
+      "apiName": "arrivalItems",
+      "displayMetadata": {
+        "displayName": "到货明细",
+        "description": "当前项目的设备到货明细。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前到货明细所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "EquipmentArrivalItem",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "PodArrivalItems": {
+    "apiName": "PodArrivalItems",
+    "description": "Palantir-style local Link Type (planned extension): many-to-many membership between DeliveryPod and EquipmentArrivalItem derived from EquipmentArrivalItem.managementUnit, same convention as PodPlanRows.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryPod",
+    "linkedObjectTypeApiName": "EquipmentArrivalItem",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "DERIVED_MEMBERSHIP",
+    "displayMetadata": {
+      "displayName": "Pod 到货明细关系",
+      "description": "Pod 与到货明细的归属关系，由到货表「管理单元」对齐 DeliveryPod.managementUnit；货随站就绪进场。"
+    },
+    "forwardLink": {
+      "apiName": "arrivalItems",
+      "displayMetadata": {
+        "displayName": "到货明细",
+        "description": "当前 PoD 的设备到货明细。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "pods",
+      "displayMetadata": {
+        "displayName": "所属 Pod",
+        "description": "当前到货明细对应的 PoD / 管理单元。"
+      }
+    },
+    "derivedMembership": {
+      "sourceObjectTypeApiName": "EquipmentArrivalItem",
+      "sourcePropertyApiName": "managementUnit",
+      "sourceDelimiterPattern": "[,，#]",
+      "scopePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryPod",
+      "targetMatchPropertyApiName": "managementUnit",
+      "targetIdentityPropertyApiName": "podKey"
+    }
+  },
+  "ProjectBatches": {
+    "apiName": "ProjectBatches",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject has many DeliveryBatch objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "DeliveryBatch",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目批次关系",
+      "description": "一个交付项目包含多个上线批次。"
+    },
+    "forwardLink": {
+      "apiName": "batches",
+      "displayMetadata": {
+        "displayName": "上线批次",
+        "description": "当前项目的上线批次。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前批次所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DeliveryBatch",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "BatchPods": {
+    "apiName": "BatchPods",
+    "description": "Palantir-style local Link Type (planned extension): many-to-many membership between DeliveryBatch and DeliveryPod from DeliveryBatch.podKeys.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryBatch",
+    "linkedObjectTypeApiName": "DeliveryPod",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "DERIVED_MEMBERSHIP",
+    "displayMetadata": {
+      "displayName": "批次 PoD 关系",
+      "description": "一个批次包含多个 PoD；按批次组织安装/上电/调测/验收。"
+    },
+    "forwardLink": {
+      "apiName": "pods",
+      "displayMetadata": {
+        "displayName": "批次 PoD",
+        "description": "当前批次包含的 PoD。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "batches",
+      "displayMetadata": {
+        "displayName": "所属批次",
+        "description": "当前 PoD 所属的批次。"
+      }
+    },
+    "derivedMembership": {
+      "sourceObjectTypeApiName": "DeliveryBatch",
+      "sourcePropertyApiName": "podKeys",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryPod",
+      "targetMatchPropertyApiName": "podKey",
+      "targetIdentityPropertyApiName": "podKey"
+    }
+  },
+  "ProjectScenarios": {
+    "apiName": "ProjectScenarios",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject has many DeliveryScenario objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "DeliveryScenario",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目场景关系",
+      "description": "一个交付项目包含多个排期沙箱场景。"
+    },
+    "forwardLink": {
+      "apiName": "scenarios",
+      "displayMetadata": {
+        "displayName": "沙箱场景",
+        "description": "当前项目的排期沙箱场景。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前场景所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DeliveryScenario",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "ScenarioPlanOptions": {
+    "apiName": "ScenarioPlanOptions",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryScenario produces many SchedulePlanOption objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryScenario",
+    "linkedObjectTypeApiName": "SchedulePlanOption",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "场景方案关系",
+      "description": "一个场景产出多个可比选方案（A/B/C）。"
+    },
+    "forwardLink": {
+      "apiName": "planOptions",
+      "displayMetadata": {
+        "displayName": "排期方案",
+        "description": "当前场景产出的排期方案。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "scenario",
+      "displayMetadata": {
+        "displayName": "所属场景",
+        "description": "当前方案所属的沙箱场景。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "SchedulePlanOption",
+      "sourcePropertyApiName": "scenarioKey",
+      "targetObjectTypeApiName": "DeliveryScenario",
+      "targetPropertyApiName": "scenarioKey"
+    }
+  },
+  "ScenarioRisks": {
+    "apiName": "ScenarioRisks",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryScenario surfaces many ScheduleRisk objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryScenario",
+    "linkedObjectTypeApiName": "ScheduleRisk",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "场景风险关系",
+      "description": "一个场景识别出多条排期风险/冲突。"
+    },
+    "forwardLink": {
+      "apiName": "risks",
+      "displayMetadata": {
+        "displayName": "排期风险",
+        "description": "当前场景识别的风险。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "scenario",
+      "displayMetadata": {
+        "displayName": "所属场景",
+        "description": "当前风险所属的沙箱场景。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ScheduleRisk",
+      "sourcePropertyApiName": "scenarioKey",
+      "targetObjectTypeApiName": "DeliveryScenario",
+      "targetPropertyApiName": "scenarioKey"
+    }
+  },
+  "ScenarioSlaEstimates": {
+    "apiName": "ScenarioSlaEstimates",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryScenario holds many ActivitySlaEstimate objects.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryScenario",
+    "linkedObjectTypeApiName": "ActivitySlaEstimate",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "场景 SLA 推导关系",
+      "description": "一个场景下可有多条 SLA 推导结果。"
+    },
+    "forwardLink": {
+      "apiName": "slaEstimates",
+      "displayMetadata": {
+        "displayName": "SLA 推导结果",
+        "description": "当前场景的 SLA 推导结果。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "scenario",
+      "displayMetadata": {
+        "displayName": "所属场景",
+        "description": "当前推导结果所属的沙箱场景。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ActivitySlaEstimate",
+      "sourcePropertyApiName": "scenarioKey",
+      "targetObjectTypeApiName": "DeliveryScenario",
+      "targetPropertyApiName": "scenarioKey"
+    }
+  },
+  "ScheduleRiskImpactedRows": {
+    "apiName": "ScheduleRiskImpactedRows",
+    "description": "Palantir-style local Link Type (planned extension): many-to-many impacted DeliveryPlanRow objects resolved from ScheduleRisk.impactedRowKeys.",
+    "status": "PLANNED",
+    "objectTypeApiName": "ScheduleRisk",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "MANY_TO_MANY",
+    "relationshipModel": "NAME_RESOLUTION",
+    "displayMetadata": {
+      "displayName": "风险影响活动关系",
+      "description": "排期风险与受影响交付活动行的多对多关系。"
+    },
+    "forwardLink": {
+      "apiName": "impactedRows",
+      "displayMetadata": {
+        "displayName": "受影响活动",
+        "description": "当前风险影响的计划活动行。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "risks",
+      "displayMetadata": {
+        "displayName": "关联风险",
+        "description": "当前活动行关联的排期风险。"
+      }
+    },
+    "nameResolution": {
+      "sourcePropertyApiName": "impactedRowKeys",
+      "sourceDelimiterPattern": "[,，]",
+      "scopePropertyApiName": "projectKey",
+      "targetMatchPropertyApiName": "rowKey",
+      "targetIdentityPropertyApiName": "rowKey"
+    },
+    "resolvedEdgeShape": {
+      "sourcePropertyApiName": "riskKey",
+      "targetPropertyApiName": "rowKey"
+    }
+  },
+  "ProjectReworkEvents": {
+    "apiName": "ProjectReworkEvents",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject accumulates many ReworkEvent inputs.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "ReworkEvent",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目返工事件关系",
+      "description": "一个交付项目累计多条返工事件输入。"
+    },
+    "forwardLink": {
+      "apiName": "reworkEvents",
+      "displayMetadata": {
+        "displayName": "返工事件",
+        "description": "当前项目录入的返工事件。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前返工事件所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ReworkEvent",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "ReworkEventInsertedRow": {
+    "apiName": "ReworkEventInsertedRow",
+    "description": "Palantir-style local Link Type (planned extension): a ReworkEvent points at the rework activity row it inserted (DeliveryPlanRow with activityType=REWORK). The original activity is never mutated.",
+    "status": "PLANNED",
+    "objectTypeApiName": "ReworkEvent",
+    "linkedObjectTypeApiName": "DeliveryPlanRow",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "返工事件插入活动关系",
+      "description": "返工事件指向其落地插入的返工活动行；原活动保持不变（13 §5）。"
+    },
+    "forwardLink": {
+      "apiName": "insertedRow",
+      "displayMetadata": {
+        "displayName": "插入的返工活动行",
+        "description": "当前返工事件落地插入的返工活动行。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "reworkEvents",
+      "displayMetadata": {
+        "displayName": "来源返工事件",
+        "description": "插入当前活动行的返工事件。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ReworkEvent",
+      "sourcePropertyApiName": "insertedRowKey",
+      "targetObjectTypeApiName": "DeliveryPlanRow",
+      "targetPropertyApiName": "rowKey"
+    }
+  },
+  "ProjectAdjustmentRequests": {
+    "apiName": "ProjectAdjustmentRequests",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject accumulates many AdjustmentRequest inputs (deduped by target entity).",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "AdjustmentRequest",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目调整诉求关系",
+      "description": "一个交付项目累计多条调整诉求（按实体去重）。"
+    },
+    "forwardLink": {
+      "apiName": "adjustmentRequests",
+      "displayMetadata": {
+        "displayName": "调整诉求",
+        "description": "当前项目累计的调整诉求。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前调整诉求所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "AdjustmentRequest",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "ScenarioAdjustmentRequests": {
+    "apiName": "ScenarioAdjustmentRequests",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryScenario simulates many confirmed AdjustmentRequest inputs; impacted rows surface through the scenario's risks and options, because impact is a simulation product (13 §6).",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryScenario",
+    "linkedObjectTypeApiName": "AdjustmentRequest",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "场景调整诉求关系",
+      "description": "一次沙箱推演消化多条已确认的调整诉求；受影响活动行经该场景的风险/方案呈现（影响是推演的产物）。"
+    },
+    "forwardLink": {
+      "apiName": "adjustmentRequests",
+      "displayMetadata": {
+        "displayName": "调整诉求",
+        "description": "当前场景推演的调整诉求。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "scenario",
+      "displayMetadata": {
+        "displayName": "推演场景",
+        "description": "当前诉求参与的沙箱推演场景。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "AdjustmentRequest",
+      "sourcePropertyApiName": "scenarioKey",
+      "targetObjectTypeApiName": "DeliveryScenario",
+      "targetPropertyApiName": "scenarioKey"
+    }
+  },
+  "ProjectScheduleVersions": {
+    "apiName": "ProjectScheduleVersions",
+    "description": "Palantir-style local Link Type (planned extension): one DeliveryProject owns many SchedulePlanVersion ledger entries.",
+    "status": "PLANNED",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "SchedulePlanVersion",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目排期版本关系",
+      "description": "一个交付项目拥有多条排期计划版本台账记录。"
+    },
+    "forwardLink": {
+      "apiName": "scheduleVersions",
+      "displayMetadata": {
+        "displayName": "排期版本",
+        "description": "当前项目的排期计划版本台账。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前排期版本所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "SchedulePlanVersion",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  },
+  "Plan_UseCase": {
+    "apiName": "Plan_UseCase",
+    "description": "Palantir-style local Link Type: one ContingencyPlan activates one PlanUseCase.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "ContingencyPlan",
+    "linkedObjectTypeApiName": "PlanUseCase",
+    "cardinality": "ONE_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "预案场景关系",
+      "description": "一个预案实例对应一个预案场景。"
+    },
+    "forwardLink": {
+      "apiName": "useCase",
+      "displayMetadata": {
+        "displayName": "预案场景",
+        "description": "当前预案激活的业务场景。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "plan",
+      "displayMetadata": {
+        "displayName": "所属预案",
+        "description": "当前场景所属的预案实例。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "PlanUseCase",
+      "sourcePropertyApiName": "planId",
+      "targetObjectTypeApiName": "ContingencyPlan",
+      "targetPropertyApiName": "planId"
+    }
+  },
+  "Plan_Decisions": {
+    "apiName": "Plan_Decisions",
+    "description": "Palantir-style local Link Type: one ContingencyPlan owns many DecisionPoint objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "ContingencyPlan",
+    "linkedObjectTypeApiName": "DecisionPoint",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "预案决策关系",
+      "description": "一个预案包含核心决策和子决策。"
+    },
+    "forwardLink": {
+      "apiName": "decisions",
+      "displayMetadata": {
+        "displayName": "决策点",
+        "description": "当前预案包含的决策点。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "plan",
+      "displayMetadata": {
+        "displayName": "所属预案",
+        "description": "当前决策所属的预案实例。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DecisionPoint",
+      "sourcePropertyApiName": "planId",
+      "targetObjectTypeApiName": "ContingencyPlan",
+      "targetPropertyApiName": "planId"
+    }
+  },
+  "Decision_Chapters": {
+    "apiName": "Decision_Chapters",
+    "description": "Palantir-style local Link Type: one DecisionPoint owns many ContingencyChapter sections. Replaces the chapter.decisionPoint==DecisionPoint.domain string match with an explicit FK to the decision PK.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DecisionPoint",
+    "linkedObjectTypeApiName": "ContingencyChapter",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "决策章节关系",
+      "description": "一个子决策点关联其可交付主章；全局输入章（decisionId 为空）不绑决策。"
+    },
+    "forwardLink": {
+      "apiName": "chapters",
+      "displayMetadata": {
+        "displayName": "章节",
+        "description": "当前决策点关联的预案章节。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "decision",
+      "displayMetadata": {
+        "displayName": "所属决策",
+        "description": "当前章节所属的决策点。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ContingencyChapter",
+      "sourcePropertyApiName": "decisionId",
+      "targetObjectTypeApiName": "DecisionPoint",
+      "targetPropertyApiName": "decisionId"
+    }
+  },
+  "Chapter_Narrative": {
+    "apiName": "Chapter_Narrative",
+    "description": "Palantir-style local Link Type: one ContingencyChapter owns its published ChapterNarrative snapshots (per project). Ties the per-plan chapter text (Dolt-versioned at milestones) back to the chapter skeleton.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "ContingencyChapter",
+    "linkedObjectTypeApiName": "ChapterNarrative",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "章节正文关系",
+      "description": "一个章节骨架关联其已发布正文快照。"
+    },
+    "forwardLink": {
+      "apiName": "narratives",
+      "displayMetadata": {
+        "displayName": "正文",
+        "description": "当前章节的已发布正文快照。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "chapter",
+      "displayMetadata": {
+        "displayName": "所属章节",
+        "description": "当前正文所属的章节骨架。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ChapterNarrative",
+      "sourcePropertyApiName": "chapterId",
+      "targetObjectTypeApiName": "ContingencyChapter",
+      "targetPropertyApiName": "id"
+    }
+  },
+  "Decision_SubDecisions": {
+    "apiName": "Decision_SubDecisions",
+    "description": "Palantir-style local Link Type: core DecisionPoint owns sub DecisionPoint objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DecisionPoint",
+    "linkedObjectTypeApiName": "DecisionPoint",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "父子决策关系",
+      "description": "核心决策到子决策的业务拆解关系。"
+    },
+    "forwardLink": {
+      "apiName": "subDecisions",
+      "displayMetadata": {
+        "displayName": "子决策",
+        "description": "当前决策拆解出的子决策。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "parentDecision",
+      "displayMetadata": {
+        "displayName": "上级决策",
+        "description": "当前决策所属的上级决策。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DecisionPoint",
+      "sourcePropertyApiName": "parentDecisionId",
+      "targetObjectTypeApiName": "DecisionPoint",
+      "targetPropertyApiName": "decisionId"
+    }
+  },
+  "Decision_EvidenceSources": {
+    "apiName": "Decision_EvidenceSources",
+    "description": "Palantir-style local Link Type: one DecisionPoint uses many EvidenceSource objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DecisionPoint",
+    "linkedObjectTypeApiName": "EvidenceSource",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "决策证据关系",
+      "description": "决策点使用的证据来源。"
+    },
+    "forwardLink": {
+      "apiName": "evidenceSources",
+      "displayMetadata": {
+        "displayName": "证据源",
+        "description": "当前决策使用的证据源。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "decision",
+      "displayMetadata": {
+        "displayName": "关联决策",
+        "description": "当前证据源支撑的决策点。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "EvidenceSource",
+      "sourcePropertyApiName": "decisionId",
+      "targetObjectTypeApiName": "DecisionPoint",
+      "targetPropertyApiName": "decisionId"
+    }
+  },
+  "Decision_Assessment": {
+    "apiName": "Decision_Assessment",
+    "description": "Palantir-style local Link Type: one DecisionPoint has one DeliverabilityAssessment.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DecisionPoint",
+    "linkedObjectTypeApiName": "DeliverabilityAssessment",
+    "cardinality": "ONE_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "决策评估关系",
+      "description": "决策点对应的交付评估结果。"
+    },
+    "forwardLink": {
+      "apiName": "assessment",
+      "displayMetadata": {
+        "displayName": "交付评估",
+        "description": "当前决策的交付评估。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "decision",
+      "displayMetadata": {
+        "displayName": "关联决策",
+        "description": "当前评估对应的决策点。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DeliverabilityAssessment",
+      "sourcePropertyApiName": "decisionId",
+      "targetObjectTypeApiName": "DecisionPoint",
+      "targetPropertyApiName": "decisionId"
+    }
+  },
+  "Plan_DecisionRecords": {
+    "apiName": "Plan_DecisionRecords",
+    "description": "Palantir-style local Link Type: one ContingencyPlan accumulates many DecisionRecord rows (human-confirmed decision pins from RecordContingencyDecision).",
+    "status": "ACTIVE",
+    "objectTypeApiName": "ContingencyPlan",
+    "linkedObjectTypeApiName": "DecisionRecord",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "预案决策记录关系",
+      "description": "一个预案实例下沉淀的全部人工确认决策记录。"
+    },
+    "forwardLink": {
+      "apiName": "decisionRecords",
+      "displayMetadata": {
+        "displayName": "决策记录",
+        "description": "当前预案下的人工确认决策记录。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "plan",
+      "displayMetadata": {
+        "displayName": "所属预案",
+        "description": "当前决策记录所属的预案实例。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DecisionRecord",
+      "sourcePropertyApiName": "planId",
+      "targetObjectTypeApiName": "ContingencyPlan",
+      "targetPropertyApiName": "planId"
+    }
+  },
+  "Decision_Records": {
+    "apiName": "Decision_Records",
+    "description": "Palantir-style local Link Type: one DecisionPoint accumulates many DecisionRecord rows — each RecordContingencyDecision run pins that point's conclusion for one plan.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DecisionPoint",
+    "linkedObjectTypeApiName": "DecisionRecord",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "决策点确认记录关系",
+      "description": "派生决策点被人工确认/覆盖后留下的决策记录。"
+    },
+    "forwardLink": {
+      "apiName": "records",
+      "displayMetadata": {
+        "displayName": "确认记录",
+        "description": "当前决策点的人工确认决策记录。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "decisionPoint",
+      "displayMetadata": {
+        "displayName": "关联决策点",
+        "description": "当前决策记录确认的决策点。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DecisionRecord",
+      "sourcePropertyApiName": "decisionId",
+      "targetObjectTypeApiName": "DecisionPoint",
+      "targetPropertyApiName": "decisionId"
+    }
+  },
+  "Assessment_DecisionRecords": {
+    "apiName": "Assessment_DecisionRecords",
+    "description": "Palantir-style local Link Type: one DeliverabilityAssessment carries many DecisionRecord rows; assessmentId is optional on the record, so the link materializes only when supplied.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliverabilityAssessment",
+    "linkedObjectTypeApiName": "DecisionRecord",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "评估决策记录关系",
+      "description": "交付评估关联的人工确认决策记录（可选外键，留空不成链）。"
+    },
+    "forwardLink": {
+      "apiName": "decisionRecords",
+      "displayMetadata": {
+        "displayName": "决策记录",
+        "description": "当前评估关联的决策记录。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "assessment",
+      "displayMetadata": {
+        "displayName": "关联评估",
+        "description": "当前决策记录关联的交付评估。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "DecisionRecord",
+      "sourcePropertyApiName": "assessmentId",
+      "targetObjectTypeApiName": "DeliverabilityAssessment",
+      "targetPropertyApiName": "assessmentId"
+    }
+  },
+  "Assessment_Gaps": {
+    "apiName": "Assessment_Gaps",
+    "description": "Palantir-style local Link Type: one DeliverabilityAssessment identifies many GapItem objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliverabilityAssessment",
+    "linkedObjectTypeApiName": "GapItem",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "评估差异关系",
+      "description": "交付评估识别出的差异项。"
+    },
+    "forwardLink": {
+      "apiName": "gaps",
+      "displayMetadata": {
+        "displayName": "差异项",
+        "description": "当前评估识别出的差异。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "assessment",
+      "displayMetadata": {
+        "displayName": "关联评估",
+        "description": "当前差异所属的评估。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "GapItem",
+      "sourcePropertyApiName": "assessmentId",
+      "targetObjectTypeApiName": "DeliverabilityAssessment",
+      "targetPropertyApiName": "assessmentId"
+    }
+  },
+  "Assessment_Tasks": {
+    "apiName": "Assessment_Tasks",
+    "description": "Palantir-style local Link Type: one DeliverabilityAssessment generates many RemediationTask objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliverabilityAssessment",
+    "linkedObjectTypeApiName": "RemediationTask",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "评估任务关系",
+      "description": "交付评估生成的整改任务。"
+    },
+    "forwardLink": {
+      "apiName": "tasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "当前评估生成的整改任务。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "assessment",
+      "displayMetadata": {
+        "displayName": "关联评估",
+        "description": "当前任务所属的评估。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "assessmentId",
+      "targetObjectTypeApiName": "DeliverabilityAssessment",
+      "targetPropertyApiName": "assessmentId"
+    }
+  },
+  "Assessment_Risks": {
+    "apiName": "Assessment_Risks",
+    "description": "Palantir-style local Link Type: one DeliverabilityAssessment identifies many RiskItem objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliverabilityAssessment",
+    "linkedObjectTypeApiName": "RiskItem",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "评估风险关系",
+      "description": "交付评估识别出的风险。"
+    },
+    "forwardLink": {
+      "apiName": "risks",
+      "displayMetadata": {
+        "displayName": "风险项",
+        "description": "当前评估识别出的风险。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "assessment",
+      "displayMetadata": {
+        "displayName": "关联评估",
+        "description": "当前风险所属的评估。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RiskItem",
+      "sourcePropertyApiName": "assessmentId",
+      "targetObjectTypeApiName": "DeliverabilityAssessment",
+      "targetPropertyApiName": "assessmentId"
+    }
+  },
+  "Assessment_Assumptions": {
+    "apiName": "Assessment_Assumptions",
+    "description": "Palantir-style local Link Type: one DeliverabilityAssessment uses many AssumptionItem objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliverabilityAssessment",
+    "linkedObjectTypeApiName": "AssumptionItem",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "评估假设关系",
+      "description": "交付评估依赖的业务假设。"
+    },
+    "forwardLink": {
+      "apiName": "assumptions",
+      "displayMetadata": {
+        "displayName": "假设项",
+        "description": "当前评估依赖的假设。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "assessment",
+      "displayMetadata": {
+        "displayName": "关联评估",
+        "description": "当前假设所属的评估。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "AssumptionItem",
+      "sourcePropertyApiName": "assessmentId",
+      "targetObjectTypeApiName": "DeliverabilityAssessment",
+      "targetPropertyApiName": "assessmentId"
+    }
+  },
+  "Gap_Tasks": {
+    "apiName": "Gap_Tasks",
+    "description": "Palantir-style local Link Type: one GapItem may drive many RemediationTask objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "GapItem",
+    "linkedObjectTypeApiName": "RemediationTask",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "差异任务关系",
+      "description": "差异项驱动的整改任务。"
+    },
+    "forwardLink": {
+      "apiName": "tasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "当前差异驱动的整改任务。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "gap",
+      "displayMetadata": {
+        "displayName": "关联差异",
+        "description": "当前任务关联的差异项。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "gapId",
+      "targetObjectTypeApiName": "GapItem",
+      "targetPropertyApiName": "gapId"
+    }
+  },
+  "Task_Modifies_ProjectRequirement": {
+    "apiName": "Task_Modifies_ProjectRequirement",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a ProjectRequirement asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "ProjectRequirement",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响客户需求",
+      "description": "整改任务指向需要调整的客户需求资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetProjectRequirement",
+      "displayMetadata": {
+        "displayName": "目标客户需求",
+        "description": "当前任务影响的客户需求资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetProjectRequirementId",
+      "targetObjectTypeApiName": "ProjectRequirement",
+      "targetPropertyApiName": "requirementId"
+    }
+  },
+  "Task_Modifies_Equipment": {
+    "apiName": "Task_Modifies_Equipment",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify an EquipmentConfig asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "EquipmentConfig",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响设备配置",
+      "description": "整改任务指向需要调整的设备配置资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetEquipment",
+      "displayMetadata": {
+        "displayName": "目标设备配置",
+        "description": "当前任务影响的设备配置资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetEquipmentId",
+      "targetObjectTypeApiName": "EquipmentConfig",
+      "targetPropertyApiName": "equipmentId"
+    }
+  },
+  "Task_Modifies_Component": {
+    "apiName": "Task_Modifies_Component",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a ComponentConfig asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "ComponentConfig",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响部件配置",
+      "description": "整改任务指向需要调整的部件配置资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetComponent",
+      "displayMetadata": {
+        "displayName": "目标部件配置",
+        "description": "当前任务影响的部件配置资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetComponentId",
+      "targetObjectTypeApiName": "ComponentConfig",
+      "targetPropertyApiName": "componentId"
+    }
+  },
+  "Task_Modifies_Software": {
+    "apiName": "Task_Modifies_Software",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a SoftwareConfig asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "SoftwareConfig",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响软件配置",
+      "description": "整改任务指向需要调整的软件配置资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetSoftware",
+      "displayMetadata": {
+        "displayName": "目标软件配置",
+        "description": "当前任务影响的软件配置资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetSoftwareId",
+      "targetObjectTypeApiName": "SoftwareConfig",
+      "targetPropertyApiName": "softwareId"
+    }
+  },
+  "Task_Modifies_Network": {
+    "apiName": "Task_Modifies_Network",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a NetworkConfig asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "NetworkConfig",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响组网配置",
+      "description": "整改任务指向需要调整的组网配置资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetNetwork",
+      "displayMetadata": {
+        "displayName": "目标组网配置",
+        "description": "当前任务影响的组网配置资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetNetworkId",
+      "targetObjectTypeApiName": "NetworkConfig",
+      "targetPropertyApiName": "networkId"
+    }
+  },
+  "Task_Modifies_MachineRoom": {
+    "apiName": "Task_Modifies_MachineRoom",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a MachineRoomConfig asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "MachineRoomConfig",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响机房配置",
+      "description": "整改任务指向需要调整的机房配置资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetMachineRoom",
+      "displayMetadata": {
+        "displayName": "目标机房配置",
+        "description": "当前任务影响的机房配置资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetMachineRoomId",
+      "targetObjectTypeApiName": "MachineRoomConfig",
+      "targetPropertyApiName": "machineRoomId"
+    }
+  },
+  "Task_Modifies_Service": {
+    "apiName": "Task_Modifies_Service",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a ServiceConfig asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "ServiceConfig",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响服务配置",
+      "description": "整改任务指向需要调整的服务配置资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetService",
+      "displayMetadata": {
+        "displayName": "目标服务配置",
+        "description": "当前任务影响的服务配置资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetServiceId",
+      "targetObjectTypeApiName": "ServiceConfig",
+      "targetPropertyApiName": "serviceId"
+    }
+  },
+  "Task_Modifies_MaintenancePolicy": {
+    "apiName": "Task_Modifies_MaintenancePolicy",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a MaintenancePolicy asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "MaintenancePolicy",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响维保策略",
+      "description": "整改任务指向需要调整的维保策略资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetMaintenancePolicy",
+      "displayMetadata": {
+        "displayName": "目标维保策略",
+        "description": "当前任务影响的维保策略资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetMaintenancePolicyId",
+      "targetObjectTypeApiName": "MaintenancePolicy",
+      "targetPropertyApiName": "maintenancePolicyId"
+    }
+  },
+  "Task_Modifies_SlaRequirement": {
+    "apiName": "Task_Modifies_SlaRequirement",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a SlaRequirement asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "SlaRequirement",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响 SLA",
+      "description": "整改任务指向需要调整的 SLA 要求资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetSlaRequirement",
+      "displayMetadata": {
+        "displayName": "目标 SLA",
+        "description": "当前任务影响的 SLA 要求资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetSlaRequirementId",
+      "targetObjectTypeApiName": "SlaRequirement",
+      "targetPropertyApiName": "slaRequirementId"
+    }
+  },
+  "Task_Modifies_AcceptanceStrategy": {
+    "apiName": "Task_Modifies_AcceptanceStrategy",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify an AcceptanceStrategy asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "AcceptanceStrategy",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响验收策略",
+      "description": "整改任务指向需要调整的验收策略资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetAcceptanceStrategy",
+      "displayMetadata": {
+        "displayName": "目标验收策略",
+        "description": "当前任务影响的验收策略资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetAcceptanceStrategyId",
+      "targetObjectTypeApiName": "AcceptanceStrategy",
+      "targetPropertyApiName": "acceptanceStrategyId"
+    }
+  },
+  "Task_Modifies_PlanScheduleSnapshot": {
+    "apiName": "Task_Modifies_PlanScheduleSnapshot",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a PlanScheduleSnapshot asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "PlanScheduleSnapshot",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响计划快照",
+      "description": "整改任务指向需要调整的计划快照资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetScheduleSnapshot",
+      "displayMetadata": {
+        "displayName": "目标计划快照",
+        "description": "当前任务影响的计划快照资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetScheduleSnapshotId",
+      "targetObjectTypeApiName": "PlanScheduleSnapshot",
+      "targetPropertyApiName": "scheduleSnapshotId"
+    }
+  },
+  "Task_Modifies_IntegrationVerificationRequirement": {
+    "apiName": "Task_Modifies_IntegrationVerificationRequirement",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify an IntegrationVerificationRequirement asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "IntegrationVerificationRequirement",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响集成验证需求",
+      "description": "整改任务指向需要调整的集成验证需求资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetIntegrationVerificationRequirement",
+      "displayMetadata": {
+        "displayName": "目标集成验证需求",
+        "description": "当前任务影响的集成验证需求资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetIntegrationVerificationRequirementId",
+      "targetObjectTypeApiName": "IntegrationVerificationRequirement",
+      "targetPropertyApiName": "integrationVerificationRequirementId"
+    }
+  },
+  "Task_Modifies_ResponsibilityMatrixItem": {
+    "apiName": "Task_Modifies_ResponsibilityMatrixItem",
+    "description": "Palantir-style local Link Type: a RemediationTask may modify a ResponsibilityMatrixItem asset.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "ResponsibilityMatrixItem",
+    "cardinality": "MANY_TO_ONE",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务影响责任矩阵项",
+      "description": "整改任务指向需要调整的责任矩阵项资产。"
+    },
+    "forwardLink": {
+      "apiName": "targetResponsibilityMatrixItem",
+      "displayMetadata": {
+        "displayName": "目标责任矩阵项",
+        "description": "当前任务影响的责任矩阵项资产。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "remediationTasks",
+      "displayMetadata": {
+        "displayName": "整改任务",
+        "description": "影响当前资产的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "RemediationTask",
+      "sourcePropertyApiName": "targetResponsibilityMatrixItemId",
+      "targetObjectTypeApiName": "ResponsibilityMatrixItem",
+      "targetPropertyApiName": "responsibilityMatrixItemId"
+    }
+  },
+  "Task_Output_ConfigurationFiles": {
+    "apiName": "Task_Output_ConfigurationFiles",
+    "description": "Palantir-style local Link Type: one RemediationTask may output many ConfigurationFile pointers.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "RemediationTask",
+    "linkedObjectTypeApiName": "ConfigurationFile",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "任务产出配置文件",
+      "description": "整改任务产出的配置文件指针。"
+    },
+    "forwardLink": {
+      "apiName": "configurationFiles",
+      "displayMetadata": {
+        "displayName": "配置文件指针",
+        "description": "当前任务产出的配置文件指针。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "task",
+      "displayMetadata": {
+        "displayName": "产出任务",
+        "description": "产出当前指针的整改任务。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ConfigurationFile",
+      "sourcePropertyApiName": "taskId",
+      "targetObjectTypeApiName": "RemediationTask",
+      "targetPropertyApiName": "taskId"
+    }
+  },
+  "Evidence_ConfigurationFiles": {
+    "apiName": "Evidence_ConfigurationFiles",
+    "description": "Palantir-style local Link Type: one EvidenceSource may reference many ConfigurationFile pointers.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "EvidenceSource",
+    "linkedObjectTypeApiName": "ConfigurationFile",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "证据配置文件关系",
+      "description": "证据源引用的配置文件指针。"
+    },
+    "forwardLink": {
+      "apiName": "configurationFiles",
+      "displayMetadata": {
+        "displayName": "配置文件指针",
+        "description": "当前证据源引用的配置文件指针。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "evidence",
+      "displayMetadata": {
+        "displayName": "证据源",
+        "description": "引用当前指针的证据源。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ConfigurationFile",
+      "sourcePropertyApiName": "evidenceId",
+      "targetObjectTypeApiName": "EvidenceSource",
+      "targetPropertyApiName": "evidenceId"
+    }
+  },
+  "ProjectContingencyPlans": {
+    "apiName": "ProjectContingencyPlans",
+    "description": "Palantir-style local Link Type: one DeliveryProject has many ContingencyPlan objects.",
+    "status": "ACTIVE",
+    "objectTypeApiName": "DeliveryProject",
+    "linkedObjectTypeApiName": "ContingencyPlan",
+    "cardinality": "ONE_TO_MANY",
+    "relationshipModel": "FOREIGN_KEY",
+    "displayMetadata": {
+      "displayName": "项目预案关系",
+      "description": "一个交付项目对应一份或多份交付预案（可按版本/迭代）。"
+    },
+    "forwardLink": {
+      "apiName": "contingencyPlans",
+      "displayMetadata": {
+        "displayName": "交付预案",
+        "description": "当前项目的交付预案（可含多版本）。"
+      }
+    },
+    "reverseLink": {
+      "apiName": "project",
+      "displayMetadata": {
+        "displayName": "所属项目",
+        "description": "当前预案所属的交付项目。"
+      }
+    },
+    "foreignKey": {
+      "sourceObjectTypeApiName": "ContingencyPlan",
+      "sourcePropertyApiName": "projectKey",
+      "targetObjectTypeApiName": "DeliveryProject",
+      "targetPropertyApiName": "projectKey"
+    }
+  }
+}
