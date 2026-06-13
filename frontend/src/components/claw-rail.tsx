@@ -7,6 +7,7 @@ import {
   getSuggestsForPath,
 } from '../data/claw-seeds';
 import { getNavLabel } from '../data/left-nav-items';
+import { skillIdFromModulePath } from '@/data/module-skill-map';
 import { refreshEvals } from '@/lib/eval-refresh';
 import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunStore';
 import { useRunLogStore } from '@/lib/runLogStore';
@@ -977,6 +978,8 @@ export default function ClawRail({
   // source='chat' 的 run 由 skill_launch 事件直接在 chatMsgs 里渲染，不重复注入
   useEffect(() => {
     if (!skillRun || skillRun.source !== 'ui') return;
+    const activeSkillId = skillIdFromModulePath(pathname);
+    if (activeSkillId && skillRun.skillId !== activeSkillId) return;
     const rid = skillRun.runId;
     if (!rid || rid === '__starting__') return;
     if (injectedRunIds.current.has(rid)) return;
@@ -985,7 +988,7 @@ export default function ClawRail({
       ...prev,
       { role: 'ai' as const, body: '', ts: nowTs(), skillRun: { skillId: skillRun.skillId } },
     ]);
-  }, [skillRun?.runId, skillRun?.source]);
+  }, [skillRun?.runId, skillRun?.source, skillRun?.skillId, pathname]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

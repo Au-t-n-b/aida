@@ -1273,6 +1273,7 @@ export default function SkillAgentScreen({
   }, [displayDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, handleAction, routeHitlEdit]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
+  useEffect(() => () => clearSkillRun(skillId), [skillId]);  // 卸载清理，避免左栏残留上一模块进度
 
   // ── 会话流（AIDA 助手）提升到左侧会话框（仅 system_design 交付台）────────────
   useEffect(() => {
