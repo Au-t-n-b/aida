@@ -1,29 +1,42 @@
+import { lazy, Suspense, type ComponentType } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { GuestOnly, RequireAuth, RequireProject, RootRedirect } from '@/lib/auth-guard';
 import LoginPage from '@/routes/login';
 import LandingPage from '@/routes/landing';
-import CockpitPage from '@/routes/cockpit';
-import AssetsPage from '@/routes/assets';
-import ConfigPage from '@/routes/config';
-import DesignPage from '@/routes/design';
-import TwinPage from '@/routes/twin';
-import TwinSurveyPage from '@/routes/twin-survey';
-import TwinDigitalDemoPage from '@/routes/twin-digital-demo';
-import MilestonesPage from '@/routes/milestones';
-import AdminPage from '@/routes/admin';
-import CommissioningPage from '@/routes/commissioning';
-import SandboxPage from '@/routes/sandbox';
-import ProposalPage from '@/routes/proposal';
-import PreviewPage from '@/routes/preview';
-import PlanPage from '@/routes/plan';
-import OnboardPage from '@/routes/onboard';
-import JourneyPage from '@/routes/journey';
-import CreatePage from '@/routes/create';
-import ModuleRoutePage from '@/routes/module';
-import EvalsPage from '@/routes/evals';
-import ChatPage from '@/routes/chat';
-import SduiPreviewPage from '@/routes/sdui-preview';
-import RiskReportPage from '@/features/schedule/components/risk-report';
+
+function lazyPage(loader: () => Promise<{ default: ComponentType }>) {
+  const Lazy = lazy(loader);
+  return function LazyPage() {
+    return (
+      <Suspense fallback={<div style={{ padding: 32, color: '#64748b', fontSize: 14 }}>页面加载中…</div>}>
+        <Lazy />
+      </Suspense>
+    );
+  };
+}
+
+const CockpitPage = lazyPage(() => import('@/routes/cockpit'));
+const AssetsPage = lazyPage(() => import('@/routes/assets'));
+const ConfigPage = lazyPage(() => import('@/routes/config'));
+const DesignPage = lazyPage(() => import('@/routes/design'));
+const TwinPage = lazyPage(() => import('@/routes/twin'));
+const TwinSurveyPage = lazyPage(() => import('@/routes/twin-survey'));
+const TwinDigitalDemoPage = lazyPage(() => import('@/routes/twin-digital-demo'));
+const MilestonesPage = lazyPage(() => import('@/routes/milestones'));
+const AdminPage = lazyPage(() => import('@/routes/admin'));
+const CommissioningPage = lazyPage(() => import('@/routes/commissioning'));
+const SandboxPage = lazyPage(() => import('@/routes/sandbox'));
+const ProposalPage = lazyPage(() => import('@/routes/proposal'));
+const PreviewPage = lazyPage(() => import('@/routes/preview'));
+const PlanPage = lazyPage(() => import('@/routes/plan'));
+const OnboardPage = lazyPage(() => import('@/routes/onboard'));
+const JourneyPage = lazyPage(() => import('@/routes/journey'));
+const CreatePage = lazyPage(() => import('@/routes/create'));
+const ModuleRoutePage = lazyPage(() => import('@/routes/module'));
+const EvalsPage = lazyPage(() => import('@/routes/evals'));
+const ChatPage = lazyPage(() => import('@/routes/chat'));
+const SduiPreviewPage = lazyPage(() => import('@/routes/sdui-preview'));
+const RiskReportPage = lazyPage(() => import('@/features/schedule/components/risk-report'));
 
 export const router = createBrowserRouter([
   { path: '/', element: <RootRedirect /> },
