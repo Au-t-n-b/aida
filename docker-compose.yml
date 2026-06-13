@@ -12,7 +12,7 @@ services:
     build:
       context: .
       dockerfile: agent/Dockerfile
-    image: harbor.aie.rnd.huawei.com/library/aida/backend:latest
+    image: harbor.aie.rnd.huawei.com/aida/backend:latest
     container_name: aida-agent
     restart: unless-stopped
     ports:
@@ -35,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    image: harbor.aie.rnd.huawei.com/library/aida/frontend:latest
+    image: harbor.aie.rnd.huawei.com/aida/frontend:latest
     container_name: aida-frontend
     restart: unless-stopped
     ports:

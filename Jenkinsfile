@@ -19,9 +19,9 @@ pipeline {
     environment {
         DOCKER_BUILDKIT   = '1'
         DOCKER_REGISTRY   = 'harbor.aie.rnd.huawei.com'
-        HARBOR_PROJECT    = 'library'
-        AGENT_IMAGE       = 'aida/backend'
-        FRONTEND_IMAGE    = 'aida/frontend'
+        HARBOR_PROJECT    = 'aida'
+        AGENT_IMAGE       = 'backend'
+        FRONTEND_IMAGE    = 'frontend'
         DEPLOY_HOST       = '10.143.2.231'
         DEPLOY_DIR        = '/home/docker_data/aida'
     }
