@@ -49,7 +49,17 @@ def manager_port() -> int:
     return int(os.environ.get("MANAGER_PORT", "8001"))
 
 
+def _is_local_host(url: str) -> bool:
+    from urllib.parse import urlparse
+
+    host = (urlparse(url).hostname or "").lower()
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
 def http_proxy() -> str | None:
+    # 本地 Mock 数据中心必须直连；显式 proxy 会把 127.0.0.1 交给企业网关 → 504
+    if _is_local_host(datacenter_base()):
+        return None
     return (
         os.environ.get("HTTPS_PROXY")
         or os.environ.get("HTTP_PROXY")
