@@ -27,8 +27,7 @@ WORKDIR /app
 
 # 安装 Python 依赖（-r 保留行内注释；排除 Windows 专用 pywin32）
 COPY agent/requirements.txt ./agent/requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip,id=aida-pip-cache \
-    grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
+RUN grep -v 'pywin32' agent/requirements.txt > /tmp/requirements-docker.txt && \
     pip install \
     -i http://mirrors.tools.huawei.com/pypi/simple \
     --trusted-host mirrors.tools.huawei.com \

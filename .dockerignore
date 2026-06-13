@@ -16,6 +16,9 @@ agent/.venv/
 # 前端开发产物（Docker 内部重新构建）
 frontend/node_modules/
 frontend/dist/
+# CI 镜像内按 registry 重建 lock，不使用仓库内 lock / .npmrc
+frontend/package-lock.json
+frontend/.npmrc
 
 # 文档站派生 HTML（运行时不需要）
 docs/site/
