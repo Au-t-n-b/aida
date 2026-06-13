@@ -41,13 +41,13 @@ export function extractSduiProgress(doc: SduiDocument): number {
   return best;
 }
 
-/** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡）。*/
+/** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡 / 多页签工作台）。*/
 function hasExecutionSurface(doc: SduiDocument): boolean {
   let found = false;
   walkSduiNodes(doc.root, (node) => {
     if (found) return;
     const id = (node as { id?: string }).id ?? '';
-    if (id === 'hitl-card' || id === 'hitl-edit-card') { found = true; return; }
+    if (id === 'hitl-card' || id === 'hitl-edit-card' || id === 'completion-card') { found = true; return; }
     if (node.type === 'DonutChart' && node.centerValue) {
       const n = parseInt(node.centerValue, 10);
       if (!isNaN(n) && n > 0) found = true;
@@ -55,6 +55,8 @@ function hasExecutionSurface(doc: SduiDocument): boolean {
     if (node.type === 'Stepper') {
       if (node.steps.some(s => s.status === 'done' || s.status === 'running')) found = true;
     }
+    // TabGroup（如 guihua 三页签工作台）= 有实质执行内容，阻止 full_restart 期间被 idle 覆盖
+    if (node.type === 'TabGroup') { found = true; return; }
   });
   return found;
 }

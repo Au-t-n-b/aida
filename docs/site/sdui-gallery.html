@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 61 个节点类型 · 35 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 65 个节点类型 · 41 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -112,8 +112,12 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#TabGroup">TabGroup</a>
 <a href="#InputSlotList">InputSlotList</a>
 <a href="#TaskTimelineStrip">TaskTimelineStrip</a>
+<a href="#ContextBar">ContextBar</a>
+<a href="#FlowSteps">FlowSteps</a>
 <a href="#MacroStepRail">MacroStepRail</a>
 <a href="#EmbeddedWeb">EmbeddedWeb</a>
+<a href="#OutputDocsGrid">OutputDocsGrid</a>
+<a href="#HitlForm">HitlForm</a>
 <h4>嵌套子类型</h4>
 <a href="#SduiCardHeaderAction">CardHeaderAction</a>
 <a href="#SduiPostUserMessage">PostUserMessage</a>
@@ -148,8 +152,14 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#SduiImageItem">ImageItem</a>
 <a href="#SduiTabPanel">TabPanel</a>
 <a href="#SduiInputSlot">InputSlot</a>
+<a href="#SduiContextBarGroup">ContextBarGroup</a>
+<a href="#SduiFlowStepCard">FlowStepCard</a>
+<a href="#SduiFlowStepChip">FlowStepChip</a>
 <a href="#SduiMacroStep">MacroStep</a>
-<a href="#SduiChoiceOption">ChoiceOption</a></nav>
+<a href="#SduiOutputDocItem">OutputDocItem</a>
+<a href="#SduiOutputDocCategory">OutputDocCategory</a>
+<a href="#SduiChoiceOption">ChoiceOption</a>
+<a href="#SduiHitlFormField">HitlFormField</a></nav>
 <main><h2 class="cat">布局 Layout</h2>
 <section id="Stack"><h3><code>Stack</code> SduiStackNode<span class="tag">布局 Layout</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Stack</code></td><td class='req'>—</td><td><code>Stack</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -455,7 +465,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="MachineRoom3D"><h3><code>MachineRoom3D</code> SduiMachineRoom3DNode<span class="tag">Other</span></h3><p class="desc">3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MachineRoom3D</code></td><td class='req'>—</td><td><code>MachineRoom3D</code></td></tr>
+<section id="MachineRoom3D"><h3><code>MachineRoom3D</code> SduiMachineRoom3DNode<span class="tag">Other</span></h3><p class="desc">3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。      给「以机房为单位的勘测态势」一个立体俯视入口（CSS 3D，前端零依赖）。     DataTable/PlaneMatrix 只能平铺，无法表达机柜级体量与多入口下钻。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MachineRoom3D</code></td><td class='req'>—</td><td><code>MachineRoom3D</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>eyebrow</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -752,10 +762,16 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>side</b></td><td><code>SduiNode[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;DashboardLayout&quot;,
   &quot;main&quot;: [
-    &quot;...&quot;
+    {
+      &quot;type&quot;: &quot;Text&quot;,
+      &quot;content&quot;: &quot;示例&quot;
+    }
   ],
   &quot;side&quot;: [
-    &quot;...&quot;
+    {
+      &quot;type&quot;: &quot;Text&quot;,
+      &quot;content&quot;: &quot;示例&quot;
+    }
   ]
 }</pre></section>
 <section id="Drawer"><h3><code>Drawer</code> SduiDrawerNode<span class="tag">Other</span></h3><p class="desc">侧滑详情面板 · 标题 + 递归子节点（此处内嵌展示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Drawer</code></td><td class='req'>—</td><td><code>Drawer</code></td></tr>
@@ -765,10 +781,13 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;Drawer&quot;,
   &quot;title&quot;: &quot;示例&quot;
 }</pre></section>
-<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导     （如执行中切「进度」页）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
+<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导     （如执行中切「进度」页）。variant=subnav 时居中底划线样式（交付台作业空间导航）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>tabs</b></td><td><code>TabPanel[]</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>activeTab</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>activeTab</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>variant</b></td><td><code>enum: default | subnav</code></td><td class='req'>—</td><td><code>default</code> | <code>subnav</code></td></tr>
+<tr><td><b>keepAlive</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
+<tr><td><b>fill</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;TabGroup&quot;,
   &quot;tabs&quot;: [
     {
@@ -801,6 +820,31 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;plannedStart&quot;: &quot;示例&quot;,
   &quot;plannedEnd&quot;: &quot;示例&quot;
 }</pre></section>
+<section id="ContextBar"><h3><code>ContextBar</code> SduiContextBarNode<span class="tag">Other</span></h3><p class="desc">项目元信息条 · 批次 / 起止 / 负责人 / 规模（对齐交付台 ctx-bar）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ContextBar</code></td><td class='req'>—</td><td><code>ContextBar</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>groups</b></td><td><code>ContextBarGroup[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>showTimelineArrow</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ContextBar&quot;,
+  &quot;groups&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;value&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="FlowSteps"><h3><code>FlowSteps</code> SduiFlowStepsNode<span class="tag">Other</span></h3><p class="desc">横向主线流程图 · 对齐交付台 flow-steps / flow-card（可点击切换焦点步）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: FlowSteps</code></td><td class='req'>—</td><td><code>FlowSteps</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>steps</b></td><td><code>FlowStepCard[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>currentId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;FlowSteps&quot;,
+  &quot;steps&quot;: [
+    {
+      &quot;id&quot;: &quot;示例&quot;,
+      &quot;num&quot;: 1,
+      &quot;title&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
 <section id="MacroStepRail"><h3><code>MacroStepRail</code> SduiMacroStepRailNode<span class="tag">Other</span></h3><p class="desc">宏观交付蓝图条 · 顶层阶段（如六步 s1–s6），区别于 micro 的 Stepper 步骤日志。     optional 阶段灰显并标「可选」，hint 给每步副提示，currentId 高亮当前阶段。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MacroStepRail</code></td><td class='req'>—</td><td><code>MacroStepRail</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>steps</b></td><td><code>MacroStep[]</code></td><td class='req'>✓</td><td></td></tr>
@@ -820,9 +864,44 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>note</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>height</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>openInNewTab</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>offline</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>offline</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>reloadToken</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;EmbeddedWeb&quot;,
   &quot;url&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="OutputDocsGrid"><h3><code>OutputDocsGrid</code> SduiOutputDocsGridNode<span class="tag">Other</span></h3><p class="desc">分类输出文件网格 · 按 category 分组的产物卡（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。     unlocked=False 时整体半透 + 标「待生成」（建模完成前的占位）；unlocked=True 时给下载入口。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: OutputDocsGrid</code></td><td class='req'>—</td><td><code>OutputDocsGrid</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>docs</b></td><td><code>OutputDocItem[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>categories</b></td><td><code>OutputDocCategory[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>unlocked</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;OutputDocsGrid&quot;,
+  &quot;docs&quot;: [
+    {
+      &quot;no&quot;: &quot;示例&quot;,
+      &quot;name&quot;: &quot;示例&quot;,
+      &quot;category&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="HitlForm"><h3><code>HitlForm</code> SduiHitlFormNode<span class="tag">Other</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: HitlForm</code></td><td class='req'>—</td><td><code>HitlForm</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>fields</b></td><td><code>HitlFormField[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>payloadKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>repeatable</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>submitLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>helpText</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>hitlRequestId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;HitlForm&quot;,
+  &quot;title&quot;: &quot;示例&quot;,
+  &quot;fields&quot;: [
+    {
+      &quot;key&quot;: &quot;示例&quot;,
+      &quot;label&quot;: &quot;示例&quot;
+    }
+  ]
 }</pre></section>
 <h2 class="cat">嵌套子类型（被上面节点引用）</h2>
 <section id="SduiCardHeaderAction"><h3><code>CardHeaderAction</code></h3><p class="desc">卡片头部动作按钮（label + variant + action）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
@@ -938,14 +1017,38 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>ready</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>fileName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>previewPath</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiContextBarGroup"><h3><code>ContextBarGroup</code></h3><p class="desc">ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>badge</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiFlowStepCard"><h3><code>FlowStepCard</code></h3><p class="desc">FlowSteps 横向流程图的一张卡片。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>num</b></td><td><code>int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>enum: done | current | future</code></td><td class='req'>—</td><td><code>done</code> | <code>current</code> | <code>future</code></td></tr>
+<tr><td><b>chips</b></td><td><code>FlowStepChip[]</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>stepKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiFlowStepChip"><h3><code>FlowStepChip</code></h3><p class="desc">FlowSteps 卡片下的材料/子步骤芯片。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>text</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>enum: ok | pending | idle | running</code></td><td class='req'>—</td><td><code>ok</code> | <code>pending</code> | <code>idle</code> | <code>running</code></td></tr></table></section>
 <section id="SduiMacroStep"><h3><code>MacroStep</code></h3><p class="desc">MacroStepRail 的一个宏观阶段：id + 标题 + 可选 hint + optional 标记 + 状态。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>hint</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>optional</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>status</b></td><td><code>enum: done | running | pending</code></td><td class='req'>—</td><td><code>done</code> | <code>running</code> | <code>pending</code></td></tr></table></section>
+<section id="SduiOutputDocItem"><h3><code>OutputDocItem</code></h3><p class="desc">OutputDocsGrid 的一份输出文件：编号 + 名称 + 分类 + 标签 + 一句话说明。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>no</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>name</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>fullName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>category</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>tag</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>desc</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiOutputDocCategory"><h3><code>OutputDocCategory</code></h3><p class="desc">OutputDocsGrid 的一个分类：key 匹配 doc.category，label 为分组标题。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
 <section id="SduiChoiceOption"><h3><code>ChoiceOption</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>description</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section></main></div>
+<tr><td><b>description</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiHitlFormField"><h3><code>HitlFormField</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>required</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>defaultValue</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section></main></div>
 <footer>真相源：<code>agent/sdui/builder.py</code> ↔ <code>frontend/src/lib/sdui.ts</code> ↔ <code>SduiNodeView.tsx</code>（三方由 <code>lint_sdui_contract</code> 焊住）· 本目录由 <code>gen_sdui_gallery.py</code> 派生 · 新鲜度由 <code>lint_sdui_gallery.py</code> 守门 · 细则见 <code>docs/30_skill开发/31_手写规范/SDUI.md</code></footer>
 </body></html>

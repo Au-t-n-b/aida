@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SkillAgentScreen · 通用作业界面（SDUI 驱动）— 双模式
  * ─────────────────────────────────────────────────────────
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
@@ -205,7 +205,7 @@ export interface SkillAgentScreenProps {
 
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
-  files: Array<{ name: string; ext: 'xlsx' | 'docx'; optional?: boolean }>;
+  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
   icon: React.ReactNode;
 }> = {
   zhgk: {
@@ -228,6 +228,25 @@ const SKILL_META: Record<string, {
       { name: 'BOQ.xlsx',                   ext: 'xlsx' },
       { name: '入场评估标准表.xlsx',         ext: 'xlsx' },
       { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
+    ],
+  },
+  guihua: {
+    icon: (
+      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
+        <rect x="7" y="4" width="20" height="26" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M11 9h12M11 14h12M11 19h12M11 24h7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="20" cy="24" r="1.4" fill="currentColor" />
+      </svg>
+    ),
+    steps: [
+      { key: 'adapt_build',  name: '设备适配',   sub: '型号·板卡匹配' },
+      { key: 'data_confirm', name: '数据确认',   sub: '核对适配表' },
+      { key: 'combo_create', name: '创建超节点', sub: '平铺 9 个 POD' },
+      { key: 'cabinet_move', name: '机柜落位',   sub: '162 柜落位' },
+      { key: 'handoff',      name: '移交安装',   sub: '交设备安装' },
+    ],
+    files: [
+      { name: '建模仿真设备信息表.md', ext: 'md' },
     ],
   },
 };
@@ -382,6 +401,17 @@ function stripHitlCard(root: SduiNode): SduiNode {
   const children = (root as { children?: SduiNode[] }).children;
   if (!Array.isArray(children)) return root;
   const next = children.filter(c => (c as { id?: string }).id !== 'hitl-card');
+  if (next.length === children.length) return root;
+  return { ...root, children: next } as SduiNode;
+}
+
+/** guihua：从 root Stack 剥离应路由到左侧 ClawRail 的卡（hitl-card / completion-card），
+ *  右侧只保留仿真工作台，避免左右双份。均为 root Stack 的直接子节点（见 guihua/sdui.py），浅层移除即可。*/
+const SIDE_ROUTED_CARD_IDS = new Set(['hitl-card', 'completion-card']);
+function stripSideRoutedCards(root: SduiNode): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  const next = children.filter(c => !SIDE_ROUTED_CARD_IDS.has((c as { id?: string }).id ?? ''));
   if (next.length === children.length) return root;
   return { ...root, children: next } as SduiNode;
 }
@@ -552,6 +582,11 @@ function extractProgressFromSdui(doc: SduiDocument): {
     if (node.type === 'DataTable' && node.editable && (node.submitMode ?? 'resume') === 'resume') {
       r.phase = 'hitl'; r.hitlType = 'edit';
     }
+    // 侧边路由式 HITL（guihua 等用 Button 交互而非 ChoiceCard 的卡片）：
+    // hitl-card → 待操作；completion-card → 已完成。
+    const nodeId = (node as { id?: string }).id;
+    if (nodeId === 'hitl-card' && r.phase !== 'hitl') { r.phase = 'hitl'; r.hitlType = 'choice'; }
+    if (nodeId === 'completion-card') { r.phase = 'done'; r.progress = 100; }
   });
 
   if (r.phase !== 'hitl' && r.phase !== 'error') {
@@ -608,6 +643,8 @@ export default function SkillAgentScreen({
   // ── 左右同步：聊天侧 ZhgkProgressCard 启动 run 后自动接入（本地模式）────────
   // store 里有匹配的 skillId + runId 且本地尚未启动 → 直接接入，跳过 IdleScreen
   const storeRun = useSkillRunStore();
+  // savedRunStale：持久化 run 过期时置 true，触发 re-render 让 auto-start effect 重新检测
+  const [savedRunStale, setSavedRunStale] = useState(false);
   useEffect(() => {
     if (useClawMode) return;
     if (runId) return;
@@ -624,6 +661,7 @@ export default function SkillAgentScreen({
         setSkillRun(skillId, saved, 'ui');
       } else {
         clearPersistedSkillRun(skillId);
+        setSavedRunStale(true);   // 让 auto-start effect 重新评估
       }
     });
   }, [storeRun, skillId, useClawMode, runId]);
@@ -663,11 +701,29 @@ export default function SkillAgentScreen({
   useEffect(() => {
     if (!frozenDoc && !frozenSnapshotRef.current) return;
     if (!sduiDoc) return;
+    // doResume 刚设置冻结时，sduiDoc 与 frozenSnapshotRef 是同一引用，尚无新数据 → 不解冻。
+    if (sduiDoc === frozenSnapshotRef.current) return;
     const { progress = 0 } = extractProgressFromSdui(sduiDoc);
-    // 实时进度追上冻结水位且已脱离 idle 引导态 → 解冻
-    if (progress >= frozenProgressRef.current && progress > 0 && !isIdleLikeSduiDoc(sduiDoc)) {
+    const frozenTarget = frozenProgressRef.current;
+    // 有进度指标的 skill（zhgk 等）：进度追上冻结水位且已脱离 idle → 解冻。
+    if (frozenTarget > 0 && progress >= frozenTarget && !isIdleLikeSduiDoc(sduiDoc)) {
       frozenSnapshotRef.current = null;
       setFrozenDoc(null);
+      return;
+    }
+    // 无进度指标的 skill（guihua，frozenTarget===0）：
+    // 仅当新状态携带 hitl-card 或 completion-card 时才解冻；
+    // 运行态（只有 TabGroup，无交互卡）继续保持冻结，避免左侧 HITL 内容消失。
+    if (frozenTarget === 0) {
+      let hasInteraction = false;
+      walkSduiNodes(sduiDoc.root, (node) => {
+        const id = (node as { id?: string }).id ?? '';
+        if (id === 'hitl-card' || id === 'completion-card') hasInteraction = true;
+      });
+      if (hasInteraction) {
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+      }
     }
   }, [sduiDoc, frozenDoc]);
   // system_design 上传后快照（postUploadDoc）优先级低于冻结/轮询，sduiDoc 到达后由下方 effect 清除
@@ -691,7 +747,10 @@ export default function SkillAgentScreen({
   // Sync SDUI doc → skillRunStore（与 displayDoc 同步，冻结期间左侧进度不闪回 0%）
   useEffect(() => {
     if (!displayDoc || !activeRunId) return;
-    updateSkillRun(extractProgressFromSdui(displayDoc));
+    const extracted = extractProgressFromSdui(displayDoc);
+    // 有实质内容但无进度指标（如 guihua 三页签工作台）：至少标记 running，防止停留在 starting
+    if (!extracted.phase && !isIdleLikeSduiDoc(displayDoc)) extracted.phase = 'running';
+    updateSkillRun(extracted);
   }, [displayDoc, activeRunId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
@@ -723,6 +782,21 @@ export default function SkillAgentScreen({
     }
   }, [skillId, useClawMode, session]);
 
+  // 建模仿真（guihua）：进入模块即自动开跑（adapt_build 仅载入适配表，秒级完成 →
+  // 「BOQ 数据已解析完毕」），无需用户先点「启动」。仅本地模式、仅一次。
+  // 注意：storeRun 重连 effect 和本 effect 在同一渲染周期都能看到 runId===null，
+  // 需同步检查 storeRun / readSkillRunId，避免与重连竞争产生第二条 run。
+  const autoStartedRef = useRef(false);
+  useEffect(() => {
+    if (skillId !== 'guihua' || useClawMode) return;
+    if (autoStartedRef.current || runId || starting) return;
+    // 已有持久化 run 或 store 里有匹配 run → 等重连 effect 处理，不另开新 run
+    if (!savedRunStale && readSkillRunId(skillId)) return;
+    if (storeRun?.skillId === skillId && storeRun?.runId) return;
+    autoStartedRef.current = true;
+    void handleStart();
+  }, [skillId, useClawMode, runId, starting, handleStart, storeRun, savedRunStale]);
+
   // ── autostart：从上一模块「进入系统设计」跳转而来时（?autostart=1）自动开跑 ──
   const autostartedRef = useRef(false);
   useEffect(() => {
@@ -750,10 +824,16 @@ export default function SkillAgentScreen({
       // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
       const curDoc = sduiDocRef.current;
       if (curDoc) {
-        frozenProgressRef.current = extractProgressFromSdui(curDoc).progress ?? 0;
+        const frozenProgress = extractProgressFromSdui(curDoc).progress ?? 0;
+        frozenProgressRef.current = frozenProgress;
         frozenSnapshotRef.current = curDoc;
         setFrozenDoc(curDoc);
-        updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+        if (frozenProgress > 0) {
+          // 有进度指标（zhgk 等）：立即切到 running，隐藏 HITL 卡
+          updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+        }
+        // frozenProgress===0（guihua 等无进度指标）：不改 phase，保持 'hitl' 让 HITL 卡继续
+        // 显示已提交态，直到下一个 hitl-card / completion-card 到来才由解冻 effect 触发更新。
       }
       await resumeRun(skillId, activeRunId, payload, fromStep);
       // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
@@ -1016,7 +1096,11 @@ export default function SkillAgentScreen({
         }
         return;
       }
-      if (text.startsWith('/start_') || text.startsWith('/retry_')) {
+      if (text.startsWith('__activate_tab__:')) {
+        // 客户端页签切换约定（不走后端 resume）：如「查看详细数据」切到设备数据页。
+        const tabId = text.slice('__activate_tab__:'.length);
+        window.dispatchEvent(new CustomEvent('sdui:activate-tab', { detail: { tabId } }));
+      } else if (text.startsWith('/start_') || text.startsWith('/retry_')) {
         await handleStart();
       } else if (text.startsWith('/resume_')) {
         await doResume({});
@@ -1175,6 +1259,7 @@ export default function SkillAgentScreen({
   useEffect(() => {
     if (!displayDoc || !activeRunId) { clearSkillHitl(skillId); return; }
     const card = findNodeById(displayDoc.root, 'hitl-card')
+      ?? findNodeById(displayDoc.root, 'completion-card')
       ?? (routeHitlEdit === 'chat' ? findNodeById(displayDoc.root, 'hitl-edit-card') : null);
     if (card) {
       setSkillHitl({
@@ -1258,13 +1343,16 @@ export default function SkillAgentScreen({
     ? (usesDeliveryWorkbench
         // 交付台：右栏面板剥离左栏会话与 HITL 卡（它们已提升到左侧 ClawRail）
         ? dropConversationFromPanel(dropHitlFromPanel(displayDoc.root))
-        // 其它 skill：HITL 路由到左栏 + 两态视图裁剪
-        : applyViewMode(
-            leftRailHitl
-              ? stripHitlCard(displayDoc.root)
-              : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
-            viewMode,
-          ))
+        // guihua：HITL 路由左侧会话框，右侧剥离 hitl-card + completion-card 两张导引卡
+        : skillId === 'guihua'
+          ? applyViewMode(stripSideRoutedCards(displayDoc.root), viewMode)
+          // 其它 skill：HITL 路由到左栏 + 两态视图裁剪
+          : applyViewMode(
+              leftRailHitl
+                ? stripHitlCard(displayDoc.root)
+                : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
+              viewMode,
+            ))
     : null;
 
   return (

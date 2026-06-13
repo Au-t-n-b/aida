@@ -323,6 +323,10 @@ export type SduiTabGroupNode = OptId & {
   focusToken?: number;
   /** default=卡片页签；subnav=交付台居中底划线导航 */
   variant?: 'default' | 'subnav';
+  /** keepAlive=true 时所有页签内容同时挂载（隐藏态 display:none），切换不卸载（保留 iframe 状态）。*/
+  keepAlive?: boolean;
+  /** fill=true 时页签容器撑满父高度（配合 EmbeddedWeb 大 iframe）。*/
+  fill?: boolean;
 };
 
 export type SduiContextBarGroup = { label: string; value: string; badge?: string };
@@ -364,8 +368,14 @@ export type SduiMacroStep = { id: string; title: string; hint?: string; optional
 export type SduiMacroStepRailNode = OptId & { type: 'MacroStepRail'; steps: SduiMacroStep[]; currentId?: string };
 
 /** EmbeddedWeb — 内嵌网页（iframe 承载外部 Web UI，如 nVisual 仿真软件访问页）。
- *  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认 520）；openInNewTab 给「新页打开」兜底链接。*/
-export type SduiEmbeddedWebNode = OptId & { type: 'EmbeddedWeb'; url: string; title?: string; note?: string; height?: number; openInNewTab?: boolean; offline?: boolean };
+ *  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认 520）；openInNewTab 给「新页打开」兜底链接。
+ *  reloadToken：后端递增时前端自动 postMessage pageRefresh 刷新 iframe（创建超节点成功后用）。*/
+export type SduiEmbeddedWebNode = OptId & { type: 'EmbeddedWeb'; url: string; title?: string; note?: string; height?: number; openInNewTab?: boolean; offline?: boolean; reloadToken?: number };
+
+/** OutputDocsGrid — 分类输出文件网格（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。unlocked=false 时整体半透占位。*/
+export type SduiOutputDocItem = { no: string; name: string; fullName?: string; category: string; tag?: string; desc?: string };
+export type SduiOutputDocCategory = { key: string; label: string };
+export type SduiOutputDocsGridNode = OptId & { type: 'OutputDocsGrid'; docs: SduiOutputDocItem[]; categories?: SduiOutputDocCategory[]; unlocked?: boolean; title?: string };
 
 // ── HITL nodes ────────────────────────────────────────────────────────────────
 
@@ -484,7 +494,7 @@ export type SduiNode =
   | SduiDashboardLayoutNode | SduiDrawerNode
   // tier D (v5 业务扩展)
   | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
-  | SduiContextBarNode | SduiFlowStepsNode | SduiEmbeddedWebNode
+  | SduiContextBarNode | SduiFlowStepsNode | SduiEmbeddedWebNode | SduiOutputDocsGridNode
   | SduiFilePickerNode | SduiChoiceCardNode | SduiIoConfirmPanelNode | SduiHitlTextInputNode | SduiHitlFormNode;
 
 // ── Tree walk / lookup（TabGroup 等嵌套容器需下钻 tabs，不能只走 children）────────
