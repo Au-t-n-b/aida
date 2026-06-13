@@ -18,6 +18,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# LangGraph runtime · checkpoint sqlite + cached logs
-runtime/
+# LangGraph runtime · checkpoint sqlite + cached logs（仅忽略 agent 根下的运行时目录）
+/runtime/
 agent.log
+
+# vendored a3「智能网络开局」runtime（argv_builder / dispatch_runner / registry_loader 等，
+# 是 system_design skill 运行必需的代码，必须随仓库走，不能被上面的 runtime/ 规则误伤）
+!skills/system_design/a3_engine/runtime/
+!skills/system_design/a3_engine/runtime/**

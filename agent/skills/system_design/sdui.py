@@ -47,7 +47,7 @@ from typing import Any
 from agent.sdui.builder import (
     SduiDocument, SduiNode, SduiStackNode, SduiCardNode, SduiRowNode,
     SduiTextNode, SduiDividerNode,
-    SduiButtonNode, SduiPostUserMessage,
+    SduiButtonNode, SduiPostUserMessage, SduiResetSession, SduiCardHeaderAction,
     SduiBadgeNode,
     SduiAlertNode,
     SduiFilePickerNode, SduiChoiceCardNode, SduiIoConfirmPanelNode,
@@ -1783,14 +1783,18 @@ def _build_tab_group(state: dict[str, Any]) -> SduiTabGroupNode | None:
         if empty:
             outputs_children.append(empty)
 
-    active = "progress"
-    if status_key == "done" and out_count and outputs_view > progress_view:
-        active = "outputs"
+    # 页签焦点判定所需的视图请求计数（必须在 active 判定前定义，避免发布完成态
+    # status_key=='done' 分支引用未赋值的 outputs_view/progress_view 导致 UnboundLocalError，
+    # 进而 /ui 投影 500、前端拉不到「发布完成」状态）。
     project = state.get("project") or {}
     hitl = state.get("hitl") or {}
     focus_token: int | None = None
     outputs_view = int(project.get("request_outputs_view") or 0)
     progress_view = int(project.get("request_progress_view") or 0)
+
+    active = "progress"
+    if status_key == "done" and out_count and outputs_view > progress_view:
+        active = "outputs"
     if outputs_view > 0:
         focus_token = outputs_view
     if hitl.get("step") == "publish_confirm" and hitl.get("ui") in ("test_check", "finalize"):
@@ -1850,9 +1854,16 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         pass
 
-    nodes: list[SduiNode] = [
-        build_header(state, default_name="系统设计 · 交付作业", cta_map=SD_CTA, step_order=SD_STEP_ORDER),
-    ]
+    header = build_header(
+        state, default_name="系统设计 · 交付作业", cta_map=SD_CTA, step_order=SD_STEP_ORDER,
+    )
+    # 一键「重置会话」：挂在右栏顶部标题卡头部（运行全程可见 · 对齐 device_install 范式）。
+    # 走 reset_session → 前端 handleResetSession → POST /agent/system_design/reset-workspace
+    # 清空产物+运行态（保留 Input），并清掉前端持久化 run_id 回到启动页。
+    header.headerAction = SduiCardHeaderAction(
+        label="重置会话", variant="secondary", action=SduiResetSession(),
+    )
+    nodes: list[SduiNode] = [header]
 
     # 对话流（左侧 ClawRail 同步渲染 sd-conversation / hitl-card）
     conv = _build_conversation(state)

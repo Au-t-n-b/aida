@@ -1,20 +1,20 @@
 {
   "schema_version": "system_design.project_paths.v3",
-  "description": "系统设计 · 全部为绝对路径。仿真三表扫 xmfz，测试用例扫 ht，上传落 input，产物落 output。",
-  "data_root": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path",
+  "description": "系统设计 · 路径相对工程根（aida 仓库根）解析，与进程 CWD 无关。仿真三表扫 jmfz，测试用例扫 ht，上传落 input，产物落 output。",
+  "data_root": "data/system_design",
   "read": {
     "scan_by_tag": {
-      "resource": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/input",
-      "Interconnection_Relationship": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/xmfz",
-      "Device_Info": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/xmfz",
-      "Location_Information": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/xmfz",
-      "Test_Case": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/ht"
+      "resource": "data/system_design/input",
+      "Interconnection_Relationship": "data/system_design/jmfz",
+      "Device_Info": "data/system_design/jmfz",
+      "Location_Information": "data/system_design/jmfz",
+      "Test_Case": "data/system_design/ht"
     }
   },
   "upload": {
-    "save_dir": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/input"
+    "save_dir": "data/system_design/input"
   },
   "output": {
-    "artifacts_dir": "D:/h00503675/算力军团/项目/下路智能体/系统设计agent/file_path/output"
+    "artifacts_dir": "data/system_design/output"
   }
 }

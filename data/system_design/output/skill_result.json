@@ -1,0 +1,72 @@
+{
+  "skill": "system_design",
+  "run_id": "run-98847e7cad",
+  "execution": {
+    "steps": [
+      {
+        "step": "plane_planning",
+        "name": null,
+        "status": "completed"
+      },
+      {
+        "step": "lld_integrate",
+        "name": null,
+        "status": "completed"
+      },
+      {
+        "step": "intent_recognition",
+        "name": null,
+        "status": "completed"
+      },
+      {
+        "step": "exec_confirm",
+        "name": null,
+        "status": "completed"
+      },
+      {
+        "step": "input_check",
+        "name": "输入件检查",
+        "status": "completed"
+      },
+      {
+        "step": "ztp_generate",
+        "name": "生成 ZTP 设计文件",
+        "status": "completed"
+      },
+      {
+        "step": "publish_confirm",
+        "name": "确认发布",
+        "status": "hitl"
+      },
+      {
+        "step": "publish_confirm",
+        "name": "确认发布",
+        "status": "hitl"
+      },
+      {
+        "step": "publish_confirm",
+        "name": "确认发布",
+        "status": "hitl"
+      },
+      {
+        "step": "publish_confirm",
+        "name": "确认发布",
+        "status": "completed"
+      },
+      {
+        "step": "publish",
+        "name": "发布完成",
+        "status": "completed"
+      }
+    ]
+  },
+  "completion_rate": 0.7273,
+  "metrics": {
+    "plane_done": 0,
+    "plane_total": 0,
+    "plane_coverage": 0.0,
+    "lld_planes_merged": 4,
+    "artifact_count": 5,
+    "warning_count": 2
+  }
+}

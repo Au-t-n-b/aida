@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SkillAgentScreen · 通用作业界面（SDUI 驱动）— 双模式
  * ─────────────────────────────────────────────────────────
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
@@ -870,9 +870,13 @@ export default function SkillAgentScreen({
       }
     }
   }, [sduiDoc, frozenDoc, usesDeliveryWorkbench]);
-  // 交付台：SSE + 冻结；上传后 postUploadDoc 保底至 SSE 追上（含输入件 previewPath）
+  // 交付台（system_design）：对齐已跑通的参照版，仅「冻结快照 ?? 实时 SSE」两层。
+  // 不再叠加 frozenSnapshotRef.current / postUploadDoc 覆盖层 —— 这两层在 LLD 生成 /
+  // 上传 / 完成后不会及时清空，会把已更新的实时 sduiDoc 永久挡住，导致「输出件不刷新、
+  // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
+  // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
   const displayDoc = usesDeliveryWorkbench
-    ? (frozenSnapshotRef.current ?? frozenDoc ?? postUploadDoc ?? sduiDoc ?? bootDoc)
+    ? (frozenDoc ?? sduiDoc ?? bootDoc)
     : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc ?? bootDoc);
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);

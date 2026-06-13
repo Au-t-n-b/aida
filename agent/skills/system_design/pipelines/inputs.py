@@ -81,7 +81,7 @@ def _scan_tag_in_dir(tag: str, directory: Path) -> InputFoundEntry | None:
 def collect_inputs(work_root: Any = None) -> dict[str, InputFoundEntry]:
     """按 tag 扫描各自目录，返回 {tag: InputFoundEntry}（只含已找到的）。
 
-    仿真三表(007/001/004)/测试用例正常由建模仿真落 xmfz/ht；但用户在「输入件准备」
+    仿真三表(007/001/004)/测试用例正常由建模仿真落 jmfz/ht；但用户在「输入件准备」
     HITL 槽位手动补传时统一落 upload 目录(input)。故每个 tag 在其主扫描目录未命中时，
     再回扫 upload 目录——保证手动补传的任意输入件都能被识别、刷新交付流程状态。"""
     _ = work_root
