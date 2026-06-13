@@ -97,24 +97,24 @@ pipeline {
                             scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
 
                             # Remote: login Harbor -> pull images -> restart containers
-                            ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} "
-                                set -euo pipefail
-                                cd ${DEPLOY_DIR}
-
-                                echo '${HARBOR_PASS}' | docker login ${DOCKER_REGISTRY} -u '${HARBOR_USER}' --password-stdin
-
-                                docker compose pull
-                                docker compose up -d --remove-orphans
-                                docker compose ps
-                                docker compose ps --status running | grep -q aida-agent
-                                docker compose ps --status running | grep -q aida-frontend
-
-                                docker image prune -f
-                                docker logout ${DOCKER_REGISTRY}
-
-                                echo '=== Container Status ==='
-                                docker compose ps
-                            "
+                            # HARBOR_USER 含 robot$jenkins-ci-bot，须由 shell 展开，勿经 Groovy 内嵌
+                            ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \
+                                env HARBOR_PASS="\${HARBOR_PASS}" HARBOR_USER="\${HARBOR_USER}" \
+                                REGISTRY="${DOCKER_REGISTRY}" DEPLOY_DIR="${DEPLOY_DIR}" \
+                                bash -s <<'EOS'
+set -euo pipefail
+cd "$DEPLOY_DIR"
+printf '%s' "$HARBOR_PASS" | docker login "$REGISTRY" -u "$HARBOR_USER" --password-stdin
+docker compose pull
+docker compose up -d --remove-orphans
+docker compose ps
+docker compose ps --status running | grep -q aida-agent
+docker compose ps --status running | grep -q aida-frontend
+docker image prune -f
+docker logout "$REGISTRY"
+echo '=== Container Status ==='
+docker compose ps
+EOS
                         """
                     }
                 }
@@ -133,7 +133,7 @@ pipeline {
             ║  Deploy:   ${env.DEPLOY_HOST}:${env.DEPLOY_DIR}
             ║
             ║  Frontend: http://${env.DEPLOY_HOST}:5401
-            ║  API:      http://${env.DEPLOY_HOST}:7401
+            ║  API:      http://${env.DEPLOY_HOST}:5401/agent  (及 /api/v1)
             ║
             ║  Branch:   ${env.GIT_BRANCH}
             ║  Commit:   ${env.GIT_COMMIT?.take(7) ?: 'N/A'}

@@ -12,8 +12,7 @@ services:
     image: harbor.aie.rnd.huawei.com/aida/backend:latest
     container_name: aida-agent
     restart: unless-stopped
-    ports:
-      - "7401:7401"
+    # 7401 仅容器内网；对外经 frontend:5401 反代 /agent、/api/v1
     env_file:
       - .env
     volumes:
