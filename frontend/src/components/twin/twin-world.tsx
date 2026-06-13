@@ -3,24 +3,11 @@
 import React from 'react';
 import { PhysicalTwin3D } from './room3d';
 import { DigitalTwinOntology } from './digital-ontology';
+import { useContingencyOntology } from '@/lib/use-contingency-ontology';
 /* AIDA · 算力底座孪生模块 — 构建动效 v2 */
 import { useState as useStateTW, useEffect as useEffectTW, useRef as useRefTW } from 'react';
 
 const TW_ANIM_MS = 5600;
-
-/* 数字世界详情页（digital-twin.html）的来源：
-   · 多文件版：(window as any).__DIGITAL_TWIN_B64 不存在 → 返回 null → iframe 走相对路径 src="digital-twin.html"
-   · 单文件版：构建时注入了 base64 内联文档 → 解码为字符串 → iframe 用 srcDoc 内联渲染（无需外部文件） */
-const TW_DIGITAL_SRCDOC = (function () {
-  try {
-    var b64 = (window as any).__DIGITAL_TWIN_B64;
-    if (!b64) return null;
-    var bin = atob(b64);
-    var bytes = new Uint8Array(bin.length);
-    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-    return new TextDecoder('utf-8').decode(bytes);
-  } catch (e) { return null; }
-})();
 
 (function injectTwinStyles() {
   if (document.getElementById('tw-styles')) return;
@@ -228,7 +215,6 @@ const TW_DIGITAL_SRCDOC = (function () {
     .tw-twinlink-line{width:16px;height:1px;background:linear-gradient(90deg,transparent,var(--c-border-strong))}
     .tw-twinlink-line.r{background:linear-gradient(90deg,var(--c-border-strong),transparent)}
     .tw-twinlink-node{width:32px;height:32px;border-radius:50%;background:var(--c-surface);border:1px solid var(--c-border-strong);box-shadow:var(--shadow-md);display:grid;place-items:center;color:var(--c-brand)}
-    .tw-digi-frame{width:100%;height:100%;border:0;display:block;background:transparent}
 
     /* ── 3-way view switcher (页眉内) ── */
     .tw-seg{position:relative;display:flex;flex-shrink:0;padding:3px;border-radius:999px;background:var(--c-surface-2,#eef1f6);border:1px solid var(--c-border);font-family:var(--font-sans)}
@@ -243,6 +229,12 @@ const TW_DIGITAL_SRCDOC = (function () {
     /* ── 左导航子页签出现 ── */
     @keyframes fdySubIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
     .fdy-sub-twin{animation:fdySubIn .3s cubic-bezier(.16,1,.3,1) both}
+
+    /* ── 数字孪生详情（真实生成） ── */
+    .tw-digi-detail{height:100%;width:100%;display:flex;flex-direction:column;min-height:0}
+    .tw-digi-detail-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+    .tw-gen-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--c-border);border-top-color:var(--c-brand);animation:twGenSpin .8s linear infinite}
+    @keyframes twGenSpin{to{transform:rotate(360deg)}}
   `;
   document.head.appendChild(s);
 })();
@@ -411,8 +403,8 @@ function DigitalViz({ playing  }: any) {
         <g className="tw-d-center" filter="url(#twNodeShadow)">
           <rect x="88" y="66" width="64" height="32" rx="8" fill="var(--c-surface)" stroke="var(--c-brand)" strokeWidth="1.2" />
           <rect x="88" y="66" width="64" height="32" rx="8" fill="var(--c-brand-soft)" opacity=".55" />
-          <text x="120" y="80" textAnchor="middle" fill="var(--c-brand-text)" fontSize="10.5" fontWeight="650" fontFamily="var(--font-sans)">交付预案</text>
-          <text x="120" y="91" textAnchor="middle" fill="var(--c-text-muted)" fontSize="7.5" fontFamily="var(--font-mono)" letterSpacing=".4">PARSING</text>
+          <text x="120" y="80" textAnchor="middle" fill="var(--c-brand-text)" fontSize="10.5" fontWeight="650" fontFamily="var(--font-sans)">预案本体</text>
+          <text x="120" y="91" textAnchor="middle" fill="var(--c-text-muted)" fontSize="7.5" fontFamily="var(--font-mono)" letterSpacing=".4">GENERATING</text>
           <rect x="92" y="70" width="56" height="1.5" rx="1" fill="var(--c-brand)" opacity=".15" className="tw-d-scan" />
         </g>
         {DIGI_NODES.map(n => {
@@ -654,8 +646,8 @@ function TwinShellBar({ onRefresh, onClear, isRefreshing, visible, phase, setPha
             <div className="tw-ovbar-verdict">
               <span className="tw-ov-dot" />
               <div className="tw-ov-vtext">
-                <b>交付存在风险 · 待处置</b>
-                <span>物理侧 <b>{physCount}</b> 处现场异常 · 数字侧 <b>{digiCount}</b> 项配置待修复</span>
+                <b>{digiCount == null ? '预案本体生成中…' : (digiCount > 0 ? '预案存在风险 · 待处置' : '预案本体已生成 · 无风险')}</b>
+                <span>物理侧 <b>{physCount}</b> 处现场异常 · 数字侧 <b>{digiCount == null ? '—' : digiCount}</b> 项预案风险</span>
               </div>
             </div>
             <div className="tw-ov-spring" />
@@ -681,6 +673,59 @@ function TwinShellBar({ onRefresh, onClear, isRefreshing, visible, phase, setPha
   );
 }
 
+// 已被 DigitalLiveOntology 的生成动画（pending 门控）替代，留作快速回退兜底；确认稳定后可清理。
+function OntologyLoadingPanel() {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, background: 'var(--c-surface)', color: 'var(--c-text-muted)' }}>
+      <div className="tw-gen-spinner" />
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-text)' }}>预案本体生成中…</div>
+      <div style={{ fontSize: 12 }}>正在调用本体引擎派生预案风险（:8011 · deriveContingencyRisks）</div>
+    </div>
+  );
+}
+
+function OntologyErrorPanel({ error, onReload  }: any) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, textAlign: 'center', background: 'var(--c-surface)' }}>
+      <div style={{ fontSize: 28 }}>⚠️</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-text)' }}>预案本体生成失败</div>
+      <div style={{ fontSize: 12, color: 'var(--c-text-muted)', maxWidth: 440, lineHeight: 1.6 }}>
+        无法连接本体服务。请先在仓库根运行 <code style={{ fontFamily: 'var(--font-mono)' }}>start_ontology.bat</code> 启动本体服务（:8011），再点重试。
+      </div>
+      {error ? <div style={{ fontSize: 11, color: 'var(--c-text-faint)', maxWidth: 440, wordBreak: 'break-all' }}>{String(error)}</div> : null}
+      <button type="button" className="tw-act" onClick={onReload}>重试</button>
+    </div>
+  );
+}
+
+/* 真实生成分支：挂载定终身——挂载时已有 view 走 instant 成品；尚无 view 则整个生命周期
+ * instant=false + pending，由 DigitalTwinOntology 内部播放生成动画、data 到达后门控揭晓真实判定。
+ * instant/pending 不随 view 到达翻转，避免 [instant,compact] 脚本 effect 中途重跑打架。
+ * reload（智能组装/固定章节后重新派生）期间 view 恒非空且本组件不卸载 → stale-while-revalidate，
+ * 保持已渲染报告挂载，不丢 DigitalTwinOntology 本地 outline/裁剪态。 */
+function DigitalLiveOntology({ view, onReload }: any) {
+  const startedWithView = useRefTW<any>(view != null).current;
+  return (
+    <DigitalTwinOntology key="digi-live" compact={false}
+      instant={startedWithView} pending={!startedWithView} data={view} onReload={onReload} />
+  );
+}
+
+/* 数字孪生详情：本体引擎实时派生（预制演示见 /twin/digital-demo） */
+function DigitalDetail({ view, error, onReload }: any) {
+  return (
+    <div className="tw-digi-detail">
+      <div className="tw-digi-detail-body">
+        {error
+          ? <OntologyErrorPanel error={error} onReload={onReload} />
+          : (DigitalTwinOntology
+              ? <DigitalLiveOntology view={view} onReload={onReload} />
+              : <DigitalViz playing={false} />)}
+      </div>
+    </div>
+  );
+}
+
 function TwinWorld({ phase, onPhase  }: any) {
   const setPhase = onPhase;
   const [playing, setPlaying] = useStateTW<any>(false);
@@ -691,6 +736,7 @@ function TwinWorld({ phase, onPhase  }: any) {
   const buildTimer = useRefTW<any>(null);
   const exitTimer = useRefTW<any>(null);
 
+  const { view, loading, error, reload } = useContingencyOntology();
   const layout = phase === 'physical' ? 'physical' : phase === 'digital' ? 'digital' : 'overview';
   const interactive = phase === 'built';
   const showViz = phase !== 'init';
@@ -729,11 +775,13 @@ function TwinWorld({ phase, onPhase  }: any) {
 
   const enterDetail = (side: any) => setPhase(side);
   const handleClear = () => { setPlaying(false); setPhase('init'); };
-  // “更新”: 采集最新数据 → 重新跑一遍左右两侧的构建过程
-  const handleRefresh = () => { setIsRefreshing(true); setPhase('building'); };
+  // “更新”: 采集最新数据 → 重新跑一遍左右两侧的构建过程；数字侧同步重新派生（reload），
+  // building 期间 compact 脚本的完成判定读鲜值，新派生结果落地后即生效
+  const handleRefresh = () => { setIsRefreshing(true); setPhase('building'); reload(); };
 
   const physBadge = interactive ? '5 现场异常' : playing ? '扫描中' : '5 现场异常';
-  const digiBadge = interactive ? '7 项待修复' : playing ? '分析中' : '7 项待修复';
+  const digiCountLive = view ? view.summary.riskCount : null;
+  const digiBadge = playing ? '生成中' : (digiCountLive != null ? digiCountLive + ' 项风险' : (loading ? '生成中' : '—'));
 
   return (
     <div ref={rootRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
@@ -749,7 +797,7 @@ function TwinWorld({ phase, onPhase  }: any) {
             onClear={handleClear}
             isRefreshing={isRefreshing}
             physCount={5}
-            digiCount={7}
+            digiCount={digiCountLive}
           />
           <div className="tw-shell-body">
             <div
@@ -789,15 +837,13 @@ function TwinWorld({ phase, onPhase  }: any) {
               )}
               <div className="tw-half-viz" style={phase === 'digital' ? { padding: 0 } : undefined}>
                 {phase === 'digital'
-                  ? (TW_DIGITAL_SRCDOC
-                      ? <iframe key="digi-frame" className="tw-digi-frame" srcDoc={TW_DIGITAL_SRCDOC} title="数字孪生 · 本体决策系统" />
-                      : <iframe key="digi-frame" className="tw-digi-frame" src="/twin/digital-twin.html?instant=1&v=okl7" title="数字孪生 · 本体决策系统" />)
+                  ? <DigitalDetail view={view} loading={loading} error={error} onReload={reload} />
                   : (DigitalTwinOntology
-                    ? <DigitalTwinOntology key="digi-compact" compact={true} instant={phase !== 'building'} />
+                    ? <DigitalTwinOntology key={'digi-compact-' + (view ? 'live' : 'wait')} compact={true} instant={phase !== 'building'} data={view} />
                     : <DigitalViz playing={playing} />)}
               </div>
               {phase !== 'digital' && (
-                <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入配置分析视图 <i>→</i></span> : '正在解析交付预案…'}</div>
+                <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入预案本体视图 <i>→</i></span> : '正在生成预案本体…'}</div>
               )}
             </div>
           </div>

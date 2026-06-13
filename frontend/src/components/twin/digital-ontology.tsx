@@ -2,6 +2,16 @@
 /* 从 DS-1 / twin-world-export 整体移植，与项目里既有 screens/*.tsx 同等做法 — 保留 @ts-nocheck */
 import React from 'react';
 import { OntologyReport } from './ontology-report';
+import { adoptDerivedRisk, generateRemediationTask, ensureContingencyAnchor,
+  generateContingencyNarratives, editChapterNarrative, acceptChapterMerge,
+  restoreChapterNarrativeVersion,
+  listContingencyChapters, setContingencyChapters, resetContingencyChapters } from '@/lib/ontology-api';
+import {
+  getMissingNarrativeChapterIds,
+  makeNarrativeAutogenKey,
+  markNarrativeAutogenAttempt,
+  shouldRunNarrativeAutogen,
+} from '@/lib/narrative-autogen';
 /* AIDA · 数字孪生 — 本体决策引擎 v4
    移植自 ontology-decision-brain(2).html · 适配 React UMD + compact/instant + 抽屉自适应
 */
@@ -24,6 +34,7 @@ const ONT_CORE_TEXT = {
   device: { html: '<b>正在匹配设备配置</b><br>分析设备型号、端口能力与硬件资源' },
   service: { html: '<b>正在生成服务配置</b><br>编排服务目录、开通能力与参数策略' },
   acceptance: { html: '<b>正在构建验收策略</b><br>生成测试项、验收规则与交付标准' },
+  hold: { html: '<b>正在等待本体引擎判定</b><br>四域配置已具化，正在汇总派生风险与可交付结论' },
 };
 
 const IcNet = () => (<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2"><rect x="16" y="16" width="6" height="6" rx="1" /><rect x="2" y="16" width="6" height="6" rx="1" /><rect x="9" y="2" width="6" height="6" rx="1" /><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3" /><path d="M12 12V8" /></svg>);
@@ -51,6 +62,13 @@ function nodeLogText( k: any, warn: any) {
   if (k === 'service') return '生成服务配置与 QoS 策略';
   if (k === 'acceptance') return warn ? '验收联调脚本缺失待补全' : '构建验收规则集';
   return '';
+}
+
+/** pending（真实生成）模式的完成日志：取真实节点 title + resultTag（如「设备配置 · 2 项风险」），不用 demo 味文案 */
+function liveLogText(node: { title?: string; resultTag?: string } | null | undefined, warn: boolean) {
+  if (!node || !node.title) return warn ? '⚠ 该域存在派生风险' : '该域配置校验通过';
+  const tag = node.resultTag ? ' · ' + node.resultTag : '';
+  return (warn ? '⚠ ' : '') + node.title + tag;
 }
 
 /* ── Canvas 粒子引擎（brain + node clouds + flows） ── */
@@ -450,23 +468,29 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
   return stateRef;
 }
 
-function OntResolvedPanel({ risk, compact, onOpenReport  }: any) {
+function OntResolvedPanel({ risk, riskCount = 0, core = null, compact, onOpenReport  }: any) {
   const stop = (e: any, id: any) => { e.stopPropagation(); onOpenReport(id); };
-  const riskN = risk ? '2' : '0';
-  const taskN = '2';
+  const riskN = String(riskCount);
+  const taskN = String(riskCount);
+  // 核心决策点（DP-CORE「方案可交付性」）驱动中心标题/结论/可交付指数；缺 core 时回退原写死文案。
+  const title = (core && core.decisionName) ? core.decisionName : (risk ? '预案存在风险' : '预案无阻断风险');
+  const conclusion = (core && core.conclusion) ? core.conclusion : (risk ? '存在风险' : '可交付');
+  const hasIdx = !!core && typeof core.deliverabilityIndex === 'number';
   return (
     <div className="ont-resolved-panel">
       <div className={'ont-res-badge ' + (risk ? 'risk' : 'success')}>
         {risk ? <IcWarnTri s={15} /> : <IcCheckSm />}
-        {risk ? 'DELIVERY BLOCKED' : 'DELIVERABLE'}
+        {risk ? 'RISK DETECTED' : 'NO RISK'}
       </div>
-      <div className={'ont-res-title ' + (risk ? 'risk' : 'success')}>{risk ? '交付具较高风险' : '项目可交付'}</div>
-      <p className="ont-res-sub">{risk ? '系统已拦截自动下发指令 · 检测到端口资源枯竭与验收脚本缺失' : '交付方案策略已生成 · 四个子决策点全部通过校验'}</p>
+      <div className={'ont-res-title ' + (risk ? 'risk' : 'success')}>{title}</div>
+      <p className="ont-res-sub">{core
+        ? ('决策结论：' + conclusion + (hasIdx ? ' · 可交付指数 ' + core.deliverabilityIndex + '/100' : '') + (risk ? ' · ' + riskCount + ' 项预案风险' : ''))
+        : (risk ? ('本体已生成 · 识别到 ' + riskCount + ' 项预案风险，详见报告') : '本体已生成 · 未识别到阻断性风险')}</p>
       {!compact && (
         <React.Fragment>
-          <div className="ont-r-cta" onClick={(e: any) => stop(e, 'doc-overall')}><IcDoc />点击查阅最终方案<IcArrowR /></div>
+          <div className="ont-r-cta" onClick={(e: any) => stop(e, 'doc-overall')}><IcDoc />点击查阅预案报告<IcArrowR /></div>
           <div className="ont-r-stats">
-            <div className="ont-r-stat" onClick={(e: any) => stop(e, 'doc-risks')}>
+            <div className="ont-r-stat" onClick={(e: any) => stop(e, 'doc-overall')}>
               <div className={'ont-rs-ic ' + (risk ? 'warn' : 'ok')}>{risk ? <IcWarnTri s={16} /> : <IcCheckSm />}</div>
               <div className="ont-rs-txt"><div className="ont-rs-n">{riskN}</div><div className="ont-rs-l">已识别风险<IcChevR /></div></div>
             </div>
@@ -509,7 +533,52 @@ function OntNodeCard({ node, st, clickable, onClick  }: any) {
   );
 }
 
-function DigitalTwinOntology({ compact = false, instant = false  }: any) {
+/* ── 章节拖拽组装器（本体要素托盘 ↔ 章节大纲）的展示常量 ── */
+const DP_LABEL: any = { device: '设备决策', network: '组网决策', service: '服务决策', acceptance: '验收决策', global: '全局输入' };
+const DP_GROUPS: any[] = [
+  { key: 'device', label: '设备配置可交付性' },
+  { key: 'network', label: '组网配置可交付性' },
+  { key: 'service', label: '服务配置可交付性' },
+  { key: 'acceptance', label: '验收可交付性' },
+  { key: 'global', label: '全局输入' },
+];
+const AUTO_NARRATIVE_CHAPTER_IDS = new Set(['doc-ch-1']);
+// 元数据章与风险&假设汇总章已从后端章节目录删除；此屏蔽仅兜底旧后端 / 历史 overlay 里残留的 include id
+//（与 contingency-view 的 HIDDEN_REPORT_CHAPTER_IDS 同契约），正常路径下不命中。
+const COMPOSER_HIDDEN_IDS: string[] = ['doc-ch-meta', 'doc-risks'];
+const _tray: any = { margin: '0 0 8px', border: '1px dashed #cfe0f6', borderRadius: 10, background: 'rgba(47,125,246,0.05)', padding: 8 };
+const _trayHd: any = { display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, color: '#2f7df6', userSelect: 'none' };
+const _trayGroupTtl: any = { fontSize: 10.5, fontWeight: 700, color: '#94a3b8', margin: '8px 0 3px', letterSpacing: '.04em' };
+const _chip: any = { display: 'flex', flexDirection: 'column', gap: 1, padding: '5px 8px', margin: '4px 0', background: '#fff', border: '1px solid #d9e4f3', borderRadius: 8, cursor: 'grab', fontSize: 12 };
+const _chipMeta: any = { fontSize: 10, color: '#94a3b8' };
+const _traySearch: any = { width: '100%', boxSizing: 'border-box', margin: '2px 0 4px', padding: '5px 8px', border: '1px solid #d9e4f3', borderRadius: 8, fontSize: 11.5, color: '#23344d', background: '#fff', outline: 'none' };
+const _emptyBadge: any = { fontSize: 9.5, color: '#b45309', background: 'rgba(180,83,9,0.08)', border: '1px solid rgba(180,83,9,0.25)', borderRadius: 6, padding: '0 4px', marginLeft: 5, fontWeight: 600 };
+// 大纲插入位置指示线（拖拽悬停目标项顶部 2.5px accent；inset shadow 不挤布局）
+const _insertLine = 'inset 0 2.5px 0 0 #2f7df6';
+const _grip: any = { cursor: 'grab', color: '#b6c2d6', fontSize: 13, marginRight: 2, flex: '0 0 auto' };
+const _xbtn: any = { border: 'none', background: 'transparent', color: '#c2410c', cursor: 'pointer', fontSize: 13, fontWeight: 700, lineHeight: 1, padding: '0 2px', flex: '0 0 auto' };
+const _lock: any = { color: '#b6c2d6', fontSize: 11, padding: '0 3px', flex: '0 0 auto' };
+const _actionBar: any = { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', margin: '8px 0 2px' };
+const _applyBtn: any = { flex: 1, padding: '7px 10px', borderRadius: 8, border: '1px solid #16a34a', background: '#16a34a', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
+const _applyBtnOff: any = { flex: 1, padding: '7px 10px', borderRadius: 8, border: '1px solid #d4ddec', background: '#f1f5fb', color: '#94a3b8', fontSize: 12, fontWeight: 600, cursor: 'default' };
+const _miniBtn: any = { padding: '7px 10px', borderRadius: 8, border: '1px solid #d4ddec', background: '#fff', color: '#3a4a63', fontSize: 12, fontWeight: 600, cursor: 'pointer' };
+// 章节融合：多选工具条 / 合并按钮 / 复选框 / 组徽章 / 展开箭头 / 成员子行 / 改名输入 / 拖叠目标高亮
+const _selBar: any = { display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '6px 0 2px', padding: '6px 10px', borderRadius: 8, border: '1px solid #c9bdf6', background: 'rgba(122,90,240,0.1)', fontSize: 12, color: '#5b3fb8', fontWeight: 600 };
+const _mergeBtn: any = { padding: '5px 12px', borderRadius: 7, border: '1px solid #7a5af0', background: '#7a5af0', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' };
+const _selChk: any = { width: 14, height: 14, flex: '0 0 auto', cursor: 'pointer', accentColor: '#7a5af0', margin: 0 };
+const _grpBadge: any = { fontSize: 9.5, fontWeight: 700, color: '#7a5af0', background: 'rgba(122,90,240,0.12)', border: '1px solid rgba(122,90,240,0.3)', borderRadius: 6, padding: '0 5px', marginLeft: 5, whiteSpace: 'nowrap' };
+// 组标题尚未被 AI 融合命名（titleBy 仍为 auto/空）时的占位提示 —— 别把拼接占位名误读成最终名。
+const _pendingChip: any = { fontSize: 9, fontWeight: 600, color: '#b45309', background: 'rgba(180,83,9,0.08)', border: '1px solid rgba(180,83,9,0.25)', borderRadius: 6, padding: '0 5px', marginLeft: 4, whiteSpace: 'nowrap' };
+const _grpCaret: any = { cursor: 'pointer', color: '#7a5af0', fontSize: 10, flex: '0 0 auto', width: 12, textAlign: 'center', userSelect: 'none' };
+const _memberRow: any = { display: 'flex', alignItems: 'center', gap: 6, padding: '3px 8px 3px 32px', fontSize: 11.5, color: '#5a6b85', background: 'rgba(122,90,240,0.05)', borderLeft: '2px solid rgba(122,90,240,0.4)' };
+const _memberType: any = { fontSize: 10, color: '#94a3b8', flex: '0 0 auto' };
+const _splitBtn: any = { border: 'none', background: 'transparent', color: '#7a5af0', cursor: 'pointer', fontSize: 11, fontWeight: 600, padding: '0 4px', flex: '0 0 auto' };
+const _renameInput: any = { flex: 1, minWidth: 0, fontSize: 12.5, padding: '2px 6px', border: '1px solid #7a5af0', borderRadius: 6, outline: 'none', color: '#23344d' };
+const _mergeRowShadow = 'inset 0 0 0 2px #7a5af0'; // 拖叠合并：目标行整行高亮
+
+/** pending：真实生成进行中（data 尚未到达）——播放生成动画，但判定性步骤（各域 completed 的
+ *  warn 判定、finale verdict）门控在 data 到达之后；仅 view=digital 真实生成分支传入。 */
+function DigitalTwinOntology({ compact = false, instant = false, pending = false, data = null, onReload = null }: any) {
   const containerRef = useRefO<any>(null);
   const canvasRef = useRefO<any>(null);
   const wrapRefs = useRefO<any>({});
@@ -517,7 +586,26 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
   const drawerWRef = useRefO<any>(0);
   const layoutRef = useRefO<any>({ resolved: instant, reportOpen: !compact && instant });
   const flowTimers = useRefO<any>([]);
-  const isRisk = ONT_DECISION === 'risk';
+  const effPending = pending && !instant && !compact;
+  // data 存在时由后端真实预案视图驱动；否则回退内置写死常量（兼容旧 demo / 加载前）。
+  const effNodes = (data && data.nodes && data.nodes.length) ? data.nodes : ONT_NODES;
+  const effDecision = data ? data.decision : ONT_DECISION;
+  const effRisks = data ? data.risks : null;
+  const effSummary = data ? data.summary : null;
+  const effChapters = data ? data.chapters : null;
+  const effCore = data ? (data.coreDecision ?? null) : null;
+  const isRisk = effDecision === 'risk';
+  const riskCountTxt = effSummary ? effSummary.riskCount : (isRisk ? 2 : 0);
+  const verdictPill = isRisk ? ('预案本体已生成 · ' + riskCountTxt + ' 项风险') : '预案本体已生成 · 无风险';
+  const verdictLog = isRisk ? ('已生成预案本体 · ' + riskCountTxt + ' 项风险') : '已生成预案本体 · 未识别风险';
+
+  // 渲染期同步鲜值：生成脚本的 timer / 门控回调一律读此 ref，不靠 effect 闭包捕获——
+  // pending 模式下 data 是后到的，闭包里的 demo 假判定绝不能落到真实生成结果上。
+  const liveRef = useRefO<any>(null);
+  liveRef.current = { data, effNodes, effDecision, verdictPill, verdictLog, isRisk };
+  /** 判定门控（仅 effPending 激活）：queue=数据未到时错过判定的 [key,i]；finaleDue=脚本已到终局时点；
+   *  finaleFired=终局已触发（去重）；resume=data 到达后由 gate effect 调用，级联补完 queue。 */
+  const gateRef = useRefO<any>({ queue: [], finaleDue: false, finaleFired: false, resume: null });
 
   const initNodeState = () => {
     const s: Record<string, any> = {};
@@ -526,7 +614,7 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
   };
   const initNodeResult = () => {
     const r: Record<string, any> = {};
-    ONT_NODES.forEach((n: any) => { r[n.key] = n.result === 'warning' ? 'warning' : 'success'; });
+    effNodes.forEach((n: any) => { r[n.key] = n.result === 'warning' ? 'warning' : 'success'; });
     return r;
   };
 
@@ -536,7 +624,7 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
     formProgress: { network: 0, device: 0, service: 0, acceptance: 0 },
     brainSolid: instant ? 0.5 : 0,
     targetSolid: instant ? 0.5 : null,
-    resultMode: instant ? ONT_DECISION : 'normal',
+    resultMode: instant ? effDecision : 'normal',
   });
 
   const [nodeState, setNodeState] = useStateO<any>(initNodeState);
@@ -550,14 +638,38 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
   };
 
   const [centerPhase, setCenterPhase] = useStateO<any>(instant ? 'resolved' : 'reasoning');
-  const [resultMode, setResultMode] = useStateO<any>(instant ? ONT_DECISION : 'normal');
+  const [resultMode, setResultMode] = useStateO<any>(instant ? effDecision : 'normal');
   const [coreKey, setCoreKey] = useStateO<any>(instant ? 'resolved' : 'init');
   const [progress, setProgress] = useStateO<any>(instant ? 100 : 0);
-  const [pillText, setPillText] = useStateO<any>(instant ? (isRisk ? '决策完成 · 交付存在风险' : '决策完成 · 项目可交付') : '决策引擎运行中');
-  const [reportOpen, setReportOpen] = useStateO<any>(() => !compact && instant);
+  const [pillText, setPillText] = useStateO<any>(instant ? verdictPill : '预案本体生成中');
+  const [reportOpen, setReportOpen] = useStateO<any>(() => false);
   const [activeSection, setActiveSection] = useStateO<any>('doc-overall');
   const [dispatched, setDispatched] = useStateO<any>({});
-  const [logs, setLogs] = useStateO<any>(instant ? [{ t: nowStr(), text: isRisk ? '已形成项目可交付性结论（存在风险）' : '已形成项目可交付性结论', warn: isRisk }] : []);
+  // 章节正文（ChapterNarrative）本地 override + 忙碌态：写操作返回的最新 narrative 直接合并渲染。
+  const [narrOverrides, setNarrOverrides] = useStateO<any>({});
+  const [narrBusy, setNarrBusy] = useStateO<any>({});
+  // 章节拖拽组装（ContingencyOutline）：本体要素全集 + 当前有序纳入集（拖拽大纲）+ 忙碌/托盘态。
+  // outlineIds=null 表示未加载（离线/预制）→ 回退渲染静态目录；非 null 即启用拖拽组装。
+  const [elements, setElements] = useStateO<any>([]);
+  const [candidates, setCandidates] = useStateO<any>([]);     // 本体类型库：未入章的业务 ObjectType（doc-ot-* 候选）
+  const [outlineIds, setOutlineIds] = useStateO<any>(null);   // 本地草稿（编辑中、未应用）
+  const [committedIds, setCommittedIds] = useStateO<any>(null); // 已应用集（与报告一致）
+  // 章节融合（groups）：本地草稿 groups + 已应用 committedGroups；多选合并 selectedIds；展开看成员 expandedGroups。
+  const [groups, setGroups] = useStateO<any>({});
+  const [committedGroups, setCommittedGroups] = useStateO<any>({});
+  const [selectedIds, setSelectedIds] = useStateO<any>([]);
+  const [expandedGroups, setExpandedGroups] = useStateO<any>([]);
+  const [renamingGid, setRenamingGid] = useStateO<any>(null);  // 正在改名的组 id
+  const [renameDraft, setRenameDraft] = useStateO<any>('');
+  const [composerBusy, setComposerBusy] = useStateO<any>(false);
+  const [trayOpen, setTrayOpen] = useStateO<any>(false);
+  const [traySearch, setTraySearch] = useStateO<any>('');
+  const [dragOverIdx, setDragOverIdx] = useStateO<any>(null); // 大纲插入位置指示线（拖拽悬停的目标 idx）
+  const [mergeTargetId, setMergeTargetId] = useStateO<any>(null); // 拖叠合并：高亮的目标行 id
+  const dragRef = useRefO<any>(null);
+  const dropRef = useRefO<any>(null); // 当前 drop 决策 { mode:'insert'|'merge', idx, targetId }（避免 drop 闭包读到陈旧 state）
+  const autoNarrKeysRef = useRefO<any>({});
+  const [logs, setLogs] = useStateO<any>(instant ? [{ t: nowStr(), text: verdictLog, warn: isRisk }] : []);
   const [toast, setToast] = useStateO<any>(null);
   const scrollRef = useRefO<any>(null);
   const fill0Ref = useRefO<any>(null), fill1Ref = useRefO<any>(null), fill2Ref = useRefO<any>(null);
@@ -573,15 +685,11 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
     };
   }, [centerPhase, reportOpen, compact]);
 
+  // 真实生成先只展示决策大脑全景；预案章节默认隐藏，决策生成后点「查阅预案报告」再揭开章节目录（参考预制演示流程）。
   useEffectO(() => {
-    if (!compact && instant) {
-      setReportOpen(true);
-      drawerRef.current = true;
-      setActiveSection('doc-overall');
-    } else if (compact) {
-      setReportOpen(false);
-      drawerRef.current = false;
-    }
+    setReportOpen(false);
+    drawerRef.current = false;
+    setActiveSection('doc-overall');
   }, [compact, instant]);
 
   const addLog = (text: any, warn: any) => setLogs((prev: any) => [...prev.slice(-5), { t: nowStr(), text, warn }]);
@@ -589,19 +697,21 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
   useEffectO(() => {
     const clearAll = () => { flowTimers.current.forEach(clearTimeout); flowTimers.current = []; };
     const T = (fn: any, ms: any) => flowTimers.current.push(setTimeout(fn, ms));
+    // 每次脚本启动重置门控（StrictMode 双跑 / 重挂时干净起步）
+    gateRef.current = { queue: [], finaleDue: false, finaleFired: false, resume: null };
 
     if (instant) {
       const done = initNodeState();
       syncAllNodes(done);
       simRef.current.nodeResult = initNodeResult();
-      simRef.current.resultMode = ONT_DECISION;
+      simRef.current.resultMode = effDecision;
       simRef.current.targetSolid = 0.5;
       simRef.current.brainSolid = 0.5;
-      setResultMode(ONT_DECISION);
+      setResultMode(effDecision);
       setCenterPhase('resolved');
       setCoreKey('resolved');
       setProgress(100);
-      setPillText(isRisk ? '决策完成 · 交付存在风险' : '决策完成 · 项目可交付');
+      setPillText(verdictPill);
       return clearAll;
     }
 
@@ -620,10 +730,68 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
     setPillText('决策引擎运行中');
     setLogs([]);
 
-    const startDelay = compact ? 400 : 2200;
-    const stepDur = compact ? 850 : 2200;
+    // ── 判定门控 helpers ──
+    // pending（真实生成）模式：判定性步骤读 liveRef 鲜值；数据未到则节点停在 forming 入 queue，
+    // 由 resume 级联补完。demo / 概览 compact 路径沿用 effect 启动时种入的 demo 判定，时序逐毫秒不变。
+    const hasData = () => !!liveRef.current.data;
+    const findNode = (k: any) => (liveRef.current.effNodes || []).find((n: any) => n.key === k);
+    const realNodeResult = (k: any) => {
+      if (!hasData()) return null;
+      const n = findNode(k);
+      return n ? (n.result === 'warning' ? 'warning' : 'success') : 'success'; // 真实数据缺该域 → 视为无风险，防卡死
+    };
+    const allCompleted = () => ONT_KEYS.every((k: any) => simRef.current.nodeState[k] === 'completed');
 
-    T(() => { setCoreKey('init'); addLog('已加载项目本体模型'); }, compact ? 200 : 1500);
+    const runFinale = () => {
+      const g = gateRef.current;
+      if (g.finaleFired) return; // 双源触发去重（脚本时点 vs 级联尾）
+      g.finaleFired = true;
+      const live = liveRef.current;
+      simRef.current.resultMode = live.effDecision;
+      simRef.current.targetSolid = 0.5;
+      setResultMode(live.effDecision);
+      if (engine.current) engine.current.pulseBrain();
+      setPillText(live.verdictPill);
+      setProgress(100);
+      addLog(live.verdictLog, live.isRisk);
+      setCenterPhase('fading');
+      setCoreKey('resolved');
+      T(() => setCenterPhase('revealing'), compact ? 380 : 520);
+      T(() => setCenterPhase('resolved'), compact ? 1200 : 1680);
+    };
+
+    const completeNode = (k: any, i: any) => {
+      // pending 此处必有真实数据；demo 路径 realNodeResult 为 null 时沿用种入的 demo 判定
+      const res = effPending ? realNodeResult(k) : (realNodeResult(k) ?? simRef.current.nodeResult[k]);
+      if (res) simRef.current.nodeResult[k] = res;
+      syncNode(k, 'completed');
+      const warn = simRef.current.nodeResult[k] === 'warning';
+      addLog(effPending ? liveLogText(findNode(k), warn) : nodeLogText(k, warn), warn);
+      setProgress((p: any) => Math.max(p, 22 + i * 21)); // 单调：与 hold 蠕升 / 级联交错不回跳
+      if (gateRef.current.finaleDue && allCompleted()) T(runFinale, 420);
+    };
+
+    const enterHold = () => { // 脚本走完但数据未到：停在"等待判定"，进度有限蠕升
+      setCoreKey('hold');
+      setPillText('生成中 · 等待本体引擎判定');
+      addLog('四域配置生成完毕 · 等待本体引擎汇总判定');
+      for (let j = 1; j <= 11; j++) {
+        T(() => { if (!gateRef.current.finaleFired) setProgress((p: any) => Math.max(p, 85 + j)); }, 900 * j);
+      }
+    };
+
+    // data 到达时由 gate effect 调用：把错过判定的域 260ms 级联补完（finale 由最后完成者经 completeNode 触发）
+    gateRef.current.resume = () => {
+      const g = gateRef.current;
+      if (g.finaleFired) return; // 已揭晓（SWR reload 的新 view 由渲染层 eff* 直接反映）
+      const q = g.queue.splice(0);
+      q.forEach((args: any, j: any) => T(() => completeNode(args[0], args[1]), 260 * (j + 1)));
+    };
+
+    const startDelay = compact ? 400 : effPending ? 600 : 2200;
+    const stepDur = compact ? 850 : effPending ? 1000 : 2200;
+
+    T(() => { setCoreKey('init'); addLog('已加载项目本体模型'); }, compact ? 200 : effPending ? 250 : 1500);
 
     ONT_KEYS.forEach((k: any, i: any) => {
       const base = startDelay + i * stepDur;
@@ -631,35 +799,31 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
         syncNode(k, 'connecting');
         setCoreKey(k);
         if (engine.current) engine.current.spawnFlow(k);
-        setProgress(12 + i * 21);
-        if (!compact) setPillText('推理中 · ' + ONT_NODES.find((n: any) => n.key === k).title);
+        setProgress((p: any) => Math.max(p, 12 + i * 21));
+        if (!compact) setPillText('生成中 · ' + ((findNode(k) || {}).title || ''));
       }, base);
-      T(() => { syncNode(k, 'forming'); }, base + (compact ? 320 : 1000));
+      T(() => { syncNode(k, 'forming'); }, base + (compact ? 320 : effPending ? 450 : 1000));
       T(() => {
-        syncNode(k, 'completed');
-        const warn = simRef.current.nodeResult[k] === 'warning';
-        addLog(nodeLogText(k, warn), warn);
-        setProgress(22 + i * 21);
-      }, base + stepDur - (compact ? 120 : 320));
+        if (!effPending || hasData()) completeNode(k, i);
+        else gateRef.current.queue.push([k, i]); // 判定门控：数据未到，停在 forming 等 resume
+      }, base + stepDur - (compact ? 120 : effPending ? 220 : 320));
     });
 
     const finale = startDelay + 4 * stepDur + (compact ? 80 : 200);
     T(() => {
-      simRef.current.resultMode = ONT_DECISION;
-      simRef.current.targetSolid = 0.5;
-      setResultMode(ONT_DECISION);
-      if (engine.current) engine.current.pulseBrain();
-      setPillText(isRisk ? '决策完成 · 交付存在风险' : '决策完成 · 项目可交付');
-      setProgress(100);
-      addLog(isRisk ? '已形成项目可交付性结论（存在风险）' : '已形成项目可交付性结论', isRisk);
-      setCenterPhase('fading');
-      setCoreKey('resolved');
-      T(() => setCenterPhase('revealing'), compact ? 380 : 520);
-      T(() => setCenterPhase('resolved'), compact ? 1200 : 1680);
+      gateRef.current.finaleDue = true;
+      if (allCompleted()) runFinale();
+      else if (!hasData()) enterHold();
+      // else：数据刚到、级联还在飞——finale 由最后一个 completeNode 触发
     }, finale);
 
     return clearAll;
-  }, [instant, compact]);
+  }, [instant, compact, pending]);
+
+  // 真实生成（pending）模式：data 到达 → 叫醒脚本，把门控住的判定级联落地
+  useEffectO(() => {
+    if (effPending && data && gateRef.current.resume) gateRef.current.resume();
+  }, [data]);
 
   const openReport = (sectionId: any) => {
     if (compact || centerPhase !== 'resolved') return;
@@ -682,14 +846,14 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
 
   const exportReport = (type: any) => {
     if (!scrollRef.current) return;
-    const verdictTxt = isRisk ? '交付存在风险（Blocked）' : '项目可交付（Deliverable）';
+    const verdictTxt = isRisk ? ('存在 ' + riskCountTxt + ' 项预案风险') : '未识别到阻断性风险';
     const css = '<style>body{font-family:"Segoe UI","Microsoft YaHei",Arial,sans-serif;color:#1f2a40;line-height:1.7;margin:0;padding:36px 48px;font-size:13px;}'
       + 'h1{font-size:22px;margin:0 0 4px;color:#0f2a52;}.sub{color:#64748b;font-size:12px;margin-bottom:6px;}'
       + '.ont-doc-sec,.ont-dispatch,.ont-verdict{border:1px solid #e6edf6;border-radius:10px;padding:16px 20px;margin-bottom:16px;page-break-inside:avoid;}'
-      + '.ont-btn-dispatch,.ont-card-energy{display:none!important;}.ont-diagram svg{width:100%;height:auto;}</style>';
+      + '.ont-btn-dispatch,.ont-card-energy,.ont-sec-tools{display:none!important;}.ont-diagram svg{width:100%;height:auto;}</style>';
     const body = scrollRef.current.innerHTML.replace(/<button[^>]*>[\s\S]*?<\/button>/gi, '');
-    const html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>本体决策系统 · 总体交付方案与分析报告</title>' + css + '</head><body>'
-      + '<h1>本体决策系统 · 总体交付方案与分析报告</h1><div class="sub">Ontology Decision System · 总体结论：' + verdictTxt + '</div>' + body + '</body></html>';
+    const html = '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><title>预案本体生成报告</title>' + css + '</head><body>'
+      + '<h1>预案本体生成报告</h1><div class="sub">Contingency Ontology · 总体结论：' + verdictTxt + '</div>' + body + '</body></html>';
     if (type === 'word') {
       const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
       const a = document.createElement('a');
@@ -707,8 +871,353 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
     }
   };
 
-  const dispatch = (i: any) => { setDispatched((d: any) => ({ ...d, [i]: 'sending' })); setTimeout(() => setDispatched((d: any) => ({ ...d, [i]: 'done' })), 1400); };
   const showToast = (text: any) => { setToast(text); setTimeout(() => setToast(null), 2600); };
+  // 「下发处理 / 一键派发」→ 调后端真实 Action：risk 卡 → AdoptDerivedRisk，task 卡 → GenerateRemediationTask。
+  // 写回 run-record overlay，可在 RiskItem/RemediationTask 查到。预制演示卡（无 risk 对象）保留本地动画。
+  const dispatch = (key: any, risk?: any, kind?: any) => {
+    setDispatched((d: any) => ({ ...d, [key]: 'sending' }));
+    if (!risk) { // 预制演示：无真实风险对象可下发
+      setTimeout(() => setDispatched((d: any) => ({ ...d, [key]: 'done' })), 1400);
+      return;
+    }
+    // 先确保锚点预案实例 + 可交付评估真实存在（幂等），再把风险采纳/派发进去 ——
+    // 这样写回的 RiskItem.planId / assessmentId 指向真实对象，而非悬空字符串。
+    const anchorCtx = effCore
+      ? { decisionId: effCore.decisionId, decisionName: effCore.decisionName, conclusion: effCore.conclusion, deliverabilityIndex: effCore.deliverabilityIndex }
+      : {};
+    const run = ensureContingencyAnchor(anchorCtx).then(() =>
+      kind === 'task' ? generateRemediationTask(risk) : adoptDerivedRisk(risk),
+    );
+    run
+      .then(() => {
+        setDispatched((d: any) => ({ ...d, [key]: 'done' }));
+        showToast(
+          kind === 'task' ? '处置任务工单已下发 · GenerateRemediationTask' : '风险已采纳下发 · AdoptDerivedRisk',
+        );
+      })
+      .catch((e: any) => {
+        setDispatched((d: any) => { const next = { ...d }; delete next[key]; return next; }); // 复位以便重试
+        showToast('操作失败：' + (e && e.message ? e.message : '本体服务未响应'));
+      });
+  };
+
+  // ── 章节正文：生成 / 编辑 / 智能融合 / 版本里程碑 ──
+  // 写操作返回的最新 narrative 直接合并到对应章节（本地 override），免整页重新派生（更快、不丢其它态）。
+  const applyNarrativeView = (v: any) => {
+    if (!v || !v.chapterId) return;
+    setNarrOverrides((m: any) => ({ ...m, [v.chapterId]: v }));
+    // 融合组：把生成/采纳得到的融合标题回灌组装器本地草稿，让左侧目录树也显示 AI 融合名
+    // （报告侧已经 narrOverrides.title 通行）。人工改名（titleBy='human'）永不被覆盖。
+    if (v.chapterTitle && String(v.chapterId).startsWith('doc-grp-')) {
+      const sync = (g: any) => (g && g[v.chapterId] && g[v.chapterId].titleBy !== 'human')
+        ? { ...g, [v.chapterId]: { ...g[v.chapterId], title: v.chapterTitle, titleBy: 'ai' } }
+        : g;
+      setGroups(sync);
+      setCommittedGroups(sync);
+    }
+  };
+  const narrFields = (v: any) => ({
+    narrative: v.displayText || undefined,
+    // 融合组章：生成的融合标题随响应回来（chapterTitle），即时更新报告章名，无需整页重载。
+    // 普通章 chapterTitle 与自身同名、无副作用；仅 doc-ch-1 + 组章会有 narrative override。
+    title: v.chapterTitle || undefined,
+    narrativeStatus: v.status,
+    narrativeModel: v.generatedModel || undefined,
+    narrativeEditedAt: v.editedAt || undefined,
+    narrativeGenerated: v.generatedText || undefined,
+    narrativeEdited: v.editedText || undefined,
+    pendingGenerated: v.pendingGenerated || undefined,
+    mergeCandidate: v.mergeCandidate || undefined,
+    versions: v.versions || undefined,
+  });
+  const effChaptersMerged = Array.isArray(effChapters)
+    ? effChapters.map((c: any) => (narrOverrides[c.id] ? { ...c, ...narrFields(narrOverrides[c.id]) } : c))
+    : effChapters;
+
+  const onNarrative = (action: any, chapterId: any, payload: any = {}) => {
+    const busyKey = chapterId || '*';
+    setNarrBusy((b: any) => ({ ...b, [busyKey]: action }));
+    const done = () => setNarrBusy((b: any) => { const n = { ...b }; delete n[busyKey]; return n; });
+    let p: Promise<any>;
+    if (action === 'generate' || action === 'regenerate' || action === 'smartmerge' || action === 'generateAll') {
+      const mode = action === 'regenerate' ? 'regenerate' : action === 'smartmerge' ? 'smart_merge' : 'only_empty';
+      const scope = action === 'generateAll' ? 'all' : 'chapter';
+      p = generateContingencyNarratives({ scope, chapterId: scope === 'chapter' ? chapterId : undefined, mode }).then((r: any) => {
+        (r.narratives || []).forEach(applyNarrativeView);
+        if (r.degraded) showToast('LLM 未配置，已跳过生成（请配置 agent/.env 模型 key）');
+        else showToast(action === 'generateAll' ? ('已生成 ' + (r.narratives || []).length + ' 章正文') : action === 'smartmerge' ? '已生成融合候选稿，请在对比中采纳' : '已生成本章正文');
+      });
+    } else if (action === 'edit') {
+      p = editChapterNarrative(chapterId, payload.text || '').then((v: any) => { applyNarrativeView(v); showToast('本章修改已保存'); });
+    } else if (action === 'accept') {
+      p = acceptChapterMerge(chapterId, payload.choice).then((v: any) => { applyNarrativeView(v); showToast('已采纳 · ' + (payload.choice === 'mine' ? '保留我的' : payload.choice === 'new' ? '新稿' : '融合稿')); });
+    } else if (action === 'restore') {
+      p = restoreChapterNarrativeVersion(chapterId, { seq: payload.seq, versionLabel: payload.versionLabel }).then((v: any) => { applyNarrativeView(v); showToast('已回滚到历史版本'); });
+    } else { done(); return; }
+    p.catch((e: any) => showToast('操作失败：' + (e && e.message ? e.message : '本体服务未响应'))).finally(done);
+  };
+
+  useEffectO(() => {
+    if (!reportOpen || !Array.isArray(effChaptersMerged) || narrBusy.__auto) return;
+    const missingIds = getMissingNarrativeChapterIds(effChaptersMerged, AUTO_NARRATIVE_CHAPTER_IDS);
+    if (!missingIds.length) return;
+    const key = makeNarrativeAutogenKey({
+      projectKey: data && data.projectKey,
+      planId: data && data.planId,
+      chapterIds: missingIds,
+    });
+    if (autoNarrKeysRef.current[key]) return;
+    const store = typeof window !== 'undefined' ? window.localStorage : null;
+    if (!shouldRunNarrativeAutogen(store, key)) return;
+    autoNarrKeysRef.current[key] = true;
+    markNarrativeAutogenAttempt(store, key);
+    setNarrBusy((b: any) => ({ ...b, __auto: 'generate' }));
+    generateContingencyNarratives({ scope: 'all', mode: 'only_empty' })
+      .then((r: any) => {
+        (r.narratives || []).forEach(applyNarrativeView);
+        if (r.degraded) showToast('LLM 未配置，已跳过默认正文生成（请配置 agent/.env 模型 key）');
+      })
+      .catch((e: any) => showToast('默认正文生成失败：' + (e && e.message ? e.message : '本体服务未响应')))
+      .finally(() => setNarrBusy((b: any) => { const n = { ...b }; delete n.__auto; return n; }));
+  }, [reportOpen, effChaptersMerged, narrBusy.__auto, data]);
+
+  // ── 章节拖拽组装（暂存式）：本体要素托盘 ↔ 章节大纲（拖入加章 / 拖动排序 / ✕ 删章）──
+  // 编辑只改本地草稿 outlineIds（不落库、不动报告）；点「应用更改」才确定性写回 ContingencyOutline
+  // .include+order（保留拖动顺序）+ onReload() 重新派生报告。committedIds=已应用集；「恢复默认」清 overlay。
+  const elById: any = {};
+  (elements || []).forEach((e: any) => { if (e && e.id) elById[e.id] = e; });
+  // 本体类型库候选并入查找表：拖入后（仅本地草稿、尚未应用）大纲行立刻可渲染
+  (candidates || []).forEach((e: any) => { if (e && e.id && !elById[e.id]) elById[e.id] = e; });
+  const structuralSet = new Set((elements || []).filter((e: any) => e && e.structural).map((e: any) => e.id));
+  const titleOf = (id: any) => (elById[id] && elById[id].title) || id;
+  // 融合组伪元素：把每个组 id 合成成一个可在大纲渲染的「element」（isGroup + 成员标题）。
+  // memberSet：已被某组吸纳的成员 id —— 这些章不再独立出现在大纲，也不应在托盘里当「可加」。
+  const memberSet = new Set<any>();
+  Object.keys(groups || {}).forEach((gid: any) => {
+    const g = groups[gid] || {};
+    const members = g.members || [];
+    members.forEach((m: any) => memberSet.add(m));
+    elById[gid] = {
+      id: gid,
+      title: g.title || members.map(titleOf).join(' + ') || '融合章',
+      isGroup: true,
+      memberIds: members,
+      memberTitles: members.map(titleOf),
+      decisionPoint: g.decisionPoint || 'global',
+      titleBy: g.titleBy || '',
+      objectType: '',
+    };
+  });
+  const sameIds = (a: any, b: any) => Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((x: any, i: any) => x === b[i]);
+  // groups 比较键：组序无关（按 id 排序），成员顺序/标题/决策点敏感 → 任一变即 dirty。
+  const groupsKey = (g: any) => JSON.stringify(Object.keys(g || {}).sort().map((k: any) => [k, (g[k] && g[k].title) || '', (g[k] && g[k].members) || [], (g[k] && g[k].decisionPoint) || '']));
+  const dirty = outlineIds != null && committedIds != null
+    && (!sameIds(outlineIds, committedIds) || groupsKey(groups) !== groupsKey(committedGroups));
+  const visibleOutlineCount = (outlineIds || []).filter((id: any) => COMPOSER_HIDDEN_IDS.indexOf(id) < 0).length;
+  // 序号按草稿位置连续重编（1..N）：裁剪后存活章不再跳号 2、5、8。元数据屏蔽不计号。
+  const outlineNoById: any = {};
+  let _vno = 0;
+  (outlineIds || []).forEach((id: any) => { if (COMPOSER_HIDDEN_IDS.indexOf(id) < 0 && elById[id]) { _vno += 1; outlineNoById[id] = _vno; } });
+  // 多选合并：仅统计仍在大纲、非结构的已选行。
+  const selectedValid = (selectedIds || []).filter((id: any) => (outlineIds || []).includes(id) && !structuralSet.has(id));
+  const dedupe = (arr: any) => { const s: any = {}; const out: any[] = []; (arr || []).forEach((x: any) => { if (!s[x]) { s[x] = 1; out.push(x); } }); return out; };
+  // 会话唯一、永不复用的组 id：复用 doc-grp-1 会撞上「上一组」遗留的 ChapterNarrative（orphan）
+  // 与 24h 自动生成节流键，导致 auto-gen 把新组当「已生成」跳过 → 标题停在拼接名、甚至串旧组 intro。
+  // 时间戳+随机后缀保证每次合并都是全新 id（后端接受任意 doc-grp-* id）。
+  const newGroupId = () => 'doc-grp-' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36).padStart(2, '0');
+  const expandMembers = (id: any) => (groups && groups[id] && groups[id].members) ? groups[id].members : [id];
+  const defaultGroupTitle = (members: any) => {
+    const ts = (members || []).map(titleOf);
+    return ts.length <= 2 ? ts.join(' + ') : (ts.slice(0, 2).join(' + ') + ' 等 ' + ts.length + ' 项');
+  };
+
+  const loadComposer = () => {
+    listContingencyChapters()
+      .then((r: any) => {
+        const ids = Array.isArray(r.include) && r.include.length ? r.include : (r.elements || []).map((e: any) => e.id);
+        const grp = (r.groups && typeof r.groups === 'object') ? r.groups : {};
+        setElements(r.elements || []);
+        setCandidates(r.candidates || []);
+        setOutlineIds(ids);
+        setCommittedIds(ids);
+        setGroups(grp);
+        setCommittedGroups(grp);
+      })
+      .catch(() => { /* 离线 / 预制演示：保持 outlineIds=null → 回退静态目录 */ });
+  };
+
+  // 草稿编辑：仅改本地 outlineIds / groups，不落库、不刷新报告（待「应用更改」确认）——
+  const addChapter = (id: any, atIdx: any = -1) => {
+    if (!id || (outlineIds || []).includes(id)) return;
+    const cur = outlineIds || [];
+    setOutlineIds(atIdx >= 0 ? [...cur.slice(0, atIdx), id, ...cur.slice(atIdx)] : [...cur, id]);
+  };
+  const removeChapter = (id: any) => {
+    if (structuralSet.has(id)) return; // 结构章固定，不可删
+    setOutlineIds((outlineIds || []).filter((x: any) => x !== id));
+    if (groups && groups[id]) { const n = { ...groups }; delete n[id]; setGroups(n); } // 删组 = 连成员一起移出本预案
+    setSelectedIds((s: any) => (s || []).filter((x: any) => x !== id));
+  };
+  const moveChapter = (id: any, toIdx: any) => {
+    const cur = outlineIds || [];
+    if (cur.indexOf(id) < 0) return;
+    const without = cur.filter((x: any) => x !== id);
+    const idx = Math.max(0, Math.min(toIdx, without.length));
+    if (without.indexOf(id) === idx) return;
+    setOutlineIds([...without.slice(0, idx), id, ...without.slice(idx)]);
+  };
+
+  // ── 融合：多选合并 / 拖叠合并 / 改名 / 拆成员 / 拆分整组（全是本地草稿，「应用更改」才落库）──
+  const toggleSelect = (id: any) => {
+    if (structuralSet.has(id)) return;
+    setSelectedIds((s: any) => (s || []).includes(id) ? s.filter((x: any) => x !== id) : [...(s || []), id]);
+  };
+  const mergeSelected = () => {
+    const ids = (outlineIds || []).filter((x: any) => selectedValid.includes(x)); // 保留大纲顺序
+    if (ids.length < 2) return;
+    const nextGroups = { ...groups };
+    let members: any[] = [];
+    ids.forEach((id: any) => {
+      if (nextGroups[id]) { members = members.concat(nextGroups[id].members || []); delete nextGroups[id]; }
+      else members.push(id);
+    });
+    members = dedupe(members);
+    const gid = newGroupId();
+    nextGroups[gid] = { title: defaultGroupTitle(members), members, decisionPoint: (elById[members[0]] && elById[members[0]].decisionPoint) || 'global' };
+    const firstIdx = (outlineIds || []).indexOf(ids[0]);
+    const nextOutline = (outlineIds || []).filter((x: any) => !ids.includes(x));
+    nextOutline.splice(Math.max(0, Math.min(firstIdx, nextOutline.length)), 0, gid);
+    setGroups(nextGroups); setOutlineIds(nextOutline); setSelectedIds([]);
+    setExpandedGroups((e: any) => [...(e || []).filter((x: any) => x !== gid), gid]);
+    showToast('已合并为一章 · ' + members.length + ' 个要素');
+  };
+  const mergeInto = (targetId: any, draggedId: any, fromTray: any) => {
+    if (!targetId || !draggedId || targetId === draggedId) return;
+    if (structuralSet.has(targetId) || (!fromTray && structuralSet.has(draggedId))) return;
+    const addMembers = expandMembers(draggedId);
+    const nextGroups = { ...groups };
+    let nextOutline = [...(outlineIds || [])];
+    if (!fromTray) nextOutline = nextOutline.filter((x: any) => x !== draggedId);
+    if (nextGroups[draggedId]) delete nextGroups[draggedId];
+    let label = '';
+    if (nextGroups[targetId]) {
+      nextGroups[targetId] = { ...nextGroups[targetId], members: dedupe([...(nextGroups[targetId].members || []), ...addMembers]) };
+      label = nextGroups[targetId].title;
+      setExpandedGroups((e: any) => [...(e || []).filter((x: any) => x !== targetId), targetId]);
+    } else {
+      const gid = newGroupId();
+      const members = dedupe([targetId, ...addMembers]);
+      nextGroups[gid] = { title: defaultGroupTitle(members), members, decisionPoint: (elById[targetId] && elById[targetId].decisionPoint) || 'global' };
+      label = nextGroups[gid].title;
+      nextOutline = nextOutline.map((x: any) => (x === targetId ? gid : x));
+      setExpandedGroups((e: any) => [...(e || []).filter((x: any) => x !== gid), gid]);
+    }
+    setGroups(nextGroups); setOutlineIds(nextOutline);
+    setSelectedIds((s: any) => (s || []).filter((x: any) => x !== draggedId && x !== targetId));
+    showToast('已并入《' + label + '》');
+  };
+  const splitMember = (gid: any, mid: any) => {
+    const g = groups[gid]; if (!g) return;
+    const remaining = (g.members || []).filter((x: any) => x !== mid);
+    const nextGroups = { ...groups };
+    const nextOutline = [...(outlineIds || [])];
+    const gIdx = nextOutline.indexOf(gid);
+    if (remaining.length >= 2) {
+      nextGroups[gid] = { ...g, members: remaining };
+      nextOutline.splice(gIdx + 1, 0, mid); // 拆出的成员落到组后面成为独立章
+    } else {
+      delete nextGroups[gid]; // 只剩 1 个 → 整组解散，成员全部恢复独立章（保留原顺序）
+      if (gIdx >= 0) nextOutline.splice(gIdx, 1, ...(g.members || []));
+      setExpandedGroups((e: any) => (e || []).filter((x: any) => x !== gid));
+    }
+    setGroups(nextGroups); setOutlineIds(nextOutline);
+  };
+  const dissolveGroup = (gid: any) => {
+    const g = groups[gid]; if (!g) return;
+    const nextGroups = { ...groups }; delete nextGroups[gid];
+    const nextOutline = [...(outlineIds || [])];
+    const gIdx = nextOutline.indexOf(gid);
+    if (gIdx >= 0) nextOutline.splice(gIdx, 1, ...(g.members || []));
+    setGroups(nextGroups); setOutlineIds(nextOutline);
+    setExpandedGroups((e: any) => (e || []).filter((x: any) => x !== gid));
+    showToast('已拆分本章 · 恢复 ' + (g.members || []).length + ' 个独立章');
+  };
+  const commitRename = () => {
+    if (!renamingGid) { return; }
+    const t = String(renameDraft || '').trim();
+    // 人工改名 → titleBy='human'：后端 set_group_title 守卫，AI 融合标题永不覆盖人工命名。
+    if (t && groups[renamingGid]) setGroups({ ...groups, [renamingGid]: { ...groups[renamingGid], title: t, titleBy: 'human' } });
+    setRenamingGid(null); setRenameDraft('');
+  };
+  const toggleExpand = (gid: any) => setExpandedGroups((e: any) => (e || []).includes(gid) ? e.filter((x: any) => x !== gid) : [...(e || []), gid]);
+
+  const onComposerDrop = () => {
+    const d = dragRef.current; const drop = dropRef.current;
+    dragRef.current = null; dropRef.current = null;
+    setDragOverIdx(null); setMergeTargetId(null);
+    if (!d || !d.id || !drop) return;
+    if (drop.mode === 'merge' && drop.targetId) { mergeInto(drop.targetId, d.id, d.from === 'tray'); return; }
+    if (d.from === 'tray') addChapter(d.id, drop.idx);
+    else moveChapter(d.id, drop.idx);
+  };
+  // 拖拽稳定性：drop 落空（拖到目录区外松手）时 dragEnd 兜底清态，否则残留的 dragRef 会让下一次
+  // drop 误插上一个元素；同时收掉插入指示线 / 合并高亮。
+  const onComposerDragEnd = () => { dragRef.current = null; dropRef.current = null; setDragOverIdx(null); setMergeTargetId(null); };
+  const onComposerDragStart = (e: any, id: any, from: any) => {
+    dragRef.current = { id, from };
+    try { e.dataTransfer.effectAllowed = 'move'; } catch { /* 旧内核无 dataTransfer */ }
+  };
+  // 行级拖拽悬停：中间 50% = 并入该行（merge 高亮），上下各 1/4 = 插入排序（按指针定前/后插入位）。
+  const onComposerDragOver = (e: any, idx: any, id: any) => {
+    e.preventDefault();
+    const d = dragRef.current; if (!d) return;
+    const rect = e.currentTarget && e.currentTarget.getBoundingClientRect ? e.currentTarget.getBoundingClientRect() : null;
+    const ratio = rect && rect.height ? (e.clientY - rect.top) / rect.height : 0.5;
+    const canMerge = !!elById[id] && !structuralSet.has(id) && d.id !== id && !(d.from === 'outline' && structuralSet.has(d.id));
+    if (canMerge && ratio > 0.28 && ratio < 0.72) {
+      dropRef.current = { mode: 'merge', idx, targetId: id };
+      setMergeTargetId((v: any) => (v === id ? v : id)); setDragOverIdx(null);
+    } else {
+      const insertIdx = ratio >= 0.5 ? idx + 1 : idx;
+      dropRef.current = { mode: 'insert', idx: insertIdx, targetId: null };
+      setMergeTargetId(null); setDragOverIdx((v: any) => (v === insertIdx ? v : insertIdx));
+    }
+  };
+  // 目录区空白（末尾）：插到末尾。
+  const onComposerDragOverEnd = (e: any) => {
+    e.preventDefault();
+    if (!dragRef.current) return;
+    const end = (outlineIds || []).length;
+    dropRef.current = { mode: 'insert', idx: end, targetId: null };
+    setMergeTargetId(null); setDragOverIdx((v: any) => (v === end ? v : end));
+  };
+
+  // 确认 / 撤销 / 还原默认 ——
+  const applyOutline = () => {
+    if (!dirty || composerBusy) return;
+    const ids = outlineIds || [];
+    const grp = groups || {};
+    setComposerBusy(true);
+    setContingencyChapters(ids, grp)
+      .then(() => { setCommittedIds(ids); setCommittedGroups(grp); showToast('已应用 · ' + visibleOutlineCount + ' 章'); if (onReload) onReload(); })
+      .catch((e: any) => showToast('应用失败：' + (e && e.message ? e.message : '本体服务未响应')))
+      .finally(() => setComposerBusy(false));
+  };
+  const revertChanges = () => { if (committedIds) { setOutlineIds(committedIds); setGroups(committedGroups || {}); setSelectedIds([]); } };
+  const resetDefault = () => {
+    setComposerBusy(true);
+    resetContingencyChapters()
+      // 重置后从服务端重拉 elements/include/candidates/groups：本地状态可能含已 materialize 的
+      // 临时章（doc-ot-*）/ 草稿组，用旧值回填会留下服务端已不存在的幽灵章/幽灵组。
+      .then(() => { loadComposer(); setSelectedIds([]); setExpandedGroups([]); showToast('已还原默认章节目录'); if (onReload) onReload(); })
+      .catch((e: any) => showToast('还原失败：' + (e && e.message ? e.message : '本体服务未响应')))
+      .finally(() => setComposerBusy(false));
+  };
+
+  useEffectO(() => {
+    // 首次拿到 view 后加载本体要素全集（仅详情视图：onReload 存在才能提交+刷新）。
+    if (onReload && Array.isArray(effChapters) && outlineIds === null) loadComposer();
+  }, [onReload, effChapters, outlineIds]);
 
   const clickable = instant || centerPhase === 'resolved';
   const isResolved = centerPhase === 'resolved';
@@ -722,7 +1231,7 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
     + (isResolved ? ' is-resolved' : '')
     + (isRevealing ? ' revealing' : '')
     + (isFading ? ' fading' : '')
-    + ((isResolved || isRevealing || isFading) ? ' res-' + ONT_DECISION : '')
+    + ((isResolved || isRevealing || isFading) ? ' res-' + effDecision : '')
     + (clickable ? ' clickable' : '')
     + (instant ? ' instant' : '');
 
@@ -734,7 +1243,7 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
         <div className="ont-topbar">
           <div className="ont-brand">
             <div className="ont-brand-dot" aria-hidden="true" />
-            <div className="ont-brand-txt"><b>本体决策系统</b><span>Ontology Decision Brain</span></div>
+            <div className="ont-brand-txt"><b>预案本体生成</b><span>Contingency Ontology</span></div>
           </div>
           <div className="ont-status-pill"><i aria-hidden="true" /><span>{pillText}</span></div>
         </div>
@@ -751,22 +1260,22 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
                   </div>
                   <div className="ont-core-badge">● CENTRAL DECISION</div>
-                  <div className="ont-core-title">可交付性决策中</div>
-                  <div className="ont-core-sub">Ontology Decision Brain is reasoning</div>
+                  <div className="ont-core-title">预案本体生成中</div>
+                  <div className="ont-core-sub">Generating contingency ontology</div>
                   <div className="ont-core-state" dangerouslySetInnerHTML={{ __html: ((ONT_CORE_TEXT as any)[coreKey] || ONT_CORE_TEXT.init).html }} />
                   <div className="ont-progress"><i style={{ width: progress + '%' }} /></div>
                 </div>
               )}
               {showResolved && (
-                <OntResolvedPanel risk={riskResolved} compact={compact} onOpenReport={openReport} />
+                <OntResolvedPanel risk={riskResolved} riskCount={riskCountTxt} core={effCore} compact={compact} onOpenReport={openReport} />
               )}
             </div>
           </div>
         </div>
 
-        {ONT_NODES.map((n: any) => (
+        {effNodes.map((n: any) => (
           <div ref={setWrap(n.key)} key={n.key} className="ont-node-wrapper">
-            <OntNodeCard node={n} st={nodeState[n.key]} clickable={clickable} onClick={() => openReport('doc-' + n.key)} />
+            <OntNodeCard node={n} st={nodeState[n.key]} clickable={clickable} onClick={() => openReport(n.anchor || ('doc-' + n.key))} />
           </div>
         ))}
       </div>
@@ -793,23 +1302,202 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
       )}
 
       {!compact && (
-        <div className="ont-drawer" ref={(el: any) => { if (el) drawerWRef.current = Math.min(520, Math.round((containerRef.current ? containerRef.current.clientWidth : 760) * 0.52)); }} style={{ width: 'min(520px, 52%)' }}>
+        <div className="ont-drawer" style={{ width: 'calc(100% - 320px)' }}>
           <div className="ont-drawer-head">
             <div className="ont-drawer-title-row">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#2f7df6" strokeWidth="2.4"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-              <span className="ont-drawer-title-text">总体交付方案与分析报告</span>
-              <span className={'ont-vtag ' + ONT_DECISION}>{isRisk ? 'BLOCKED' : 'DELIVERABLE'}</span>
+              <span className="ont-drawer-title-text">预案本体生成报告</span>
+              <span className={'ont-vtag ' + effDecision}>{isRisk ? 'RISK' : 'CLEAR'}</span>
             </div>
             <div className="ont-rep-tools">
               <button type="button" className="ont-btn-exp" onClick={() => exportReport('word')}><IcDoc s={14} />导出 Word</button>
               <button type="button" className="ont-btn-exp pdf" onClick={() => exportReport('pdf')}><IcDoc s={14} />导出 PDF</button>
-              <button type="button" className="ont-back" onClick={closeReport}>← 返回</button>
+              <button type="button" className="ont-back" onClick={closeReport}>← 返回全景</button>
             </div>
           </div>
           <div className="ont-drawer-body ont-rep-scope" ref={scrollRef}>
             {OntologyReport
-              ? <OntologyReport decision={ONT_DECISION} activeSection={activeSection} dispatched={dispatched} onDispatch={dispatch} onToast={showToast} />
+              ? <OntologyReport decision={effDecision} risks={effRisks} chapters={effChaptersMerged} summary={effSummary} activeSection={activeSection} dispatched={dispatched} onDispatch={dispatch} onToast={showToast} narrBusy={narrBusy} onNarrative={onNarrative} />
               : <div style={{ padding: 20, color: '#64748b' }}>报告模块加载中…</div>}
+          </div>
+        </div>
+      )}
+
+      {/* 章节目录（左侧）：决策生成后揭开，点章节跳到右侧内容并高亮（参考预制演示 digital-twin.html 的左目录布局） */}
+      {!compact && (
+        <div className="ont-toc">
+          <div className="ont-toc-head">
+            <div className="ont-toc-title"><span className="ont-toc-bar" />交付预案目录</div>
+            <div className="ont-toc-en">CONTINGENCY CONTENTS · {(outlineIds ? visibleOutlineCount : (effChapters && effChapters.length)) || 13} 章{outlineIds ? (dirty ? ' · 未应用更改' : ' · 拖拽组装') : ''}</div>
+          </div>
+          <div className={'ont-toc-verdict ' + effDecision} onClick={() => openReport('doc-overall')}>
+            {isRisk ? <IcWarnTri s={15} /> : <IcCheckSm />}
+            <span>{effCore
+              ? ('总体判定：' + effCore.decisionName + ' · ' + (effCore.conclusion || (isRisk ? '存在风险' : '可交付'))
+                  + (isRisk ? ' · ' + riskCountTxt + ' 项待处置' : ''))
+              : (isRisk ? ('总体判定：预案存在风险 · ' + riskCountTxt + ' 项待处置') : '总体判定：预案可交付 · 无阻断风险')}</span>
+          </div>
+          {outlineIds ? (
+            <React.Fragment>
+              {/* 本体要素托盘：未纳入的目录章按子决策点分组 + 本体类型库（任意业务 ObjectType 拖入即成章 doc-ot-*） */}
+              <div className="ont-tray" style={_tray}>
+                <div style={_trayHd} onClick={() => setTrayOpen((v: any) => !v)}>
+                  <span>{trayOpen ? '▾' : '▸'}</span>
+                  <span>添加要素{(() => {
+                    const inc = (id: any) => (outlineIds || []).includes(id) || memberSet.has(id);
+                    const n = (elements || []).filter((e: any) => !e.structural && !inc(e.id)).length
+                      + (candidates || []).filter((e: any) => !inc(e.id)).length;
+                    return n ? '（' + n + ' 个可加）' : '';
+                  })()}</span>
+                </div>
+                {trayOpen ? (
+                  <div className="ont-tray-body" style={{ marginTop: 4 }}>
+                    <input style={_traySearch} value={traySearch} placeholder="搜索本体类型 / 章节名…"
+                      onChange={(ev: any) => setTraySearch(ev.target.value)} />
+                    <div className="ont-tray-results">
+                      {(() => {
+                        const q = String(traySearch || '').trim().toLowerCase();
+                        const hit = (e: any) => !q || (String(e.title || '') + ' ' + String(e.objectType || '')).toLowerCase().includes(q);
+                        const inc = (id: any) => (outlineIds || []).includes(id) || memberSet.has(id);
+                        const dirPool = (elements || []).filter((e: any) => !e.structural && !inc(e.id) && hit(e));
+                        const candPool = (candidates || []).filter((e: any) => !inc(e.id) && hit(e));
+                        const chip = (e: any, dim: any) => (
+                          <div key={e.id} style={dim ? { ..._chip, opacity: 0.62 } : _chip} draggable
+                            onDragStart={(ev: any) => onComposerDragStart(ev, e.id, 'tray')}
+                            onDragEnd={onComposerDragEnd}
+                            onDoubleClick={() => addChapter(e.id)}
+                            title={'拖入目录或双击加章 · ' + e.objectType}>
+                            <span style={{ fontWeight: 600, color: '#23344d' }}>{e.title}{dim ? <span style={_emptyBadge}>暂无数据</span> : null}</span>
+                            <span style={_chipMeta}>{e.objectType}{e.rowCount ? ' · ' + e.rowCount + ' 数据' : ''}{e.riskCount ? ' · ' + e.riskCount + ' 险' : ''} · {(e.fields || []).length} 字段</span>
+                          </div>
+                        );
+                        return (
+                          <React.Fragment>
+                            {DP_GROUPS.map((g: any) => {
+                              const items = dirPool.filter((e: any) => e.decisionPoint === g.key);
+                              if (!items.length) return null;
+                              return (
+                                <div key={g.key}>
+                                  <div style={_trayGroupTtl}>{g.label}</div>
+                                  {items.map((e: any) => chip(e, false))}
+                                </div>
+                              );
+                            })}
+                            {candPool.length ? (
+                              <div>
+                                <div style={_trayGroupTtl}>本体类型库 · 未入章（拖入即成章）</div>
+                                {candPool.map((e: any) => chip(e, !(e.rowCount > 0)))}
+                              </div>
+                            ) : null}
+                            {dirPool.length + candPool.length === 0
+                              ? <div style={{ fontSize: 11, color: '#94a3b8', padding: '4px 2px' }}>{q ? '无匹配的本体类型。' : '全部对象类型已纳入本预案。'}</div> : null}
+                          </React.Fragment>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              {/* 章节大纲：拖拽排序 / ✕ 删章 / ☑ 多选合并 / 拖叠并入；结构章固定；组章可展开看成员、拆分 */}
+              <div className="ont-toc-list" onDragOver={onComposerDragOverEnd} onDrop={(e: any) => { e.preventDefault(); onComposerDrop(); }}>
+                {(outlineIds || []).map((id: any, idx: any) => {
+                  const el = elById[id];
+                  if (!el || COMPOSER_HIDDEN_IDS.indexOf(id) >= 0) return null; // 非正文章节屏蔽，但 idx 仍为真实位置（拖拽定位不乱）
+                  const structural = structuralSet.has(id);
+                  const isGroup = !!el.isGroup;
+                  const selected = (selectedIds || []).includes(id);
+                  const expanded = (expandedGroups || []).includes(id);
+                  const renaming = renamingGid === id;
+                  return (
+                    <React.Fragment key={id}>
+                      <div className={'ont-toc-item' + (activeSection === id ? ' active' : '') + (selected ? ' sel' : '')}
+                        style={{ cursor: 'grab', boxShadow: mergeTargetId === id ? _mergeRowShadow : (dragOverIdx === idx ? _insertLine : undefined) }}
+                        draggable={!renaming} onDragStart={(e: any) => onComposerDragStart(e, id, 'outline')}
+                        onDragEnd={onComposerDragEnd}
+                        onDragOver={(e: any) => { e.stopPropagation(); onComposerDragOver(e, idx, id); }}
+                        onDrop={(e: any) => { e.preventDefault(); e.stopPropagation(); onComposerDrop(); }}>
+                        {structural
+                          ? <span style={{ width: 14, flex: '0 0 auto' }} aria-hidden="true" />
+                          : <input type="checkbox" style={_selChk} checked={selected} title="选择以合并为一章"
+                              onClick={(e: any) => e.stopPropagation()} onChange={(e: any) => { e.stopPropagation(); toggleSelect(id); }} />}
+                        <span style={_grip} aria-hidden="true">⠿</span>
+                        {isGroup
+                          ? <span style={_grpCaret} title={expanded ? '收起成员' : '展开成员'} onClick={(e: any) => { e.stopPropagation(); toggleExpand(id); }}>{expanded ? '▾' : '▸'}</span>
+                          : null}
+                        <span className="ont-ti-idx">{outlineNoById[id]}</span>
+                        <span className="ont-ti-main" style={{ cursor: renaming ? 'text' : 'pointer' }} onClick={() => { if (!renaming) openReport(id); }}>
+                          {renaming
+                            ? <input autoFocus style={_renameInput} value={renameDraft}
+                                onClick={(e: any) => e.stopPropagation()}
+                                onChange={(e: any) => setRenameDraft(e.target.value)}
+                                onBlur={commitRename}
+                                onKeyDown={(e: any) => { if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') { setRenamingGid(null); setRenameDraft(''); } }} />
+                            : <span className="ont-ti-name"
+                                title={isGroup ? '双击改名 · 融合章' : undefined}
+                                onDoubleClick={isGroup ? (e: any) => { e.stopPropagation(); setRenamingGid(id); setRenameDraft(el.title || ''); } : undefined}>
+                                {el.title}{isGroup ? <span style={_grpBadge}>组 · {(el.memberIds || []).length} 要素</span> : null}{isGroup && el.titleBy !== 'ai' && el.titleBy !== 'human' ? <span style={_pendingChip}>待 AI 命名</span> : null}
+                              </span>}
+                          {!renaming
+                            ? <span className={'ont-ti-src dp-' + el.decisionPoint}>{isGroup ? '融合章 · 单段正文' : (el.objectType || (DP_LABEL[el.decisionPoint] || '全局输入'))}</span>
+                            : null}
+                        </span>
+                        {isGroup
+                          ? <button type="button" style={_splitBtn} title="拆分本章（成员恢复独立章）" disabled={!!composerBusy} onClick={(e: any) => { e.stopPropagation(); dissolveGroup(id); }}>拆分</button>
+                          : null}
+                        {structural
+                          ? <span style={_lock} title="结构章 · 固定纳入">🔒</span>
+                          : <button type="button" style={_xbtn} title="移出本预案" disabled={!!composerBusy} onClick={(e: any) => { e.stopPropagation(); removeChapter(id); }}>✕</button>}
+                      </div>
+                      {isGroup && expanded
+                        ? (el.memberIds || []).map((mid: any) => (
+                            <div key={id + '/' + mid} style={_memberRow}>
+                              <span aria-hidden="true">↳</span>
+                              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(mid)}</span>
+                              <span style={_memberType}>{(elById[mid] && elById[mid].objectType) || ''}</span>
+                              <button type="button" style={_splitBtn} title="移出本组（恢复独立章）" disabled={!!composerBusy} onClick={(e: any) => { e.stopPropagation(); splitMember(id, mid); }}>✕ 移出</button>
+                            </div>
+                          ))
+                        : null}
+                    </React.Fragment>
+                  );
+                })}
+                {dragOverIdx === (outlineIds || []).length
+                  ? <div style={{ height: 0, boxShadow: '0 -2.5px 0 0 #2f7df6' }} aria-hidden="true" /> : null}
+              </div>
+              {selectedValid.length >= 1
+                ? <div style={_selBar}>
+                    <span>已选 {selectedValid.length} 章{selectedValid.length < 2 ? '（再选 1 章可合并）' : ''}</span>
+                    <button type="button" style={{ ..._mergeBtn, ...(selectedValid.length < 2 ? { opacity: 0.5, cursor: 'default' } : {}) }}
+                      disabled={selectedValid.length < 2 || !!composerBusy} onClick={mergeSelected}>合并为一章</button>
+                    <button type="button" style={_miniBtn} disabled={!!composerBusy} onClick={() => setSelectedIds([])}>取消选择</button>
+                  </div>
+                : null}
+              <div style={_actionBar}>
+                <button type="button" style={dirty ? _applyBtn : _applyBtnOff} disabled={!dirty || !!composerBusy} onClick={applyOutline}>{composerBusy ? '处理中…' : (dirty ? ('✓ 应用更改 · ' + visibleOutlineCount + ' 章') : '已应用')}</button>
+                {dirty ? <button type="button" style={_miniBtn} disabled={!!composerBusy} onClick={revertChanges}>撤销</button> : null}
+                <button type="button" style={_miniBtn} disabled={!!composerBusy} onClick={resetDefault} title="清空裁剪，恢复全量本体目录">恢复默认</button>
+              </div>
+            </React.Fragment>
+          ) : (
+            /* 离线 / 预制演示：回退静态目录（不可拖拽） */
+            <div className="ont-toc-list">
+              {(effChapters || []).map((c: any) => (
+                <a key={c.id} className={'ont-toc-item' + (activeSection === c.id ? ' active' : '') + (c.state === 'gap' ? ' warn' : '')}
+                  onClick={() => openReport(c.id)}>
+                  <span className={'ont-ti-idx' + (/^\d+$/.test(String(c.no)) ? '' : ' ont-ti-idx--label')}>{c.no}</span>
+                  <span className="ont-ti-main">
+                    <span className="ont-ti-name">{c.title}</span>
+                    <span className={'ont-ti-src dp-' + c.decisionPoint}>{DP_LABEL[c.decisionPoint] || '全局输入'}</span>
+                  </span>
+                  {c.state === 'gap' ? <span className="ont-ti-dot" /> : null}
+                </a>
+              ))}
+            </div>
+          )}
+          <div className="ont-toc-foot" onClick={closeReport}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+            返回决策大脑全景
           </div>
         </div>
       )}
@@ -1006,6 +1694,50 @@ function DigitalTwinOntology({ compact = false, instant = false  }: any) {
     .ont-back:hover{background:#e2e9f3;transform:translateX(-2px)}
     .ont-drawer-body{flex:1;height:0;overflow-y:auto;padding:20px 22px 28px;scroll-behavior:smooth}
     .ont-drawer-body::-webkit-scrollbar{width:7px}.ont-drawer-body::-webkit-scrollbar-thumb{background:#c4d2e6;border-radius:4px}
+
+    /* ===== 阅读视图：决策生成后揭开，章节目录在左、内容在右；脑图全景淡出（参考预制演示 digital-twin.html） ===== */
+    .ont-report-open .ont-layer{opacity:0;pointer-events:none;transition:opacity .45s ease}
+    .ont-report-open .ont-canvas{opacity:.12;transition:opacity .5s ease}
+    .ont-report-open .ont-topbar{opacity:0;pointer-events:none;transition:opacity .4s ease}
+    /* 内容面板：用基础 .ont-drawer 的右侧滑入（right:0 / translateX(105%)），宽度 calc(100% - 320px) 留出左侧目录 */
+    /* 章节目录（左侧 TOC，参考预制演示 digital-twin.html 的 #toc：left:0 / 从左滑入） */
+    .ont-toc{position:absolute;top:0;left:0;height:100%;width:320px;z-index:100;display:flex;flex-direction:column;background:rgba(255,255,255,.8);backdrop-filter:blur(42px);border-right:1px solid rgba(255,255,255,.92);box-shadow:24px 0 70px rgba(30,70,140,.1);padding:18px 14px 14px;transform:translateX(-106%);opacity:0;pointer-events:none;transition:transform .7s cubic-bezier(.22,.9,.3,1.15),opacity .5s ease}
+    .ont-report-open .ont-toc{transform:translateX(0);opacity:1;pointer-events:auto}
+    .ont-toc-head{padding:0 6px 12px;border-bottom:1px solid rgba(40,80,150,.1);margin-bottom:10px}
+    .ont-toc-title{font-size:16px;font-weight:800;color:oklch(0.255 0.045 260);display:flex;align-items:center;gap:9px}
+    .ont-toc-bar{width:4px;height:17px;border-radius:2px;background:linear-gradient(#2f7df6,#19b8d8);display:inline-block}
+    .ont-toc-en{font-family:var(--font-mono,monospace);font-size:9.5px;letter-spacing:1.4px;color:#8a99b5;margin:6px 0 0 13px;text-transform:uppercase}
+    .ont-toc-verdict{margin:0 4px 10px;padding:9px 11px;border-radius:10px;font-size:11.5px;font-weight:700;line-height:1.45;display:flex;align-items:center;gap:8px;cursor:pointer}
+    .ont-toc-verdict svg{flex:none}
+    .ont-toc-verdict.risk{background:#fff7ec;border:1px solid #fde3a7;color:#b45309}
+    .ont-toc-verdict.success{background:#f0fdf8;border:1px solid #b8ebd4;color:#059669}
+    .ont-tray{max-height:min(42vh,400px);display:flex;flex-direction:column;min-height:0;overflow:hidden;flex:none}
+    .ont-tray-body{display:flex;flex-direction:column;min-height:0;flex:1}
+    .ont-tray-results{flex:1;min-height:72px;overflow-y:auto;padding-right:3px}
+    .ont-tray-results::-webkit-scrollbar{width:6px}.ont-tray-results::-webkit-scrollbar-thumb{background:#cdd9ea;border-radius:3px}
+    .ont-toc-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:3px;padding-right:3px}
+    .ont-toc-list::-webkit-scrollbar{width:6px}.ont-toc-list::-webkit-scrollbar-thumb{background:#cdd9ea;border-radius:3px}
+    .ont-toc-item{display:flex;align-items:center;gap:10px;padding:8px 9px;border-radius:9px;cursor:pointer;border:1px solid transparent;transition:background .2s,border-color .2s,transform .2s}
+    .ont-toc-item:hover{background:rgba(47,125,246,.06);transform:translateX(2px)}
+    .ont-toc-item.active{background:rgba(47,125,246,.1);border-color:rgba(47,125,246,.26)}
+    .ont-toc-item.sel{background:rgba(122,90,240,.09);border-color:rgba(122,90,240,.32)}
+    .ont-toc-item{gap:8px}
+    .ont-ti-idx{font-family:var(--font-mono,monospace);font-size:11px;font-weight:800;color:#94a3b8;min-width:26px;text-align:center;white-space:nowrap;flex:none}
+    .ont-ti-idx.ont-ti-idx--label{font-size:9px;letter-spacing:.2px;padding:2px 6px;border-radius:5px;background:#f1f5f9;color:#64748b}
+    .ont-toc-item.active .ont-ti-idx{color:#2f7df6}
+    .ont-ti-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+    .ont-ti-name{font-size:12.5px;font-weight:700;color:#46566f;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ont-toc-item.active .ont-ti-name{color:#16233c}
+    .ont-ti-src{font-size:9px;font-weight:800;letter-spacing:.2px;padding:1px 6px;border-radius:4px;align-self:flex-start}
+    .ont-ti-src.dp-device{background:#eef4ff;color:#2563eb}
+    .ont-ti-src.dp-network{background:#ecfeff;color:#0e7490}
+    .ont-ti-src.dp-service{background:#f5f3ff;color:#7c3aed}
+    .ont-ti-src.dp-acceptance{background:#fff7ed;color:#c2410c}
+    .ont-ti-src.dp-global{background:#f1f5f9;color:#64748b}
+    .ont-ti-dot{width:7px;height:7px;border-radius:50%;background:#f59e0b;flex:none;box-shadow:0 0 0 3px rgba(245,158,11,.16)}
+    .ont-toc-foot{margin-top:10px;display:flex;align-items:center;justify-content:center;gap:7px;cursor:pointer;font-size:12px;font-weight:700;color:#475569;padding:10px;border-radius:10px;background:rgba(255,255,255,.7);border:1px solid #dde5f0;transition:background .2s,transform .2s}
+    .ont-toc-foot:hover{background:#eef2f8;transform:translateX(-2px)}
+    .ont-toc-foot svg{width:14px;height:14px}
     .ont-highlight{animation:ontHl 1.6s ease;border-color:oklch(0.621 0.193 256)!important;box-shadow:0 0 0 3px rgba(47,125,246,.16)!important}
     @keyframes ontHl{0%,45%{background:#eff6ff;transform:scale(1.008)}100%{background:#fff;transform:scale(1)}}
 
