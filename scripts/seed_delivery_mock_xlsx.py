@@ -97,7 +97,7 @@ def main() -> None:
     default_root = here / "data" / "delivery" / "mock"
     parser = argparse.ArgumentParser(description="Seed delivery mock xlsx files")
     parser.add_argument("--root", type=Path, default=default_root)
-    parser.add_argument("--project", default="JD2项目_test-boq")
+    parser.add_argument("--project", default="mock_project")
     parser.add_argument("--project-name", default="京东三期")
     args = parser.parse_args()
     seed(args.root.resolve(), args.project, args.project_name)

@@ -228,7 +228,7 @@ async def parse_tech_proposal(file: UploadFile = File(...)):
 
 
 DEFAULT_TESTCASES_XLSX = (
-    "JD2项目_test-boq/早期介入/交付预案/输入文件/测试用例/测试用例模板.xlsx"
+    "mock_project/早期介入/交付预案/输入文件/测试用例/测试用例模板.xlsx"
 )
 
 

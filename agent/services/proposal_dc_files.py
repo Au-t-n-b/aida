@@ -9,7 +9,16 @@ from shared.datacenter import DataCenterClient, DataCenterError, ipo_paths
 from shared.datacenter.logging_utils import LOG, mask_token
 from shared.datacenter.types import SemanticFileRef
 
-from .local_mock_fallback import mock_logical_for_slot, read_bytes as mock_read_bytes, write_bytes as mock_write_bytes
+from .local_mock_fallback import (
+    OPTIONAL_OUTPUT_SLOTS,
+    local_logical_candidates,
+    mock_logical_for_slot,
+    resolve_mock_path,
+    save_dc_download,
+    try_resolve_local_slot,
+    try_resolve_mock_project_slot,
+    write_bytes as mock_write_bytes,
+)
 from .proposal_parse import (
     parse_acceptance_from_docx,
     parse_card_scale_from_md,
@@ -27,8 +36,11 @@ def _parse_saved_acceptance(path: Path) -> list[dict[str, str]]:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     alias = {
         "分类": "cat",
@@ -117,6 +129,179 @@ async def _download_dc(token: str, ref: SemanticFileRef, slot: str) -> tuple[byt
     return content, logical, ref
 
 
+def _empty_slot_data(slot: str) -> dict[str, Any]:
+    empty: dict[str, Any] = {"kind": slot, "rows": [], "version": 0, "path": ""}
+    if slot == "card_scale":
+        empty = {"kind": "markdown", "cardScale": 384, "path": ""}
+    return empty
+
+
+def _is_slot_data_usable(data: dict[str, Any], slot: str) -> bool:
+    """解析结果是否可用于页面展示。"""
+    if slot == "card_scale":
+        return bool(data.get("cardScale"))
+    rows = data.get("rows")
+    if isinstance(rows, list) and len(rows) > 0:
+        return True
+    if slot in ("acceptance_input",) and data.get("kind") == "acceptance":
+        return bool(rows)
+    if data.get("kind") == "markdown" and data.get("text"):
+        return True
+    return False
+
+
+def _read_and_parse_slot(path: Path, slot: str, logical: str) -> dict[str, Any]:
+    data = _parse_file_bytes(path, slot, logical)
+    data["path"] = logical
+    data["localPath"] = str(path)
+    return data
+
+
+async def _try_mock_project_fallback(
+    slot: str,
+    warnings: list[str],
+) -> tuple[dict[str, Any], str] | None:
+    """正常链路失败时，从 mock_project 对应目录读取并解析。"""
+    mock_hit = try_resolve_mock_project_slot(slot)
+    if not mock_hit:
+        return None
+    path, logical = mock_hit
+    try:
+        data = _read_and_parse_slot(path, slot, logical)
+    except Exception as e:
+        LOG.warning("proposal mock_project fallback parse failed slot=%s: %s", slot, e)
+        return None
+    if not _is_slot_data_usable(data, slot):
+        return None
+    warnings.append(f"已从 mock_project 降级加载: {logical}")
+    LOG.info(
+        "proposal mock_project fallback ok slot=%s logical=%s rows=%s",
+        slot,
+        logical,
+        len(data.get("rows") or []),
+    )
+    return data, "mock_fallback"
+
+
+async def ensure_slot_local(
+    token: str | None,
+    slot: str,
+    project_id: str,
+    project_name: str,
+    project_code: str | None,
+) -> dict[str, Any]:
+    """确保 slot 对应文件在本地 mock 目录；缺失且有 token 时从数据中心下载落盘。"""
+    ref = ipo_paths.slot_to_ref(slot, project_id)
+    local_hit = try_resolve_local_slot(slot, project_name, project_code)
+    if local_hit:
+        path, logical = local_hit
+        LOG.info(
+            "proposal ensure_slot_local hit slot=%s status=local logical=%s localPath=%s",
+            slot,
+            logical,
+            path,
+        )
+        return {
+            "status": "local",
+            "localPath": str(path),
+            "logical": logical,
+            "bytes": path.stat().st_size,
+        }
+
+    if not token:
+        if slot in OPTIONAL_OUTPUT_SLOTS:
+            return {"status": "optional_missing", "error": "输出文件尚未保存"}
+        mock_hit = try_resolve_mock_project_slot(slot)
+        if mock_hit:
+            path, logical = mock_hit
+            return {
+                "status": "mock_fallback",
+                "localPath": str(path),
+                "logical": logical,
+                "bytes": path.stat().st_size,
+            }
+        return {
+            "status": "missing",
+            "error": "本地无文件且无 token，无法从数据中心下载",
+            "candidates": local_logical_candidates(slot, project_name, project_code),
+        }
+
+    # 输出表草稿期可能尚未上传数据中心，先 list 避免无意义 download 404
+    if slot in OPTIONAL_OUTPUT_SLOTS:
+        try:
+            client = DataCenterClient(token)
+            listed = await client.list_files(ref)
+            if not (listed.get("list") or []):
+                LOG.info("proposal ensure_slot_local optional empty slot=%s (no output saved yet)", slot)
+                return {"status": "optional_missing", "error": "数据中心尚无此输出文件"}
+        except DataCenterError as e:
+            LOG.info("proposal ensure_slot_local optional unavailable slot=%s: %s", slot, e)
+            return {"status": "optional_missing", "error": str(e)}
+
+    try:
+        content, logical, _ = await _download_dc(token, ref, slot)
+        if not logical:
+            raise DataCenterError("数据中心未返回 logicalPath")
+        local_path = save_dc_download(logical, content, project_name, project_code)
+        LOG.info(
+            "proposal ensure_slot_local downloaded slot=%s logical=%s localPath=%s bytes=%s",
+            slot,
+            logical,
+            local_path,
+            len(content),
+        )
+        return {
+            "status": "downloaded",
+            "localPath": str(local_path),
+            "logical": logical,
+            "bytes": len(content),
+        }
+    except DataCenterError as e:
+        LOG.warning("proposal ensure_slot_local DC error slot=%s: %s", slot, e)
+        mock_hit = try_resolve_mock_project_slot(slot)
+        if mock_hit:
+            path, logical = mock_hit
+            return {
+                "status": "mock_fallback",
+                "localPath": str(path),
+                "logical": logical,
+                "bytes": path.stat().st_size,
+            }
+        return {"status": "missing", "error": str(e)}
+    except Exception as e:
+        LOG.exception("proposal ensure_slot_local unexpected slot=%s", slot)
+        mock_hit = try_resolve_mock_project_slot(slot)
+        if mock_hit:
+            path, logical = mock_hit
+            return {
+                "status": "mock_fallback",
+                "localPath": str(path),
+                "logical": logical,
+                "bytes": path.stat().st_size,
+            }
+        return {"status": "missing", "error": str(e)}
+
+
+async def sync_proposal_slots(
+    token: str | None,
+    project_id: str,
+    project_name: str,
+    project_code: str | None,
+    slots: list[str],
+) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    """进入交付预案时批量确保本地文件就绪（本地优先，缺失再下载）。"""
+    results: dict[str, dict[str, Any]] = {}
+    warnings: list[str] = []
+    for slot in slots:
+        result = await ensure_slot_local(
+            token, slot, project_id, project_name, project_code,
+        )
+        results[slot] = result
+        if result.get("status") == "missing":
+            warnings.append(f"{slot}: {result.get('error', '文件不可用')}")
+    return results, warnings
+
+
 async def read_table_slot(
     token: str | None,
     slot: str,
@@ -124,82 +309,59 @@ async def read_table_slot(
     project_name: str,
     project_code: str | None,
 ) -> tuple[dict[str, Any], str, list[str]]:
-    """返回 (data, source, warnings)。"""
+    """本地优先：有则直接解析；无则从数据中心下载到 mock 后再解析。"""
     warnings: list[str] = []
-    ref = ipo_paths.slot_to_ref(slot, project_id)
     LOG.info(
-        "proposal read_table_slot slot=%s projectId=%s projectName=%s projectCode=%s token=%s ref=%s",
+        "proposal read_table_slot slot=%s projectId=%s projectName=%s projectCode=%s token=%s",
         slot,
         project_id,
         project_name,
         project_code,
         mask_token(token),
-        ref.to_list_body(),
     )
 
-    if token:
-        try:
-            content, logical, _ = await _download_dc(token, ref, slot)
-            LOG.info(
-                "proposal read_table_slot DC ok slot=%s logicalPath=%s bytes=%s",
-                slot,
-                logical,
-                len(content),
-            )
-            with tempfile.NamedTemporaryFile(delete=False, suffix=Path(ref.file_name or "bin").suffix or ".bin") as tmp:
-                tmp.write(content)
-                tmp_path = Path(tmp.name)
-            try:
-                data = _parse_file_bytes(tmp_path, slot, logical)
-                data["path"] = logical
-                row_count = len(data.get("rows") or [])
-                LOG.info(
-                    "proposal read_table_slot parsed slot=%s kind=%s rows=%s version=%s source=datacenter",
-                    slot,
-                    data.get("kind"),
-                    row_count,
-                    data.get("version"),
-                )
-                return data, "datacenter", warnings
-            finally:
-                tmp_path.unlink(missing_ok=True)
-        except DataCenterError as e:
-            LOG.warning("proposal read_table_slot DC error slot=%s: %s", slot, e)
-            warnings.append(f"数据中心不可用({e})，已降级读取本地 mock")
-        except Exception as e:
-            LOG.exception("proposal read_table_slot DC unexpected slot=%s", slot)
-            warnings.append(f"数据中心请求失败({e})，已降级读取本地 mock")
-    else:
-        LOG.warning("proposal read_table_slot no token, skip DC slot=%s", slot)
+    ensured = await ensure_slot_local(
+        token, slot, project_id, project_name, project_code,
+    )
+    status = str(ensured.get("status") or "missing")
+    if status == "optional_missing":
+        LOG.info("proposal read_table_slot optional empty slot=%s", slot)
+        return _empty_slot_data(slot), "optional", warnings
+    if status == "missing":
+        warnings.append(f"文件不可用: {ensured.get('error', slot)}")
+        LOG.warning("proposal read_table_slot missing slot=%s error=%s", slot, ensured.get("error"))
+        fallback = await _try_mock_project_fallback(slot, warnings)
+        if fallback:
+            return fallback[0], fallback[1], warnings
+        return _empty_slot_data(slot), "none", warnings
 
-    try:
-        raw, logical = mock_read_bytes(slot, project_name, project_code)
-        LOG.info("proposal read_table_slot mock hit slot=%s logical=%s bytes=%s", slot, logical, len(raw))
-    except FileNotFoundError as e:
-        LOG.warning("proposal read_table_slot mock missing slot=%s: %s", slot, e)
-        warnings.append(f"本地 mock 也不存在: {e}")
-        empty: dict[str, Any] = {"kind": slot, "rows": [], "version": 0, "path": ""}
-        if slot == "card_scale":
-            empty = {"kind": "markdown", "cardScale": 384, "path": ""}
-        return empty, "none", warnings
+    local_path = Path(str(ensured["localPath"]))
+    logical = str(ensured.get("logical") or "")
+    LOG.info(
+        "proposal read_table_slot ready slot=%s status=%s localPath=%s bytes=%s",
+        slot,
+        status,
+        local_path,
+        ensured.get("bytes"),
+    )
 
-    suffix = Path(logical).suffix or ".bin"
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        tmp.write(raw)
-        tmp_path = Path(tmp.name)
-    try:
-        data = _parse_file_bytes(tmp_path, slot, logical)
-        data["path"] = logical
-        LOG.info(
-            "proposal read_table_slot parsed slot=%s kind=%s rows=%s source=mock warnings=%s",
-            slot,
-            data.get("kind"),
-            len(data.get("rows") or []),
-            warnings,
-        )
-        return data, "mock", warnings
-    finally:
-        tmp_path.unlink(missing_ok=True)
+    data = _read_and_parse_slot(local_path, slot, logical)
+    if not _is_slot_data_usable(data, slot):
+        LOG.warning("proposal read_table_slot empty/unusable slot=%s status=%s", slot, status)
+        fallback = await _try_mock_project_fallback(slot, warnings)
+        if fallback:
+            return fallback[0], fallback[1], warnings
+
+    row_count = len(data.get("rows") or [])
+    LOG.info(
+        "proposal read_table_slot parsed slot=%s kind=%s rows=%s version=%s source=%s",
+        slot,
+        data.get("kind"),
+        row_count,
+        data.get("version"),
+        status,
+    )
+    return data, status, warnings
 
 
 def _build_xlsx(
@@ -294,6 +456,13 @@ async def write_table_slot(
     finally:
         tmp_path.unlink(missing_ok=True)
 
+    logical_local = local_logical_candidates(slot, project_name, project_code)[0]
+    try:
+        mock_write_bytes(logical_local, content)
+        LOG.info("proposal write_table_slot local ok slot=%s logical=%s", slot, logical_local)
+    except Exception as e:
+        LOG.warning("proposal write_table_slot local write failed slot=%s: %s", slot, e)
+
     if token:
         try:
             client = DataCenterClient(token)
@@ -320,21 +489,13 @@ async def load_testcases_template_bytes(
     project_name: str,
     project_code: str | None,
 ) -> tuple[Path, str, list[str]]:
-    """返回临时 xlsx 路径（调用方须 delete）、source、warnings。"""
+    """返回 mock 目录下的 xlsx 路径、source、warnings（本地优先）。"""
     warnings: list[str] = []
-    ref = ipo_paths.testcases_template_ref(project_id)
-    if token:
-        try:
-            content, logical, _ = await _download_dc(token, ref, "testcases_template")
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-            tmp.write(content)
-            tmp.close()
-            return Path(tmp.name), "datacenter", warnings
-        except (DataCenterError, Exception) as e:
-            warnings.append(f"数据中心模板不可用({e})，已降级 mock")
-
-    raw, logical = mock_read_bytes("testcases_template", project_name, project_code)
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".xlsx")
-    tmp.write(raw)
-    tmp.close()
-    return Path(tmp.name), "mock", warnings
+    ensured = await ensure_slot_local(
+        token, "testcases_template", project_id, project_name, project_code,
+    )
+    status = str(ensured.get("status") or "missing")
+    if status == "missing":
+        warnings.append(f"测试用例模板不可用: {ensured.get('error', '')}")
+        raise FileNotFoundError(ensured.get("error") or "testcases_template missing")
+    return Path(str(ensured["localPath"])), status, warnings

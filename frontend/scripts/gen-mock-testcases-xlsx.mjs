@@ -11,7 +11,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const srcPath = join(__dirname, '../src/components/proposal/proposal-testcases.ts');
 const outPath = join(
   __dirname,
-  '../../data/delivery/mock/JD2项目_test-boq/早期介入/交付预案/输入文件/测试用例/测试用例模板.xlsx',
+  '../../data/delivery/mock/mock_project/早期介入/交付预案/输入文件/测试用例/测试用例模板.xlsx',
 );
 
 const raw = readFileSync(srcPath, 'utf8');

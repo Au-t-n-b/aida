@@ -10,7 +10,7 @@ export type ProposalTableSlot =
   | 'card_scale';
 
 export interface ApiMeta {
-  source?: 'datacenter' | 'mock' | 'none';
+  source?: 'datacenter' | 'mock' | 'none' | 'local' | 'downloaded' | 'sync';
   logicalPath?: string;
   warnings?: string[];
 }

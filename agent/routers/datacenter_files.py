@@ -71,6 +71,8 @@ async def list_files(body: FileRefBody, authorization: str | None = Header(defau
 
 class DownloadBody(BaseModel):
     ref: FileRefBody
+    projectName: str = ""
+    projectCode: str | None = None
 
 
 @router.post("/files/download")
@@ -85,10 +87,33 @@ async def download_file_meta(body: DownloadBody, authorization: str | None = Hea
         client = DataCenterClient(token)
         content = await client.download_file(ref)
         import base64
-        return _ok({
+
+        local_path: str | None = None
+        if body.projectName or body.projectCode:
+            from ..services.local_mock_fallback import save_dc_download
+
+            data = await client.list_files(ref)
+            items = data.get("list") or []
+            logical = ""
+            for item in items:
+                if item.get("fileName") == ref.file_name:
+                    logical = str(item.get("logicalPath") or "")
+                    break
+            if not logical and items:
+                logical = str(items[0].get("logicalPath") or "")
+            if logical:
+                saved = save_dc_download(
+                    logical, content, body.projectName, body.projectCode,
+                )
+                local_path = str(saved)
+
+        payload: dict[str, Any] = {
             "fileName": ref.file_name,
             "sizeBytes": len(content),
             "contentBase64": base64.b64encode(content).decode("ascii"),
-        })
+        }
+        if local_path:
+            payload["localPath"] = local_path
+        return _ok(payload)
     except DataCenterError as e:
         raise HTTPException(e.status_code, e.args[0]) from e

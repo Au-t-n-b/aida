@@ -4,6 +4,7 @@ import { notifyDataFallback } from './fallback-notify';
 const API = '/api/v1';
 const LOG_PREFIX = '[AIDA DC]';
 const DC_FETCH_TIMEOUT_MS = 30_000;
+const DC_SYNC_TIMEOUT_MS = 120_000;
 
 function dcFetchSignal(): AbortSignal | undefined {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
@@ -217,3 +218,76 @@ export async function parseTestcasesUpload(
 }
 
 export type { ProjectDataContext, ProposalTableSlot, TableReadResult };
+
+export interface SyncSlotResult {
+  status: 'local' | 'downloaded' | 'missing';
+  localPath?: string;
+  logical?: string;
+  bytes?: number;
+  error?: string;
+}
+
+export async function syncProposalLocalFiles(
+  ctx: ProjectDataContext,
+  slots?: ProposalTableSlot[],
+): Promise<{ slots: Record<string, SyncSlotResult>; ready: number; total: number; warnings: string[] }> {
+  const url = `${API}/proposal/sync`;
+  const body = {
+    projectId: ctx.dcProjectId,
+    projectName: ctx.projectName,
+    projectCode: ctx.projectCode ?? null,
+    slots: slots ?? null,
+  };
+  console.info(`${LOG_PREFIX} POST ${url}`, {
+    projectId: ctx.dcProjectId,
+    projectName: ctx.projectName,
+    slotCount: slots?.length ?? 'all',
+    token: maskToken(ctx.token),
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: authHeaders(ctx.token),
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      signal:
+        typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+          ? AbortSignal.timeout(DC_SYNC_TIMEOUT_MS)
+          : dcFetchSignal(),
+    });
+  } catch (err) {
+    console.error(`${LOG_PREFIX} POST ${url} network error`, err);
+    throw err;
+  }
+
+  const text = await res.text();
+  if (!res.ok) {
+    console.error(`${LOG_PREFIX} POST ${url} HTTP ${res.status}`, text.slice(0, 500));
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+
+  const envelope = JSON.parse(text) as ApiEnvelope<{
+    slots: Record<string, SyncSlotResult>;
+    ready: number;
+    total: number;
+  }>;
+  if (envelope.code !== 0) {
+    throw new Error(envelope.message || 'sync error');
+  }
+
+  const warnings = envelope.meta?.warnings ?? [];
+  console.info(`${LOG_PREFIX} POST ${url} ok`, {
+    ready: envelope.data.ready,
+    total: envelope.data.total,
+    warnings,
+  });
+  if (warnings.length) notifyDataFallback(warnings, envelope.meta?.source);
+  return {
+    slots: envelope.data.slots,
+    ready: envelope.data.ready,
+    total: envelope.data.total,
+    warnings,
+  };
+}

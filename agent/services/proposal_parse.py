@@ -48,8 +48,11 @@ def parse_raci_xlsx(path: Path) -> list[dict[str, str]]:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     if not headers:
         return []
@@ -98,8 +101,11 @@ def parse_plan_xlsx(path: Path) -> list[dict[str, Any]]:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     if not headers:
         return []
@@ -171,8 +177,11 @@ def parse_testcases_xlsx(path: Path) -> list[dict[str, Any]]:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     if not headers:
         return []
@@ -349,8 +358,11 @@ def read_saved_version(path: Path) -> int:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    rows = list(ws.iter_rows(max_row=3, values_only=True))
+    try:
+        ws = wb.active
+        rows = list(ws.iter_rows(max_row=3, values_only=True))
+    finally:
+        wb.close()
     if not rows:
         return 0
     headers = [str(h or "").strip() for h in rows[0]]
