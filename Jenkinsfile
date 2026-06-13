@@ -2,9 +2,8 @@
 // AIDA Jenkins 流水线（前后端分离 · 内网 Harbor · 自动部署）
 //
 // 功能：
-//   1. 前端 typecheck + vite build
-//   2. Docker 镜像构建 + 推送（agent / frontend 分别打包）
-//   3. SSH 部署到 10.143.2.231（拉取镜像 + docker compose 重启）
+//   1. Docker 镜像构建 + 推送（agent / frontend 分别打包）
+//   2. SSH 部署到 10.143.2.231（拉取镜像 + docker compose 重启）
 //
 // 使用方式：
 //   - 在 Jenkins 中创建 Pipeline 项目，指向本仓库
@@ -21,7 +20,6 @@ pipeline {
         HARBOR_PROJECT    = 'library'
         AGENT_IMAGE       = 'aida-agent'
         FRONTEND_IMAGE    = 'aida-frontend'
-        NODE_VERSION      = '20'
         DEPLOY_HOST       = '10.143.2.231'
         DEPLOY_DIR        = '/home/docker_data/aida'
     }
@@ -38,24 +36,6 @@ pipeline {
             steps {
                 checkout scm
                 echo "分支: ${env.GIT_BRANCH}, 提交: ${env.GIT_COMMIT}"
-            }
-        }
-
-        // ──────────────────────────────────────────────
-        stage('前端构建') {
-            steps {
-                script {
-                    def nodeHome = tool(name: "node-${NODE_VERSION}", type: 'nodejs')
-                    env.PATH = "${nodeHome}/bin:${env.PATH}"
-                }
-                dir('frontend') {
-                    sh '''
-                        npm config set registry http://mirrors.tools.huawei.com/npm/
-                        npm ci --no-audit --no-fund
-                        npm run build
-                    '''
-                    archiveArtifacts artifacts: 'dist/**/*', fingerprint: true
-                }
             }
         }
 
