@@ -9,31 +9,19 @@
 // 使用方式：
 //   - 在 Jenkins 中创建 Pipeline 项目，指向本仓库
 //   - 配置凭据 harbor-aie（usernamePassword 类型）
-//   - 配置参数（可选）：SKIP_DOCKER_PUSH、HARBOR_PROJECT 等
 // ============================================================
 
 pipeline {
     agent any
 
-    // ── 环境变量 ──
+    // ── 环境变量（写死，不走参数）──
     environment {
         DOCKER_REGISTRY   = 'harbor.aie.rnd.huawei.com'
-        HARBOR_PROJECT    = "${params.HARBOR_PROJECT ?: 'library'}"
-        AGENT_IMAGE       = "${params.AGENT_IMAGE ?: 'aida-agent'}"
-        FRONTEND_IMAGE    = "${params.FRONTEND_IMAGE ?: 'aida-frontend'}"
-        IMAGE_TAG         = "${env.BUILD_NUMBER}-${env.GIT_COMMIT?.take(7) ?: 'latest'}"
+        HARBOR_PROJECT    = 'library'
+        AGENT_IMAGE       = 'aida-agent'
+        FRONTEND_IMAGE    = 'aida-frontend'
         PYTHON_VERSION    = '3.11'
         NODE_VERSION      = '20'
-    }
-
-    // ── 构建参数（Jenkins UI 可覆盖）──
-    parameters {
-        string(name: 'HARBOR_PROJECT',  defaultValue: 'library',    description: 'Harbor 项目名（镜像路径中的命名空间）')
-        string(name: 'AGENT_IMAGE',     defaultValue: 'aida-agent', description: '后端镜像名称')
-        string(name: 'FRONTEND_IMAGE',  defaultValue: 'aida-frontend', description: '前端镜像名称')
-        booleanParam(name: 'SKIP_DOCKER_PUSH', defaultValue: false, description: '跳过 Docker 推送（仅本地构建）')
-        booleanParam(name: 'SKIP_LINT',        defaultValue: false, description: '跳过后端守门 lint')
-        booleanParam(name: 'SKIP_EVAL',        defaultValue: false, description: '跳过评测回归')
     }
 
     options {
@@ -57,7 +45,6 @@ pipeline {
         stage('后端验证') {
             parallel {
                 stage('守门 lint') {
-                    when { expression { !params.SKIP_LINT } }
                     steps {
                         script {
                             def pyHome = tool(name: "python-${PYTHON_VERSION}", type: 'python')
@@ -109,7 +96,6 @@ pipeline {
                 }
 
                 stage('评测回归') {
-                    when { expression { !params.SKIP_EVAL } }
                     steps {
                         script {
                             def pyHome = tool(name: "python-${PYTHON_VERSION}", type: 'python')
@@ -165,7 +151,6 @@ pipeline {
         // ──────────────────────────────────────────────
         stage('Docker 构建与推送') {
             steps {
-                // 先统一登录 Harbor（基础镜像也从此拉取）
                 withCredentials([usernamePassword(
                     credentialsId: 'harbor-aie',
                     usernameVariable: 'DOCKER_USER',
@@ -178,38 +163,31 @@ pipeline {
 
                 parallel(
                     'Agent 后端': {
+                        sh """
+                            docker build -f agent/Dockerfile \
+                                -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:${env.BUILD_NUMBER} \
+                                -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:latest .
+                            docker push ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:${env.BUILD_NUMBER}
+                            docker push ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:latest
+                        """
                         script {
-                            def baseReg   = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}"
-                            def tag       = "${baseReg}/${AGENT_IMAGE}:${IMAGE_TAG}"
-                            def latest    = "${baseReg}/${AGENT_IMAGE}:latest"
-
-                            sh "docker build -f agent/Dockerfile -t ${tag} -t ${latest} ."
-                            env.AGENT_FULL_IMAGE = tag
-
-                            if (!params.SKIP_DOCKER_PUSH) {
-                                sh "docker push ${tag}"
-                                sh "docker push ${latest}"
-                            }
+                            env.AGENT_FULL_IMAGE = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${AGENT_IMAGE}:${env.BUILD_NUMBER}"
                         }
                     },
                     'Frontend 前端': {
+                        sh """
+                            docker build -f frontend/Dockerfile \
+                                -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:${env.BUILD_NUMBER} \
+                                -t ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:latest .
+                            docker push ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:${env.BUILD_NUMBER}
+                            docker push ${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:latest
+                        """
                         script {
-                            def baseReg   = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}"
-                            def tag       = "${baseReg}/${FRONTEND_IMAGE}:${IMAGE_TAG}"
-                            def latest    = "${baseReg}/${FRONTEND_IMAGE}:latest"
-
-                            sh "docker build -f frontend/Dockerfile -t ${tag} -t ${latest} ."
-                            env.FRONTEND_FULL_IMAGE = tag
-
-                            if (!params.SKIP_DOCKER_PUSH) {
-                                sh "docker push ${tag}"
-                                sh "docker push ${latest}"
-                            }
+                            env.FRONTEND_FULL_IMAGE = "${DOCKER_REGISTRY}/${HARBOR_PROJECT}/${FRONTEND_IMAGE}:${env.BUILD_NUMBER}"
                         }
                     }
                 )
 
-                // 构建完成后登出
                 sh "docker logout ${DOCKER_REGISTRY}"
             }
         }
@@ -237,3 +215,4 @@ pipeline {
         }
     }
 }
+
