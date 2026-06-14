@@ -149,6 +149,7 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
   tdUserId?: number;
   pdUserId?: number;
   pcmUserId?: number;
+  deliveryTraits?: string[];
 } {
   const projectName = (fields.name || '').trim();
   const code = (fields.code || '').trim();
@@ -160,6 +161,7 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
     tdUserId?: number;
     pdUserId?: number;
     pcmUserId?: number;
+    deliveryTraits?: string[];
   } = { projectName };
   if (fields.contractType === CONTRACT_STANDARD) {
     if (proposal) body.bidCode = proposal;
@@ -172,6 +174,8 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
   if (pdUserId) body.pdUserId = pdUserId;
   if (tdUserId) body.tdUserId = tdUserId;
   if (pcmUserId) body.pcmUserId = pcmUserId;
+  const traits = sceneCsvToDeliveryTraits(fields.scene);
+  if (traits.length) body.deliveryTraits = traits;
   return body;
 }
 

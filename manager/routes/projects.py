@@ -14,10 +14,12 @@ from manager.datacenter_client import (
     list_my_projects,
     update_project,
 )
+from manager.http_errors import dc_http_exception
 from manager.project_basic_info_xlsx import (
     infer_contract_type_from_create,
     sync_project_basic_info_xlsx,
 )
+from manager.project_delivery_scene_xlsx import sync_project_delivery_scene_xlsx
 
 LOG = logging.getLogger("aida.manager.projects")
 
@@ -34,14 +36,7 @@ def _bearer_token(authorization: str | None) -> str:
 
 
 def _dc_http_exception(e: DataCenterError) -> HTTPException:
-    if e.debug:
-        detail: dict[str, Any] = {
-            "message": str(e),
-            "code": e.code,
-            **e.debug,
-        }
-        return HTTPException(status_code=e.status_code, detail=detail)
-    return HTTPException(status_code=e.status_code, detail=str(e))
+    return dc_http_exception(e)
 
 
 def _sync_basic_info_xlsx(
@@ -60,6 +55,25 @@ def _sync_basic_info_xlsx(
         )
 
 
+def _sync_delivery_scene_xlsx(
+    project: dict[str, Any],
+    *,
+    delivery_traits_hint: list[Any] | None = None,
+) -> None:
+    try:
+        sync_project_delivery_scene_xlsx(
+            project,
+            delivery_traits_hint=delivery_traits_hint,
+        )
+    except Exception as exc:
+        LOG.warning(
+            "同步项目交付场景信息表失败 projectId=%s err=%s",
+            project.get("projectId"),
+            exc,
+            exc_info=True,
+        )
+
+
 class CreateProjectBody(BaseModel):
     projectName: str = Field(min_length=1)
     projectCode: str | None = None
@@ -68,6 +82,7 @@ class CreateProjectBody(BaseModel):
     tdUserId: int | None = None
     pdUserId: int | None = None
     pcmUserId: int | None = None
+    deliveryTraits: list[Any] | None = None
 
 
 class UpdateProjectBody(BaseModel):
@@ -104,6 +119,10 @@ async def create_project_endpoint(
                 bid_code=body.bidCode,
             )
             _sync_basic_info_xlsx(detail, contract_type_hint=hint or None)
+            _sync_delivery_scene_xlsx(
+                detail,
+                delivery_traits_hint=body.deliveryTraits,
+            )
         except DataCenterError as exc:
             LOG.warning("创建后拉取详情失败，跳过基础信息表同步 projectId=%s err=%s", project_id, exc)
 
@@ -165,5 +184,9 @@ async def update_project_endpoint(
 
     if isinstance(data, dict):
         _sync_basic_info_xlsx(data)
+        _sync_delivery_scene_xlsx(
+            data,
+            delivery_traits_hint=payload.get("deliveryTraits"),
+        )
 
     return {"code": 0, "message": "success", "data": data}

@@ -3,6 +3,7 @@
 export type ApiErrorDetail = {
   message: string;
   code?: number;
+  username?: string;
   projectId?: string;
   operation?: string;
   reason?: string;
@@ -48,6 +49,7 @@ export function formatDcResponse(value: unknown): string {
 /** 界面排障信息行（不含主 message，避免重复） */
 export function apiErrorDiagnosticLines(detail: ApiErrorDetail): Array<{ label: string; value: string }> {
   const lines: Array<{ label: string; value: string }> = [];
+  if (detail.username) lines.push({ label: '账号', value: detail.username });
   if (detail.projectId) lines.push({ label: '项目 ID', value: detail.projectId });
   if (detail.operation) lines.push({ label: '操作', value: detail.operation });
   if (detail.method || detail.httpStatus != null) {

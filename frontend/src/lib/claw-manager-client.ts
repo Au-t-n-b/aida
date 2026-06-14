@@ -47,6 +47,7 @@ export type CreateProjectBody = {
   tdUserId?: number;
   pdUserId?: number;
   pcmUserId?: number;
+  deliveryTraits?: unknown[];
 };
 
 /** PUT /api/v1/projects/{uuid} — 更新项目可变字段 */

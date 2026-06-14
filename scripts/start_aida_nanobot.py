@@ -25,7 +25,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 NANOBOT_DIR = ROOT / "nanobot-main"
 MAILGW_DIR = ROOT / "mailgw"
-ONTOLOGY_DIR = ROOT / "ontology"
+
+
+def _ontology_dir() -> Path:
+    """本体后端工作目录，默认 {repo}/ontology，服务器为 /opt/aida_liwen/ontology。"""
+    raw = os.environ.get("ONTOLOGY_DIR", "").strip()
+    if raw:
+        return Path(raw).resolve()
+    return (ROOT / "ontology").resolve()
 
 
 def _venv_python() -> str:
@@ -184,37 +191,41 @@ def _backend_app_port() -> str:
 
 
 def _ontology_python() -> str:
+    """本体 backend_app 使用 ontology 目录下的 python3，勿复用 agent venv。"""
+    ont_dir = _ontology_dir()
     candidates: list[Path] = []
     if sys.platform == "win32":
         candidates.extend([
-            ONTOLOGY_DIR / ".venv" / "Scripts" / "python.exe",
-            ROOT / "agent" / ".venv" / "Scripts" / "python.exe",
+            ont_dir / ".venv" / "Scripts" / "python.exe",
+            Path("python"),
         ])
     else:
         candidates.extend([
-            ONTOLOGY_DIR / ".venv" / "bin" / "python3",
-            ROOT / "agent" / ".venv" / "bin" / "python3",
+            ont_dir / ".venv" / "bin" / "python3",
             Path("/usr/bin/python3"),
+            Path("/usr/local/bin/python3"),
         ])
     for candidate in candidates:
         if candidate.exists():
             return str(candidate)
-    return sys.executable
+    return "python3"
 
 
 def start_backend_app() -> subprocess.Popen | None:
-    """ontology 数据中心 API（:8011）。"""
-    if not (ONTOLOGY_DIR / "backend_app.py").is_file():
-        print("[backend_app] ontology/backend_app.py not found, skip")
+    """ontology 数据中心 API（:8011），须在 ontology 目录下启动 backend_app。"""
+    ont_dir = _ontology_dir()
+    if not (ont_dir / "backend_app.py").is_file():
+        print(f"[backend_app] {ont_dir}/backend_app.py not found, skip")
         return None
     py = _ontology_python()
     port = _backend_app_port()
     cmd = [
         py, "-m", "uvicorn", "backend_app:app",
-        "--host", "0.0.0.0", "--port", port, "--workers", "1",
+        "--host", "0.0.0.0", "--port", port,
     ]
     try:
-        return _popen(cmd, cwd=ONTOLOGY_DIR, log_name="aida-ontology-backend.log")
+        print(f"[start] cd {ont_dir} && {' '.join(cmd)}")
+        return _popen(cmd, cwd=ont_dir, log_name="aida-ontology-backend.log")
     except Exception as e:
         print(f"[backend_app] failed: {e}")
         return None
