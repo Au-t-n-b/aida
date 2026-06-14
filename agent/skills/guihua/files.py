@@ -17,6 +17,29 @@ from fastapi import UploadFile
 _BUNDLE_EXTS = {".xlsx", ".xls", ".csv", ".zip", ".pdf", ".doc", ".docx", ".md",
                 ".stp", ".step", ".iges", ".stl", ".json", ".png", ".jpg", ".jpeg"}
 
+# 建模仿真输出文件（随包样本）目录：SDUI OutputDocsGrid 的下载源。
+_OUTPUT_FILES_DIR = (Path(__file__).parent / "vendor" / "jmfz" / "output_files").resolve()
+
+
+def resolve_artifact_path(root: Path, path: str) -> Path:
+    """SDUI 输出文件下载解析：把 OutputDocsGrid 卡片的 path（文件名）映射回随包样本目录。
+
+    main.py `_resolve_skill_artifact_file` 会优先调用本钩子；命中即从 vendor 样本目录提供，
+    未命中抛 FileNotFoundError，让其回退到 work_root/ProjectData 既有逻辑（不影响上传/RunTime 产物）。
+    仅按文件名取，并用 relative_to 校验防止路径穿越。
+    """
+    name = Path((path or "").replace("\\", "/")).name
+    if not name:
+        raise FileNotFoundError(path)
+    candidate = (_OUTPUT_FILES_DIR / name).resolve()
+    try:
+        candidate.relative_to(_OUTPUT_FILES_DIR)
+    except ValueError as exc:
+        raise FileNotFoundError(path) from exc
+    if not candidate.is_file():
+        raise FileNotFoundError(path)
+    return candidate
+
 
 def infer_upload_kind(filename: str) -> str:
     """guihua 只有一种 kind：bundle（落 Input/）。"""

@@ -147,9 +147,16 @@ const OUTPUT_DOC_CAT_COLOR: Record<string, { color: string; bg: string }> = {
   交付准备:  { color: 'var(--c-success, #0f9d58)', bg: 'var(--c-success-soft, #e6f6ee)' },
 };
 function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputDocsGrid' }> }) {
+  const { skillId } = useSduiRuntime();
   const unlocked = node.unlocked !== false && !!node.unlocked;
   const cats = node.categories ?? [];
   const docs = node.docs ?? [];
+  // 下载经 Vite 代理：dev 用空 base（同源 /agent → 代理到后端，download 属性才生效）；
+  // 生产由 VITE_AGENT_BASE 注入绝对地址。不再耦合 useSduiStream / agentBaseSync。
+  const docHref = (path?: string) =>
+    path
+      ? `${import.meta.env.VITE_AGENT_BASE || ''}/agent/${skillId ?? ''}/artifact?path=${encodeURIComponent(path)}`
+      : undefined;
   const groups = (cats.length ? cats : [...new Set(docs.map(d => d.category))].map(k => ({ key: k, label: k })));
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
@@ -175,11 +182,19 @@ function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputD
                 <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{list.length} 份</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
-                {list.map(doc => (
-                  <div key={doc.no} title={doc.fullName ?? doc.name} style={{
+                {list.map(doc => {
+                  const href = unlocked ? docHref(doc.path) : undefined;
+                  const CardTag = href ? 'a' : 'div';
+                  return (
+                  <CardTag
+                    key={doc.no}
+                    title={doc.fullName ?? doc.name}
+                    {...(href ? { href, download: doc.fullName ?? doc.name } : {})}
+                    style={{
                     border: '1px solid var(--border)', borderRadius: 7, padding: '9px 11px',
                     background: unlocked ? 'var(--surface)' : 'var(--c-bg-soft, #f7f9fc)',
                     opacity: unlocked ? 1 : 0.55, display: 'flex', flexDirection: 'column', gap: 4,
+                    textDecoration: 'none', color: 'inherit', cursor: href ? 'pointer' : 'default',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <div style={{ width: 26, height: 26, borderRadius: 5, background: c.bg, border: `1px solid ${c.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -198,8 +213,9 @@ function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputD
                       {doc.tag && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>{doc.tag}</span>}
                       <span style={{ fontSize: 9, color: unlocked ? c.color : 'var(--text-tertiary)', marginLeft: 'auto' }}>{unlocked ? '↓ xlsx' : '待生成'}</span>
                     </div>
-                  </div>
-                ))}
+                  </CardTag>
+                  );
+                })}
               </div>
             </div>
           );
