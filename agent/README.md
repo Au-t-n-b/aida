@@ -278,12 +278,12 @@ report_gen.risk             5 次  · 42.5s 平均  · ¥0.0182   ← 最慢，p
 | 持久化 checkpointer         | ✅ AsyncSqliteSaver（agent/runtime/checkpoints.db · 重启不丢） |
 | 多 skill 路由 / Planner     | ❌（等第 2 个 skill 再说）                   |
 | HITL trace               | ⚠️ 中断点本身有 span，但用户回复未关联              |
-| 代发邮件                    | ⏸️ 默认关闭（ZHGK_SEND_EMAIL=1 才发；原 COM/VBScript 在本机失败，原生版待接 SMTP） |
+| 代发邮件                    | ⏸️ 默认 dry-run；`AIDA_SEND_EMAIL=1` 才真发，GKCLAW 推荐走 `AIDA_MAIL_BACKEND=mailgw` |
 
 
 **Phase 2 完成**：✅ AsyncSqliteSaver（run 重启不丢）；✅ scene_filter / survey_build / report_distribute 全部原生 Python 重写，去掉 subprocess —— 整条 pipeline 现在是一棵完整 LangGraph trace（11 CHAIN span 覆盖 5 个 step），无子进程黑盒。
 
-> 邮件说明：原 subprocess 版用 Outlook COM / VBScript 自动发邮件，在本机因 ActiveX 不可用而失败。原生版默认**不发邮件**（代发邮件需显式授权），保留 `ZHGK_SEND_EMAIL=1` 开关，未来接 SMTP。
+> 邮件说明：当前原生版默认**不发邮件**，只生成任务包并登记 dry-run。需要真发时显式配置 `AIDA_SEND_EMAIL=1`；GKCLAW 邮件链路推荐配置 `AIDA_MAIL_BACKEND=mailgw`、`MAILGW_BASE`、`MAILGW_TOKEN`、`GKCLAW_FRONTAGENT_MAILBOX`，发送经 mailgw，收件由 `wait_survey` 检查时按需拉取。
 
 > ⚠️ **异步 checkpointer 注意**：FastAPI 用 `graph.astream()`（异步），必须走 `AsyncSqliteSaver`（[graph.py](graph.py) `get_graph_async()`）。
 > 同步 `SqliteSaver` 不实现 `aget_tuple`/`aput`，在异步路径会 `NotImplementedError`，run 会卡在 init 不前进。
@@ -297,10 +297,22 @@ report_gen.risk             5 次  · 42.5s 平均  · ¥0.0182   ← 最慢，p
 ```bash
 cd D:/code/aida
 # 首次安装依赖
-./agent/.venv/Scripts/pip.exe install -r agent/requirements.txt
+./agent/.venv/Scripts/pip.exe install -i https://pypi.tuna.tsinghua.edu.cn/simple -r agent/requirements.txt
 
 # 启动 agent
 ./agent/.venv/Scripts/python.exe -m uvicorn agent.main:app --host 127.0.0.1 --port 7401
+```
+
+### 4.1.1 GKCLAW mailgw 真发配置（可选）
+
+默认 `AIDA_SEND_EMAIL` 不为 `1` 时只做 dry-run。需要真实下发任务包时，先启动 `mailgw/`，再在 `agent/.env` 中配置：
+
+```bash
+AIDA_SEND_EMAIL=1
+AIDA_MAIL_BACKEND=mailgw
+MAILGW_BASE=http://127.0.0.1:8025
+MAILGW_TOKEN=<mailgw 签发的 Bearer token>
+GKCLAW_FRONTAGENT_MAILBOX=front-agent@example.com
 ```
 
 ### 4.2 触发一次 run

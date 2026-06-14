@@ -1,7 +1,7 @@
 # AIDA · 同事上手指南（SKILL 测试）
 
 > 前提：Python 3.10+，Node.js 18+，已拿到 zhgk 底表数据压缩包（单独发送）。
-> 如需体验工勘孪生（SOG 通道），还需向工勘孪生同事索取 `通道1.sog` 文件（大文件，不入库）。
+> 如需体验实景孪生 3D 场景，还需准备 `通道1.sog` 文件（大文件，不入库）。
 
 ---
 
@@ -23,7 +23,7 @@ agent\.venv\Scripts\activate
 # macOS / Linux
 source agent/.venv/bin/activate
 
-pip install -r agent/requirements.txt
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r agent/requirements.txt
 ```
 
 ---
@@ -119,7 +119,7 @@ curl http://127.0.0.1:7401/healthz
 
 ```bash
 cd frontend
-npm install
+npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```
 
@@ -162,13 +162,13 @@ curl http://127.0.0.1:7401/agent/zhgk/stream/<run_id>
 
 ---
 
-## 第七步：工勘孪生 SOG 通道（可选）
+## 第七步：实景孪生 3D 场景（可选）
 
-> 如果你需要使用 `孪生世界 → 工勘孪生` 页面，需要额外部署 SOG 模型文件。
+> 如果你需要使用 `孪生世界 → 实景孪生` 页面，需要额外部署 3D 场景文件。
 
 ### 7a. 获取通道文件
 
-向工勘孪生同事索取 `.sog` 文件（高斯拓建建模结果，大文件不入库）。
+准备 `.sog` 文件（3DGS/高斯建模结果，大文件不入库）。当前本地演示默认使用通道1历史场景。
 
 ### 7b. 部署到本地（Windows PowerShell）
 
@@ -182,17 +182,19 @@ powershell -File agent/scripts/init_sog_channel1.ps1 -Source "D:\你的路径\�
 
 脚本会把 `scene.sog` 复制到 `data/sog-assets/channel1/`，并生成 `meta.json` 和空 `hotspots.json`。
 
+场景列表由 `data/sog-scenes.json` 管理；默认历史场景指向 `channel1`。页面支持修改场景名、查看上传时间。新上传视频当前登记为“训练中”，训练/转码服务接入前先按本地 mock 状态展示。
+
 ### 7c. 验证
 
-后端启动后访问：`http://127.0.0.1:7401/api/sog/assets/channel1`
+后端启动后访问：`http://127.0.0.1:7401/api/sog/scenes`
 
 应返回：
 
 ```json
-{ "id": "channel1", "sceneExists": true, ... }
+[{ "id": "channel1", "status": "ready", "sceneExists": true, ... }]
 ```
 
-前端访问 `http://localhost:5173/twin/survey` 即可看到 SOG 三维查看器。
+前端访问 `http://localhost:5173/twin/survey` 即可看到实景孪生 3D 场景。
 
 ---
 

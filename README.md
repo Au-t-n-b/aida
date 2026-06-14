@@ -17,6 +17,8 @@ aida/
 │   └── scripts/   守门 lint（no-naked-llm / no-naked-send / skill-contract / tools）
 ├── skills/        A 层 SKILL.md（Claude Code / Cursor 触发层）
 │   └── zhgk/      智慧工勘 Skill 定义
+├── manager/       UX 协调层（登录鉴权、会话票据，代理数据中心）
+├── mailgw/        邮件网关（GKCLAW 任务包收发，可选）
 ├── decisions/     架构决策记录（ADR）
 ├── docs/          团队 Agent 开发范式（架构梳理 / 工程范式 / 评测标准）
 ├── .cursorrules   Cursor/Claude Code 红线规则（编码时实时约束）
@@ -30,7 +32,7 @@ aida/
 如果本机没有可用的远端数据中心，先启动本地 Mock Datacenter；生产、测试环境或已连接远端数据中心时不需要启动它。
 
 ```bash
-# 在仓库根目录执行，使用 agent/.venv
+# 在仓库根目录执行。首次初始化时可先完成后端依赖安装，再启动本服务。
 python agent/.local/mock_datacenter.py
 ```
 
@@ -47,32 +49,73 @@ AIDA_AGENT_BASE_URL=http://127.0.0.1:7401
 ### 1. 后端（FastAPI · port 7401）
 
 ```bash
-cd agent
-python -m venv .venv
+# 在仓库根目录执行
+python -m venv agent/.venv
 
 # Windows
-.venv\Scripts\activate
+agent\.venv\Scripts\activate
 # macOS / Linux
-source .venv/bin/activate
+source agent/.venv/bin/activate
 
-pip install -r requirements.txt
+# 使用镜像源安装依赖
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r agent/requirements.txt
 
 # 配置密钥（复制模板后填入智谱 key 和 Langfuse key）
-cp .env.example .env
+cp agent/.env.example agent/.env
 
 # 启动
 uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload
 ```
 
-### 2. 前端（Vite + React · port 5173）
+### 2. Manager（鉴权代理 · port 8000，本地登录需要）
+
+如果前端需要走登录流程，需要同时启动 Manager。生产、测试环境应指向真实数据中心；本地联调可配合上面的 Mock Datacenter。
+
+```bash
+# 在仓库根目录执行，复用 agent/.venv
+uvicorn manager.main:app --host 127.0.0.1 --port 8000
+```
+
+### 3. 前端（Vite + React · port 5173）
 
 ```bash
 cd frontend
-npm install
+npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```
 
-### 3. 守门（提交前必跑，违规阻断）
+### 4. 实景孪生 3D 场景（可选演示）
+
+`孪生世界 → 实景孪生` 页面依赖后端 `agent` 提供 SOG/3D 场景资源。历史场景默认读取：
+
+```text
+data/sog-assets/channel1/scene.sog
+data/sog-scenes.json
+```
+
+本地演示时需要预先放好 `scene.sog`（大文件不入库）。页面会展示场景列表、视频上传时间、场景状态；新上传的视频当前登记为“训练中”，训练/转码服务后续接入前先走 mock 状态。
+
+验证接口：
+
+```bash
+curl http://127.0.0.1:7401/api/sog/scenes
+```
+
+### 5. 邮件网关（可选，仅 GKCLAW 真发/回传需要）
+
+默认邮件链路为 dry-run，不会真实发送。若要通过 mailgw 收发 GKCLAW 任务包，先启动 `mailgw/`，再在 `agent/.env` 中配置：
+
+```bash
+AIDA_SEND_EMAIL=1
+AIDA_MAIL_BACKEND=mailgw
+MAILGW_BASE=http://127.0.0.1:8025
+MAILGW_TOKEN=<mailgw 签发的 Bearer token>
+GKCLAW_FRONTAGENT_MAILBOX=front-agent@example.com
+```
+
+配置细节见 [`mailgw/README.md`](mailgw/README.md) 和 [`docs/50_数据与接口/GKCLAW部署与联调指南.md`](docs/50_数据与接口/GKCLAW部署与联调指南.md)。
+
+### 6. 守门（提交前必跑，违规阻断）
 
 ```bash
 # 激活 Python venv 后在仓库根执行

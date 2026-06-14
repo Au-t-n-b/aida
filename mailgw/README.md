@@ -17,7 +17,7 @@ AIDA Agent (LangGraph 节点)
 ## 快速开始
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt
 copy config.yaml.example config.yaml   # 填 SMTP/POP3 地址与白名单
 copy .env.example .env                 # 填授权码、审批口令、API token
 python -m mailgw --port 8025
