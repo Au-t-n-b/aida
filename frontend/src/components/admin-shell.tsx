@@ -14,6 +14,7 @@
 import Link from '@/compat/link';
 import { usePathname } from '@/compat/navigation';
 import { useLogout } from '@/lib/use-logout';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import type { ReactNode } from 'react';
 
 type AdminNavItem = { key: string; label: string; href: string; sub?: string };
@@ -32,6 +33,7 @@ function readQueryTab(): string {
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const doLogout = useLogout();
+  const sessionUser = useSessionUser();
   const pathname = usePathname() ?? '/admin';
   const activeTab = readQueryTab();
 
@@ -89,8 +91,8 @@ export function AdminShell({ children }: { children: ReactNode }) {
           <div className="admin-topbar-right">
             <span className="admin-topbar-tag">管理员身份</span>
             <span className="admin-topbar-user">
-              <span className="admin-topbar-av">HE</span>
-              <span>何博</span>
+              <span className="admin-topbar-av">{sessionUser.avatarInitials}</span>
+              <span>{sessionUser.displayName}</span>
             </span>
           </div>
         </header>

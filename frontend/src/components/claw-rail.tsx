@@ -28,6 +28,7 @@ import {
   type StoredClawMsg,
 } from '@/lib/claw-chat-store';
 import { useCurrentProject } from '@/lib/current-project';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { getUploadMeta, setUploadMetaDoc } from '@/lib/proposal-data-service';
 
 const AGENT_BASE = agentBaseSync();
@@ -911,6 +912,7 @@ export default function ClawRail({
   const pathname = usePathname() ?? '';
   const navPath = useNavPath();
   const navigation = useNavigation();
+  const { chatMetaPrefix } = useSessionUser();
 
   const abortActiveStream = useCallback(() => {
     streamAbortRef.current?.abort();
@@ -1431,7 +1433,7 @@ export default function ClawRail({
         {allMsgs.map((m, i) => (
           <div key={i} className={`cmsg ${m.role}`}>
             <div className="meta">
-              {m.role === 'ai' ? 'AIDA · ' : '何博 · '}{displayMsgTs(m.ts)}
+              {m.role === 'ai' ? 'AIDA · ' : chatMetaPrefix}{displayMsgTs(m.ts)}
             </div>
             <div className="body">
               {m.chips ? (
