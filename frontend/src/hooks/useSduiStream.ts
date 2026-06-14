@@ -522,6 +522,38 @@ export async function uploadBatch(
 
 
 
+export async function overrideOutputArtifact(
+
+  skillId: string,
+
+  file: File,
+
+  targetPath: string,
+
+  runId?: string | null,
+
+): Promise<{ ok?: boolean; path?: string; size?: number; error?: string }> {
+
+  const base = await ensureAgentBase(skillId);
+
+  const form = new FormData();
+
+  form.append('file', file);
+
+  form.append('target_path', targetPath);
+
+  if (runId) form.append('run_id', runId);
+
+  const res = await fetch(`${base}/agent/${skillId}/artifact/override`, { method: 'POST', body: form });
+
+  if (!res.ok) throw new Error(await res.text());
+
+  return res.json();
+
+}
+
+
+
 export async function fetchUiSnapshot(skillId: string, runId: string, base?: string): Promise<SduiDocument | null> {
 
   const agentBase = base ?? await ensureAgentBase(skillId);
