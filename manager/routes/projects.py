@@ -1,6 +1,7 @@
 """项目 API — 代理数据中心 CLaw 接口。"""
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Header, HTTPException, Query
@@ -13,6 +14,12 @@ from manager.datacenter_client import (
     list_my_projects,
     update_project,
 )
+from manager.project_basic_info_xlsx import (
+    infer_contract_type_from_create,
+    sync_project_basic_info_xlsx,
+)
+
+LOG = logging.getLogger("aida.manager.projects")
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -24,6 +31,22 @@ def _bearer_token(authorization: str | None) -> str:
     if not token:
         raise HTTPException(status_code=401, detail="缺少 access token")
     return token
+
+
+def _sync_basic_info_xlsx(
+    project: dict[str, Any],
+    *,
+    contract_type_hint: str | None = None,
+) -> None:
+    try:
+        sync_project_basic_info_xlsx(project, contract_type_hint=contract_type_hint)
+    except Exception as exc:
+        LOG.warning(
+            "同步项目基础信息表失败 projectId=%s err=%s",
+            project.get("projectId"),
+            exc,
+            exc_info=True,
+        )
 
 
 class CreateProjectBody(BaseModel):
@@ -60,6 +83,19 @@ async def create_project_endpoint(
         data = await create_project(token, payload)
     except DataCenterError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+    project_id = str(data.get("projectId") or "").strip()
+    if project_id:
+        try:
+            detail = await get_project(token, project_id)
+            hint = infer_contract_type_from_create(
+                project_code=body.projectCode,
+                bid_code=body.bidCode,
+            )
+            _sync_basic_info_xlsx(detail, contract_type_hint=hint or None)
+        except DataCenterError as exc:
+            LOG.warning("创建后拉取详情失败，跳过基础信息表同步 projectId=%s err=%s", project_id, exc)
+
     return {"code": 0, "message": "success", "data": data}
 
 
@@ -115,4 +151,8 @@ async def update_project_endpoint(
         data = await update_project(token, project_id, payload)
     except DataCenterError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+
+    if isinstance(data, dict):
+        _sync_basic_info_xlsx(data)
+
     return {"code": 0, "message": "success", "data": data}
