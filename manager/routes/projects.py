@@ -33,6 +33,17 @@ def _bearer_token(authorization: str | None) -> str:
     return token
 
 
+def _dc_http_exception(e: DataCenterError) -> HTTPException:
+    if e.debug:
+        detail: dict[str, Any] = {
+            "message": str(e),
+            "code": e.code,
+            **e.debug,
+        }
+        return HTTPException(status_code=e.status_code, detail=detail)
+    return HTTPException(status_code=e.status_code, detail=str(e))
+
+
 def _sync_basic_info_xlsx(
     project: dict[str, Any],
     *,
@@ -82,7 +93,7 @@ async def create_project_endpoint(
     try:
         data = await create_project(token, payload)
     except DataCenterError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+        raise _dc_http_exception(e) from e
 
     project_id = str(data.get("projectId") or "").strip()
     if project_id:
@@ -118,7 +129,7 @@ async def my_projects(
             keyword=keyword,
         )
     except DataCenterError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+        raise _dc_http_exception(e) from e
     return {"code": 0, "message": "success", "data": data}
 
 
@@ -132,7 +143,7 @@ async def project_detail(
     try:
         data = await get_project(token, project_id)
     except DataCenterError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+        raise _dc_http_exception(e) from e
     return {"code": 0, "message": "success", "data": data}
 
 
@@ -150,7 +161,7 @@ async def update_project_endpoint(
     try:
         data = await update_project(token, project_id, payload)
     except DataCenterError as e:
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+        raise _dc_http_exception(e) from e
 
     if isinstance(data, dict):
         _sync_basic_info_xlsx(data)

@@ -10,6 +10,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useAidaSession } from '@/lib/aida-session';
 import { createProject, fetchProjectDetail, updateProject } from '@/lib/claw-manager-client';
 import {
+  type ApiErrorDetail,
+  apiErrorDiagnosticLines,
+  applyApiError,
+} from '@/lib/api-error';
+import {
   dcProjectDetailToFormPreset,
   formToCreateProjectBody,
   formToUpdateProjectBody,
@@ -66,12 +71,14 @@ export default function CreateProjectModal({
   const [fields, setFields] = useState<CreateFieldDef[]>(INITIAL_FIELDS as CreateFieldDef[]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitErrorDetail, setSubmitErrorDetail] = useState<ApiErrorDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const detailReqRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
     setSubmitError(null);
+    setSubmitErrorDetail(null);
     setSubmitting(false);
 
     if (mode !== 'edit' || !projectId) {
@@ -96,9 +103,10 @@ export default function CreateProjectModal({
         const presetFromApi = dcProjectDetailToFormPreset(resp.data);
         setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], presetFromApi));
         setSubmitError(null);
+        setSubmitErrorDetail(null);
       } catch (e) {
         if (detailReqRef.current !== reqId) return;
-        setSubmitError(e instanceof Error ? e.message : '加载项目详情失败');
+        applyApiError(e, setSubmitError, setSubmitErrorDetail, '加载项目详情失败');
       } finally {
         if (detailReqRef.current === reqId) setDetailLoading(false);
       }
@@ -123,13 +131,14 @@ export default function CreateProjectModal({
       }
       setSubmitting(true);
       setSubmitError(null);
+      setSubmitErrorDetail(null);
       try {
         const body = formToCreateProjectBody(obj);
         await createProject(session.accessToken, body);
         await onSaved?.('create');
         onClose?.();
       } catch (e) {
-        setSubmitError(e instanceof Error ? e.message : '创建项目失败');
+        applyApiError(e, setSubmitError, setSubmitErrorDetail, '创建项目失败');
       } finally {
         setSubmitting(false);
       }
@@ -146,6 +155,7 @@ export default function CreateProjectModal({
     }
     setSubmitting(true);
     setSubmitError(null);
+    setSubmitErrorDetail(null);
     try {
       const body = formToUpdateProjectBody(obj);
       if (Object.keys(body).length === 0) {
@@ -156,7 +166,7 @@ export default function CreateProjectModal({
       await onSaved?.('edit');
       onClose?.();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : '保存项目失败');
+      applyApiError(e, setSubmitError, setSubmitErrorDetail, '保存项目失败');
     } finally {
       setSubmitting(false);
     }
@@ -186,7 +196,17 @@ export default function CreateProjectModal({
               className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
               role="alert"
             >
-              {submitError}
+              <div className="font-medium">{submitError}</div>
+              {submitErrorDetail && apiErrorDiagnosticLines(submitErrorDetail).length > 0 && (
+                <dl className="mt-2 space-y-1.5 border-t border-red-200/80 pt-2 text-xs font-normal text-red-800/90">
+                  {apiErrorDiagnosticLines(submitErrorDetail).map((row) => (
+                    <div key={row.label}>
+                      <dt className="font-semibold text-red-900/80">{row.label}</dt>
+                      <dd className="mt-0.5 whitespace-pre-wrap break-all font-mono">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           )}
           <FieldsStep

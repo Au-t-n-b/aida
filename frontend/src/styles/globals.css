@@ -3802,36 +3802,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--c-bg-soft);
 }
 
-/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ 鍏ㄥ眬婕旂ず姘村嵃 (5.27 P2) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
-.aida-demo-watermark {
-  position: fixed;
-  left: 14px;
-  bottom: 10px;
-  z-index: 40;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 9px 4px 8px;
-  background: rgba(15, 23, 42, 0.72);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  pointer-events: auto;
-  cursor: pointer;
-  user-select: none;
-  border: none;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
-  transition: opacity .15s;
-}
-.aida-demo-watermark:hover { opacity: 0.88; }
-.aida-demo-watermark .aida-demo-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
-}
-.aida-demo-watermark .aida-demo-text { opacity: 0.92; }
-.aida-demo-watermark strong { font-weight: 700; color: #fbbf24; margin-right: 2px; }
-
-/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ 娌欑鎺ㄦ紨 路 鍐崇瓥涓夋。寰界珷 (M-119) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .sb-plan-tier {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10px; font-weight: 600;

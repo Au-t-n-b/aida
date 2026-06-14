@@ -1,3 +1,8 @@
+import { ApiRequestError, isApiErrorDetail, type ApiErrorDetail } from '@/lib/api-error';
+
+export type { ApiErrorDetail };
+export { ApiRequestError };
+
 export type ClawUserProfile = {
   user_id: string;
   username: string;
@@ -445,9 +450,39 @@ async function request<T>(
   }
   const resp = await fetch(`${managerBase()}${path}`, { ...init, headers });
   if (!resp.ok) {
-    throw new Error(await errorMessage(resp));
+    throw await buildRequestError(resp);
   }
   return resp.json() as Promise<T>;
+}
+
+async function buildRequestError(resp: Response): Promise<Error> {
+  try {
+    const data = await resp.json();
+    if (isApiErrorDetail(data?.detail)) {
+      return new ApiRequestError(data.detail);
+    }
+    if (typeof data?.detail === 'string') {
+      return new Error(data.detail);
+    }
+    if (Array.isArray(data?.detail)) {
+      return new Error(
+        data.detail.map((item: { msg?: string }) => item?.msg || String(item)).join('; '),
+      );
+    }
+    if (data?.message && data?.code !== undefined && data.code !== 0) {
+      return new Error(String(data.message));
+    }
+  } catch {
+    // fall through
+  }
+  if (resp.status === 401) return new Error('用户名或密码错误');
+  if (resp.status === 403) return new Error('无权访问该项目');
+  return new Error(`${resp.status} ${resp.statusText}`);
+}
+
+async function errorMessage(resp: Response): Promise<string> {
+  const err = await buildRequestError(resp);
+  return err.message;
 }
 
 async function requestEnvelope<T>(
@@ -463,25 +498,6 @@ async function requestEnvelope<T>(
     return env;
   }
   return { code: 0, message: 'success', data: payload as T };
-}
-
-async function errorMessage(resp: Response): Promise<string> {
-  try {
-    const data = await resp.json();
-    if (typeof data?.detail === 'string') return data.detail;
-    if (Array.isArray(data?.detail)) {
-      return data.detail.map((item: { msg?: string }) => item?.msg || String(item)).join('; ');
-    }
-    if (data?.message && data?.code !== undefined && data.code !== 0) {
-      return String(data.message);
-    }
-    if (resp.status === 401) return '用户名或密码错误';
-    if (resp.status === 403) return '无权访问该项目';
-    return `${resp.status} ${resp.statusText}`;
-  } catch {
-    if (resp.status === 401) return '用户名或密码错误';
-    return `${resp.status} ${resp.statusText}`;
-  }
 }
 
 function normalizeEndpoint(endpoint: string): string {

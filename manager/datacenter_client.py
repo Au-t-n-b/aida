@@ -46,6 +46,58 @@ def _unwrap(payload: dict[str, Any]) -> Any:
     return payload
 
 
+def _response_body_summary(resp: httpx.Response) -> Any:
+    try:
+        return resp.json()
+    except Exception:
+        text = (resp.text or "").strip()
+        return text[:800] if text else None
+
+
+def _project_api_reason(method: str, http_status: int, body: Any) -> str:
+    if http_status == 404 and method == "PUT":
+        return (
+            "数据中心返回 HTTP 404。更新项目时常见原因是尚未实现 "
+            "PUT /api/v1/projects/{uuid}（路由不存在），而非项目 ID 无效；"
+            "若 GET 同项目 ID 可返回 200，则基本可确认是接口未上线。"
+        )
+    if http_status == 404 and method == "GET":
+        return "数据中心未找到该项目 ID，或当前账号无权访问该项目。"
+    if isinstance(body, dict):
+        msg = body.get("message") or body.get("detail")
+        if msg:
+            return str(msg)
+    return f"数据中心 HTTP {http_status}"
+
+
+def _project_api_error(
+    *,
+    code: int,
+    message: str,
+    project_id: str,
+    operation: str,
+    method: str,
+    resp: httpx.Response,
+) -> DataCenterError:
+    body = _response_body_summary(resp)
+    base = datacenter_base().rstrip("/")
+    path = f"/api/v1/projects/{project_id}"
+    return DataCenterError(
+        code,
+        message,
+        status_code=resp.status_code,
+        debug={
+            "projectId": project_id,
+            "operation": operation,
+            "reason": _project_api_reason(method, resp.status_code, body),
+            "httpStatus": resp.status_code,
+            "method": method,
+            "url": f"{base}{path}",
+            "dcResponse": body,
+        },
+    )
+
+
 async def login(username: str, password: str) -> dict[str, Any]:
     base = datacenter_base()
     LOG.info("Manager DC login → POST %s/api/v1/users/login user=%s", base, username)
@@ -247,12 +299,22 @@ async def get_project(token: str, project_id: str) -> dict[str, Any]:
         if resp.status_code == 401:
             raise DataCenterError(1002, "登录已失效，请重新登录", status_code=401)
         if resp.status_code == 404:
-            raise DataCenterError(2001, "项目不存在", status_code=404)
+            raise _project_api_error(
+                code=2001,
+                message="项目不存在",
+                project_id=pid,
+                operation="get_project",
+                method="GET",
+                resp=resp,
+            )
         if resp.status_code >= 400:
-            raise DataCenterError(
-                resp.status_code,
-                f"获取项目详情失败: HTTP {resp.status_code}",
-                status_code=resp.status_code,
+            raise _project_api_error(
+                code=resp.status_code,
+                message=f"获取项目详情失败: HTTP {resp.status_code}",
+                project_id=pid,
+                operation="get_project",
+                method="GET",
+                resp=resp,
             )
         data = _unwrap(resp.json())
         if not isinstance(data, dict):
@@ -283,20 +345,37 @@ async def update_project(token: str, project_id: str, body: dict[str, Any]) -> d
         if resp.status_code == 401:
             raise DataCenterError(1002, "登录已失效，请重新登录", status_code=401)
         if resp.status_code == 404:
-            raise DataCenterError(2001, "项目不存在", status_code=404)
+            raise _project_api_error(
+                code=2001,
+                message="项目不存在",
+                project_id=pid,
+                operation="update_project",
+                method="PUT",
+                resp=resp,
+            )
         if resp.status_code >= 400:
+            body = _response_body_summary(resp)
             try:
-                payload = resp.json()
-                if isinstance(payload, dict) and "code" in payload:
-                    _unwrap(payload)
-            except DataCenterError:
+                if isinstance(body, dict) and "code" in body:
+                    _unwrap(body)
+            except DataCenterError as exc:
+                exc.debug.update({
+                    "projectId": pid,
+                    "operation": "update_project",
+                    "method": "PUT",
+                    "url": f"{datacenter_base().rstrip('/')}/api/v1/projects/{pid}",
+                    "httpStatus": resp.status_code,
+                    "reason": exc.debug.get("reason") or str(exc),
+                    "dcResponse": body,
+                })
                 raise
-            except Exception:
-                pass
-            raise DataCenterError(
-                resp.status_code,
-                f"更新项目失败: HTTP {resp.status_code}",
-                status_code=resp.status_code,
+            raise _project_api_error(
+                code=resp.status_code,
+                message=f"更新项目失败: HTTP {resp.status_code}",
+                project_id=pid,
+                operation="update_project",
+                method="PUT",
+                resp=resp,
             )
         data = _unwrap(resp.json())
         if not isinstance(data, dict):

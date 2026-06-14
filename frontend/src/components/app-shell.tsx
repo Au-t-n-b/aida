@@ -214,46 +214,6 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
   );
 }
 
-function DemoWatermark() {
-  const { project } = useCurrentProject();
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (localStorage.getItem('aida:demo-watermark-hidden') === '1') return;
-
-    const sync = () => {
-      const blocked = !!document.querySelector('.action-footer');
-      setVisible(!blocked);
-    };
-    sync();
-    const obs = new MutationObserver(sync);
-    obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
-  }, []);
-
-  if (!visible) return null;
-
-  const dismiss = () => {
-    setVisible(false);
-    try { localStorage.setItem('aida:demo-watermark-hidden', '1'); } catch { /* ignore */ }
-  };
-
-  return (
-    <button
-      type="button"
-      className="aida-demo-watermark"
-      title="演示版 · 数据均为 mock · 单击关闭"
-      onClick={dismiss}
-    >
-      <span className="aida-demo-dot" />
-      <span className="aida-demo-text">
-        <strong>DEMO</strong> · {project?.id ?? '—'} · 智算 Q3
-      </span>
-    </button>
-  );
-}
-
 /* ── AppShell — full three-column layout
  * 5.25 L02:47:13 拍板：「对话框还是放左边，大家习惯左边」
  * 5.27 SVG 多个面板也都把「会话框 / 消息」画在左侧
@@ -301,7 +261,6 @@ export function AppShell({ children, breadcrumbs = [], withClaw = false, clawRai
           {withClaw && clawSide === 'right' && enrichedClawRail}
         </div>
       </div>
-      <DemoWatermark />
     </div>
   );
 }
