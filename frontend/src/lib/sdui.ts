@@ -381,7 +381,7 @@ export type SduiMacroStepRailNode = OptId & { type: 'MacroStepRail'; steps: Sdui
 export type SduiEmbeddedWebNode = OptId & { type: 'EmbeddedWeb'; url: string; title?: string; note?: string; height?: number; openInNewTab?: boolean; offline?: boolean; reloadToken?: number };
 
 /** OutputDocsGrid — 分类输出文件网格（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。unlocked=false 时整体半透占位。*/
-export type SduiOutputDocItem = { no: string; name: string; fullName?: string; category: string; tag?: string; desc?: string };
+export type SduiOutputDocItem = { no: string; name: string; fullName?: string; category: string; tag?: string; desc?: string; path?: string };
 export type SduiOutputDocCategory = { key: string; label: string };
 export type SduiOutputDocsGridNode = OptId & { type: 'OutputDocsGrid'; docs: SduiOutputDocItem[]; categories?: SduiOutputDocCategory[]; unlocked?: boolean; title?: string };
 
