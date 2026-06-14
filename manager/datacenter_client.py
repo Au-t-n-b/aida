@@ -227,6 +227,40 @@ async def list_my_projects(
         return data
 
 
+async def get_project(token: str, project_id: str) -> dict[str, Any]:
+    """项目详情：GET /api/v1/projects/{uuid}。"""
+    pid = (project_id or "").strip()
+    if not pid:
+        raise DataCenterError(400, "缺少项目 ID", status_code=400)
+    LOG.info(
+        "Manager DC get_project → GET %s/api/v1/projects/%s token=%s",
+        datacenter_base(),
+        pid,
+        mask_token(token),
+    )
+    async with _client() as client:
+        resp = await client.get(
+            f"/api/v1/projects/{pid}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        LOG.info("Manager DC get_project ← HTTP %s", resp.status_code)
+        if resp.status_code == 401:
+            raise DataCenterError(1002, "登录已失效，请重新登录", status_code=401)
+        if resp.status_code == 404:
+            raise DataCenterError(2001, "项目不存在", status_code=404)
+        if resp.status_code >= 400:
+            raise DataCenterError(
+                resp.status_code,
+                f"获取项目详情失败: HTTP {resp.status_code}",
+                status_code=resp.status_code,
+            )
+        data = _unwrap(resp.json())
+        if not isinstance(data, dict):
+            raise DataCenterError(500, "数据中心项目详情响应异常", status_code=502)
+        LOG.info("Manager DC get_project ok projectId=%s", data.get("projectId") or pid)
+        return data
+
+
 async def get_me(token: str) -> dict[str, Any]:
     LOG.info("Manager DC get_me → GET %s/api/v1/users/me token=%s", datacenter_base(), mask_token(token))
     async with _client() as client:

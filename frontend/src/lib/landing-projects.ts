@@ -1,5 +1,7 @@
 /** 数据中心 projects/my → 落地页卡片模型映射 */
 
+import type { DcProjectDetail } from '@/lib/claw-manager-client';
+
 export const CONTRACT_PRESALE = '预销售合同';
 export const CONTRACT_STANDARD = '标准合同';
 
@@ -156,20 +158,79 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
 
 /** 编辑弹窗字段预填（与新建项目表单一致） */
 export function projectToFormPreset(p: LandingProjectCard): Record<string, string> {
-  const code = (p.code || '').trim();
-  const bid = (p.bidCode || '').trim();
-  const proposal = bid && bid !== code ? bid : '';
-  const contractType = code && !proposal ? CONTRACT_PRESALE : (proposal && !code ? CONTRACT_STANDARD : CONTRACT_PRESALE);
-  return {
+  return contractFieldsToFormPreset({
     name: p.name || '',
+    projectCode: p.code,
+    bidCode: p.bidCode,
+    pdName: p.pdName,
+    tdName: p.tdName,
+    pcmName: p.pcmName,
+    deliveryTraits: null,
+  });
+}
+
+function contractFieldsToFormPreset(input: {
+  name: string;
+  projectCode?: string | null;
+  bidCode?: string | null;
+  pdName?: string | null;
+  tdName?: string | null;
+  pcmName?: string | null;
+  deliveryTraits?: unknown[] | null;
+}): Record<string, string> {
+  const code = (input.projectCode || '').trim();
+  const bid = (input.bidCode || '').trim();
+  const proposal = bid && bid !== code ? bid : '';
+  const contractType = code && !proposal
+    ? CONTRACT_PRESALE
+    : (proposal && !code ? CONTRACT_STANDARD : CONTRACT_PRESALE);
+  return {
+    name: input.name || '',
     contractType,
     code: contractType === CONTRACT_PRESALE ? code : '',
     proposal: contractType === CONTRACT_STANDARD ? (proposal || bid || code) : '',
-    scene: '',
-    pd: p.pdName || '',
-    td: p.tdName || '',
-    pcm: p.pcmName || '',
+    scene: deliveryTraitsToSceneCsv(input.deliveryTraits),
+    pd: input.pdName || '',
+    td: input.tdName || '',
+    pcm: input.pcmName || '',
   };
+}
+
+/** GET /projects/{uuid} 详情 → 编辑表单预填 */
+export function dcProjectDetailToFormPreset(d: DcProjectDetail): Record<string, string> {
+  const members = d.members || [];
+  const byRole = (code: string) =>
+    members.find((m) => (m.roleCode || '').toUpperCase() === code);
+  const fmtMember = (m: { username?: string; roleName?: string } | undefined, fallback?: string | null) => {
+    if (fallback?.trim()) return fallback.trim();
+    if (!m) return '';
+    const u = (m.username || '').trim();
+    const rn = (m.roleName || '').trim();
+    if (rn && u) return `${rn} / ${u}`;
+    return u || rn;
+  };
+  return contractFieldsToFormPreset({
+    name: d.projectName || '',
+    projectCode: d.projectCode,
+    bidCode: d.bidCode,
+    pdName: fmtMember(byRole('PD'), d.pdName),
+    tdName: fmtMember(byRole('TD'), d.tdName),
+    pcmName: fmtMember(byRole('PCM'), d.pcmName),
+    deliveryTraits: d.deliveryTraits,
+  });
+}
+
+function deliveryTraitsToSceneCsv(traits: unknown[] | null | undefined): string {
+  if (!Array.isArray(traits) || traits.length === 0) return '';
+  const parts = traits.map((t) => {
+    if (typeof t === 'string') return t.trim();
+    if (t && typeof t === 'object') {
+      const o = t as Record<string, unknown>;
+      return String(o.label ?? o.name ?? o.value ?? o.trait ?? '').trim();
+    }
+    return '';
+  }).filter(Boolean);
+  return parts.join(',');
 }
 
 export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {

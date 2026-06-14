@@ -51,6 +51,42 @@ export type CreateProjectResult = {
   rootPath?: string;
 };
 
+/** GET /api/v1/projects/{uuid} — 项目详情（含 members） */
+export type DcProjectMember = {
+  userProjectRoleId?: number;
+  userId?: number;
+  username?: string;
+  roleCode?: string;
+  roleName?: string;
+};
+
+export type DcProjectDetail = {
+  id?: number;
+  projectId: string;
+  projectName: string;
+  projectCode?: string | null;
+  bidCode?: string | null;
+  customerName?: string | null;
+  status?: string;
+  stage?: string | null;
+  progress?: number;
+  risk?: string;
+  description?: string | null;
+  deliveryTraits?: unknown[] | null;
+  creatorId?: number;
+  creatorName?: string | null;
+  tdUserId?: number | null;
+  tdName?: string | null;
+  pdUserId?: number | null;
+  pdName?: string | null;
+  pcmUserId?: number | null;
+  pcmName?: string | null;
+  rootPath?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  members?: DcProjectMember[];
+};
+
 export type DcMyProjectsData = {
   list: Array<{
     id: number;
@@ -166,6 +202,18 @@ export async function fetchMyProjects(
   const qs = params.toString();
   const path = `/api/v1/projects/my${qs ? `?${qs}` : ''}`;
   return requestEnvelope(path, { accessToken });
+}
+
+/** 项目详情 GET /api/v1/projects/{uuid}（编辑弹窗预填） */
+export async function fetchProjectDetail(
+  accessToken: string,
+  projectId: string,
+): Promise<DcEnvelope<DcProjectDetail>> {
+  const id = projectId.trim();
+  if (!id) throw new Error('缺少项目 ID');
+  return requestEnvelope<DcProjectDetail>(`/api/v1/projects/${encodeURIComponent(id)}`, {
+    accessToken,
+  });
 }
 
 export async function registerToClawManager(input: {

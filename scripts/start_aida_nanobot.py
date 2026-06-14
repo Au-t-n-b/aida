@@ -7,7 +7,11 @@ AIDA + nanobot 融合启动器。
 3. 启动 AIDA FastAPI (:7401) — LangGraph + SDUI，聊天代理到 nanobot
 4. 启动 Manager (:8000) — UX 鉴权，代理数据中心
 5. 启动 mailgw 团队邮箱 (:8025) — GKCLAW 邮件网关（需 mailgw/config.yaml）
-6. 启动前端静态服务 (:8080)
+6. 启动 ontology backend_app (:8011) — 数据中心 / 本体 API
+7. 启动前端静态服务 (:8080)
+
+ontology 手工等价命令（服务器 ontology 目录下）：
+  nohup python3 -m uvicorn backend_app:app --host 0.0.0.0 --port 8011 &
 """
 from __future__ import annotations
 
@@ -21,6 +25,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 NANOBOT_DIR = ROOT / "nanobot-main"
 MAILGW_DIR = ROOT / "mailgw"
+ONTOLOGY_DIR = ROOT / "ontology"
 
 
 def _venv_python() -> str:
@@ -174,6 +179,47 @@ def start_aida() -> subprocess.Popen:
     return _popen(cmd, env=env, log_name="aida-liwen-agent.log")
 
 
+def _backend_app_port() -> str:
+    return os.environ.get("BACKEND_APP_PORT", "8011")
+
+
+def _ontology_python() -> str:
+    candidates: list[Path] = []
+    if sys.platform == "win32":
+        candidates.extend([
+            ONTOLOGY_DIR / ".venv" / "Scripts" / "python.exe",
+            ROOT / "agent" / ".venv" / "Scripts" / "python.exe",
+        ])
+    else:
+        candidates.extend([
+            ONTOLOGY_DIR / ".venv" / "bin" / "python3",
+            ROOT / "agent" / ".venv" / "bin" / "python3",
+            Path("/usr/bin/python3"),
+        ])
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    return sys.executable
+
+
+def start_backend_app() -> subprocess.Popen | None:
+    """ontology 数据中心 API（:8011）。"""
+    if not (ONTOLOGY_DIR / "backend_app.py").is_file():
+        print("[backend_app] ontology/backend_app.py not found, skip")
+        return None
+    py = _ontology_python()
+    port = _backend_app_port()
+    cmd = [
+        py, "-m", "uvicorn", "backend_app:app",
+        "--host", "0.0.0.0", "--port", port, "--workers", "1",
+    ]
+    try:
+        return _popen(cmd, cwd=ONTOLOGY_DIR, log_name="aida-ontology-backend.log")
+    except Exception as e:
+        print(f"[backend_app] failed: {e}")
+        return None
+
+
 def start_frontend() -> subprocess.Popen | None:
     dist = ROOT / "frontend" / "dist"
     if not dist.exists():
@@ -195,6 +241,7 @@ def verify(*, mailgw_started: bool = False) -> bool:
         ("manager", f"http://127.0.0.1:{_manager_port()}/health"),
         ("nanobot", "http://127.0.0.1:8900/health"),
         ("backend", "http://127.0.0.1:7401/healthz"),
+        ("ontology", f"http://127.0.0.1:{_backend_app_port()}/api/v2/ontologies"),
         ("frontend", "http://127.0.0.1:8080/"),
     ]
     if mailgw_started:
@@ -207,13 +254,15 @@ def verify(*, mailgw_started: bool = False) -> bool:
             # mailgw /admin 需 Basic 认证，401 表示服务已就绪
             if name == "mailgw" and e.code == 401:
                 print(f"[verify] {name}: HTTP {e.code} (auth required, ok)")
+            elif name == "ontology" and e.code in (401, 403):
+                print(f"[verify] {name}: HTTP {e.code} (auth required, ok)")
             else:
                 print(f"[verify] {name} FAIL: HTTP {e.code}")
                 if name not in ("frontend",):
                     ok = False
         except Exception as e:
             print(f"[verify] {name} FAIL: {e}")
-            if name != "frontend":
+            if name not in ("frontend", "ontology"):
                 ok = False
     return ok
 
@@ -222,6 +271,7 @@ def stop_old() -> None:
     patterns = [
         "uvicorn manager.main",
         "uvicorn agent.main",
+        "uvicorn backend_app",
         "http.server 8080",
         "nanobot serve",
         "nanobot.cli.commands serve",
@@ -229,7 +279,7 @@ def stop_old() -> None:
     ]
     for p in patterns:
         subprocess.run(["pkill", "-9", "-f", p], check=False)
-    for port in (8001, 8900, 7401, 8080, int(_mailgw_port())):
+    for port in (8001, 8011, 8900, 7401, 8080, int(_mailgw_port())):
         subprocess.run(
             ["bash", "-c", f"ss -lptn 'sport = :{port}' | grep -oP 'pid=\\K[0-9]+' | xargs -r kill -9"],
             check=False,
@@ -263,6 +313,11 @@ def main() -> int:
 
     procs.append(start_manager())
     time.sleep(2)
+
+    ba = start_backend_app()
+    if ba:
+        procs.append(ba)
+        time.sleep(2)
 
     mg = start_mailgw()
     mailgw_started = mg is not None
