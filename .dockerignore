@@ -1,0 +1,41 @@
+# Git
+.git/
+.gitignore
+
+# IDE / 编辑器
+.idea/
+.vscode/
+.cursorrules
+.claude/
+
+# 虚拟环境
+agent/.venv/
+**/__pycache__/
+**/*.pyc
+
+# 前端开发产物（Docker 内部重新构建）
+frontend/node_modules/
+frontend/dist/
+# CI 镜像内按 registry 重建 lock，不使用仓库内 lock / .npmrc
+frontend/package-lock.json
+frontend/.npmrc
+
+# 文档站派生 HTML（运行时不需要）
+docs/site/
+
+# 系统 / 临时
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.*
+
+# CI / 编排（镜像内不需要）
+Jenkinsfile
+docker-compose.yml
+.github/
+
+# 评测日志 / 本地数据
+agent/evals/fixtures/*.log
+.data/
+ProjectData/

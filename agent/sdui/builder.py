@@ -496,8 +496,10 @@ class SduiDataTableColumn(BaseModel):
     model_config = ConfigDict(extra="ignore")
     key: str
     label: str
-    type: Literal["text", "status", "progress"] = "text"
+    type: Literal["text", "status", "progress", "date"] = "text"
     width: int | None = None
+    paddingLeft: int | None = None  # 列单元格左内边距（用于列内容右移）
+    nowrap: bool = False            # True → 单元格不换行（活动名称等）
     editable: bool = False
     placeholder: str | None = None
 
@@ -532,6 +534,7 @@ class SduiDataTableNode(BaseModel):
     backStepId: str | None = None        # run-patch stepId，默认 go_back
     groupKey: str | None = None          # 分组列（esn 按设备大类）
     groupAsTabs: bool | None = None      # True → 按 groupKey 分页签切换（替代表内分组头）
+    filterKeys: list[str] | None = None  # 可按这些列下拉筛选行（如 ["unit"] 按管理单元筛选）
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
     dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
@@ -827,6 +830,27 @@ class SduiTaskTimelineStripNode(BaseModel):
     actualEnd: str | None = None
     remainingDays: int | None = None
     progressPct: float | int | None = None
+
+
+class SduiGanttRow(BaseModel):
+    """GanttChart 的一行任务条：id + label + 可选 group（管理单元）+ start/end + 可选 status。"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    label: str
+    group: str | None = None
+    start: str
+    end: str
+    status: str | None = None
+
+
+class SduiGanttChartNode(BaseModel):
+    """多行甘特图 · 按 group 分组展示计划条（只读；编辑走 DataTable 页签）。
+    rows 每行 start/end 为 ISO 日期字符串（YYYY-MM-DD）；status 可选用于着色（如待下发/已下发）。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["GanttChart"] = "GanttChart"
+    id: str | None = None
+    rows: list[SduiGanttRow]
+    title: str | None = None
 
 
 class SduiContextBarGroup(BaseModel):
@@ -1155,6 +1179,7 @@ SduiNode = Annotated[
         SduiTabGroupNode,
         SduiInputSlotListNode,
         SduiTaskTimelineStripNode,
+        SduiGanttChartNode,
         SduiContextBarNode,
         SduiFlowStepsNode,
         SduiMacroStepRailNode,

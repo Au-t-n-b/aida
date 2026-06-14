@@ -16,6 +16,13 @@ from typing import Any
 
 _MANIFEST_PATH = Path(__file__).resolve().parent.parent / "project_paths.json"
 
+# 工程根（aida 仓库根）= project_paths.json 的 parents[3]
+#   project_paths.json → system_design → skills → agent → aida
+# project_paths.json 里的相对路径一律相对工程根解析（与进程 CWD 无关 ——
+# a3_bridge 执行子 pipeline 时会 os.chdir 到 data_root，CWD 不稳定，
+# 故不能用 Path(raw).resolve() 的 CWD 锚定）。
+_PROJECT_ROOT = _MANIFEST_PATH.parents[3]
+
 
 
 INPUT_TAGS = (
@@ -78,7 +85,17 @@ def _section(key: str) -> dict[str, Any]:
 
 def _path(raw: str) -> Path:
 
-    return Path(str(raw or "").strip()).resolve()
+    s = str(raw or "").strip()
+
+    p = Path(s) if s else Path(".")
+
+    # 绝对路径原样 resolve；相对路径锚定工程根（CWD 无关）。
+
+    if not p.is_absolute():
+
+        p = _PROJECT_ROOT / p
+
+    return p.resolve()
 
 
 

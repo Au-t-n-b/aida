@@ -11,9 +11,90 @@ import os
 import re
 from collections import defaultdict
 
-from ._common import as_str
+from ._common import as_str, col_idx
 
 SN_COL_KEYS = ["设备大类", "厂家", "设备型号", "设备名称", "所属机房", "所属机柜", "安装起始U位", "设备U高", "ESN"]
+
+
+def _load_arrival_model_type(arrival_path: str) -> dict[str, str]:
+    """读《到货信息表》→ {型号: 设备类型/设备大类}（按表头列名定位，容忍列顺序差异）。"""
+    out: dict[str, str] = {}
+    if not arrival_path or not os.path.isfile(arrival_path):
+        return out
+    try:
+        import openpyxl  # type: ignore
+        wb = openpyxl.load_workbook(arrival_path, read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+    except Exception:
+        return out
+    if not rows:
+        return out
+    header = [as_str(v) for v in rows[0]]
+    ci_type = col_idx(header, "设备类型", "设备大类")
+    ci_model = col_idx(header, "型号", "设备型号")
+    if ci_type is None or ci_model is None:
+        return out
+    for row in rows[1:]:
+        if ci_model >= len(row) or ci_type >= len(row):
+            continue
+        model = as_str(row[ci_model])
+        typ = as_str(row[ci_type])
+        if model and typ:
+            out[model] = typ
+    return out
+
+
+def _load_position_records(position_path: str) -> list[dict]:
+    """读《设备位置表》→ 规范化记录列表（按表头列名定位）。
+
+    返回 [{设备型号, 设备名称, 所属机房, 所属机柜, 安装起始U位, 设备U高, 设备大类, 厂家}]。
+    """
+    if not position_path or not os.path.isfile(position_path):
+        return []
+    try:
+        import openpyxl  # type: ignore
+        wb = openpyxl.load_workbook(position_path, read_only=True, data_only=True)
+        sheet_name = "设备位置信息" if "设备位置信息" in wb.sheetnames else wb.sheetnames[-1]
+        ws = wb[sheet_name]
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+    except Exception:
+        return []
+    if not rows:
+        return []
+    header = [as_str(v) for v in rows[0]]
+    ci_model = col_idx(header, "设备型号", "型号")
+    ci_name  = col_idx(header, "设备名称")
+    ci_room  = col_idx(header, "所属机房")
+    ci_col   = col_idx(header, "所属机柜")
+    ci_u     = col_idx(header, "安装起始U位")
+    ci_h     = col_idx(header, "设备U高")
+    ci_class = col_idx(header, "设备大类")
+    ci_vend  = col_idx(header, "厂家")
+
+    def _v(row: tuple, idx: int | None) -> str:
+        if idx is None or idx >= len(row):
+            return ""
+        return as_str(row[idx])
+
+    out: list[dict] = []
+    for row in rows[1:]:
+        model = _v(row, ci_model)
+        if not model:
+            continue
+        out.append({
+            "设备型号":   model,
+            "设备名称":   _v(row, ci_name),
+            "所属机房":   _v(row, ci_room),
+            "所属机柜":   _v(row, ci_col),
+            "安装起始U位": _v(row, ci_u),
+            "设备U高":    _v(row, ci_h),
+            "设备大类":   _v(row, ci_class),
+            "厂家":      _v(row, ci_vend),
+        })
+    return out
 
 # 任务「设备型号&数量列表」单元格拆分
 _SPLIT_RE = re.compile(r"[、,，;；/\n\r]+")
@@ -134,46 +215,19 @@ def build_sn_rows_for_plan(
     返回：[{所属管理单元, 设备大类, 厂家, 设备型号, 设备名称,
             所属机房, 所属机柜, 安装起始U位, 设备U高, ESN:""}, ...]
     """
-    try:
-        import openpyxl  # type: ignore
-    except ImportError:
-        return []
-
-    if not position_path or not os.path.isfile(position_path):
+    pos_records = _load_position_records(position_path)
+    if not pos_records:
         return []
 
     quotas = _peak_unit_spec_quotas(tasks)  # (unit, spec) -> remaining
     plan_ids_map = unit_spec_plan_ids(tasks)  # (unit, spec) -> [计划行ID,...]
-
-    model_to_type: dict[str, str] = {}
-    if arrival_path and os.path.isfile(arrival_path):
-        try:
-            wb_a = openpyxl.load_workbook(arrival_path, read_only=True, data_only=True)
-            ws_a = wb_a.active
-            a_rows = list(ws_a.iter_rows(values_only=True))
-            wb_a.close()
-            for row in a_rows[1:]:
-                if len(row) > 2 and row[1] and row[2]:
-                    model_to_type[as_str(row[2])] = as_str(row[1])
-        except Exception:
-            pass
-
-    try:
-        wb_p = openpyxl.load_workbook(position_path, read_only=True, data_only=True)
-        sheet_name = "设备位置信息" if "设备位置信息" in wb_p.sheetnames else wb_p.sheetnames[-1]
-        ws_p = wb_p[sheet_name]
-        pos_rows = list(ws_p.iter_rows(values_only=True))
-        wb_p.close()
-    except Exception:
-        return []
+    model_to_type = _load_arrival_model_type(arrival_path)
 
     rows_out: list[dict] = []
     # 稳定遍历配额键，保证同一输入产出一致
     quota_keys = sorted(quotas.keys())
-    for row in pos_rows[1:]:
-        if not row or not row[0]:
-            continue
-        model = as_str(row[0])
+    for rec in pos_records:
+        model = rec["设备型号"]
         matched_key: tuple[str, str] | None = None
         for key in quota_keys:
             if quotas.get(key, 0) <= 0:
@@ -187,23 +241,18 @@ def build_sn_rows_for_plan(
         quotas[matched_key] -= 1
 
         unit = matched_key[0]
-        dev_name  = as_str(row[2]) if len(row) > 2 else ""
-        room      = as_str(row[3]) if len(row) > 3 else ""
-        col       = as_str(row[4]) if len(row) > 4 else ""
-        u_pos     = as_str(row[5]) if len(row) > 5 else ""
-        u_height  = as_str(row[6]) if len(row) > 6 else ""
         dev_class = get_sn_device_class(model, model_to_type)
         rows_out.append({
             "所属管理单元": unit,
             "关联计划行ID": ";".join(plan_ids_map.get(matched_key, [])),
             "设备大类":    dev_class,
-            "厂家":       get_sn_vendor(model),
+            "厂家":       rec.get("厂家") or get_sn_vendor(model),
             "设备型号":   model,
-            "设备名称":   dev_name,
-            "所属机房":   room,
-            "所属机柜":   col,
-            "安装起始U位": u_pos,
-            "设备U高":    u_height,
+            "设备名称":   rec.get("设备名称", ""),
+            "所属机房":   rec.get("所属机房", ""),
+            "所属机柜":   rec.get("所属机柜", ""),
+            "安装起始U位": rec.get("安装起始U位", ""),
+            "设备U高":    rec.get("设备U高", ""),
             "ESN":        "",
         })
     return rows_out
@@ -253,47 +302,18 @@ def build_sn_tables_data(
     dispatched_tasks 非空时，仅纳入「计划下发」勾选任务涉及的设备：
     按任务侧型号规格与位置表型号模糊匹配，并按任务数量配额截取（非全量位置表）。
     """
-    try:
-        import openpyxl  # type: ignore
-    except ImportError:
-        return []
-
-    if not position_path or not os.path.isfile(position_path):
+    pos_records = _load_position_records(position_path)
+    if not pos_records:
         return []
 
     quotas: dict[str, int] = (
         aggregate_device_quotas(dispatched_tasks) if dispatched_tasks else {}
     )
-
-    # 到货信息表 → 型号→设备大类 映射
-    model_to_type: dict[str, str] = {}
-    if arrival_path and os.path.isfile(arrival_path):
-        try:
-            wb_a = openpyxl.load_workbook(arrival_path, read_only=True, data_only=True)
-            ws_a = wb_a.active
-            a_rows = list(ws_a.iter_rows(values_only=True))
-            wb_a.close()
-            for row in a_rows[1:]:
-                if len(row) > 2 and row[1] and row[2]:
-                    model_to_type[as_str(row[2])] = as_str(row[1])
-        except Exception:
-            pass
-
-    # 设备位置表
-    try:
-        wb_p = openpyxl.load_workbook(position_path, read_only=True, data_only=True)
-        sheet_name = "设备位置信息" if "设备位置信息" in wb_p.sheetnames else wb_p.sheetnames[-1]
-        ws_p = wb_p[sheet_name]
-        pos_rows = list(ws_p.iter_rows(values_only=True))
-        wb_p.close()
-    except Exception:
-        return []
+    model_to_type = _load_arrival_model_type(arrival_path)
 
     groups: dict[tuple[str, str], list[dict]] = defaultdict(list)
-    for row in pos_rows[1:]:
-        if not row or not row[0]:
-            continue
-        model = as_str(row[0])
+    for rec in pos_records:
+        model = rec["设备型号"]
         if quotas:
             matched_spec = None
             for spec, remaining in quotas.items():
@@ -306,21 +326,17 @@ def build_sn_tables_data(
                 continue
             quotas[matched_spec] -= 1
 
-        dev_name  = as_str(row[2]) if len(row) > 2 else ""
-        room      = as_str(row[3]) if len(row) > 3 else ""
-        col       = as_str(row[4]) if len(row) > 4 else ""
-        u_pos     = as_str(row[5]) if len(row) > 5 else ""
-        u_height  = as_str(row[6]) if len(row) > 6 else ""
+        room = rec.get("所属机房", "")
         dev_class = get_sn_device_class(model, model_to_type)
         groups[(room, dev_class)].append({
             "设备大类":    dev_class,
-            "厂家":       get_sn_vendor(model),
+            "厂家":       rec.get("厂家") or get_sn_vendor(model),
             "设备型号":   model,
-            "设备名称":   dev_name,
+            "设备名称":   rec.get("设备名称", ""),
             "所属机房":   room,
-            "所属机柜":   col,
-            "安装起始U位": u_pos,
-            "设备U高":    u_height,
+            "所属机柜":   rec.get("所属机柜", ""),
+            "安装起始U位": rec.get("安装起始U位", ""),
+            "设备U高":    rec.get("设备U高", ""),
             "ESN":        "",
         })
 

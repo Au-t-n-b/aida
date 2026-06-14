@@ -11,6 +11,11 @@
 
 import { Fragment, useEffect, useRef, useState } from 'react';
 import Link from '@/compat/link';
+import {
+  SCENE_OPTION_GROUPS,
+  SCENE_OPTIONS,
+  validateSceneCsv,
+} from '@/types/delivery-scenario';
 
 const STEPS = [
   { key: 'fields', label: '基本字段', desc: '名称 / 编码 / 场景 / PD·TD·PCM' },
@@ -28,38 +33,52 @@ const STEPS = [
  *   - 所有人员字段支持姓名+工号模糊搜索
  *
  * 校验规则在 validateFields() 里统一实现 */
+export const CONTRACT_PRESALE = '预销售合同';
+export const CONTRACT_STANDARD = '标准合同';
+
 export const INITIAL_FIELDS = [
-  { key: 'name',     label: '项目名称', value: '', placeholder: '京东三期', required: true },
-  /* G-8 · 至少二选一，两字段均支持 ID 或名称模糊搜索 */
-  { key: 'code',     label: '交付项目编码', value: '', placeholder: 'HALL 号 / 机会点 ID', required: false, fuzzy: true, hint: '与 Proposal ID 至少填一项' },
-  { key: 'proposal', label: 'Proposal ID',  value: '', placeholder: '机会点名称 / PROP 编码', required: false, fuzzy: true, hint: '与交付项目编码至少填一项' },
-  /* 项目交付特点：合并原两组场景，改为多选 checkbox */
-  { key: 'scene', label: '项目交付特点', value: '', required: true, multi: true,
-    options: ['新增', '节点扩容', '推理', '训练', '训推一体', '大EP'],
-    optionGroups: [['新增', '节点扩容'], ['推理', '训练', '训推一体'], ['大EP']] },
-  /* 人员（5.27 早会新增 PCM）*/
+  { key: 'name', label: '项目名称', value: '', placeholder: '京东三期', required: true },
+  {
+    key: 'contractType',
+    label: '合同类型',
+    value: '',
+    required: true,
+    options: [CONTRACT_PRESALE, CONTRACT_STANDARD],
+  },
+  {
+    key: 'code',
+    label: '交付项目编码',
+    value: '',
+    placeholder: 'HALL 号 / 机会点 ID',
+    required: false,
+  },
+  {
+    key: 'proposal',
+    label: 'Proposal ID',
+    value: '',
+    placeholder: '机会点名称 / PROP 编码',
+    required: false,
+  },
+  { key: 'scene', label: '项目交付场景', value: '', required: true, multi: true,
+    options: [...SCENE_OPTIONS],
+    optionGroups: SCENE_OPTION_GROUPS.map((g) => [...g]) },
   { key: 'pd',  label: '项目 PD',  value: '', placeholder: '', required: true,  fuzzy: true },
   { key: 'td',  label: '项目 TD',  value: '', placeholder: '', required: true,  fuzzy: true },
   { key: 'pcm', label: '项目 PCM', value: '', placeholder: '', required: false, fuzzy: true },
 ];
 
-/* 校验规则：
- *   1. name 必填
- *   2. G-8 · proposal 与 code 至少二选一（强校验，两字段同时高亮 + 错误指向同一原因）
- *   3. sceneNew + sceneRun 都需填（不互斥同组，但跨组都必填）
- *   4. pd / td 必填
- */
-export function validateFields(fields) {
+export function validateFields(fields, mode = 'create') {
   const errors = {};
   const get = k => fields.find(f => f.key === k)?.value ?? '';
   if (!get('name')) errors.name = '必填';
-  /* G-8 · 两个字段都标错，用同一条文案让用户清楚二选一关系 */
-  if (!get('proposal') && !get('code')) {
-    const msg = '二选一';
-    errors.proposal = msg;
-    errors.code = msg;
+  if (!get('contractType')) errors.contractType = '请选择';
+  const ct = get('contractType');
+  if (mode === 'create') {
+    if (ct === CONTRACT_PRESALE && !get('code')) errors.code = '必填';
+    if (ct === CONTRACT_STANDARD && !get('proposal')) errors.proposal = '必填';
   }
-  if (!get('scene')) errors.scene = '请至少选择一项';
+  const sceneErr = validateSceneCsv(get('scene'));
+  if (sceneErr) errors.scene = sceneErr;
   if (!get('pd')) errors.pd = '必填';
   if (!get('td')) errors.td = '必填';
   return errors;
@@ -122,58 +141,103 @@ function ClawHint({ children }) {
   );
 }
 
-export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hideCancel, inModal, onCancel }) {
+const LOCKED_KEYS = ['contractType', 'code', 'proposal'];
+
+const CONTRACT_TYPE_OPTIONS = [
+  { id: CONTRACT_PRESALE, title: '预销售合同' },
+  { id: CONTRACT_STANDARD, title: '标准合同' },
+];
+
+function ContractTypeSelector({ value, onChange, locked, hasError }) {
+  return (
+    <div
+      className={`cm-contract-seg${locked ? ' is-locked' : ''}${hasError ? ' has-error' : ''}`}
+      role="radiogroup"
+      aria-label="合同类型"
+    >
+      {CONTRACT_TYPE_OPTIONS.map((opt) => {
+        const selected = value === opt.id;
+        return (
+          <button
+            key={opt.id}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            disabled={locked}
+            className={`cm-contract-seg-item${selected ? ' is-on' : ''}`}
+            onClick={() => !locked && onChange(opt.id)}
+          >
+            <span className="cm-contract-seg-indicator" aria-hidden>
+              <span className="cm-contract-seg-dot" />
+            </span>
+            <span className="cm-contract-seg-title">{opt.title}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hideCancel, inModal, onCancel, mode = 'create' }) {
   const [attempted, setAttempted] = useState(false);
-  const errors = validateFields(fields);
+  const errors = validateFields(fields, mode);
   const canNext = Object.keys(errors).length === 0;
+  const contractType = fields.find((f) => f.key === 'contractType')?.value ?? '';
+  const isPresale = contractType === CONTRACT_PRESALE;
+  const isStandard = contractType === CONTRACT_STANDARD;
+
+  const handleFieldChange = (key, value) => {
+    if (key === 'contractType' && mode === 'create') {
+      onChange('contractType', value);
+      if (value === CONTRACT_PRESALE) onChange('proposal', '');
+      if (value === CONTRACT_STANDARD) onChange('code', '');
+      return;
+    }
+    onChange(key, value);
+  };
+
+  const isFieldLocked = (f) => mode === 'edit' && LOCKED_KEYS.includes(f.key);
+
+  const isInputDisabled = (f) => {
+    if (isFieldLocked(f)) return true;
+    if (mode !== 'create' || !LOCKED_KEYS.includes(f.key)) return false;
+    if (f.key === 'contractType') return false;
+    if (!contractType) return true;
+    if (f.key === 'code') return isStandard;
+    if (f.key === 'proposal') return isPresale;
+    return false;
+  };
 
   const handleNext = () => {
     setAttempted(true);
     if (canNext) onNext();
   };
 
-  /**
-   * handleFeatureToggle — "项目交付特点" chip 互斥逻辑
-   *
-   * 规则 A 【新增 / 扩容互斥】
-   *   选中"新增"→ 自动移除"扩容"；选中"扩容"→ 自动移除"新增"
-   *
-   * 规则 B 【训推互斥】
-   *   选中"训推一体"→ 自动移除"推理"和"训练"
-   *   选中"推理"或"训练"→ 自动移除"训推一体"（推理与训练之间可共存）
-   *
-   * 等价于 react-hook-form：
-   *   const cur = getValues('projectFeatures')
-   *   setValue('projectFeatures', newValues, { shouldValidate: true })
-   */
+  const GROUP1 = SCENE_OPTION_GROUPS[0];
+  const GROUP2 = SCENE_OPTION_GROUPS[1];
+
   const handleFeatureToggle = (fieldKey: string, currentValue: string, feature: string) => {
     const cur = currentValue.split(',').filter(Boolean);
     const isSelected = cur.includes(feature);
-
     let next: string[];
-    if (isSelected) {
-      // 已选中 → 移出（直接取消，无互斥）
-      next = cur.filter(x => x !== feature);
+
+    if (GROUP1.includes(feature)) {
+      next = isSelected
+        ? cur.filter((x) => !GROUP1.includes(x))
+        : [...cur.filter((x) => !GROUP1.includes(x)), feature];
+    } else if (GROUP2.includes(feature)) {
+      next = isSelected
+        ? cur.filter((x) => !GROUP2.includes(x))
+        : [...cur.filter((x) => !GROUP2.includes(x)), feature];
+    } else if (feature === '大EP') {
+      next = isSelected ? cur.filter((x) => x !== '大EP') : [...cur, '大EP'];
     } else {
-      // 未选中 → 加入，再执行互斥规则
-      next = [...cur, feature];
-
-      // Rule A: 新增 / 节点扩容 互斥
-      if (feature === '新增')      next = next.filter(x => x !== '节点扩容');
-      else if (feature === '节点扩容') next = next.filter(x => x !== '新增');
-
-      // Rule B: 训推一体 与 推理 / 训练 互斥
-      if (feature === '训推一体') next = next.filter(x => x !== '推理' && x !== '训练');
-      else if (feature === '推理' || feature === '训练') next = next.filter(x => x !== '训推一体');
+      next = isSelected ? cur.filter((x) => x !== feature) : [...cur, feature];
     }
 
-    // 等价于 setValue('projectFeatures', next, { shouldValidate: true })
     onChange(fieldKey, next.join(','));
   };
 
-  /* ── Tech-Minimalism 重构（5.31）──
-   * focus:ring / ring-1 / shadow-sm 在本项目需用 inline style 实现（@tailwind base 已关闭）。
-   * 所有 state / onChange / validateFields 原样保留，仅替换 JSX 结构和 class。 */
   const INPUT_BASE: React.CSSProperties = {
     width: '100%', height: 40, padding: '0 12px',
     borderRadius: 8, border: '1px solid #e4e4e7',
@@ -181,29 +245,43 @@ export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hi
     outline: 'none', transition: 'border-color .15s, box-shadow .15s',
   };
   const INPUT_ERR: React.CSSProperties = { ...INPUT_BASE, borderColor: '#dc2626' };
+  const INPUT_DISABLED: React.CSSProperties = {
+    ...INPUT_BASE,
+    background: '#f4f4f5',
+    color: '#71717a',
+    cursor: 'not-allowed',
+  };
+  const inputBase = inModal
+    ? { ...INPUT_BASE, height: 36, fontSize: 13 }
+    : INPUT_BASE;
+  const inputErr = inModal ? { ...inputBase, borderColor: '#dc2626' } : INPUT_ERR;
+  const inputDisabled = inModal
+    ? { ...inputBase, background: '#f4f4f5', color: '#71717a', cursor: 'not-allowed' }
+    : INPUT_DISABLED;
 
   return (
     <>
-      {/* 表单区：纯白底、纵向 space-y-6 */}
-      <div className="flex flex-col gap-6">
+      <div className={inModal ? 'cm-form' : 'flex flex-col gap-6'}>
         {fields.map((f) => (
-          <div key={f.key} className="grid gap-1.5" style={{ gridTemplateColumns: '140px 1fr', alignItems: 'start' }}>
-            {/* Label 列 */}
-            <div className="pt-2">
+          <div
+            key={f.key}
+            className={`grid${inModal ? ' cm-form-row' : ''}`}
+            style={{
+              gridTemplateColumns: '128px 1fr',
+              alignItems: f.key === 'contractType' || inModal ? 'center' : 'start',
+              gap: inModal ? undefined : 6,
+            }}
+          >
+            <div className={inModal ? 'cm-form-label' : 'pt-2'}>
               <span className="text-sm font-medium text-zinc-800">
                 {f.label}
                 {f.required && <span className="ml-0.5 text-red-500">*</span>}
               </span>
             </div>
 
-            {/* Input 列 */}
             <div>
               {f.multi ? (
-                /* 项目交付特点 — Chip 多选，隐藏原生 checkbox
-                 * 选中状态 = watch('projectFeatures').includes(o)  等价于 f.value.split(',').includes(o)
-                 * 点击    = handleFeatureToggle(...)  含 A/B 互斥规则
-                 * optionGroups：把互斥关系不同的三组在视觉上隔离 */
-                <div className="flex flex-wrap items-center gap-2">
+                <div className={`flex flex-wrap items-center gap-2${inModal ? ' cm-scene-chips' : ''}`}>
                   {(f.optionGroups || [f.options]).map((group, gi) => (
                     <Fragment key={gi}>
                       {gi > 0 && (
@@ -235,18 +313,23 @@ export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hi
                     </Fragment>
                   ))}
                 </div>
+              ) : f.key === 'contractType' ? (
+                <ContractTypeSelector
+                  value={f.value}
+                  locked={isFieldLocked(f)}
+                  hasError={attempted && !!errors.contractType}
+                  onChange={(v) => handleFieldChange('contractType', v)}
+                />
               ) : f.options ? (
-                /* 单选 radio（兼容性保留）*/
                 <div className="flex flex-wrap gap-2">
                   {f.options.map((o) => (
                     <label
                       key={o}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors select-none ${
+                      className={`cursor-pointer select-none rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
                         f.value === o
-                          ? 'bg-zinc-900 text-white'
-                          : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-blue-400'
                       }`}
-                      style={f.value === o ? { boxShadow: '0 0 0 1px #18181b' } : undefined}
                     >
                       <input
                         type="radio"
@@ -254,7 +337,7 @@ export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hi
                         value={o}
                         checked={f.value === o}
                         className="sr-only"
-                        onChange={(e) => onChange(f.key, e.target.value)}
+                        onChange={(e) => handleFieldChange(f.key, e.target.value)}
                       />
                       {o}
                     </label>
@@ -264,20 +347,27 @@ export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hi
                 <input
                   value={f.value}
                   placeholder={inModal ? '' : f.placeholder}
-                  onChange={(e) => onChange(f.key, e.target.value)}
-                  style={attempted && errors[f.key] ? INPUT_ERR : INPUT_BASE}
-                  onFocus={e => {
+                  disabled={isInputDisabled(f)}
+                  readOnly={isFieldLocked(f)}
+                  onChange={(e) => handleFieldChange(f.key, e.target.value)}
+                  style={
+                    isInputDisabled(f) || isFieldLocked(f)
+                      ? inputDisabled
+                      : attempted && errors[f.key]
+                        ? inputErr
+                        : inputBase
+                  }
+                  onFocus={(e) => {
+                    if (isInputDisabled(f) || isFieldLocked(f)) return;
                     e.target.style.borderColor = '#18181b';
                     e.target.style.boxShadow = '0 0 0 1px #18181b';
                   }}
-                  onBlur={e => {
+                  onBlur={(e) => {
+                    if (isInputDisabled(f) || isFieldLocked(f)) return;
                     e.target.style.borderColor = attempted && errors[f.key] ? '#dc2626' : '#e4e4e7';
                     e.target.style.boxShadow = 'none';
                   }}
                 />
-              )}
-              {f.hint && (
-                <p className="mt-1.5 text-[11px] text-slate-400">{f.hint}</p>
               )}
               {attempted && errors[f.key] && (
                 <p className="mt-1 text-xs text-red-500">{errors[f.key]}</p>
@@ -287,8 +377,7 @@ export function FieldsStep({ fields, onChange, onAutoFill, onNext, nextLabel, hi
         ))}
       </div>
 
-      {/* Footer — 右对齐 */}
-      <div className="mt-8 flex items-center justify-end">
+      <div className={`flex items-center justify-end${inModal ? ' cm-form-foot' : ' mt-8'}`}>
         {inModal && onCancel && (
           <button
             type="button"
@@ -545,9 +634,10 @@ export default function CreateScreen() {
   const autoFill = () => {
     const sample = {
       name: '京东三期',
+      contractType: CONTRACT_PRESALE,
       code: 'PROP-2026-K1903',
-      proposal: 'PROP-2026-K1903',
-      scene: '新增,训推一体',
+      proposal: '',
+      scene: '新建,训推一体',
       pd: '李伟 / 01234568',
       td: '何博 / 01234567',
       pcm: '王婷 / 01234569',

@@ -20,6 +20,7 @@ from .skills.system_design.pipelines.inputs import (
     FILE_CONFIG, REQUIRED_DEFAULT, collect_inputs, label_of, missing_required,
 )
 from .skills.system_design.pipelines.path_manifest import (
+    abs_artifacts_dir,
     abs_upload_dir,
     ensure_parent_dir,
     relpath_for_artifact,
@@ -316,6 +317,49 @@ def check_need_files(root: Path, need_files: list[str]) -> dict[str, Any]:
 
 
 def resolve_artifact_path(work_root: Path, path: str) -> Path:
-    """系统设计输入件/产物预览路径解析（允许 input/xmfz/ht/output 布局）。"""
+    """系统设计输入件/产物预览路径解析（允许 input/jmfz/ht/output 布局）。"""
     _ = work_root
     return resolve_artifact_file(path)
+
+
+def _clear_dir_files(target: Path, removed: list[str]) -> None:
+    """清空一个目录下的全部文件与空子目录（保留目录本身，跳过 ~$ 临时锁文件）。"""
+    if not target.is_dir():
+        return
+    # 自底向上删：先删文件再删空目录，保留根目录本身
+    for p in sorted(target.rglob("*"), key=lambda x: len(x.parts), reverse=True):
+        if p.name.startswith("~$"):
+            continue
+        try:
+            if p.is_file() or p.is_symlink():
+                p.unlink()
+                removed.append(relpath_from_data_root(p))
+            elif p.is_dir():
+                p.rmdir()  # 仅删空目录（文件已先行删除）
+        except OSError:
+            pass
+
+
+def reset_workspace(root: Path) -> dict[str, Any]:
+    """重置会话：清空 output/ 产物 + input/ 用户上传件。
+
+    系统设计数据布局为 project_paths.json 绝对路径（input 用户上传 / jmfz 仿真产出 /
+    ht 测试用例 / output 产物）。重置清两处：
+      - output/：本次运行生成的产物（LLD / ZTP / 平面规划表等）；
+      - input/ ：用户上传的输入件（如「项目信息收集表」），便于重新上传重测。
+    上游的 jmfz（仿真三表）/ ht（测试用例）属于建模仿真链路产出，不在此清除。
+
+    清理后由前端 handleResetSession 清掉持久化 run_id 回到启动页；下次启动得到全新
+    run（input_check 重新检查输入件，缺「项目信息收集表」会回到「输入件准备」HITL）。
+    """
+    _ = root
+    removed: list[str] = []
+    _clear_dir_files(abs_artifacts_dir(), removed)  # output/
+    _clear_dir_files(abs_upload_dir(), removed)      # input/
+
+    return {
+        "ok": True,
+        "removed_count": len(removed),
+        "removed": removed,
+        "message": "已清空产物（output/）与用户上传件（input/）。可重新启动系统设计作业并重新上传。",
+    }

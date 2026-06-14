@@ -524,6 +524,7 @@ def build_editable_table(state: dict[str, Any]) -> SduiCardNode | None:
         backStepId=spec.get("backStepId"),
         groupKey=spec.get("groupKey"),
         groupAsTabs=spec.get("groupAsTabs"),
+        filterKeys=spec.get("filterKeys"),
         pageSize=spec.get("pageSize"),
         requiredKeys=spec.get("requiredKeys"),
     )

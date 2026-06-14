@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ProposalChapterCard } from '../primitives';
 import { PROJECT_BACKGROUND } from '../proposal-data';
 
@@ -11,8 +11,44 @@ const BACKGROUND_ROWS = (b: typeof PROJECT_BACKGROUND) => [
   { key: 'plan', label: '客户项目计划', value: b.planSummary },
 ];
 
-export function CustomerProjectChapter() {
-  const [rows, setRows] = useState(() => BACKGROUND_ROWS(PROJECT_BACKGROUND));
+interface CustomerChapterProps {
+  initialRows?: unknown;
+  readOnly?: boolean;
+  onRowsChange?: (rows: Array<Record<string, string>>) => void;
+}
+
+function _normalizeRows(input: unknown) {
+  if (!Array.isArray(input) || input.length === 0) {
+    return BACKGROUND_ROWS(PROJECT_BACKGROUND);
+  }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row) => {
+      const item = row as Record<string, unknown>;
+      return {
+        key: String(item.key ?? ''),
+        label: String(item.label ?? ''),
+        value: String(item.value ?? ''),
+      };
+    })
+    .filter((row) => row.key);
+  return rows.length ? rows : BACKGROUND_ROWS(PROJECT_BACKGROUND);
+}
+
+export function CustomerProjectChapter({
+  initialRows,
+  readOnly = false,
+  onRowsChange,
+}: CustomerChapterProps) {
+  const [rows, setRows] = useState(() => _normalizeRows(initialRows));
+
+  useEffect(() => {
+    setRows(_normalizeRows(initialRows));
+  }, [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(rows.map((row) => ({ ...row })));
+  }, [onRowsChange, rows]);
 
   const update = (key: string, value: string) =>
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, value } : r)));
@@ -32,6 +68,7 @@ export function CustomerProjectChapter() {
               value={row.value}
               rows={2}
               onChange={(e) => update(row.key, e.target.value)}
+              disabled={readOnly}
               placeholder="填写内容"
               className="w-full resize-y rounded-md border border-transparent bg-transparent px-2 py-1.5 text-sm leading-relaxed text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none"
             />
@@ -42,6 +79,6 @@ export function CustomerProjectChapter() {
   );
 }
 
-export function CustomerChapterWrapper() {
-  return <CustomerProjectChapter />;
+export function CustomerChapterWrapper(props: CustomerChapterProps) {
+  return <CustomerProjectChapter {...props} />;
 }

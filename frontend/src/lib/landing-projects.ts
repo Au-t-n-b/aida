@@ -1,5 +1,13 @@
 /** 数据中心 projects/my → 落地页卡片模型映射 */
 
+export const CONTRACT_PRESALE = '预销售合同';
+export const CONTRACT_STANDARD = '标准合同';
+
+export const LANDING_STATUS_LABEL = {
+  approved: '已审批',
+  draft: '草稿',
+} as const;
+
 export type LandingProjectCard = {
   /** 数据中心 projectId（UUID32） */
   id: string;
@@ -75,6 +83,13 @@ export function isPendingProject(p: Pick<LandingProjectCard, 'status'>): boolean
   return p.status === 'PENDING_APPROVAL';
 }
 
+/** 落地页状态徽章：已审批 / 草稿（待审批等） */
+export function landingStatusKey(
+  p: Pick<LandingProjectCard, 'status' | 'canEnter'>,
+): keyof typeof LANDING_STATUS_LABEL {
+  return p.status === 'APPROVED' || p.canEnter ? 'approved' : 'draft';
+}
+
 /** 已审批在前，待审批在后 */
 export function sortLandingProjects(items: LandingProjectCard[]): LandingProjectCard[] {
   return [...items].sort((a, b) => {
@@ -125,8 +140,11 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
     pdUserId?: number;
     pcmUserId?: number;
   } = { projectName };
-  if (code) body.projectCode = code;
-  if (proposal) body.bidCode = proposal;
+  if (fields.contractType === CONTRACT_STANDARD) {
+    if (proposal) body.bidCode = proposal;
+  } else {
+    if (code) body.projectCode = code;
+  }
   const pdUserId = parseOptionalUserId(fields.pd);
   const tdUserId = parseOptionalUserId(fields.td);
   const pcmUserId = parseOptionalUserId(fields.pcm);
@@ -138,12 +156,15 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
 
 /** 编辑弹窗字段预填（与新建项目表单一致） */
 export function projectToFormPreset(p: LandingProjectCard): Record<string, string> {
-  const code = p.code || '';
-  const bid = p.bidCode || '';
+  const code = (p.code || '').trim();
+  const bid = (p.bidCode || '').trim();
+  const proposal = bid && bid !== code ? bid : '';
+  const contractType = code && !proposal ? CONTRACT_PRESALE : (proposal && !code ? CONTRACT_STANDARD : CONTRACT_PRESALE);
   return {
     name: p.name || '',
-    code,
-    proposal: bid && bid !== code ? bid : code,
+    contractType,
+    code: contractType === CONTRACT_PRESALE ? code : '',
+    proposal: contractType === CONTRACT_STANDARD ? (proposal || bid || code) : '',
     scene: '',
     pd: p.pdName || '',
     td: p.tdName || '',
@@ -155,7 +176,6 @@ export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {
   const roles = (item.myRoles || [])
     .map((r) => r.roleCode)
     .filter(Boolean);
-  const approved = item.status === 'APPROVED';
   const stage4 = mapStage4(item.stage, item.progress);
   const overdueCount = item.risk === 'high' ? 1 : 0;
 
@@ -169,7 +189,7 @@ export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {
     todoCount: item.progress > 0 ? Math.max(1, Math.round(item.progress / 25)) : 0,
     overdueCount,
     blocker: item.canEnter ? null : (item.disabledReason || '项目暂不可进入'),
-    canEdit: approved,
+    canEdit: item.status === 'APPROVED' || item.status === 'PENDING_APPROVAL',
     updated: formatRelativeTime(item.updatedAt),
     canEnter: item.canEnter,
     disabledReason: item.disabledReason || undefined,

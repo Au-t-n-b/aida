@@ -752,23 +752,6 @@ function SkillRunBanner({
 
         {!usesDeliveryWorkbench && myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
 
-        {!usesDeliveryWorkbench && phase === 'hitl' && myHitl && (
-          <div style={{ margin: '6px 10px 10px' }}>
-            <SduiRuntimeContext.Provider
-              value={{
-                runId: myHitl.runId,
-                skillId,
-                onAction: (action) => { myHitl.onAction?.(action); },
-                onUpload: myHitl.onUpload,
-                onChoiceSubmit: myHitl.onChoiceSubmit,
-                onRowsSubmit: () => {},
-              }}
-            >
-              <SduiNodeView node={myHitl.node} />
-            </SduiRuntimeContext.Provider>
-          </div>
-        )}
-
         {!usesDeliveryWorkbench && phase === 'hitl' && !myHitl && (
           <div style={{
             margin: '6px 10px 8px',

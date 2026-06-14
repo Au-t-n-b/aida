@@ -178,10 +178,10 @@ def _resolve_io_paths(work_root: Path) -> dict[str, Path | None]:
         "resource": resource.path if resource else None,
         "location_004": loc.path if loc else None,
         "out_dir": out_dir,
-        # scan_dir 必须覆盖全部输入来源：新路径把 007/001/004 放 xmfz、resource 放 input、
+        # scan_dir 必须覆盖全部输入来源：新路径把 007/001/004 放 jmfz、resource 放 input、
         # 规划产物落 output，分散在 data_root 的不同子目录。ztp_scan / lq_open_scan / input_check
-        # 子 skill 按 scan_dir 递归 rglob 查找输入件，故取 data_root（input/xmfz/output 的共同父目录）；
-        # 只扫 abs_upload_dir()（input）会漏掉 xmfz 的 004 设备位置表与 output 的规划产物 → ZTP 报缺件。
+        # 子 skill 按 scan_dir 递归 rglob 查找输入件，故取 data_root（input/jmfz/output 的共同父目录）；
+        # 只扫 abs_upload_dir()（input）会漏掉 jmfz 的 004 设备位置表与 output 的规划产物 → ZTP 报缺件。
         "scan_dir": get_a3_root(),
     }
 

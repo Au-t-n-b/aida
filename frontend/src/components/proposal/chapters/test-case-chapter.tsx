@@ -2,12 +2,17 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ProposalChapterCard } from '../primitives';
-import { useProposalData, tcKey } from '@/hooks/useProposalData';
-import type { AcceptanceTestCase } from '@/types/domain';
+import { ACCEPTANCE_TEST_CASES, type AcceptanceTestCase } from '../proposal-testcases';
 
 type KeyedCase = AcceptanceTestCase & { key: string };
 const CB = 'h-4 w-4 shrink-0 cursor-pointer accent-blue-600';
+interface TestCaseChapterProps {
+  initialRows?: unknown;
+  readOnly?: boolean;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
 
+/* ── 右侧详情：字段块 + 编号步骤 ── */
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
@@ -34,13 +39,23 @@ function StepList({ items, tone }: { items: string[]; tone: 'blue' | 'green' }) 
   );
 }
 
-function CaseDetail({ c, selected, onToggle }: { c: KeyedCase; selected: boolean; onToggle: () => void }) {
+function CaseDetail({
+  c,
+  selected,
+  onToggle,
+  readOnly,
+}: {
+  c: KeyedCase;
+  selected: boolean;
+  onToggle: () => void;
+  readOnly: boolean;
+}) {
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
       <div className="flex items-center gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
         <div className="min-w-0 flex-1 text-base font-semibold text-slate-900">{c.l3}</div>
         <label className="flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-blue-300">
-          <input type="checkbox" checked={selected} onChange={onToggle} className={CB} />
+          <input type="checkbox" checked={selected} onChange={onToggle} className={CB} disabled={readOnly} />
           纳入验收
         </label>
       </div>
@@ -66,14 +81,15 @@ function CaseDetail({ c, selected, onToggle }: { c: KeyedCase; selected: boolean
   );
 }
 
-export function TestCaseChapter() {
-  const { testCases, selectedTcKeys, setSelectedTc, loading } = useProposalData();
-
+export function TestCaseChapter({
+  initialRows,
+  readOnly = false,
+  onRowsChange,
+}: TestCaseChapterProps) {
   const cases = useMemo<KeyedCase[]>(
-    () => testCases.map((c, i) => ({ ...c, key: tcKey(c, i) })),
-    [testCases],
+    () => ACCEPTANCE_TEST_CASES.map((c, i) => ({ ...c, key: `tc${i}` })),
+    [],
   );
-
   const groups = useMemo(() => {
     const m = new Map<string, Map<string, KeyedCase[]>>();
     for (const c of cases) {
@@ -89,35 +105,60 @@ export function TestCaseChapter() {
     }));
   }, [cases]);
 
-  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set());
+  const initialSelected = useMemo(() => {
+    if (!Array.isArray(initialRows) || initialRows.length === 0) {
+      return new Set(cases.map((c) => c.key));
+    }
+    const selectedKeys = new Set<string>();
+    for (const row of initialRows) {
+      if (!row || typeof row !== 'object') continue;
+      const item = row as Record<string, unknown>;
+      const id = String(item.id ?? '');
+      const l3 = String(item.l3 ?? '');
+      const selected = item.selected;
+      const key = cases.find((c) => c.id === id && c.l3 === l3)?.key;
+      if (key && (selected === undefined || selected === true || selected === 'true' || selected === 1)) {
+        selectedKeys.add(key);
+      }
+    }
+    return selectedKeys.size ? selectedKeys : new Set(cases.map((c) => c.key));
+  }, [cases, initialRows]);
+  const [selected, setSelected] = useState<Set<string>>(initialSelected);
+  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set(groups.map((g) => g.l1)));
+  // 默认：一级展开、二级全部折叠（三级隐藏）——用户单击二级三角再展开其用例
   const [openL2, setOpenL2] = useState<Set<string>>(() => new Set());
-  const [active, setActive] = useState('');
+  const [active, setActive] = useState<string>(() => cases[0]?.key ?? '');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    if (groups.length) {
-      setOpenL1(new Set(groups.map((g) => g.l1)));
-    }
-    if (cases.length && !active) {
-      setActive(cases[0]?.key ?? '');
-    }
-  }, [groups, cases, active]);
+    setSelected(initialSelected);
+  }, [initialSelected]);
 
-  const selected = selectedTcKeys;
+  useEffect(() => {
+    const payloadRows = cases.map((c) => ({
+      id: c.id,
+      l1: c.l1,
+      l2: c.l2,
+      l3: c.l3,
+      purpose: c.purpose,
+      topology: c.topology,
+      pre: c.pre,
+      steps: c.steps,
+      expects: c.expects,
+      remark: c.remark,
+      result: c.result,
+      selected: selected.has(c.key),
+    }));
+    onRowsChange?.(payloadRows);
+  }, [cases, onRowsChange, selected]);
 
   const q = query.trim();
   const hit = (c: KeyedCase) => !q || c.id.includes(q) || c.l3.includes(q) || c.purpose.includes(q);
 
-  const toggleSel = (k: string) => {
-    const n = new Set(selected);
-    if (n.has(k)) n.delete(k); else n.add(k);
-    setSelectedTc(n);
-  };
-  const setMany = (keys: string[], on: boolean) => {
-    const n = new Set(selected);
-    keys.forEach((k) => (on ? n.add(k) : n.delete(k)));
-    setSelectedTc(n);
-  };
+  const toggleSel = (k: string) =>
+    setSelected((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const setMany = (keys: string[], on: boolean) =>
+    setSelected((s) => { const n = new Set(s); keys.forEach((k) => (on ? n.add(k) : n.delete(k))); return n; });
   const toggleL1 = (l1: string) =>
     setOpenL1((s) => { const n = new Set(s); if (n.has(l1)) n.delete(l1); else n.add(l1); return n; });
   const toggleL2 = (key: string) =>
@@ -125,27 +166,10 @@ export function TestCaseChapter() {
 
   const activeCase = cases.find((c) => c.key === active) ?? null;
 
-  if (loading) {
-    return (
-      <ProposalChapterCard id="panel-testcase" title="12. 测试用例">
-        <p className="text-sm text-slate-500">加载中…</p>
-      </ProposalChapterCard>
-    );
-  }
-
-  if (!cases.length) {
-    return (
-      <ProposalChapterCard id="panel-testcase" title="12. 测试用例">
-        <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-          暂无测试用例 · 请上传「场景测试用例」后加载
-        </div>
-      </ProposalChapterCard>
-    );
-  }
-
   return (
     <ProposalChapterCard id="panel-testcase" title="12. 测试用例">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        {/* 左：用例树 */}
         <div className="lg:w-[340px] lg:shrink-0">
           <div className="relative mb-2">
             <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
@@ -172,6 +196,7 @@ export function TestCaseChapter() {
                       ref={(el) => { if (el) el.indeterminate = gSel > 0 && !allSel; }}
                       onChange={(e) => setMany(g.keys, e.target.checked)}
                       className={CB}
+                      disabled={readOnly}
                       title="全选 / 取消该子系统"
                     />
                     <button type="button" onClick={() => toggleL1(g.l1)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
@@ -197,6 +222,7 @@ export function TestCaseChapter() {
                             ref={(el) => { if (el) el.indeterminate = l2Sel > 0 && !l2All; }}
                             onChange={(e) => setMany(l2Keys, e.target.checked)}
                             className={CB}
+                            disabled={readOnly}
                             title="全选 / 取消该类"
                           />
                           <button type="button" onClick={() => toggleL2(l2key)} className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
@@ -220,6 +246,7 @@ export function TestCaseChapter() {
                                 onChange={(e) => { e.stopPropagation(); toggleSel(c.key); }}
                                 onClick={(e) => e.stopPropagation()}
                                 className={CB}
+                                disabled={readOnly}
                               />
                               <span className={`shrink-0 font-mono text-[11px] ${isActive ? 'font-semibold text-blue-600' : 'text-slate-400'}`}>{c.id}</span>
                               <span className={`truncate text-[12px] ${isActive ? 'font-medium text-blue-700' : 'text-slate-600'}`}>{c.l3}</span>
@@ -235,9 +262,15 @@ export function TestCaseChapter() {
           </div>
         </div>
 
+        {/* 右：详情 */}
         <div className="min-w-0 flex-1">
           {activeCase ? (
-            <CaseDetail c={activeCase} selected={selected.has(activeCase.key)} onToggle={() => toggleSel(activeCase.key)} />
+            <CaseDetail
+              c={activeCase}
+              selected={selected.has(activeCase.key)}
+              onToggle={() => toggleSel(activeCase.key)}
+              readOnly={readOnly}
+            />
           ) : (
             <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
               从左侧选择一个用例查看详情

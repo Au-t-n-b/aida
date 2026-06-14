@@ -89,7 +89,7 @@ def _resolve_skill_artifact_file(skill_obj: Any, path: str) -> Path:
                 return full.resolve()
         except (ValueError, FileNotFoundError, OSError):
             pass
-    # system_design：input/xmfz/ht/output 相对 data_root（work_root）· 勿误拦为 ProjectData 外
+    # system_design：input/jmfz/ht/output 相对 data_root（work_root）· 勿误拦为 ProjectData 外
     root = Path(skill_obj.work_root).resolve()
     full = (root / raw.replace("\\", "/")).resolve()
     if full.is_file():

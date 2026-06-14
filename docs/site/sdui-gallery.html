@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 66 个节点类型 · 41 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 67 个节点类型 · 42 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -112,6 +112,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#TabGroup">TabGroup</a>
 <a href="#InputSlotList">InputSlotList</a>
 <a href="#TaskTimelineStrip">TaskTimelineStrip</a>
+<a href="#GanttChart">GanttChart</a>
 <a href="#ContextBar">ContextBar</a>
 <a href="#FlowSteps">FlowSteps</a>
 <a href="#MacroStepRail">MacroStepRail</a>
@@ -153,6 +154,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#SduiImageItem">ImageItem</a>
 <a href="#SduiTabPanel">TabPanel</a>
 <a href="#SduiInputSlot">InputSlot</a>
+<a href="#SduiGanttRow">GanttRow</a>
 <a href="#SduiContextBarGroup">ContextBarGroup</a>
 <a href="#SduiFlowStepCard">FlowStepCard</a>
 <a href="#SduiFlowStepChip">FlowStepChip</a>
@@ -400,7 +402,7 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;value&quot;: &quot;示例&quot;,
   &quot;label&quot;: &quot;示例&quot;
 }</pre></section>
-<section id="PlaneMatrix"><h3><code>PlaneMatrix</code> SduiPlaneMatrixNode<span class="tag">展示 v1.1</span></h3><p class="desc">平面矩阵 · a3 系统设计大盘核心节点：N 个网络平面 × 规划状态的网格。     每格 = 一个平面（计算/存储各面），status 反映该平面是否已出规划产物。     用于「地址规划」类编排器型 skill 展示跨命令累积进度。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: PlaneMatrix</code></td><td class='req'>—</td><td><code>PlaneMatrix</code></td></tr>
+<section id="PlaneMatrix"><h3><code>PlaneMatrix</code> SduiPlaneMatrixNode<span class="tag">展示 v1.1</span></h3><p class="desc">平面矩阵 · a3 系统设计大盘核心节点：N 个网络平面 × 规划状态的网格。 每格 = 一个平面（计算/存储各面），status 反映该平面是否已出规划产物。 用于「地址规划」类编排器型 skill 展示跨命令累积进度。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: PlaneMatrix</code></td><td class='req'>—</td><td><code>PlaneMatrix</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>cells</b></td><td><code>PlaneCell[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>columns</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
@@ -467,7 +469,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="MachineRoom3D"><h3><code>MachineRoom3D</code> SduiMachineRoom3DNode<span class="tag">Other</span></h3><p class="desc">3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。      给「以机房为单位的勘测态势」一个立体俯视入口（CSS 3D，前端零依赖）。     DataTable/PlaneMatrix 只能平铺，无法表达机柜级体量与多入口下钻。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MachineRoom3D</code></td><td class='req'>—</td><td><code>MachineRoom3D</code></td></tr>
+<section id="MachineRoom3D"><h3><code>MachineRoom3D</code> SduiMachineRoom3DNode<span class="tag">Other</span></h3><p class="desc">3D 机房俯视总览 · 等距体素场景 + 机房卡片网格 + 多业务入口 + 图例。  给「以机房为单位的勘测态势」一个立体俯视入口（CSS 3D，前端零依赖）。 DataTable/PlaneMatrix 只能平铺，无法表达机柜级体量与多入口下钻。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MachineRoom3D</code></td><td class='req'>—</td><td><code>MachineRoom3D</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>eyebrow</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -568,7 +570,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="DataTable"><h3><code>DataTable</code> SduiDataTableNode<span class="tag">Other</span></h3><p class="desc">数据表格 · 列 + 行（带标题 / 计数栏）。      两种形态向后兼容：       ① 旧只读位置型：columns=list[str]、rows=list[list]（zhgk 等沿用）；       ② 新类型化 / 可编辑：columns=list[SduiDataTableColumn]、rows=list[dict]，          editable=True 时前端按列 type 渲染输入框 + 底部「填充 / 提交」按钮。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DataTable</code></td><td class='req'>—</td><td><code>DataTable</code></td></tr>
+<section id="DataTable"><h3><code>DataTable</code> SduiDataTableNode<span class="tag">Other</span></h3><p class="desc">数据表格 · 列 + 行（带标题 / 计数栏）。  两种形态向后兼容：   ① 旧只读位置型：columns=list[str]、rows=list[list]（zhgk 等沿用）；   ② 新类型化 / 可编辑：columns=list[SduiDataTableColumn]、rows=list[dict]，      editable=True 时前端按列 type 渲染输入框 + 底部「填充 / 提交」按钮。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: DataTable</code></td><td class='req'>—</td><td><code>DataTable</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>columns</b></td><td><code>string[] | DataTableColumn[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>rows</b></td><td><code>string | int | number[][] | object[]</code></td><td class='req'>✓</td><td></td></tr>
@@ -588,6 +590,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>backStepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>groupKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>groupAsTabs</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>filterKeys</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>pageSize</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>requiredKeys</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>dualMode</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
@@ -739,7 +742,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="Toast"><h3><code>Toast</code> SduiToastNode<span class="tag">Other</span></h3><p class="desc">浮层通知 · 单行轻提示（状态点 + 主文案 + 副文案）。     SDUI 静态投影里作为「已完成/已保存」类即时反馈展示，无自动消失计时。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Toast</code></td><td class='req'>—</td><td><code>Toast</code></td></tr>
+<section id="Toast"><h3><code>Toast</code> SduiToastNode<span class="tag">Other</span></h3><p class="desc">浮层通知 · 单行轻提示（状态点 + 主文案 + 副文案）。 SDUI 静态投影里作为「已完成/已保存」类即时反馈展示，无自动消失计时。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Toast</code></td><td class='req'>—</td><td><code>Toast</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>message</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>detail</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -783,7 +786,7 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;Drawer&quot;,
   &quot;title&quot;: &quot;示例&quot;
 }</pre></section>
-<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。     badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导     （如执行中切「进度」页）；focusToken 递增时前端强制同步选中（即使用户曾手动切页）。     variant=subnav 时居中底划线样式（交付台作业空间导航）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
+<section id="TabGroup"><h3><code>TabGroup</code> SduiTabGroupNode<span class="tag">Other</span></h3><p class="desc">页签容器 · 子节点按页签分组切换（区别于只放文本的 Tabs / 只放表格的 TabbedTable）。 badge 显示计数/未读角标；activeTab 给定页签 id 作为初始选中，后端可借此引导 （如执行中切「进度」页）；focusToken 递增时前端强制同步选中（即使用户曾手动切页）。 variant=subnav 时居中底划线样式（交付台作业空间导航）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TabGroup</code></td><td class='req'>—</td><td><code>TabGroup</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>tabs</b></td><td><code>TabPanel[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>activeTab</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -799,7 +802,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="InputSlotList"><h3><code>InputSlotList</code> SduiInputSlotListNode<span class="tag">Other</span></h3><p class="desc">输入件槽位清单 · 每行一个输入件，区分必需/可选 × 自动/手动 × 就绪/缺失。     缺件行高亮并给行内上传 CTA，就绪行可预览，自动件未就绪显示「检查中」标签。     （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）      uploadStepId / uploadPurpose：缺件行「上传」按钮触发真实文件选择器并经     runtime.onUpload(files, uploadPurpose, uploadStepId) 上传 + resume；     未给时退回 post_user_message（仅提示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: InputSlotList</code></td><td class='req'>—</td><td><code>InputSlotList</code></td></tr>
+<section id="InputSlotList"><h3><code>InputSlotList</code> SduiInputSlotListNode<span class="tag">Other</span></h3><p class="desc">输入件槽位清单 · 每行一个输入件，区分必需/可选 × 自动/手动 × 就绪/缺失。 缺件行高亮并给行内上传 CTA，就绪行可预览，自动件未就绪显示「检查中」标签。 （ArtifactGrid 只能列已存在产物，无法表达缺失槽位 + 行内上传 + 必需/自动语义。）  uploadStepId / uploadPurpose：缺件行「上传」按钮触发真实文件选择器并经 runtime.onUpload(files, uploadPurpose, uploadStepId) 上传 + resume； 未给时退回 post_user_message（仅提示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: InputSlotList</code></td><td class='req'>—</td><td><code>InputSlotList</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>slots</b></td><td><code>InputSlot[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -813,7 +816,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="TaskTimelineStrip"><h3><code>TaskTimelineStrip</code> SduiTaskTimelineStripNode<span class="tag">Other</span></h3><p class="desc">任务时间规划条 / 迷你甘特 · 计划 vs 实际双轨 + 剩余天数 + 进度填充。     plannedStart/End 必填；actualStart/End 可选；remainingDays 逾期为负；progressPct 0–100。     （Timeline 是事件流、KeyValueList 只能列日期，均无双轨甘特 + 剩余天数提醒。）</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TaskTimelineStrip</code></td><td class='req'>—</td><td><code>TaskTimelineStrip</code></td></tr>
+<section id="TaskTimelineStrip"><h3><code>TaskTimelineStrip</code> SduiTaskTimelineStripNode<span class="tag">Other</span></h3><p class="desc">任务时间规划条 / 迷你甘特 · 计划 vs 实际双轨 + 剩余天数 + 进度填充。 plannedStart/End 必填；actualStart/End 可选；remainingDays 逾期为负；progressPct 0–100。 （Timeline 是事件流、KeyValueList 只能列日期，均无双轨甘特 + 剩余天数提醒。）</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: TaskTimelineStrip</code></td><td class='req'>—</td><td><code>TaskTimelineStrip</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>plannedStart</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>plannedEnd</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
@@ -824,6 +827,20 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;TaskTimelineStrip&quot;,
   &quot;plannedStart&quot;: &quot;示例&quot;,
   &quot;plannedEnd&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="GanttChart"><h3><code>GanttChart</code> SduiGanttChartNode<span class="tag">Other</span></h3><p class="desc">多行甘特图 · 按 group 分组展示计划条（只读；编辑走 DataTable 页签）。 rows 每行 start/end 为 ISO 日期字符串（YYYY-MM-DD）；status 可选用于着色（如待下发/已下发）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: GanttChart</code></td><td class='req'>—</td><td><code>GanttChart</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>GanttRow[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;GanttChart&quot;,
+  &quot;rows&quot;: [
+    {
+      &quot;id&quot;: &quot;示例&quot;,
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;start&quot;: &quot;示例&quot;,
+      &quot;end&quot;: &quot;示例&quot;
+    }
+  ]
 }</pre></section>
 <section id="ContextBar"><h3><code>ContextBar</code> SduiContextBarNode<span class="tag">Other</span></h3><p class="desc">项目元信息条 · 批次 / 起止 / 负责人 / 规模（对齐交付台 ctx-bar）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ContextBar</code></td><td class='req'>—</td><td><code>ContextBar</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -850,7 +867,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="MacroStepRail"><h3><code>MacroStepRail</code> SduiMacroStepRailNode<span class="tag">Other</span></h3><p class="desc">宏观交付蓝图条 · 顶层阶段（如六步 s1–s6），区别于 micro 的 Stepper 步骤日志。     optional 阶段灰显并标「可选」，hint 给每步副提示，currentId 高亮当前阶段。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MacroStepRail</code></td><td class='req'>—</td><td><code>MacroStepRail</code></td></tr>
+<section id="MacroStepRail"><h3><code>MacroStepRail</code> SduiMacroStepRailNode<span class="tag">Other</span></h3><p class="desc">宏观交付蓝图条 · 顶层阶段（如六步 s1–s6），区别于 micro 的 Stepper 步骤日志。 optional 阶段灰显并标「可选」，hint 给每步副提示，currentId 高亮当前阶段。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: MacroStepRail</code></td><td class='req'>—</td><td><code>MacroStepRail</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>steps</b></td><td><code>MacroStep[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>currentId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
@@ -862,7 +879,7 @@ footer code{color:var(--cyan)}</style></head><body>
     }
   ]
 }</pre></section>
-<section id="EmbeddedWeb"><h3><code>EmbeddedWeb</code> SduiEmbeddedWebNode<span class="tag">Other</span></h3><p class="desc">内嵌网页 · iframe 承载外部 Web UI（如 nVisual 仿真软件访问页）。      url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认前端给 520）。     openInNewTab=True 时页眉给「新页打开」链接（内网 iframe 不可达时的兜底）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: EmbeddedWeb</code></td><td class='req'>—</td><td><code>EmbeddedWeb</code></td></tr>
+<section id="EmbeddedWeb"><h3><code>EmbeddedWeb</code> SduiEmbeddedWebNode<span class="tag">Other</span></h3><p class="desc">内嵌网页 · iframe 承载外部 Web UI（如 nVisual 仿真软件访问页）。  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认前端给 520）。 openInNewTab=True 时页眉给「新页打开」链接（内网 iframe 不可达时的兜底）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: EmbeddedWeb</code></td><td class='req'>—</td><td><code>EmbeddedWeb</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>url</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -874,7 +891,7 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;EmbeddedWeb&quot;,
   &quot;url&quot;: &quot;示例&quot;
 }</pre></section>
-<section id="OutputDocsGrid"><h3><code>OutputDocsGrid</code> SduiOutputDocsGridNode<span class="tag">Other</span></h3><p class="desc">分类输出文件网格 · 按 category 分组的产物卡（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。     unlocked=False 时整体半透 + 标「待生成」（建模完成前的占位）；unlocked=True 时给下载入口。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: OutputDocsGrid</code></td><td class='req'>—</td><td><code>OutputDocsGrid</code></td></tr>
+<section id="OutputDocsGrid"><h3><code>OutputDocsGrid</code> SduiOutputDocsGridNode<span class="tag">Other</span></h3><p class="desc">分类输出文件网格 · 按 category 分组的产物卡（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。 unlocked=False 时整体半透 + 标「待生成」（建模完成前的占位）；unlocked=True 时给下载入口。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: OutputDocsGrid</code></td><td class='req'>—</td><td><code>OutputDocsGrid</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>docs</b></td><td><code>OutputDocItem[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>categories</b></td><td><code>OutputDocCategory[]</code></td><td class='req'>—</td><td></td></tr>
@@ -1002,10 +1019,12 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>content</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiAccordionItem"><h3><code>AccordionItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>body</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
-<section id="SduiDataTableColumn"><h3><code>DataTableColumn</code></h3><p class="desc">类型化列：key 取行 dict 字段，type 决定单元格渲染（文本 / 状态徽标 / 进度条）。      editable=True 的列在可编辑表里渲染为输入框（如 ESN 列）；其余列只读。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<section id="SduiDataTableColumn"><h3><code>DataTableColumn</code></h3><p class="desc">类型化列：key 取行 dict 字段，type 决定单元格渲染（文本 / 状态徽标 / 进度条）。  editable=True 的列在可编辑表里渲染为输入框（如 ESN 列）；其余列只读。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>type</b></td><td><code>enum: text | status | progress</code></td><td class='req'>—</td><td><code>text</code></td></tr>
+<tr><td><b>type</b></td><td><code>enum: text | status | progress | date</code></td><td class='req'>—</td><td><code>text</code></td></tr>
 <tr><td><b>width</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>paddingLeft</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>nowrap</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
 <tr><td><b>editable</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
 <tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiTabbedTableTab"><h3><code>TabbedTableTab</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
@@ -1036,13 +1055,19 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>badge</b></td><td><code>string | int</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>children</b></td><td><code>SduiNode[]</code></td><td class='req'>—</td><td></td></tr></table></section>
-<section id="SduiInputSlot"><h3><code>InputSlot</code></h3><p class="desc">InputSlotList 的一行输入件槽位。source=auto 仿真产出 / manual 人工上传；     ready 表就绪（有文件）；缺失的 manual 件给上传 CTA，缺失的 auto 件显示「检查中」。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<section id="SduiInputSlot"><h3><code>InputSlot</code></h3><p class="desc">InputSlotList 的一行输入件槽位。source=auto 仿真产出 / manual 人工上传； ready 表就绪（有文件）；缺失的 manual 件给上传 CTA，缺失的 auto 件显示「检查中」。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>source</b></td><td><code>enum: auto | manual</code></td><td class='req'>✓</td><td><code>auto</code> | <code>manual</code></td></tr>
 <tr><td><b>required</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>ready</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>fileName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>previewPath</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>slotTag</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiGanttRow"><h3><code>GanttRow</code></h3><p class="desc">GanttChart 的一行任务条：id + label + 可选 group（管理单元）+ start/end + 可选 status。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>group</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>start</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>end</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiContextBarGroup"><h3><code>ContextBarGroup</code></h3><p class="desc">ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>badge</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>

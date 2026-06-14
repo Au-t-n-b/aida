@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
-from ._io import reload_tasks_from_plan, tasks_state_path, refresh_task_metrics
+from ._io import tasks_state_path, refresh_task_metrics
 from ..path_config import get_output_dir, output_rel
 from ..services._common import as_str, principal_display_name
 from ..services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
@@ -129,16 +129,14 @@ class TaskDispatchStep(BaseStep):
         ):
             return {"ok": True, "missing": []}
 
-        # 展示勾选界面前始终从实施计划 xlsx 重新解析（同 run 内保留下发/进度态）
-        try:
-            tasks = reload_tasks_from_plan(ctx, merge_runtime=True)
-        except Exception:  # noqa: BLE001 — 解析失败时回退到已有 tasks_state
-            tasks = get_tasks(str(tasks_state_path(ctx)))
+        # 任务来源为 tasks_state（由「生成责任人信息表」「生成设备安装实施计划」编辑落盘），
+        # 直接复用，不再重解析以免覆盖在线编辑结果。
+        tasks = get_tasks(str(tasks_state_path(ctx)))
         if not tasks:
             return {
                 "ok": False,
                 "missing": [f"ProjectData/Input/{DISPATCH_PLAN_FILENAME}"],
-                "note": "请先由上游交付实施计划并完成「接收实施计划」。",
+                "note": "请先完成「生成设备安装实施计划」。",
             }
 
         pending = [t for t in tasks if t.get("status") == "待下发"]
@@ -151,6 +149,7 @@ class TaskDispatchStep(BaseStep):
                 "ok": False,
                 "missing": [],
                 "need_edit": {
+                    "card_title": "计划下发",
                     "title": "计划下发",
                     "subtitle": (
                         "当前没有可下发的「待下发」任务（可能上一轮已将任务标记为已下发/已完成）。"
@@ -161,6 +160,7 @@ class TaskDispatchStep(BaseStep):
                     "rowKey": "id",
                     "checkKey": "selected",
                     "submitLabel": "确认下发",
+                    "pageSize": 10,
                 },
                 "note": "暂无可下发任务，请重新启动主建设流程。",
             }
@@ -169,7 +169,9 @@ class TaskDispatchStep(BaseStep):
             "ok": False,
             "missing": [],
             "need_edit": {
+                "card_title": "计划下发",
                 "title": "计划下发",
+                "subtitle": f"共 {n} 条待下发任务，请勾选后确认下发。",
                 "columns": _DISPATCH_COLUMNS,
                 "rows": rows,
                 "rowKey": "id",
@@ -178,6 +180,8 @@ class TaskDispatchStep(BaseStep):
                 "fillLabel": "一键全选",
                 "deselectLabel": "一键取消",
                 "fillRows": fill_dispatch_select_all(rows),
+                "filterKeys": ["unit", "activity_name"],
+                "pageSize": 10,
                 "result_artifacts": [plan_rel] if plan_rel else [],
             },
         }
@@ -222,6 +226,7 @@ class TaskDispatchStep(BaseStep):
         st["last_dispatch_tasks"] = [
             {
                 "id": as_str(t.get("id")),
+                "plan_row_id": as_str(t.get("plan_row_id")) or f"{as_str(t.get('unit'))}::{as_str(t.get('activity_id'))}",
                 "unit": as_str(t.get("unit")),
                 "activity_id": as_str(t.get("activity_id")),
                 "activity_name": as_str(t.get("activity_name")),

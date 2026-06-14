@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { AcceptanceChapter } from './chapters/acceptance-chapter';
 import { CustomerChapterWrapper } from './chapters/customer-chapter';
 import { DeviceChapter } from './chapters/device-chapter';
@@ -37,6 +37,8 @@ import {
   releaseAndDecide,
   resolveVersionInfoMetadata,
   saveDraft,
+  proposalApi,
+  roomRackApi,
   useProposalApiHeaders,
   type CumulativeChangeEntry,
   type DraftManifest,
@@ -44,8 +46,6 @@ import {
   type ProposalVersionItem,
   type VersionInfoMetadata,
 } from '@/lib/proposal-api';
-import { useCurrentProject } from '@/lib/current-project';
-import { useProposalData } from '@/hooks/useProposalData';
 
 const DEFAULT_MANIFEST: DraftManifest = {
   workingVersionLabel: '草稿',
@@ -71,14 +71,7 @@ const FALLBACK_VERSIONS: ProposalVersionItem[] = [
 
 export default function ProposalScreen() {
   const headers = useProposalApiHeaders();
-  const { project } = useCurrentProject();
-  const projectId = project?.code ?? getDefaultProjectId();
-  const {
-    projectCtx,
-    dataWarnings,
-    saveDraftTables,
-    saveAndConfirmTables,
-  } = useProposalData();
+  const projectId = getDefaultProjectId();
 
   const [proposalVersion, setProposalVersion] = useState('draft');
   const [versions, setVersions] = useState<ProposalVersionItem[]>([]);
@@ -86,6 +79,7 @@ export default function ProposalScreen() {
   const [metadata, setMetadata] = useState<VersionInfoMetadata>(DEFAULT_METADATA);
   const [cumulativeLog, setCumulativeLog] = useState<CumulativeChangeEntry[]>([]);
   const [manualChangeLog, setManualChangeLog] = useState<CumulativeChangeEntry[]>([]);
+  const [draftChapters, setDraftChapters] = useState<Record<string, unknown>>({});
   const [etag, setEtag] = useState<string | undefined>();
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -99,7 +93,6 @@ export default function ProposalScreen() {
   const [outlineHover, setOutlineHover] = useState(false);
   const [outlinePinned, setOutlinePinned] = useState(false);
   const [outlineHidden, setOutlineHidden] = useState(false);
-  const loadGenRef = useRef(0);
 
   const isEditable = proposalVersion === 'draft';
   const outlineWide = !outlineCollapsed || outlineHover || outlinePinned;
@@ -120,8 +113,99 @@ export default function ProposalScreen() {
 
   /** 保存草稿；若 etag 过期则拉取最新 manifest 后自动重试一次 */
   const saveDraftWithEtagRetry = useCallback(async () => {
+    const buildSaveChapters = async (): Promise<Record<string, unknown>> => {
+      const chapters = { ...draftChapters };
+      try {
+        const [netPlanes, netMgmt, clusterDevices, roomRack] = await Promise.all([
+          proposalApi.listNetPlanes(),
+          proposalApi.initializeNetMgmt(),
+          proposalApi.listClusterDevices(),
+          roomRackApi.list(),
+        ]);
+        chapters['5.1'] = {
+          chapterKey: '5.1',
+          chapterTitle: '5.1 网络平面配置',
+          rows: (netPlanes.rows ?? []).map((r) => ({
+            type: r.type,
+            vendor: r.vendor,
+            model: r.model,
+            ver: r.ver,
+            qty: r.qty,
+            source: r.source,
+            note: r.note ?? '',
+          })),
+        };
+        chapters['5.2'] = {
+          chapterKey: '5.2',
+          chapterTitle: '5.2 网管服务器配置',
+          rows: (netMgmt.rows ?? []).map((r) => ({
+            serverRole: r.server_role,
+            serverModel: r.server_model,
+            quantity: r.quantity,
+            dataSource: r.data_source,
+          })),
+        };
+        chapters['7'] = {
+          chapterKey: '7',
+          chapterTitle: '7. 机房机柜信息',
+          rows: (roomRack.rows ?? []).map((r) => ({
+            podName: r.pod_name,
+            roomName: r.room_name,
+            compute: r.compute,
+            bus: r.bus,
+            paramLeaf: r.param_leaf,
+            bizLeaf: r.biz_leaf,
+            mgmt: r.mgmt,
+            sampleLeaf: r.sample_leaf,
+            dataSource: r.data_source ?? '',
+          })),
+        };
+        chapters['11'] = chapters['11'] ?? {
+          chapterKey: '11',
+          chapterTitle: '11. 验收策略',
+          rows: [],
+        };
+        chapters['12'] = chapters['12'] ?? {
+          chapterKey: '12',
+          chapterTitle: '12. 测试用例',
+          rows: [],
+        };
+        if ((clusterDevices.rows ?? []).length > 0) {
+          chapters['5.3'] = {
+            chapterKey: '5.3',
+            chapterTitle: '5.3 集群设备配置',
+            rows: (clusterDevices.rows ?? []).map((r) => ({
+              clusterId: r.cluster_id ?? '',
+              clusterType: r.cluster_type ?? '',
+              superPodId: r.super_pod_id ?? '',
+              storageClusterId: r.storage_cluster_id ?? '',
+              zoneId: r.zone_id ?? '',
+              ccaeClusterId: r.ccae_cluster_id ?? '',
+              dmeClusterId: r.dme_cluster_id ?? '',
+              deviceType: r.device_type ?? '',
+              vendor: r.vendor ?? '',
+              deviceModel: r.device_model ?? '',
+              devicePurpose: r.device_purpose ?? '',
+              startDeviceName: r.start_device_name ?? '',
+              endDeviceName: r.end_device_name ?? '',
+              quantity: r.quantity ?? 0,
+              dataSource: r.data_source ?? '',
+            })),
+          };
+        }
+      } catch {
+        // ignore legacy fetch failures, keep existing draft chapters
+      }
+      return chapters;
+    };
+
     const attempt = async (matchEtag?: string) =>
-      saveDraft(projectId, headers, { manualChangeLog }, matchEtag);
+      saveDraft(
+        projectId,
+        headers,
+        { manualChangeLog, chapters: await buildSaveChapters() },
+        matchEtag,
+      );
 
     try {
       return await attempt(etag);
@@ -134,10 +218,9 @@ export default function ProposalScreen() {
       }
       throw err;
     }
-  }, [etag, headers, manualChangeLog, projectId]);
+  }, [draftChapters, etag, headers, manualChangeLog, projectId]);
 
   const loadProposalState = useCallback(async () => {
-    const gen = ++loadGenRef.current;
     setLoading(true);
     const errors: string[] = [];
 
@@ -146,57 +229,57 @@ export default function ProposalScreen() {
     let changeLog: CumulativeChangeEntry[] = [];
 
     try {
-      try {
-        draftData = await fetchDraft(projectId, headers);
-      } catch (err) {
-        errors.push(
-          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
-        );
-      }
-
-      try {
-        versionList = await fetchVersions(projectId, headers);
-      } catch (err) {
-        errors.push(
-          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
-        );
-      }
-
-      if (draftData) {
-        try {
-          changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
-        } catch (err) {
-          errors.push(
-            err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '修改记录加载失败',
-          );
-        }
-        setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
-        setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
-        setEtag(draftData.manifest?.etag);
-        setDirty(draftData.manifest?.dirty ?? false);
-        setCumulativeLog(changeLog);
-        setManualChangeLog(
-          changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-        );
-      } else {
-        setCumulativeLog(changeLog);
-        setManualChangeLog(
-          changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-        );
-      }
-
-      setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
-      setProposalVersion('draft');
-
-      if (errors.length > 0) {
-        console.warn('[proposal] loadProposalState partial errors', errors);
-        fireDocToast(errors[0] ?? '预案加载失败');
-      }
-    } finally {
-      if (gen === loadGenRef.current) {
-        setLoading(false);
-      }
+      draftData = await fetchDraft(projectId, headers);
+    } catch (err) {
+      errors.push(
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
+      );
     }
+
+    try {
+      versionList = await fetchVersions(projectId, headers);
+    } catch (err) {
+      errors.push(
+        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
+      );
+    }
+
+    if (draftData) {
+      const chapterRowCounts = Object.fromEntries(
+        Object.entries((draftData.chapters ?? {}) as Record<string, unknown>).map(([k, v]) => {
+          const rows = (v as { rows?: unknown[] } | undefined)?.rows;
+          return [k, Array.isArray(rows) ? rows.length : -1];
+        }),
+      );
+      // #region agent log
+      fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/components/proposal/proposal-screen.tsx:248',message:'draft loaded with chapter row counts',data:{projectId,proposalVersion:draftData.manifest?.workingVersionLabel,chapterRowCounts},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
+      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+      setDraftChapters((draftData.chapters ?? {}) as Record<string, unknown>);
+      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
+      setEtag(draftData.manifest?.etag);
+      setDirty(draftData.manifest?.dirty ?? false);
+      setCumulativeLog(changeLog);
+      setManualChangeLog(
+        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+      );
+    } else {
+      setCumulativeLog(changeLog);
+      setManualChangeLog(
+        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+      );
+      setDraftChapters({});
+    }
+
+    setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
+    setProposalVersion('draft');
+
+    if (errors.length > 0) {
+      fireDocToast(errors[0] ?? '预案加载失败');
+    }
+
+    setLoading(false);
   }, [fireDocToast, headers, projectId]);
 
   useEffect(() => {
@@ -248,6 +331,7 @@ export default function ProposalScreen() {
           const draftData = await fetchDraft(projectId, headers);
           const log = await loadChangeLogForDraft(projectId, headers, draftData);
           setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+          setDraftChapters((draftData.chapters ?? {}) as Record<string, unknown>);
           setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
           setCumulativeLog(log);
           setManualChangeLog(
@@ -273,6 +357,7 @@ export default function ProposalScreen() {
             verItem,
           ),
         );
+        setDraftChapters(((snap as { chapters?: Record<string, unknown> }).chapters ?? {}) as Record<string, unknown>);
         const draftForOrder = await fetchDraft(projectId, headers);
         const changeLog = await loadChangeLogThroughVersion(
           projectId,
@@ -336,7 +421,6 @@ export default function ProposalScreen() {
         logAfterSave.filter((e) => e.editable !== false && e.source !== 'snapshot'),
       );
       if (draftAfterSave.manifest?.etag) setEtag(draftAfterSave.manifest.etag);
-      await saveDraftTables();
       fireDocToast('草稿已保存 · 版本号不变');
     } catch (err) {
       const msg =
@@ -345,7 +429,7 @@ export default function ProposalScreen() {
     } finally {
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manifest, metadata, manualChangeLog, projectId, saveDraftTables, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, manifest, metadata, manualChangeLog, projectId, saveDraftWithEtagRetry]);
 
   const handleConfirm = useCallback(async () => {
     if (!isEditable) {
@@ -355,43 +439,44 @@ export default function ProposalScreen() {
     setActionBusy(true);
     try {
       await saveDraftWithEtagRetry();
-      await saveAndConfirmTables();
-      const result = await releaseAndDecide(projectId, headers, {
+      await releaseAndDecide(projectId, headers, {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
       setDirty(false);
-
-      if (typeof window !== 'undefined' && result.progress) {
-        result.progress.forEach((item, idx) => {
-          setTimeout(
-            () => window.dispatchEvent(new CustomEvent('aida:progress', { detail: item })),
-            idx === 0 ? 0 : idx * 400,
-          );
-        });
-      }
-
-      const versionList = await fetchVersions(projectId, headers);
-      setVersions(versionList);
-      const draftData = await fetchDraft(projectId, headers);
-      const log = await loadChangeLogForDraft(projectId, headers, draftData);
-      setProposalVersion('draft');
-      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
-      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
-      setCumulativeLog(log);
-      setManualChangeLog(
-        log.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-      setEtag(draftData.manifest?.etag);
-
-      const delay = (result.progress?.length ?? 1) * 400 + 400;
-      setTimeout(() => window.location.assign('/cockpit'), Math.max(delay, 2800));
+      window.location.assign('/twin?view=digital');
     } catch (err) {
       const msg =
         err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';
       fireDocToast(msg);
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveDraftWithEtagRetry]);
+
+  const upsertDraftChapterRows = useCallback(
+    (chapterKey: string, chapterTitle: string, rows: Array<Record<string, unknown>>) => {
+      setDraftChapters((prev) => {
+        const prevChapter = (prev[chapterKey] as Record<string, unknown> | undefined) ?? {};
+        const prevRows = Array.isArray(prevChapter.rows)
+          ? (prevChapter.rows as Array<Record<string, unknown>>)
+          : [];
+        const prevRowsJson = JSON.stringify(prevRows);
+        const nextRowsJson = JSON.stringify(rows);
+        if (prevRowsJson === nextRowsJson && prevChapter.chapterTitle === chapterTitle) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [chapterKey]: {
+            ...prevChapter,
+            chapterKey,
+            chapterTitle,
+            rows,
+          },
+        };
+      });
+    },
+    [],
+  );
 
   const handleExport = useCallback(async () => {
     setActionBusy(true);
@@ -427,16 +512,6 @@ export default function ProposalScreen() {
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>
-      {!projectCtx && (
-        <div className="proposal-pending-tip" role="alert">
-          请从落地页选择项目后再加载数据中心文件（第 9–12 章）
-        </div>
-      )}
-      {dataWarnings.length > 0 && (
-        <div className="proposal-pending-tip" role="status" style={{ background: '#fef3c7', color: '#92400e' }}>
-          {dataWarnings[dataWarnings.length - 1]}
-        </div>
-      )}
       {pendingTip && (
         <div className="proposal-pending-tip" role="status">
           §{pendingTip.num} 正文体（{pendingTip.panel}）将在后续批次补齐
@@ -528,7 +603,11 @@ export default function ProposalScreen() {
                   if (isEditable) setDirty(true);
                 }}
               />
-              <CustomerChapterWrapper />
+              <CustomerChapterWrapper
+                initialRows={(draftChapters['1'] as { rows?: unknown[] } | undefined)?.rows}
+                readOnly={!isEditable}
+                onRowsChange={(rows) => upsertDraftChapterRows('1', '1. 项目背景', rows)}
+              />
 
               <DeviceChapter
                 proposalVersion={proposalVersion}
@@ -536,11 +615,22 @@ export default function ProposalScreen() {
                 onDirty={() => setDirty(true)}
                 onManifestActivity={handleManifestActivity}
               />
-              <PartsChapter />
-              <SoftwareChapter />
+              <PartsChapter
+                initialRows={(draftChapters['3'] as { rows?: unknown[] } | undefined)?.rows}
+                readOnly={!isEditable}
+                onRowsChange={(rows) => upsertDraftChapterRows('3', '3. 部件配置信息', rows)}
+              />
+              <SoftwareChapter
+                initialRows={(draftChapters['4'] as { rows?: unknown[] } | undefined)?.rows}
+                readOnly={!isEditable}
+                onRowsChange={(rows) => upsertDraftChapterRows('4', '4. 软件配置信息', rows)}
+              />
               <NetworkChapterWrapper />
 
-              <IntegrationChapter />
+              <IntegrationChapter
+                initialRows={(draftChapters['6'] as { rows?: unknown[] } | undefined)?.rows}
+                onRowsChange={(rows) => upsertDraftChapterRows('6', '6. 预集成预验证需求', rows)}
+              />
 
               <RoomChapter />
 
@@ -551,10 +641,24 @@ export default function ProposalScreen() {
                 onManifestActivity={handleManifestActivity}
               />
 
-              <RaciChapter />
-              <PlanChapter />
-              <AcceptanceChapter />
-              <TestCaseChapter />
+              <RaciChapter
+                initialRows={(draftChapters['9'] as { rows?: unknown[] } | undefined)?.rows}
+                readOnly={!isEditable}
+                onRowsChange={(rows) => upsertDraftChapterRows('9', '9. 责任矩阵信息', rows)}
+              />
+              <PlanChapter
+                initialRows={(draftChapters['10'] as { rows?: unknown[] } | undefined)?.rows}
+                onRowsChange={(rows) => upsertDraftChapterRows('10', '10. 计划', rows)}
+              />
+              <AcceptanceChapter
+                initialRows={(draftChapters['11'] as { rows?: unknown[] } | undefined)?.rows}
+                onRowsChange={(rows) => upsertDraftChapterRows('11', '11. 验收策略', rows)}
+              />
+              <TestCaseChapter
+                initialRows={(draftChapters['12'] as { rows?: unknown[] } | undefined)?.rows}
+                readOnly={!isEditable}
+                onRowsChange={(rows) => upsertDraftChapterRows('12', '12. 测试用例', rows)}
+              />
             </>
           )}
         </div>

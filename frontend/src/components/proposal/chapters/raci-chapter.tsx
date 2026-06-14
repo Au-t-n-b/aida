@@ -1,20 +1,28 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { useProposalData } from '@/hooks/useProposalData';
-import type { RaciRow } from '@/types/domain';
+import { RACI_ROWS } from '../proposal-data';
 
+type RaciRow = (typeof RACI_ROWS)[number];
 type RoleField = 'gts' | 'hw' | 'partner' | 'customer';
+interface RaciChapterProps {
+  initialRows?: unknown;
+  readOnly?: boolean;
+  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+}
 
 const ROLE_INPUT =
   'w-full cursor-pointer rounded border border-transparent bg-transparent px-1 py-0.5 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
+/* RACI 取值枚举（下拉，防止填错）·空值显示「—」 */
 const ROLE_OPTIONS = ['', 'R', 'A', 'S', 'C', 'I', 'R/A'];
 
+/** 连续相同 key 的行合并：首行返回跨度，其余返回 0 */
 function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[] {
   return rows.map((row, i) => {
     const prev = rows[i - 1];
@@ -29,34 +37,56 @@ function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[
   });
 }
 
-export function RaciChapter() {
-  const { raciRows, updateRaci, loading } = useProposalData();
+function _defaultRows(): RaciRow[] {
+  return RACI_ROWS.map((r) => ({ ...r }));
+}
 
-  const update = (i: number, key: RoleField, value: string) => {
-    const next = raciRows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r));
-    updateRaci(next);
-  };
+function _normalizeRows(input: unknown): RaciRow[] {
+  if (!Array.isArray(input) || input.length === 0) {
+    return _defaultRows();
+  }
+  const rows = input
+    .filter((row) => typeof row === 'object' && row !== null)
+    .map((row) => {
+      const item = row as Record<string, unknown>;
+      return {
+        stack: String(item.stack ?? ''),
+        cat: String(item.cat ?? ''),
+        act: String(item.act ?? ''),
+        gts: String(item.gts ?? ''),
+        hw: String(item.hw ?? ''),
+        partner: String(item.partner ?? ''),
+        customer: String(item.customer ?? ''),
+      } satisfies RaciRow;
+    });
+  return rows.length ? rows : _defaultRows();
+}
 
-  const stackSpans = spans(raciRows, (r) => r.stack);
-  const catSpans = spans(raciRows, (r) => `${r.stack}||${r.cat}`);
+export function RaciChapter({ initialRows, readOnly = false, onRowsChange }: RaciChapterProps) {
+  const [rows, setRows] = useState<RaciRow[]>(() => _normalizeRows(initialRows));
+
+  useEffect(() => {
+    setRows(_normalizeRows(initialRows));
+  }, [initialRows]);
+
+  useEffect(() => {
+    onRowsChange?.(rows.map((r) => ({ ...r })));
+  }, [onRowsChange, rows]);
+  const update = (i: number, key: RoleField, value: string) =>
+    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+
+  const stackSpans = spans(rows, (r) => r.stack);
+  const catSpans = spans(rows, (r) => `${r.stack}||${r.cat}`);
 
   const roleCell = (i: number, key: RoleField, value: string) => (
     <td className="px-1 py-1">
-      <select value={value} onChange={(e) => update(i, key, e.target.value)} className={ROLE_INPUT}>
+      <select value={value} onChange={(e) => update(i, key, e.target.value)} className={ROLE_INPUT} disabled={readOnly}>
         {(ROLE_OPTIONS.includes(value) ? ROLE_OPTIONS : [value, ...ROLE_OPTIONS]).map((o) => (
           <option key={o} value={o}>{o || '—'}</option>
         ))}
       </select>
     </td>
   );
-
-  if (loading) {
-    return (
-      <ProposalChapterCard id="panel-raci" title="9. 责任矩阵信息">
-        <p className="text-sm text-slate-500">加载中…</p>
-      </ProposalChapterCard>
-    );
-  }
 
   return (
     <ProposalChapterCard id="panel-raci" title="9. 责任矩阵信息">
@@ -83,7 +113,7 @@ export function RaciChapter() {
             </tr>
           </ProposalDataTableHead>
           <ProposalDataTableBody>
-            {raciRows.map((r, i) => (
+            {rows.map((r, i) => (
               <tr key={i}>
                 {(stackSpans[i] ?? 0) > 0 && (
                   <td rowSpan={stackSpans[i] ?? 1} className="align-middle font-semibold text-slate-800">
