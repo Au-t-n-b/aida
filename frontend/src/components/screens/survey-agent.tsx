@@ -475,14 +475,60 @@ function stepperDoneCount(doc: SduiDocument | null): number {
   return best;
 }
 
-/** 冻结基准 vs 最新快照：在线编辑步推进 / 步骤条前进 / 编辑区消失 → 应解冻。*/
+/** 从 Stepper 提取步骤 id 顺序（与后端 DI_STEP_ORDER 一致）。*/
+function getStepperStepIds(doc: SduiDocument | null): string[] {
+  if (!doc) return [];
+  let ids: string[] = [];
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'Stepper' && Array.isArray(node.steps) && node.steps.length > ids.length) {
+      ids = node.steps.map(s => s.id);
+    }
+  });
+  return ids;
+}
+
+function stepOrderIndex(order: string[], key: string | null): number {
+  if (!key) return -1;
+  return order.indexOf(key);
+}
+
+/** 设备安装完工态（ESN 提交后任务进展 / 完成横幅）。*/
+function hasDiCompletionSurface(doc: SduiDocument): boolean {
+  let found = false;
+  walkSduiNodes(doc.root, (node) => {
+    const id = (node as { id?: string }).id ?? '';
+    if (id === 'di-completion-alert' || id === 'task-table-dt') found = true;
+  });
+  return found;
+}
+
+/** 冻结基准 vs 最新快照：仅前向推进才解冻（拒绝 full_restart 重放中间态）。*/
 function hasWorkbenchAdvanced(frozen: SduiDocument, live: SduiDocument): boolean {
   if (isIdleLikeSduiDoc(live)) return false;
+
+  const frozenDone = stepperDoneCount(frozen);
+  const liveDone = stepperDoneCount(live);
+  // full_restart 重放时步骤条 done 数会短暂回落，不算推进
+  if (liveDone < frozenDone) return false;
+
+  const order = getStepperStepIds(frozen).length ? getStepperStepIds(frozen) : getStepperStepIds(live);
   const frozenEdit = findEditableHitlStepKey(frozen);
   const liveEdit = findEditableHitlStepKey(live);
-  if (frozenEdit && liveEdit !== frozenEdit) return true;
-  if (frozenEdit && !liveEdit) return true;
-  if (stepperDoneCount(live) > stepperDoneCount(frozen)) return true;
+
+  // 在线编辑完成：编辑区消失 + 步骤条未回退（或出现完工视图）
+  if (frozenEdit && !liveEdit) {
+    return liveDone > frozenDone || hasDiCompletionSurface(live);
+  }
+
+  // 在线编辑步切换：仅接受流水线前向（如 tasks_generate → task_dispatch）
+  if (frozenEdit && liveEdit && liveEdit !== frozenEdit) {
+    const fi = stepOrderIndex(order, frozenEdit);
+    const li = stepOrderIndex(order, liveEdit);
+    return fi >= 0 && li > fi;
+  }
+
+  if (liveDone > frozenDone) return true;
+  if (hasDiCompletionSurface(live) && frozenEdit) return true;
   return false;
 }
 
@@ -920,15 +966,9 @@ export default function SkillAgentScreen({
       return;
     }
     // 无进度指标的 skill（guihua / device_install 在线编辑表，frozenTarget===0）：
-    // hitl-card / completion-card，在线编辑步推进，或步骤条 done 数增加 → 解冻。
+    // 仅前向推进才解冻（拒绝 full_restart 重放中间态导致步骤条回退）。
     if (frozenTarget === 0) {
-      const frozenEditStep = frozenDocSnap ? findEditableHitlStepKey(frozenDocSnap) : null;
-      const liveEditStep = findEditableHitlStepKey(sduiDoc);
-      if (
-        (frozenEditStep && liveEditStep !== frozenEditStep)
-        || (frozenEditStep && !liveEditStep)
-        || (frozenDocSnap && stepperDoneCount(sduiDoc) > stepperDoneCount(frozenDocSnap))
-      ) {
+      if (frozenDocSnap && hasWorkbenchAdvanced(frozenDocSnap, sduiDoc)) {
         frozenSnapshotRef.current = null;
         setFrozenDoc(null);
         return;
