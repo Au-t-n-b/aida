@@ -443,6 +443,48 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
   return found;
 }
 
+/** need_edit 在线编辑 HITL 的 step key（如 tasks_generate / task_dispatch）。*/
+function findEditableHitlStepKey(doc: SduiDocument | null): string | null {
+  if (!doc) return null;
+  let key: string | null = null;
+  walkSduiNodes(doc.root, (node) => {
+    if (key) return;
+    if (node.type !== 'DataTable' || !(node as { editable?: boolean }).editable) return;
+    const stepId = (node as { stepId?: string }).stepId;
+    if (stepId) {
+      key = stepId;
+      return;
+    }
+    const id = (node as { id?: string }).id ?? '';
+    if (id.startsWith('edit-')) key = id.slice(5);
+  });
+  return key;
+}
+
+/** Stepper 已完成步数（设备安装主建设流水线推进检测）。*/
+function stepperDoneCount(doc: SduiDocument | null): number {
+  if (!doc) return 0;
+  let best = 0;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'Stepper' && Array.isArray(node.steps)) {
+      const n = node.steps.filter(s => s.status === 'done').length;
+      if (n > best) best = n;
+    }
+  });
+  return best;
+}
+
+/** 冻结基准 vs 最新快照：在线编辑步推进 / 步骤条前进 / 编辑区消失 → 应解冻。*/
+function hasWorkbenchAdvanced(frozen: SduiDocument, live: SduiDocument): boolean {
+  if (isIdleLikeSduiDoc(live)) return false;
+  const frozenEdit = findEditableHitlStepKey(frozen);
+  const liveEdit = findEditableHitlStepKey(live);
+  if (frozenEdit && liveEdit !== frozenEdit) return true;
+  if (frozenEdit && !liveEdit) return true;
+  if (stepperDoneCount(live) > stepperDoneCount(frozen)) return true;
+  return false;
+}
+
 /** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
 const HITL_POINTER: SduiNode = {
   type: 'Alert', id: 'hitl-pointer', tone: 'warning',
@@ -876,10 +918,20 @@ export default function SkillAgentScreen({
       setFrozenDoc(null);
       return;
     }
-    // 无进度指标的 skill（guihua，frozenTarget===0）：
-    // 仅当新状态携带 hitl-card 或 completion-card 时才解冻；
-    // 运行态（只有 TabGroup，无交互卡）继续保持冻结，避免左侧 HITL 内容消失。
+    // 无进度指标的 skill（guihua / device_install 在线编辑表，frozenTarget===0）：
+    // hitl-card / completion-card，在线编辑步推进，或步骤条 done 数增加 → 解冻。
     if (frozenTarget === 0) {
+      const frozenEditStep = frozenDocSnap ? findEditableHitlStepKey(frozenDocSnap) : null;
+      const liveEditStep = findEditableHitlStepKey(sduiDoc);
+      if (
+        (frozenEditStep && liveEditStep !== frozenEditStep)
+        || (frozenEditStep && !liveEditStep)
+        || (frozenDocSnap && stepperDoneCount(sduiDoc) > stepperDoneCount(frozenDocSnap))
+      ) {
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        return;
+      }
       let hasInteraction = false;
       walkSduiNodes(sduiDoc.root, (node) => {
         const id = (node as { id?: string }).id ?? '';
@@ -1082,6 +1134,23 @@ export default function SkillAgentScreen({
     await resumeRun(skillId, rid, payload, fromStep);
     // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
     setStreamEpoch(e => e + 1);
+    // device_install：full_restart 耗时较长，SSE 可能晚于冻结层；轮询 /ui 推进界面
+    if (skillId === 'device_install' && curDoc) {
+      const baseline = curDoc;
+      void (async () => {
+        for (let i = 0; i < 24; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const snap = await fetchUiSnapshot(skillId, rid);
+          if (!snap || isIdleLikeSduiDoc(snap)) continue;
+          if (!hasWorkbenchAdvanced(baseline, snap)) continue;
+          frozenSnapshotRef.current = null;
+          setFrozenDoc(null);
+          setBootDoc(snap);
+          setStreamEpoch(e => e + 1);
+          return;
+        }
+      })();
+    }
   }, [useClawMode, session, taskId, activeRunId, skillId, storeRun]);
 
   const resolveCommissionScope = useCallback((explicit?: string): string => {
