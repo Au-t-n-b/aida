@@ -7,11 +7,13 @@
  *  - 简单叶节点（Text/Badge/Button/Statistic）：inline 实现
  *  - 未知节点：降级提示
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom } from '@/lib/sdui';
 import { stableChildKey } from '@/lib/sduiKeys';
 import { Badge, Button, Panel } from '@/components/primitives';
+import { SduiGanttChart } from './SduiGanttChart';
+import { SduiTabBarActionsContext } from './SduiTabBarActionsContext';
 import { SduiStepper } from './SduiStepper';
 import { SduiDonutChart } from './SduiDonutChart';
 import { SduiArtifactGrid } from './SduiArtifactGrid';
@@ -730,6 +732,14 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
     return i >= 0 ? i : 0;
   };
   const [active, setActive] = useState(initialIdx());
+  const [tabBarActions, setTabBarActions] = useState<React.ReactNode>(null);
+  const tabBarApi = useMemo(
+    () => ({
+      setActions: (actions: React.ReactNode) => setTabBarActions(actions),
+      clearActions: () => setTabBarActions(null),
+    }),
+    [],
+  );
   const prevFocusToken = useRef<number | undefined>(undefined);
   // 后端引导：activeTab / focusToken 变化时同步选中（如检查测试用例后切「输出件」页）；
   // focusToken 递增时强制切页；用户点击在两次刷新之间接管本地选择。
@@ -772,12 +782,14 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
       return <SduiNodeView key={seg} node={child} pathPrefix={seg} />;
     });
   return (
+    <SduiTabBarActionsContext.Provider value={tabBarApi}>
     <div style={{
       border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
       background: 'var(--surface)',
       ...(fill ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
     }}>
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 8px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', borderBottom: '1px solid var(--border)', padding: '0 8px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', minWidth: 0 }}>
         {tabs.map((t, i) => {
           const on = i === idx;
           const hasBadge = t.badge != null && t.badge !== '';
@@ -801,6 +813,12 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
             </button>
           );
         })}
+        </div>
+        {tabBarActions && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0 6px 8px', flexShrink: 0, marginLeft: 'auto' }}>
+            {tabBarActions}
+          </div>
+        )}
       </div>
       <div style={{
         padding: embedFill ? 0 : 14,
@@ -836,6 +854,7 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
           : renderPanelChildren(panelChildren, cur?.id ?? idx, idx)}
       </div>
     </div>
+    </SduiTabBarActionsContext.Provider>
   );
 }
 
@@ -2475,6 +2494,9 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
 
     case 'TaskTimelineStrip':
       return <SduiTaskTimelineStrip node={node} />;
+
+    case 'GanttChart':
+      return <SduiGanttChart rows={node.rows ?? []} title={node.title} />;
 
     case 'MacroStepRail': {
       const steps = node.steps ?? [];

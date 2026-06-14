@@ -1,7 +1,8 @@
 """
 preflight · 环境预检（internal=True，豁免 SKILL.md 契约）
 
-检查 DEVICE_INSTALL_SOURCE_ROOT 是否已有上游交付的《设备安装实施计划.xlsx》。
+检查 ProjectData/Input 是否已有上游《交付计划表.xlsx》（+《设备位置表》《到货信息表》），
+作为「生成责任人信息表 / 生成设备安装实施计划」的输入源。
 """
 from __future__ import annotations
 
@@ -9,12 +10,12 @@ from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckR
 from ._io import (
     refresh_task_metrics,
     tasks_state_path,
-    staged_cold_start_pace,
     is_pipeline_replay,
-    PREFLIGHT_PACE_SEC,
+    find_delivery_plan,
+    find_position_table,
+    find_arrival_table,
 )
-from ..services.source_files import get_source_dir, check_dispatch_plan
-from ..services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
+from ..path_config import get_upstream_input_dir
 from ..services.task_store import get_tasks
 
 
@@ -34,26 +35,24 @@ class PreflightStep(BaseStep):
             n = reset_info.get("removed_count", 0)
             emit(f"[preflight] 已重置会话：清除 {n} 个历史产物/运行态文件")
 
-        staged_cold_start_pace(
-            ctx.project, emit,
-            total_sec=PREFLIGHT_PACE_SEC,
-            stages=[
-                "[preflight] 正在扫描设备安装环境…",
-                "[preflight] 正在校验上游实施计划文件…",
-            ],
-        )
         if is_pipeline_replay(ctx.project):
-            emit("[preflight] 扫描设备安装环境与上游实施计划…")
+            emit("[preflight] 扫描设备安装环境与上游交付计划表…")
+        else:
+            emit("[preflight] 正在扫描设备安装环境…")
+            emit("[preflight] 正在校验上游交付计划表…")
 
-        source_dir = get_source_dir(ctx.work_root, ctx.project)
-        chk = check_dispatch_plan(source_dir)
+        delivery = find_delivery_plan(ctx)
+        position = find_position_table(ctx)
+        arrival = find_arrival_table(ctx)
+        plan_ok = bool(delivery)
         tasks_n = len(get_tasks(str(tasks_state_path(ctx))))
 
-        emit(f"  源文件目录：{source_dir}")
-        emit(f"  {'✓' if chk['ok'] else '✗'} 上游·{DISPATCH_PLAN_FILENAME}: "
-             f"{'已就绪' if chk['ok'] else '缺失'}")
-        if not chk["ok"]:
-            emit(f"  期望文件：{chk['path']}")
+        emit(f"  输入目录：{get_upstream_input_dir(ctx.project)}")
+        emit(f"  {'✓' if delivery else '✗'} 交付计划表: {'已就绪' if delivery else '缺失'}")
+        emit(f"  {'✓' if position else '✗'} 设备位置表: {'已就绪' if position else '缺失（SN 扫码表需要）'}")
+        emit(f"  {'✓' if arrival else '✗'} 到货信息表: {'已就绪' if arrival else '缺失（设备大类映射需要）'}")
+        if not plan_ok:
+            emit("  期望文件：交付计划表.xlsx（置于上游输入目录）")
 
         command = (ctx.project or {}).get("command", "") or "build"
         emit(f"[preflight] 当前命令: {command}")
@@ -70,11 +69,13 @@ class PreflightStep(BaseStep):
                     "你是华为智算 ICT 交付「设备安装」模块的 AI 助手。\n"
                     f"项目：{ctx.project.get('project_name', '未知')}\n"
                     f"当前命令：{command}\n"
-                    f"源文件目录：{source_dir}\n"
-                    f"上游实施计划（{DISPATCH_PLAN_FILENAME}）：{'已就绪' if chk['ok'] else '缺失'}\n"
+                    f"输入目录：{get_upstream_input_dir(ctx.project)}\n"
+                    f"交付计划表：{'已就绪' if delivery else '缺失'}；"
+                    f"设备位置表：{'已就绪' if position else '缺失'}；"
+                    f"到货信息表：{'已就绪' if arrival else '缺失'}\n"
                     f"已解析任务数：{tasks_n}\n\n"
-                    "说明：主建设流程由上游模块交付自包含实施计划（含 SN 扫码表 Sheet）；"
-                    "本模块从 DEVICE_INSTALL_SOURCE_ROOT 接收后进入勾选下发。\n"
+                    "说明：主建设流程解析《交付计划表》生成责任人信息表与设备安装实施计划"
+                    "（结合设备位置表/到货信息表），再进入勾选下发。\n"
                     "请用 2-3 句中文给出预检结论：整体状态 + 最关键的缺失项 + 建议下一步。"
                     "不要加标号，不要客套。"
                 )
@@ -96,8 +97,8 @@ class PreflightStep(BaseStep):
                 emit(f"⚠ LLM 摘要跳过（{e}）")
 
         metrics: dict = {
-            "source_dir": str(source_dir),
-            "dispatch_plan_ready": bool(chk.get("ok")),
+            "source_dir": str(get_upstream_input_dir(ctx.project)),
+            "dispatch_plan_ready": plan_ok,
             "parsed_tasks": tasks_n,
         }
         if ai_text:

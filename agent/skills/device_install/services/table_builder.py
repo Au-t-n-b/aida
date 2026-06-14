@@ -84,6 +84,43 @@ def generate_principal_table(tasks: list[dict], output_path: str) -> bool:
     return True
 
 
+def generate_principal_table_by_activity(rows: list[dict], output_path: str) -> bool:
+    """按「活动」去重生成《责任人信息表.xlsx》。
+
+    rows 为责任人填报步提交的按活动行：{activity_id, activity_name,
+    principal, principal_org}；责任人/责任主体取用户在线复核后的真实值。
+    """
+    try:
+        import openpyxl  # type: ignore
+    except ImportError:
+        return False
+    st = _styles()
+    Alignment = st["Alignment"]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "责任人信息"
+
+    headers = ["活动ID", "活动名称", "责任人", "责任主体（华为/分包商）", "备注"]
+    _write_header(ws, headers, st)
+    for ri, r in enumerate(rows, 2):
+        row_vals = [
+            r.get("activity_id", ""), r.get("activity_name", ""),
+            r.get("principal", ""), r.get("principal_org", ""), "",
+        ]
+        for ci, v in enumerate(row_vals, 1):
+            c = ws.cell(row=ri, column=ci, value=v)
+            c.border = st["thin"]
+            c.alignment = Alignment(vertical="center")
+            if ri % 2 == 0:
+                c.fill = st["alt_fill"]
+    _set_widths(ws, [10, 28, 18, 24, 20])
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    wb.save(output_path)
+    return True
+
+
 def generate_full_tasks_xlsx(tasks: list[dict], output_path: str) -> bool:
     """生成《设备安装全量任务.xlsx》。"""
     try:

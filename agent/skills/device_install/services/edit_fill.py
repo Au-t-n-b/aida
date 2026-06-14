@@ -1,7 +1,7 @@
 """
-edit_fill · EditableTable「一键填写」预填值生成（device_install 三处编辑门）。
+edit_fill · EditableTable「一键同步」预填值生成（device_install 三处编辑门）。
 
-由 step 的 need_edit.fillRows 下发给前端；用户点「一键填写」后合并到可编辑列。
+由 step 的 need_edit.fillRows 下发给前端；用户点「一键同步」后合并到可编辑列。
 
 ⚠️ 仅为本地/演示快速跑通流程用的占位值（责任人姓名 / 责任主体 / ESN）。
 正式使用时应由用户填写真实数据，或由数据中心《责任人信息表》合并真实责任人。

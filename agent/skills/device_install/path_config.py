@@ -13,11 +13,34 @@ from typing import Any
 from .bridge import get_device_install_root, get_data_dir
 
 
+# Linux 服务器固定落点（业务数据规范 · 单项目）
+SERVER_BUSINESS_ROOT = Path("/opt/aida/aida-data/business")
+SERVER_PROJECT_ID = "1b9bb4a0d0ce4863925e787bc057ecaf"
+SERVER_UPSTREAM_INPUT_DIR = (
+    SERVER_BUSINESS_ROOT / "projects" / SERVER_PROJECT_ID / "项目管理" / "计划" / "输出结果"
+)
+SERVER_OUTPUT_DIR = (
+    SERVER_BUSINESS_ROOT / "projects" / SERVER_PROJECT_ID / "交付作业" / "设备安装" / "输出结果"
+)
+
+
 # ── 动态路径 helpers ──────────────────────────────────────────────────────────
 
 def get_input_dir() -> Path:
-    """Input/  ← 任务计划表 / 责任人信息表 / 到货信息表 / 设备位置表 / SN 扫码表（用户上传）"""
+    """ProjectData/Input/（本地开发上传区；服务器读上游目录见 get_upstream_input_dir）。"""
     p = get_data_dir("Input")
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def get_upstream_input_dir(project: dict[str, Any] | None = None) -> Path:
+    """上游输入 xlsx 读取目录（交付计划表 / 设备位置表 / 到货信息表）。
+
+    优先级：DEVICE_INSTALL_SOURCE_ROOT → 数据中心 .../项目管理/计划/输出结果 → ProjectData/Input/
+    """
+    from .services.source_files import get_source_dir
+
+    p = get_source_dir(get_device_install_root(project), project)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -27,25 +50,18 @@ def get_output_dir(project: dict[str, Any] | None = None) -> Path:
 
     优先级：
       1. 环境变量 DEVICE_INSTALL_OUTPUT_ROOT
-      2. 数据中心 .../交付作业/设备安装/输出结果
+      2. 数据中心 .../交付作业/设备安装/输出结果（business 根存在时强制）
       3. 默认 <work_root>/ProjectData/Output（本地开发/评测）
     """
     raw = os.environ.get("DEVICE_INSTALL_OUTPUT_ROOT", "").strip()
     if raw:
         p = Path(raw)
     else:
-        from .data_center_paths import get_dc_output_dir, resolve_project_id, get_business_root
-        from .services.source_files import _scan_source_dir_with_plan
+        from .data_center_paths import get_dc_output_dir, get_business_root
 
         dc = get_dc_output_dir(project)
-        if dc is not None and get_business_root() and resolve_project_id(project):
+        if dc is not None and get_business_root() is not None:
             p = dc
-        elif get_business_root():
-            scanned = _scan_source_dir_with_plan()
-            if scanned is not None:
-                p = scanned.parents[2] / "交付作业" / "设备安装" / "输出结果"
-            else:
-                p = get_data_dir("Output")
         else:
             p = get_data_dir("Output")
     p.mkdir(parents=True, exist_ok=True)

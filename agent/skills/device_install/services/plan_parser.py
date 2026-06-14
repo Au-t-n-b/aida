@@ -1,15 +1,185 @@
 """
-plan_parser · 解析《任务计划表.xlsx》与《责任人信息表.xlsx》。
+plan_parser · 解析《交付计划表.xlsx》《任务计划表.xlsx》与《责任人信息表.xlsx》。
 
-- parse_task_plan：提取活动 ID 以 "7." 开头的三级安装任务（不含 7.0 汇总行）。
+- parse_delivery_plan：解析上游《交付计划表》(数据中心导出，英文表头)，提取活动 ID
+  以 "7." 开头的三级安装任务（不含 7.0 汇总行）；管理单元含逗号时拆分为多条；
+  设备型号&数量取自 RAW_EQUIPMENT_LIST(JSON)；SLA 缺省由计划起止日期推算。
+- parse_task_plan：提取活动 ID 以 "7." 开头的三级安装任务（中文表头·历史格式）。
 - parse_principal_table：解析责任人信息表，返回 {unit::activity_id / unit::activity_name → {principal, principal_org}}。
 """
 from __future__ import annotations
 
 import hashlib
+import json
+from datetime import datetime
 from typing import Any
 
 from ._common import as_str, col_idx, parse_date_str
+from .activity_catalog import canonical_activity_name, third_task_name
+
+# TARGET_AGENT → 环节类型中文标签（用于责任人信息表展示，辅助判断责任主体）
+_AGENT_STAGE_LABEL = {
+    "installation_agent": "施工安装",
+    "deployment_agent":   "部署调测",
+    "survey_agent":       "勘测",
+    "design_agent":       "设计",
+    "simulation_agent":   "仿真",
+    "other_assistant":    "其他",
+    "manage_agent":       "管理",
+}
+
+
+def stage_label(target_agent: str) -> str:
+    return _AGENT_STAGE_LABEL.get(as_str(target_agent), as_str(target_agent))
+
+
+def _format_devices_from_raw(raw: Any) -> str:
+    """RAW_EQUIPMENT_LIST(JSON {"device_list":[{device_model,quantity,unit}]}) → 「型号 数量单位, …」。"""
+    s = as_str(raw)
+    if not s:
+        return ""
+    try:
+        data = json.loads(s)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+    items = data.get("device_list") if isinstance(data, dict) else None
+    if not isinstance(items, list):
+        return ""
+    parts: list[str] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        model = as_str(it.get("device_model"))
+        if not model:
+            continue
+        qty = it.get("quantity")
+        unit = as_str(it.get("unit"))
+        if qty in (None, ""):
+            parts.append(model)
+        else:
+            try:
+                qty_s = str(int(qty))
+            except (ValueError, TypeError):
+                qty_s = as_str(qty)
+            parts.append(f"{model} {qty_s}{unit}".strip())
+    return ", ".join(parts)
+
+
+def _compute_sla(start: str, end: str) -> str:
+    """由计划起止日期推算 SLA（含首尾，单位：天）；无法解析则空串。"""
+    try:
+        d0 = datetime.strptime(start, "%Y-%m-%d")
+        d1 = datetime.strptime(end, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return ""
+    days = (d1 - d0).days + 1
+    return f"{days}天" if days > 0 else ""
+
+
+def _split_units(raw_unit: str) -> list[str]:
+    """管理单元单元格可能是「B2DH401-POD01,B2DH401-POD02」逗号串 → 拆为多个。"""
+    s = as_str(raw_unit)
+    if not s:
+        return []
+    parts = [p.strip() for chunk in s.split(",") for p in chunk.split("，")]
+    return [p for p in parts if p]
+
+
+def parse_delivery_plan(xlsx_path: str) -> list[dict]:
+    """解析《交付计划表.xlsx》(英文表头) → 三级安装任务列表（活动 ID 以 "7." 开头，含首列 7.0 汇总行剔除）。
+
+    每条任务为 (管理单元 × 活动) 粒度；管理单元逗号串拆分为多条。
+    责任人取 PRINCIPAL，责任主体取 PRINCIPAL_COMPANY（多为「华为」，由用户在线复核可改分包商）。
+    设备型号&数量取 RAW_EQUIPMENT_LIST（JSON）；SLA 缺列时由起止日期推算。
+    """
+    try:
+        import openpyxl  # type: ignore
+        wb = openpyxl.load_workbook(xlsx_path, read_only=True, data_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+    except Exception:
+        return []
+
+    if not all_rows:
+        return []
+
+    header = [as_str(v) for v in all_rows[0]]
+    ci_sn    = col_idx(header, "SERIAL_NUMBER", "序列号")
+    ci_aid   = col_idx(header, "ACTIVITY_ID", "活动ID", "活动 ID")
+    ci_name  = col_idx(header, "ACTIVITY_NAME", "活动名称")
+    ci_unit  = col_idx(header, "MANAGEMENT_UNIT", "管理单元")
+    ci_unit2 = col_idx(header, "REAL_MANAGEMENT_UNIT")
+    ci_owner = col_idx(header, "OWNER")
+    ci_start = col_idx(header, "START_DATE", "开始日期", "计划开始")
+    ci_end   = col_idx(header, "END_DATE", "结束日期", "计划完成", "计划结束")
+    ci_sla   = col_idx(header, "SLA")
+    ci_pri   = col_idx(header, "PRINCIPAL", "责任人")
+    ci_org   = col_idx(header, "PRINCIPAL_COMPANY", "责任主体")
+    ci_raw   = col_idx(header, "RAW_EQUIPMENT_LIST")
+    ci_tgt   = col_idx(header, "TARGET_AGENT")
+
+    if ci_aid is None:
+        return []
+
+    def _v(row: tuple, idx: int | None) -> Any:
+        if idx is None or idx >= len(row):
+            return None
+        return row[idx]
+
+    tasks: list[dict] = []
+    for row in all_rows[1:]:
+        aid = as_str(_v(row, ci_aid))
+        if not aid.startswith("7."):
+            continue
+        if is_rollup_activity_id(aid):
+            continue
+
+        units = (
+            _split_units(as_str(_v(row, ci_unit)))
+            or _split_units(as_str(_v(row, ci_unit2)))
+            or _split_units(as_str(_v(row, ci_owner)))
+            or ["默认"]
+        )
+        sn    = as_str(_v(row, ci_sn))
+        # 活动名称按 activity_id 回查固定映射规范化（有迹可循），回退原表名
+        name  = canonical_activity_name(aid, as_str(_v(row, ci_name)))
+        start = parse_date_str(_v(row, ci_start))
+        end   = parse_date_str(_v(row, ci_end))
+        sla   = as_str(_v(row, ci_sla)) or _compute_sla(start, end)
+        pri   = as_str(_v(row, ci_pri))
+        org   = as_str(_v(row, ci_org))
+        devices = _format_devices_from_raw(_v(row, ci_raw))
+        tgt   = as_str(_v(row, ci_tgt))
+
+        for unit in units:
+            base = f"{aid}:{unit}:{sn or name}"
+            tid = sn if (sn and len(units) == 1) else hashlib.sha256(base.encode()).hexdigest()[:10]
+            tasks.append({
+                "id":            tid,
+                "plan_row_id":   f"{unit}::{aid}",
+                "activity_id":   aid,
+                "unit":          unit,
+                "activity_name": name,
+                "task_name":     third_task_name(unit, aid, name),
+                "start_date":    start,
+                "end_date":      end,
+                "sla":           sla,
+                "dependencies":  "",
+                "batch":         "",
+                "devices":       devices,
+                "target_agent":  tgt,
+                "stage_label":   stage_label(tgt),
+                "remote_team":   "",
+                "local_team":    "",
+                "owner":         pri,           # 原始责任人
+                "principal":     pri,           # 自动带出（可在线改）
+                "principal_org": org,           # 多为「华为」，可改分包商
+                "status":        "待下发",
+                "progress_records": [],
+            })
+
+    return tasks
 
 
 def is_rollup_activity_id(activity_id: str) -> bool:

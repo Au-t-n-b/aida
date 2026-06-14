@@ -14,7 +14,8 @@ from __future__ import annotations
 BUILD = "build"
 
 STEP_COMMANDS: dict[str, frozenset[str]] = {
-    "plan_receive":    frozenset({BUILD}),
+    "principal_fill":  frozenset({BUILD}),
+    "tasks_generate":  frozenset({BUILD}),
     "task_dispatch":   frozenset({BUILD}),
     "sn_generate":     frozenset({BUILD}),
     "esn_fill":        frozenset({BUILD}),

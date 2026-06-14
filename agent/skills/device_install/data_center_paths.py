@@ -14,6 +14,9 @@ from typing import Any
 
 _LINUX_DEFAULT_BUSINESS_ROOT = Path("/opt/aida/aida-data/business")
 
+# 当前 Linux 服务器单项目部署默认 ID（与 AIDA_DEFAULT_PROJECT_ID / agent/.env.server 一致）
+DEFAULT_SERVER_PROJECT_ID = "1b9bb4a0d0ce4863925e787bc057ecaf"
+
 _REL_SOURCE = Path("项目管理") / "计划" / "输出结果"
 _REL_WORK = Path("交付作业") / "设备安装"
 _REL_OUTPUT = Path("交付作业") / "设备安装" / "输出结果"
@@ -31,13 +34,21 @@ def get_business_root() -> Path | None:
 
 
 def resolve_project_id(project: dict[str, Any] | None = None) -> str:
-    """从 run project 或 AIDA_DEFAULT_PROJECT_ID 解析 project_id（UUID32）。"""
+    """从 run project 或 AIDA_DEFAULT_PROJECT_ID 解析 project_id（UUID32）。
+
+    Linux 服务器（business 根存在）且未显式指定时，回退 DEFAULT_SERVER_PROJECT_ID。
+    """
     if project:
         for key in ("project_id", "project_code"):
             v = str(project.get(key) or "").strip()
             if v:
                 return v
-    return os.environ.get("AIDA_DEFAULT_PROJECT_ID", "").strip()
+    env = os.environ.get("AIDA_DEFAULT_PROJECT_ID", "").strip()
+    if env:
+        return env
+    if get_business_root() is not None:
+        return DEFAULT_SERVER_PROJECT_ID
+    return ""
 
 
 def project_base(project: dict[str, Any] | None = None) -> Path | None:

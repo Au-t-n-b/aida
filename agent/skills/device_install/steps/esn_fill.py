@@ -21,16 +21,67 @@ from ..services._common import as_str
 from ..services.sn_builder import validate_esn
 from ..services.completion_builder import generate_completion_checklist, generate_completion_report
 from ..services.edit_fill import fill_esn_rows
+from ..services.dispatch_plan_parser import (
+    load_sn_pool, group_sn_rows_to_tables, filter_sn_pool_by_dispatch,
+)
 from ..services.task_store import load_tasks_state, save_tasks_state, iso_now
+
+
+def _task_plan_row_id(t: dict) -> str:
+    """任务对应的计划行 ID（与 SN 池「关联计划行ID」一致）。"""
+    pr = as_str(t.get("plan_row_id"))
+    if pr:
+        return pr
+    unit = as_str(t.get("unit"))
+    aid = as_str(t.get("activity_id"))
+    if unit and aid:
+        return f"{unit}::{aid}"
+    return as_str(t.get("id"))
+
+
 _COLUMNS = [
-    {"key": "所属机房", "label": "机房", "width": 100},
+    {"key": "所属机房", "label": "机房", "width": 76},
     {"key": "设备大类", "label": "设备大类", "width": 90},
-    {"key": "设备型号", "label": "设备型号", "width": 150},
-    {"key": "设备名称", "label": "设备名称", "width": 160},
-    {"key": "所属机柜", "label": "机柜", "width": 70},
-    {"key": "安装起始U位", "label": "U位", "width": 60},
+    {"key": "设备型号", "label": "设备型号", "width": 128, "nowrap": True},
+    {"key": "设备名称", "label": "设备名称", "width": 240, "nowrap": True},
+    {"key": "所属机柜", "label": "机柜", "width": 56},
+    {"key": "安装起始U位", "label": "U位", "width": 48},
+    # 不设 width：tableLayout:fixed 下末列吃掉右侧剩余空间，输入框 width:100%
     {"key": "ESN", "label": "ESN", "editable": True, "type": "text", "placeholder": "扫码 / 填写 ESN"},
 ]
+
+
+def _try_rebuild_sn_tables(ctx: SkillContext) -> list[dict]:
+    """sn_tables 为空时从 sn_pool + 下发记录自愈重建（修复 plan row id 不匹配导致的空表）。"""
+    tables = _load_sn_tables(ctx)
+    if sum(len(t.get("rows", [])) for t in tables) > 0:
+        return tables
+
+    meta_path = ctx.runtime_dir / "sn_tables.json"
+    dispatch_tasks: list[dict] = []
+    try:
+        data = json.loads(meta_path.read_text(encoding="utf-8"))
+        dispatch_tasks = [t for t in (data.get("dispatch_tasks") or []) if isinstance(t, dict)]
+    except Exception:
+        pass
+    if not dispatch_tasks:
+        st = load_tasks_state(str(tasks_state_path(ctx)))
+        dispatch_tasks = [
+            t for t in (st.get("last_dispatch_tasks") or []) if isinstance(t, dict)
+        ]
+    pool_path = ctx.runtime_dir / "sn_pool.json"
+    if not dispatch_tasks or not pool_path.is_file():
+        return tables
+
+    filtered, _ = filter_sn_pool_by_dispatch(dispatch_tasks, load_sn_pool(pool_path))
+    if not filtered:
+        return tables
+
+    rebuilt = group_sn_rows_to_tables(filtered)
+    payload = {"dispatch_tasks": dispatch_tasks, "tables": rebuilt}
+    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    return rebuilt
 
 
 def _load_sn_tables(ctx: SkillContext) -> list[dict]:
@@ -144,7 +195,11 @@ def _write_sn_xlsx_artifacts(ctx: SkillContext, tables: list[dict]) -> list[str]
 class EsnFillStep(BaseStep):
     key = "esn_fill"
     name = "ESN信息填写"
-    artifacts_pattern = ["ProjectData/Output/完工清单_*.xlsx", "ProjectData/Output/设备安装完工报告.xlsx"]
+    artifacts_pattern = [
+        "ProjectData/Output/SN扫码表_*.xlsx",
+        "ProjectData/Output/完工清单_*.xlsx",
+        "ProjectData/Output/设备安装完工报告.xlsx",
+    ]
 
     def _need_edit(self, rows: list[dict], n_total: int, note: str = "", ctx: SkillContext | None = None) -> CheckResult:
         return {
@@ -154,7 +209,7 @@ class EsnFillStep(BaseStep):
                 "title": "ESN信息填写",
                 "columns": _COLUMNS,
                 "rows": rows,
-                "fillLabel": "一键填写",
+                "fillLabel": "一键同步",
                 "fillRows": fill_esn_rows(rows),
                 "backLabel": "返回上一步",
                 "backStepId": "go_back",
@@ -171,7 +226,7 @@ class EsnFillStep(BaseStep):
         if should_skip(self.key, ctx.project):
             return {"ok": True, "missing": []}
 
-        tables = _load_sn_tables(ctx)
+        tables = _try_rebuild_sn_tables(ctx)
         n_total = sum(len(t.get("rows", [])) for t in tables)
         if n_total == 0:
             return {"ok": True, "missing": []}  # 无设备需录 ESN
@@ -228,7 +283,7 @@ class EsnFillStep(BaseStep):
         for t in tasks:
             if t.get("status") not in ("已下发", "进行中"):
                 continue
-            pid = as_str(t.get("plan_row_id")) or as_str(t.get("id"))
+            pid = _task_plan_row_id(t)
             linked = filled_by_plan.get(pid)
             # 有对应设备但未全部填写 ESN → 不标完成（任务级对齐，避免空完工）；
             # 无对应设备（线缆/测试类，或未匹配到物理设备）→ 随 ESN 阶段照常完工。
