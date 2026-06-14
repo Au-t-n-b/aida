@@ -3,6 +3,8 @@ device_install path_config · 路径配置
 
 统一管理 ProjectData 各子目录路径，供 steps + services 使用。
 bridge.py 提供根目录定位，本模块负责子路径组合。
+
+上游 xlsx 读取目录 SSOT：改 SERVER_* / _REL_PLAN_UPSTREAM 即生效（data_center_paths 同步引用）。
 """
 from __future__ import annotations
 
@@ -10,18 +12,21 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .bridge import get_device_install_root, get_data_dir
-
+# ── 路径常量（须在 bridge 导入之前，供 data_center_paths 无环引用）────────────
+_REL_PLAN_UPSTREAM = Path("项目管理") / "计划" / "输出结果"
+_REL_INSTALL_OUTPUT = Path("交付作业") / "设备安装" / "输出结果"
 
 # Linux 服务器固定落点（业务数据规范 · 单项目）
 SERVER_BUSINESS_ROOT = Path("/opt/aida/aida-data/business")
 SERVER_PROJECT_ID = "1b9bb4a0d0ce4863925e787bc057ecaf"
 SERVER_UPSTREAM_INPUT_DIR = (
-    SERVER_BUSINESS_ROOT / "projects" / SERVER_PROJECT_ID / "项目管理" / "计划" / "输出结果"
+    SERVER_BUSINESS_ROOT / "projects" / SERVER_PROJECT_ID / _REL_PLAN_UPSTREAM
 )
 SERVER_OUTPUT_DIR = (
-    SERVER_BUSINESS_ROOT / "projects" / SERVER_PROJECT_ID / "交付作业" / "设备安装" / "输出结果"
+    SERVER_BUSINESS_ROOT / "projects" / SERVER_PROJECT_ID / _REL_INSTALL_OUTPUT
 )
+
+from .bridge import get_device_install_root, get_data_dir
 
 
 # ── 动态路径 helpers ──────────────────────────────────────────────────────────
@@ -33,14 +38,34 @@ def get_input_dir() -> Path:
     return p
 
 
-def get_upstream_input_dir(project: dict[str, Any] | None = None) -> Path:
+def resolve_upstream_input_dir(project: dict[str, Any] | None = None) -> Path:
     """上游输入 xlsx 读取目录（交付计划表 / 设备位置表 / 到货信息表）。
 
-    优先级：DEVICE_INSTALL_SOURCE_ROOT → 数据中心 .../项目管理/计划/输出结果 → ProjectData/Input/
+    优先级：
+      1. DEVICE_INSTALL_SOURCE_ROOT
+      2. path_config SERVER_UPSTREAM_INPUT_DIR（Linux 服务器 business 根存在时）
+      3. 数据中心动态推导 .../projects/{id}/ + _REL_PLAN_UPSTREAM
+      4. <work_root>/ProjectData/Input/
     """
-    from .services.source_files import get_source_dir
+    raw = os.environ.get("DEVICE_INSTALL_SOURCE_ROOT", "").strip()
+    if raw:
+        return Path(raw).resolve()
 
-    p = get_source_dir(get_device_install_root(project), project)
+    if SERVER_BUSINESS_ROOT.is_dir():
+        return SERVER_UPSTREAM_INPUT_DIR.resolve()
+
+    from .data_center_paths import get_business_root, get_dc_upstream_input_dir
+
+    dc = get_dc_upstream_input_dir(project)
+    if dc is not None and get_business_root() is not None:
+        return dc.resolve()
+
+    return (get_device_install_root(project) / "ProjectData" / "Input").resolve()
+
+
+def get_upstream_input_dir(project: dict[str, Any] | None = None) -> Path:
+    """resolve_upstream_input_dir 的便捷封装（确保目录存在）。"""
+    p = resolve_upstream_input_dir(project)
     p.mkdir(parents=True, exist_ok=True)
     return p
 
@@ -56,6 +81,8 @@ def get_output_dir(project: dict[str, Any] | None = None) -> Path:
     raw = os.environ.get("DEVICE_INSTALL_OUTPUT_ROOT", "").strip()
     if raw:
         p = Path(raw)
+    elif SERVER_BUSINESS_ROOT.is_dir():
+        p = SERVER_OUTPUT_DIR
     else:
         from .data_center_paths import get_dc_output_dir, get_business_root
 
