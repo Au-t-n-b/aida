@@ -947,6 +947,7 @@ class SduiOutputDocItem(BaseModel):
     category: str
     tag: str | None = None
     desc: str | None = None
+    path: str | None = None  # 下载相对路径（artifact?path=）；None 时卡片不可下载
 
 
 class SduiOutputDocCategory(BaseModel):
