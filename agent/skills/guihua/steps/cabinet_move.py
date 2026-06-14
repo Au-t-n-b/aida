@@ -19,8 +19,9 @@ from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckR
 from ..services import VENDOR_AUTODRAGD
 from ..services.sentinel import is_same_run, read_json
 from ..services.sim_api import is_live
-from ..services.subproc import run_script
+from ..services.subproc import run_script, _subproc_failure_hint
 
+CREATED_REL = "ProjectData/RunTime/combo_created.json"
 PROGRESS_REL = "ProjectData/RunTime/move_progress.json"
 _MOVE_RE = re.compile(r"\[移动\s+(\d+)\s*/\s*(\d+)\]")
 
@@ -34,6 +35,21 @@ class CabinetMoveStep(BaseStep):
         confs = (ctx.project or {}).get("confirmations") or {}
         if confs.get("move"):
             return {"ok": True, "missing": [], "found": ["confirmations.move"], "note": ""}
+        if confs.get("combo"):
+            created = read_json(ctx.work_root / CREATED_REL)
+            if not created.get("ok"):
+                code = created.get("exit_code")
+                err = (created.get("error") or "").strip()
+                detail = err or (f"exit_code={code}" if code is not None else "未写入成功留痕")
+                return {
+                    "ok": False,
+                    "missing": [CREATED_REL],
+                    "found": [],
+                    "note": (
+                        f"超节点创建尚未成功（{detail}）。"
+                        "请先重试「创建超节点」，确认 nVisual 已显示超节点后再进行机柜落位。"
+                    ),
+                }
         return {
             "ok": False,
             "missing": [],
@@ -90,9 +106,10 @@ class CabinetMoveStep(BaseStep):
                              ok=done, error="" if done else f"exit_code={result.get('exit_code')}")
 
         if not done:
-            emit(f"[{self.key}] ⚠ 落位中断于第 {sent} 条（exit_code={result.get('exit_code')}），可重试续跑")
-        else:
-            emit(f"[{self.key}] 机柜落位完成：{sent}/{total} 条")
+            hint = _subproc_failure_hint(result)
+            emit(f"[{self.key}] ⚠ 落位中断于第 {sent} 条：{hint}")
+            return {"metrics": self._metrics(read_json(progress), total), "error": hint}
+        emit(f"[{self.key}] 机柜落位完成：{sent}/{total} 条")
         return {"metrics": self._metrics(read_json(progress), total)}
 
     # ── helpers ──
