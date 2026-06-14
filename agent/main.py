@@ -1123,6 +1123,39 @@ async def upload_batch(
     return await _upload_batch_impl(skill, files, need, kinds, slot_labels, run_id)
 
 
+@app.post("/agent/{skill}/artifact/override")
+async def artifact_override(
+    skill: str,
+    file: UploadFile = File(...),
+    target_path: str = Form(..., description="相对 data_root 的产物 path（与 SDUI artifact.path 一致）"),
+    run_id: str | None = Form(default=None, description="关联 run_id · 落盘后 sync_outputs 并推 SDUI"),
+):
+    """system_design 专用：上传覆盖 output/ 产物（不 sync_inputs · 不 resume）。"""
+    if skill != "system_design":
+        raise HTTPException(status_code=501, detail=f"skill '{skill}' 不支持产物覆盖上传")
+    from agent.system_design_files import override_output_artifact, sync_outputs_into_state
+
+    skill_obj = _get_skill_or_404(skill)
+    result = await override_output_artifact(skill_obj.work_root, target_path, file)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=str(result.get("error") or "override failed"))
+
+    rid = (run_id or "").strip()
+    if rid and rid in RUNS:
+        state = RUNS[rid]["state"]
+        sync_outputs_into_state(skill_obj.work_root, state)
+        rel_path = str(result.get("path") or target_path).replace("\\", "/")
+        state.setdefault("artifact_overrides", {})[rel_path] = True
+        try:
+            proj = _get_sdui_projector(skill)
+            if proj is not None:
+                RUNS[rid]["queue"].put_nowait({"event": "sdui", "data": proj(state)})
+        except Exception:
+            pass
+
+    return result
+
+
 # ─── 状态快照 ───
 
 @app.get("/agent/{skill}/status/{run_id}")

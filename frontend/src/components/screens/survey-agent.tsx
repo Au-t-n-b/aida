@@ -24,6 +24,7 @@ import {
   startRun,
   resumeRun,
   uploadBatch,
+  overrideOutputArtifact,
   runPatchRun,
   resetWorkspace,
   isIdleLikeSduiDoc,
@@ -1396,12 +1397,43 @@ export default function SkillAgentScreen({
 
   const handleUpload = useCallback(async (
     files: FileList,
-    _purpose?: string,
+    purpose?: string,
     _stepId?: string,
     slotTag?: string,
     slotLabel?: string,
   ) => {
     const arr = Array.from(files);
+    // system_design 输出件覆盖：写入 output/ 原 path · 不 resume · 不走 upload/batch
+    if (skillId === 'system_design' && purpose?.startsWith('override:')) {
+      const targetPath = purpose.slice('override:'.length);
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      if (!rid) {
+        throw new Error('尚未启动作业 run，请先从左侧启动系统设计后再上传');
+      }
+      if (!arr.length) {
+        throw new Error('未选择文件');
+      }
+      try {
+        const result = await overrideOutputArtifact(skillId, arr[0], targetPath, rid);
+        if (result.ok === false) {
+          throw new Error(String(result.error || '覆盖上传失败'));
+        }
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        const snap = await fetchUiSnapshot(skillId, rid);
+        if (snap) {
+          postUploadEpochRef.current = Date.now();
+          setPostUploadDoc(snap);
+        }
+        setError(null);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '覆盖上传失败，请检查文件格式或网络连接';
+        console.error('[SDUI] override upload error:', e);
+        setError(msg);
+        throw e instanceof Error ? e : new Error(msg);
+      }
+      return;
+    }
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
       try {
