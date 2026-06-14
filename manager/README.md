@@ -4,6 +4,16 @@ UX 协调层：**鉴权**（代理数据中心）、会话管理；后续扩展�
 
 ## 启动
 
+### 本地 Mock 数据中心（仅本地起服务时需要）
+
+如果本机没有可用的远端数据中心，先在仓库根目录启动本地 Mock Datacenter；生产、测试环境或已连接远端数据中心时不需要启动它。
+
+```bash
+python agent/.local/mock_datacenter.py
+```
+
+Mock 服务地址：`http://127.0.0.1:9000`，默认账号：`liwen / 123456`。本地联调时将 `agent/.env` 里的 `DATA_CENTER_BASE_URL` 指向该地址。
+
 ```bash
 source agent/.venv/bin/activate
 # agent/.env 配置 DATA_CENTER_BASE_URL

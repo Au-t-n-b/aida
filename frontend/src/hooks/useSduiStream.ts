@@ -41,6 +41,20 @@ export function extractSduiProgress(doc: SduiDocument): number {
   return best;
 }
 
+/** 从 Stepper 提取已推进到的最远步骤序号；无 Stepper 则 -1。 */
+function extractSduiStepRank(doc: SduiDocument): number {
+  let best = -1;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'Stepper') return;
+    node.steps.forEach((step, index) => {
+      if (['done', 'completed', 'skipped', 'running', 'current', 'error'].includes(step.status)) {
+        best = Math.max(best, index);
+      }
+    });
+  });
+  return best;
+}
+
 /** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡 / 多页签工作台）。*/
 function hasExecutionSurface(doc: SduiDocument): boolean {
   let found = false;
@@ -81,6 +95,11 @@ function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocume
   if (!prev) return next;
   const pPrev = extractSduiProgress(prev);
   const pNext = extractSduiProgress(next);
+  const rPrev = extractSduiStepRank(prev);
+  const rNext = extractSduiStepRank(next);
+  // zhgk full_restart 会从 preflight 重放，但 overall_progress 可能因复用历史结果
+  // 反而不低。用 Stepper 顺序兜底，避免执行中视觉闪回到早期节点。
+  if (rPrev >= 0 && rNext >= 0 && rNext < rPrev) return prev;
   if (pPrev >= 0 && pNext >= 0 && pNext < pPrev) return prev;
   if (hasExecutionSurface(prev) && isIdleLikeSduiDoc(next)) return prev;
   if (pPrev > 0 && pNext < 0 && !hasExecutionSurface(next)) return prev;

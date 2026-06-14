@@ -25,6 +25,25 @@ aida/
 
 ## 快速起手
 
+### 0. 本地 Mock 数据中心（仅本地联调需要）
+
+如果本机没有可用的远端数据中心，先启动本地 Mock Datacenter；生产、测试环境或已连接远端数据中心时不需要启动它。
+
+```bash
+# 在仓库根目录执行，使用 agent/.venv
+python agent/.local/mock_datacenter.py
+```
+
+Mock 服务地址：`http://127.0.0.1:9000`  
+默认账号：`liwen / 123456`
+
+本地联调时，在 `agent/.env` 中配置：
+
+```bash
+DATA_CENTER_BASE_URL=http://127.0.0.1:9000
+AIDA_AGENT_BASE_URL=http://127.0.0.1:7401
+```
+
 ### 1. 后端（FastAPI · port 7401）
 
 ```bash

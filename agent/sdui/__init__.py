@@ -29,6 +29,7 @@ from .builder import (
     SduiKeyValueListNode,
     SduiDividerNode,
     SduiGoldenMetricsNode,
+    SduiZhgkGoldenMetricsNode,
     SduiPostUserMessage,
     SduiOpenPreview,
     dump_sdui_json,
@@ -52,6 +53,7 @@ __all__ = [
     "SduiKeyValueListNode",
     "SduiDividerNode",
     "SduiGoldenMetricsNode",
+    "SduiZhgkGoldenMetricsNode",
     "SduiPostUserMessage", "SduiOpenPreview",
     "dump_sdui_json",
 ]

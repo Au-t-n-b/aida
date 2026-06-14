@@ -33,6 +33,7 @@ from agent.sdui.builder import (
     SduiMacroStepRailNode, SduiMacroStep,
     SduiRiskListNode, SduiRiskItem,
     SduiDataTableNode,
+    SduiZhgkGoldenMetricsNode,
 
     SduiMachineRoom3DNode, SduiMachineRoom, SduiRoom3DItemStats, SduiRoom3DEntry,
     SduiPostUserMessage,
@@ -44,7 +45,7 @@ from agent.sdui.builder import (
 )
 from agent.sdui.projector_base import (
     collect_metrics, overall_status,
-    build_header, build_stepper, build_stepper_for_intent, build_progress_donut,
+    build_header, build_stepper, build_stepper_for_intent,
     build_artifacts, build_summary_card, build_hitl,
     build_assessment_panel,
 )
@@ -369,7 +370,7 @@ def _build_summary(state: dict[str, Any]) -> SduiCardNode | None:
 
 
 def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
-    """黄金指标卡（zhgk 定制版）：左 进度环（DonutChart）+ 右 KPI 行（StatisticRow）。
+    """黄金指标卡（zhgk 定制版）：专用 ZhgkGoldenMetrics 节点。
 
     职责单一：只做「全局进度 + 文字指标摘要」；评估分布图归 AI 五值评估面板独占，
     不再在此重复 BarChart（曾与评估面板的同源数据重复两次）。
@@ -378,7 +379,6 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
     if not steps:
         return None
 
-    donut = build_progress_donut(state, step_order=ZHGK_STEP_ORDER)
     kpi_items = _kpi_items(state)
 
     if not kpi_items:
@@ -386,16 +386,20 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
         done  = sum(1 for s in steps if s.get("status") == "completed")
         kpi_items = [SduiStatisticRowItem(title="已完成步骤", value=f"{done}/{total}")]
 
-    right_col = SduiStackNode(
-        id="metrics-right", gap="sm", flex=2,
-        children=[SduiStatisticRowNode(id="kpi-row", items=kpi_items)],
+    m = collect_metrics(state)
+    done = sum(1 for s in steps if s.get("status") == "completed")
+    pct = m.get("overall_progress") or state.get("overall_progress") or (
+        round(done / len(ZHGK_STEP_ORDER) * 100) if ZHGK_STEP_ORDER else 0
     )
 
     return SduiCardNode(
         id="golden-metrics", title="黄金指标",
-        children=[SduiRowNode(id="metrics-row", align="center", gap="lg", children=[
-            donut, right_col,
-        ])],
+        children=[SduiZhgkGoldenMetricsNode(
+            id="zhgk-golden-metrics",
+            progress=pct,
+            centerLabel="进度",
+            items=kpi_items,
+        )],
     )
 
 

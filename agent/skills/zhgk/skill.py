@@ -37,6 +37,20 @@ from .steps import (
 )
 
 
+def _normalize_assignees(raw: Any) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("surveyor_name") or item.get("姓名") or "").strip()
+        code = str(item.get("surveyor_code") or item.get("工号") or "").strip()
+        if name and code:
+            out.append({"surveyor_name": name, "surveyor_code": code})
+    return out
+
+
 class ZhgkSkill(BaseSkill):
     name = "zhgk"
     description = (
@@ -91,9 +105,11 @@ class ZhgkSkill(BaseSkill):
           determine_gen   → project["generation_cooling"] = choice（用户手动指定时）
           data_append     → project["data_append_choice"] = choice（追加/跳过）
           confirm_table   → project["table_confirmed"] = True / redo 仅清 table_confirmed
-          task_dispatch   → project["dispatch_decision"] = choice（下发/跳过）
-          wait_survey     → 文件型 HITL；若 resurvey_pending 则清 resurvey_decision
-          resurvey_gate   → project["resurvey_decision"] = choice
+          task_dispatch   → project["dispatch_decision"] = choice（下发/跳过）；
+                            表单 rows → project["assignees"]
+          wait_survey     → 文件型 HITL
+          resurvey_gate   → project["resurvey_decision"] = resurvey/skip_resurvey；
+                            project["resurvey_dispatch_decision"] = dispatch/skip
           supplement_run  → project["supplement_choice"] = choice（追加/跳过）
           report_distribute → project["approval_decision"] = choice（通过/驳回/暂存）
         """
@@ -115,8 +131,14 @@ class ZhgkSkill(BaseSkill):
         elif hitl_step == "supplement_run" and choice:
             project["supplement_choice"] = choice
 
-        elif hitl_step == "task_dispatch" and choice:
-            project["dispatch_decision"] = choice
+        elif hitl_step == "task_dispatch":
+            if choice:
+                project["dispatch_decision"] = choice
+            assignees = _normalize_assignees(
+                payload.get("assignees") or payload.get("gkclaw_assignees")
+            )
+            if assignees:
+                project["assignees"] = assignees
 
         elif hitl_step == "confirm_table":
             if choice == "confirm":
@@ -128,14 +150,37 @@ class ZhgkSkill(BaseSkill):
                 project.pop("dispatch_decision", None)   # 重建表后须重新决策是否下发
 
         elif hitl_step == "wait_survey":
-            # 文件型 HITL；若是复勘轮次上传，清 resurvey_decision 以回归正常流
-            if project.get("resurvey_decision") == "resurvey":
-                project.pop("resurvey_decision", None)
+            # 文件型 HITL；复勘标记由 wait_survey 成功合并后清理，避免续跑前误判已有旧结果。
+            pass
 
         elif hitl_step == "resurvey_gate" and choice:
-            project["resurvey_decision"] = choice
+            if choice in {"resurvey", "skip_resurvey"}:
+                project["resurvey_decision"] = choice
+                project.pop("resurvey_dispatch_decision", None)
+                project.pop("resurvey_gkclaw_task_id", None)
+            elif choice in {"dispatch", "skip"}:
+                project["resurvey_decision"] = "resurvey"
+                project["resurvey_dispatch_decision"] = choice
 
         return project
+
+    def build_resume_init_state(
+        self,
+        prev: dict[str, Any],
+        project: dict[str, Any],
+        hitl_step: str,
+        payload: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        choice = str((payload or {}).get("choice") or "")
+        if hitl_step != "resurvey_gate":
+            return {}, project
+        if choice == "resurvey":
+            return {"route_to": "resurvey_gate"}, project
+        if choice == "dispatch":
+            return {"route_to": "task_dispatch"}, project
+        if choice == "skip":
+            return {"route_to": "wait_survey"}, project
+        return {}, project
 
 
 def get_zhgk_skill() -> ZhgkSkill:

@@ -1,8 +1,10 @@
-"""工勘孪生 · SOG 资产存储与热点/settings 生成（移植自 sog-hotspot-viewer/server/asset-store.mjs）。"""
+"""实景孪生 · SOG 资产存储与标签/settings 生成（移植自 sog-hotspot-viewer/server/asset-store.mjs）。"""
 from __future__ import annotations
 
 import json
 import re
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +12,7 @@ SOG_FILE_NAME = "scene.sog"
 HOTSPOTS_FILE_NAME = "hotspots.json"
 META_FILE_NAME = "meta.json"
 SOG_DATA_ROOT = Path(__file__).resolve().parents[1] / "data" / "sog-assets"
+SOG_SCENES_PATH = Path(__file__).resolve().parents[1] / "data" / "sog-scenes.json"
 ASSET_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
 
 
@@ -46,7 +49,7 @@ def normalize_hotspots(input_data: Any) -> list[dict[str, Any]]:
         raw_id = item.get("id")
         hotspot_id = raw_id.strip() if isinstance(raw_id, str) and raw_id.strip() else f"hotspot-{now}-{index}"
         raw_title = item.get("title")
-        title = raw_title.strip() if isinstance(raw_title, str) and raw_title.strip() else "未命名热点"
+        title = raw_title.strip() if isinstance(raw_title, str) and raw_title.strip() else "未命名标签"
         text = item.get("text") if isinstance(item.get("text"), str) else ""
         raw_label = item.get("statusLabel")
         status_label = (
@@ -188,3 +191,106 @@ class SogAssetStore:
             **urls,
             "sceneExists": scene.is_file(),
         }
+
+
+class SogSceneStore:
+    """实景孪生场景列表存储。
+
+    当前用于本地演示：已完成场景指向现有 SOG asset，新上传视频登记为 training。
+    """
+
+    def __init__(self, asset_root: Path | None = None, scenes_path: Path | None = None) -> None:
+        self.asset_store = SogAssetStore(asset_root)
+        self.scenes_path = scenes_path or SOG_SCENES_PATH
+
+    def _default_scene(self) -> dict[str, Any]:
+        meta = self.asset_store.read_meta("channel1")
+        uploaded_at = meta.get("importedAt") or "2026-06-05T15:57:31+08:00"
+        return {
+            "id": "channel1",
+            "name": "通道1历史建模",
+            "status": "ready",
+            "uploadedAt": uploaded_at,
+            "assetId": "channel1",
+            "sourceVideoName": "通道1.mp4",
+        }
+
+    def _read_raw_scenes(self) -> list[dict[str, Any]]:
+        if not self.scenes_path.exists():
+            return [self._default_scene()]
+        text = self.scenes_path.read_text(encoding="utf-8").lstrip("\ufeff")
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return [self._default_scene()]
+        if not isinstance(data, list):
+            return [self._default_scene()]
+        return [item for item in data if isinstance(item, dict)]
+
+    def _write_raw_scenes(self, scenes: list[dict[str, Any]]) -> None:
+        self.scenes_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = json.dumps(scenes, ensure_ascii=False, indent=2) + "\n"
+        self.scenes_path.write_text(payload, encoding="utf-8")
+
+    def _with_runtime_fields(self, scene: dict[str, Any]) -> dict[str, Any]:
+        status = "training" if scene.get("status") == "training" else "ready"
+        asset_id = scene.get("assetId") if isinstance(scene.get("assetId"), str) else None
+        scene_exists = bool(asset_id and self.asset_store.scene_path(asset_id).is_file())
+        out = {
+            "id": str(scene.get("id") or ""),
+            "name": str(scene.get("name") or scene.get("sourceVideoName") or "未命名场景"),
+            "status": status,
+            "uploadedAt": str(scene.get("uploadedAt") or ""),
+            "assetId": asset_id,
+            "sourceVideoName": str(scene.get("sourceVideoName") or ""),
+            "sceneExists": scene_exists,
+        }
+        if asset_id:
+            asset = self.asset_store.get_asset(asset_id)
+            out["contentUrl"] = asset["contentUrl"]
+            out["settingsUrl"] = asset["settingsUrl"]
+            out["hotspotsUrl"] = asset["hotspotsUrl"]
+        return out
+
+    def list_scenes(self) -> list[dict[str, Any]]:
+        scenes = self._read_raw_scenes()
+        if not scenes:
+            scenes = [self._default_scene()]
+        return [self._with_runtime_fields(scene) for scene in scenes]
+
+    def get_scene(self, scene_id: str) -> dict[str, Any]:
+        validate_asset_id(scene_id)
+        for scene in self.list_scenes():
+            if scene["id"] == scene_id:
+                return scene
+        raise FileNotFoundError(scene_id)
+
+    def update_scene_name(self, scene_id: str, name: str) -> dict[str, Any]:
+        validate_asset_id(scene_id)
+        next_name = (name or "").strip()
+        if not next_name:
+            raise ValueError("scene name required")
+        scenes = self._read_raw_scenes()
+        if not scenes:
+            scenes = [self._default_scene()]
+        for scene in scenes:
+            if scene.get("id") == scene_id:
+                scene["name"] = next_name
+                self._write_raw_scenes(scenes)
+                return self._with_runtime_fields(scene)
+        raise FileNotFoundError(scene_id)
+
+    def create_training_scene(self, source_video_name: str) -> dict[str, Any]:
+        name = (source_video_name or "").strip() or "现场视频.mp4"
+        scenes = self._read_raw_scenes()
+        scene = {
+            "id": f"scene-{uuid.uuid4().hex[:12]}",
+            "name": name,
+            "status": "training",
+            "uploadedAt": datetime.now().astimezone().isoformat(),
+            "assetId": None,
+            "sourceVideoName": name,
+        }
+        scenes.append(scene)
+        self._write_raw_scenes(scenes)
+        return self._with_runtime_fields(scene)

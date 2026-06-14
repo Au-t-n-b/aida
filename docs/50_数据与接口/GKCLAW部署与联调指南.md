@@ -125,7 +125,7 @@ GKCLAW_FRONTAGENT_MAILBOX=<对方提供的 frontagent 收件邮箱>
 - 方式 A：start 请求体带 `assignees`；
 - 方式 B：`ProjectData/RunTime/gkclaw/assignees.json`，内容
   `[{"surveyor_name":"张三","surveyor_code":"S001"}]`。
-- 两处都没有时，task_dispatch 会以文件型 HITL 阻断并提示上传。
+- 两处都没有时，本地页面在 `task_dispatch` 进入表单型 HITL，要求填写现场勘测人员的姓名和工号；提交后继续下发，并同步落盘到 `RunTime/gkclaw/assignees.json` 供旧链路兼容。
 
 ## 5. 部署后自验（联调前，无需对方参与）
 

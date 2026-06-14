@@ -18,7 +18,7 @@ class SogAssetsTest(unittest.TestCase):
             ]
         )
         self.assertEqual(len(hotspots), 2)
-        self.assertEqual(hotspots[1]["title"], "未命名热点")
+        self.assertEqual(hotspots[1]["title"], "未命名标签")
         self.assertEqual(hotspots[1]["text"], "")
         self.assertEqual(hotspots[1]["mode"], "normal")
         self.assertEqual(hotspots[1]["statusLabel"], "正常")

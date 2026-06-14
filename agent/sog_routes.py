@@ -1,19 +1,61 @@
-"""工勘孪生 · FastAPI 路由（/api/sog/* 与 /data/sog-assets/*）。"""
+"""实景孪生 · FastAPI 路由（/api/sog/* 与 /data/sog-assets/*）。"""
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
 
-from .sog_assets import SogAssetStore, validate_asset_id
+from .sog_assets import SogAssetStore, SogSceneStore, validate_asset_id
 
 router = APIRouter(tags=["sog"])
 _store = SogAssetStore()
+_scene_store = SogSceneStore()
 
 
 def _invalid_asset_id() -> HTTPException:
     return HTTPException(status_code=400, detail="invalid asset id")
+
+
+class SogSceneUpdateReq(BaseModel):
+    name: str
+
+
+@router.get("/api/sog/scenes")
+def list_sog_scenes() -> list[dict[str, Any]]:
+    return _scene_store.list_scenes()
+
+
+@router.get("/api/sog/scenes/{scene_id}")
+def get_sog_scene_meta(scene_id: str) -> dict[str, Any]:
+    try:
+        return _scene_store.get_scene(scene_id)
+    except ValueError as exc:
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.patch("/api/sog/scenes/{scene_id}")
+def update_sog_scene(scene_id: str, body: SogSceneUpdateReq) -> dict[str, Any]:
+    try:
+        return _scene_store.update_scene_name(scene_id, body.name)
+    except ValueError as exc:
+        message = str(exc)
+        if "scene name required" in message:
+            raise HTTPException(status_code=400, detail="scene name required") from exc
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.post("/api/sog/scenes/upload")
+async def upload_sog_scene_video(file: UploadFile = File(...)) -> dict[str, Any]:
+    filename = (file.filename or "现场视频.mp4").strip() or "现场视频.mp4"
+    # 当前仅登记训练任务，训练/转码服务后续接入；读取一小段确保请求体被消费。
+    await file.read(1024)
+    return _scene_store.create_training_scene(filename)
 
 
 @router.get("/api/sog/assets/{asset_id}")

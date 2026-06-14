@@ -322,6 +322,112 @@ function GoldenMetricsCards({ items }: { items: SduiStatisticRowItem[] }) {
   );
 }
 
+function ZhgkGoldenMetricsView({
+  progress,
+  centerLabel,
+  items,
+}: {
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+}) {
+  const pct = Math.max(0, Math.min(100, Number(progress) || 0));
+  const size = 112;
+  const r = 42;
+  const circumference = 2 * Math.PI * r;
+  const dash = (pct / 100) * circumference;
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '28px 34px',
+      flexWrap: 'wrap',
+      width: '100%',
+    }}>
+      <div style={{
+        width: 'min(112px, 28vw)',
+        minWidth: 88,
+        flex: '0 0 auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--zinc-100)" strokeWidth={12} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke="var(--c-brand,#3551d8)" strokeWidth={12}
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeLinecap="butt"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: 'stroke-dasharray .5s ease' }}
+          />
+          <text x={size / 2} y={centerLabel ? 55 : 60} textAnchor="middle" fontSize="22" fontWeight={700}
+                fill="var(--text-primary)" fontFamily="var(--font-mono)">
+            {pct}%
+          </text>
+          {centerLabel && (
+            <text x={size / 2} y={73} textAnchor="middle" fontSize="11" fill="var(--text-tertiary)">
+              {centerLabel}
+            </text>
+          )}
+        </svg>
+      </div>
+      <div style={{
+        flex: '1 1 420px',
+        minWidth: 0,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 240px))',
+        justifyContent: 'start',
+        gap: '12px',
+      }}>
+        {items.map((item, i) => {
+          const accent = item.color ? (STAT_ACCENT[item.color] ?? '#94a3b8') : '#94a3b8';
+          const value = String(item.value);
+          const isLong = value.length >= 6 || /[/·]/.test(value);
+          return (
+            <div key={i} style={{
+              position: 'relative',
+              minHeight: 116,
+              background: 'var(--c-surface)',
+              border: '1px solid var(--c-border)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-xs)',
+              padding: '16px 18px 16px 22px',
+              overflow: 'hidden',
+              animation: `sdui-node-in .22s cubic-bezier(.2,.65,.4,1) ${Math.min(i, 6) * 0.05}s both`,
+            }}>
+              <div style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: '0 999px 999px 0', background: accent }} />
+              <div style={{
+                fontSize: 'var(--fs-12)',
+                color: 'var(--c-text-muted)',
+                fontWeight: 500,
+                lineHeight: 1.25,
+              }}>
+                {item.title}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: isLong ? 24 : 28,
+                fontWeight: 640,
+                color: 'var(--c-text)',
+                marginTop: 14,
+                letterSpacing: 0,
+                lineHeight: 1.18,
+                fontVariantNumeric: 'tabular-nums',
+                wordBreak: 'keep-all',
+                overflowWrap: 'anywhere',
+              }}>
+                {value}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // Risk-level dot colors (first-column semantic indicator)
 const RISK_DOT: Record<string, string> = {
   '高': '#dc2626',  // danger
@@ -1471,10 +1577,11 @@ function ensureMR3DStyles() {
   .sdui-mr3d .iso-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:22px}
   .sdui-mr3d .iso-room{background:var(--c-surface,#fff);border:1px solid var(--border);border-radius:var(--r-lg,8px);padding:18px 18px 16px;transition:box-shadow .15s,border-color .15s,transform .15s;display:flex;flex-direction:column}
   .sdui-mr3d .iso-room:hover{transform:translateY(-1px);box-shadow:var(--shadow-md);border-color:var(--border-strong,#cbd5e1)}
-  .sdui-mr3d .room-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
-  .sdui-mr3d .room-head .name{font-size:14px;font-weight:600;color:var(--text-primary)}
-  .sdui-mr3d .room-head .name .c{font-family:var(--font-mono,monospace);font-size:11px;color:var(--text-tertiary);margin-left:6px;font-weight:500}
-  .sdui-mr3d .status-chip{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--c-brand-soft,#eef1fc);color:var(--c-brand-text,#1e34a8);display:inline-flex;align-items:center;gap:4px}
+  .sdui-mr3d .room-head{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:start;margin-bottom:12px}
+  .sdui-mr3d .room-title{min-width:0}
+  .sdui-mr3d .room-head .name{font-size:14px;font-weight:600;color:var(--text-primary);line-height:1.25;word-break:keep-all;overflow-wrap:anywhere}
+  .sdui-mr3d .room-head .meta{font-family:var(--font-mono,monospace);font-size:11px;line-height:1.4;color:var(--text-tertiary);margin-top:4px;font-weight:500}
+  .sdui-mr3d .status-chip{font-size:11px;padding:2px 7px;border-radius:4px;background:var(--c-brand-soft,#eef1fc);color:var(--c-brand-text,#1e34a8);display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
   .sdui-mr3d .status-chip .dot{width:5px;height:5px;border-radius:50%;background:var(--c-brand,#3551d8)}
   .sdui-mr3d .status-chip.pending{background:var(--c-warning-soft,#fdf2dd);color:var(--c-warning-text,#9a5b08)}
   .sdui-mr3d .status-chip.pending .dot{background:var(--c-warning,#d97706)}
@@ -1606,7 +1713,10 @@ function MachineRoom3DView({ node }: { node: SduiMachineRoom3DNode }) {
           return (
             <div key={room.id} className={'iso-room ' + (pending ? 'pending' : '')}>
               <div className="room-head">
-                <div className="name">{room.label}{room.code && <span className="c">{room.code}</span>}</div>
+                <div className="room-title">
+                  <div className="name">{room.label}</div>
+                  {room.code && <div className="meta">{room.code}</div>}
+                </div>
                 <span className={'status-chip ' + (pending ? 'pending' : '')}><span className="dot" />{pending ? '待启动' : '勘测中'}</span>
               </div>
               <MiniIsoScene room={room} />
@@ -1898,6 +2008,9 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       }));
       return <GoldenMetricsCards items={items} />;
     }
+
+    case 'ZhgkGoldenMetrics':
+      return <ZhgkGoldenMetricsView progress={node.progress} centerLabel={node.centerLabel} items={node.items} />;
 
     // ── v1.1 display nodes ──
 

@@ -39,13 +39,15 @@ def tmpdir() -> Path:
 @test
 def ids_task_id_format_and_uniqueness():
     from agent.skills.zhgk.services.gkclaw import ids
+    import re
     root = tmpdir()
     t1 = ids.new_task_id("K1903", root)
     t2 = ids.new_task_id("K1903", root)
     assert ids.is_valid_task_id(t1), f"task_id 不合契约正则: {t1}"
     assert t1 != t2, "连续生成必须唯一"
-    assert t1.startswith("task-") and "K1903" in t1, t1
-    assert t1 < t2, "序列应单调递增"
+    assert re.match(r"^task-\d{17}-K1903(?:-\d{3})?$", t1), t1
+    assert re.match(r"^task-\d{17}-K1903(?:-\d{3})?$", t2), t2
+    assert t1 < t2, "时间戳 task_id 应单调递增"
 
 
 @test
@@ -583,13 +585,13 @@ def mailer_mailgw_backend_sends():
         return _FakeHttpResp({"task_id": "mgw-1", "status": "pending_approval",
                               "message": "已转入待审批队列"})
 
-    orig = mailer.urllib.request.urlopen
-    mailer.urllib.request.urlopen = fake_urlopen
+    orig = mailer._urlopen_no_proxy
+    mailer._urlopen_no_proxy = fake_urlopen
     try:
         r = mailer.send_mail(["front@corp.com"], "[GKCLAW][TASK_DISPATCH] K1903/t1",
                              "正文", attachments=["D:/x.zip"], dry_run=False)
     finally:
-        mailer.urllib.request.urlopen = orig
+        mailer._urlopen_no_proxy = orig
         os.environ.pop("AIDA_MAIL_BACKEND", None)
     assert r["ok"] and r["via"] == "mailgw"
     assert r["mailgw_task_id"] == "mgw-1" and r["mailgw_status"] == "pending_approval"
@@ -683,6 +685,21 @@ def _make_survey_xlsx(out_dir) -> str:
          "检查内容": "检查排水管走向与坡度", "勘测方法": "现场勘测", "备注": ""},
     ]
     return build_survey_table(items, str(out_dir), "ACT001", "智算 Q3 · 客户甲一期", "A 机房")
+
+
+def _mark_ai_results(table: str, results: dict[int, str]) -> None:
+    """在测试全量表中写入 AI 评估结论，用于驱动复勘门控。"""
+    import openpyxl
+    wb = openpyxl.load_workbook(table)
+    ws = wb.active
+    headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+    ai_col = headers.index("AI评估结果") + 1
+    for row_idx in range(2, ws.max_row + 1):
+        seq = int(ws.cell(row_idx, 1).value)
+        if seq in results:
+            ws.cell(row_idx, ai_col, value=results[seq])
+    wb.save(table)
+    wb.close()
 
 
 _ASSIGNEES = [{"surveyor_name": "张三", "surveyor_code": "S001"}]
@@ -1051,7 +1068,43 @@ def step_missing_assignees_blocks():
     ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch"})  # 无 assignees
     check = step.check_inputs(ctx)
     assert not check["ok"]
-    assert any("assignees.json" in x for x in check["missing"])
+    assert check["missing"] == []
+    need_inputs = check.get("need_inputs") or []
+    assert need_inputs and need_inputs[0]["type"] == "form"
+    assert need_inputs[0]["payloadKey"] == "assignees"
+    assert need_inputs[0]["repeatable"] is True
+    assert [f["key"] for f in need_inputs[0]["fields"]] == ["surveyor_name", "surveyor_code"]
+
+
+@test
+def task_dispatch_resume_accepts_assignee_form_rows():
+    from agent.skills.zhgk.skill import ZhgkSkill
+    skill = ZhgkSkill(work_root=tmpdir())
+    project = skill.apply_resume_payload(
+        {"dispatch_decision": "dispatch"},
+        {"assignees": [{"surveyor_name": " 张三 ", "surveyor_code": " S001 "}]},
+        "task_dispatch",
+    )
+    assert project["dispatch_decision"] == "dispatch"
+    assert project["assignees"] == [{"surveyor_name": "张三", "surveyor_code": "S001"}]
+
+
+@test
+def task_dispatch_assignee_form_projects_to_sdui():
+    from agent.sdui.projector_base import build_hitl
+    from agent.skills.zhgk.steps.task_dispatch import ASSIGNEES_FORM_INPUT
+    card = build_hitl({
+        "hitl": {
+            "step": "task_dispatch",
+            "reason": "下发需要任务分配人员",
+            "need_inputs": [ASSIGNEES_FORM_INPUT],
+        }
+    })
+    assert card is not None
+    form = next((c for c in card.children if getattr(c, "type", "") == "HitlForm"), None)
+    assert form is not None
+    assert form.payloadKey == "assignees"
+    assert form.stepId == "task_dispatch"
 
 
 # ─── wait_survey gkclaw 钩子 ───
@@ -1083,6 +1136,84 @@ def wait_survey_shows_gkclaw_state_and_accepts_mailed_result():
     assert check2["ok"]
     result = ws.run(ctx, {}, lambda m: None)
     assert result["metrics"]["filled_count"] == 2
+
+
+# ─── resurvey dispatch round ───
+
+@test
+def resurvey_gate_prompts_for_method_after_resurvey_choice():
+    import json as _json
+    from agent.skills.zhgk.steps.resurvey_gate import ResurveyGateStep
+
+    ctx = _step_ctx(extra_project={"resurvey_decision": "resurvey"})
+    table = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))[
+        "survey_table_path"
+    ]
+    _mark_ai_results(table, {1: "不满足"})
+
+    check = ResurveyGateStep().check_inputs(ctx)
+    assert not check["ok"]
+    need_inputs = check.get("need_inputs") or []
+    assert need_inputs and need_inputs[0]["id"] == "resurvey_dispatch_decision"
+    values = [o["value"] for o in need_inputs[0]["options"]]
+    assert values == ["dispatch", "skip"]
+    assert "复勘方式" in check["note"]
+
+
+@test
+def resurvey_gate_resume_routes_dispatch_method_to_task_dispatch():
+    from agent.skills.zhgk.skill import ZhgkSkill
+
+    skill = ZhgkSkill(work_root=tmpdir())
+    project = skill.apply_resume_payload(
+        {"resurvey_decision": "resurvey"},
+        {"choice": "dispatch"},
+        "resurvey_gate",
+    )
+    assert project["resurvey_decision"] == "resurvey"
+    assert project["resurvey_dispatch_decision"] == "dispatch"
+
+    prev = {"overall_progress": 62, "project": {"intent": "survey_work"}}
+    extras, routed_project = skill.build_resume_init_state(
+        prev,
+        project,
+        "resurvey_gate",
+        {"choice": "dispatch"},
+    )
+    assert routed_project["resurvey_dispatch_decision"] == "dispatch"
+    assert extras["route_to"] == "task_dispatch"
+
+
+@test
+def resurvey_dispatch_creates_new_task_for_only_resurvey_items():
+    import json as _json
+    from agent.skills.zhgk.steps.task_dispatch import TaskDispatchStep
+    from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
+
+    step = TaskDispatchStep()
+    ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch", "assignees": _ASSIGNEES})
+    first = step.run(ctx, {}, lambda m: None)["metrics"]["gkclaw_task_id"]
+
+    info = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))
+    _mark_ai_results(info["survey_table_path"], {3: "未勘测"})
+    ctx.project.update({
+        "resurvey_decision": "resurvey",
+        "resurvey_dispatch_decision": "dispatch",
+        "assignees": _ASSIGNEES,
+    })
+
+    assert step.check_inputs(ctx)["ok"]
+    second = step.run(ctx, {}, lambda m: None)["metrics"]["gkclaw_task_id"]
+    assert second != first
+
+    info2 = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))
+    assert info2["gkclaw_task_id"] == first
+    assert info2["resurvey_gkclaw_task_id"] == second
+
+    reg = TaskRegistry(ctx.runtime_dir)
+    payload = reg.task_payload(second)
+    assert [item["问题序号"] for item in payload["items"]] == ["3"]
+    assert payload["metadata"]["survey_round"] == 2
 
 
 # ─── sdui gkclaw 卡 ───

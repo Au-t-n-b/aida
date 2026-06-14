@@ -48,7 +48,7 @@ to_front_备注=【勘测要素/项目】+ 底表`视频勘测背景知识`（�
 | `GKCLAW_FRONTAGENT_MAILBOX` | frontagent 收件邮箱（**域名须加入 mailgw 白名单**，否则下发卡审批队列） |
 
 人员配置：start payload `assignees` 或 `ProjectData/RunTime/gkclaw/assignees.json`
-（`[{"surveyor_name":"张三","surveyor_code":"S001"}]`）；缺失时 task_dispatch 文件型 HITL 阻断。
+（`[{"surveyor_name":"张三","surveyor_code":"S001"}]`）；缺失时本地页面在 task_dispatch 进入表单型 HITL，要求填写姓名和工号后继续下发，JSON 文件仅作为预置/兼容入口。
 
 ## 5. 部署与联调（指针）
 
@@ -60,7 +60,7 @@ to_front_备注=【勘测要素/项目】+ 底表`视频勘测背景知识`（�
 | 验收项 | 实现 | 证据 |
 |---|---|---|
 | 合法 dispatch ZIP（manifest+task.json） | package.build_package | eval: package_build_parse_roundtrip |
-| task_id 全局唯一稳定 | ids.new_task_id（seq.txt） | eval: ids_task_id_format_and_uniqueness |
+| task_id 全局唯一稳定 | ids.new_task_id（生成时间精确到 ms，同毫秒追加序号） | eval: ids_task_id_format_and_uniqueness |
 | 项目/人员/任务名下发 | mapping.build_task_payload | eval: mapping_builds_contract_task |
 | 非空 item_clusters | derive_clusters 兜底簇 | eval: mapping_clusters_default_single |
 | 依赖规则引用校验 | schema.validate_task | eval: schema_task_dependency_rules |

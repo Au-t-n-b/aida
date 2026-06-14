@@ -189,6 +189,15 @@ class SduiGoldenMetricsNode(BaseModel):
     metrics: list[dict[str, Any]] | None = None
 
 
+class SduiZhgkGoldenMetricsNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkGoldenMetrics"] = "ZhgkGoldenMetrics"
+    id: str | None = None
+    progress: int | float
+    centerLabel: str | None = None
+    items: list[SduiStatisticRowItem]
+
+
 # ── Chart nodes ────────────────────────────────────────────────────────────────
 
 class SduiDonutSegment(BaseModel):
@@ -1136,6 +1145,7 @@ SduiNode = Annotated[
         SduiDonutChartNode,
         SduiBarChartNode,
         SduiGoldenMetricsNode,
+        SduiZhgkGoldenMetricsNode,
         SduiArtifactGridNode,
         # v1.1 display nodes
         SduiAlertNode,

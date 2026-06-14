@@ -873,11 +873,11 @@ export default function SkillAgentScreen({
   // 交付台（system_design）：对齐已跑通的参照版，仅「冻结快照 ?? 实时 SSE」两层。
   // 不再叠加 frozenSnapshotRef.current / postUploadDoc 覆盖层 —— 这两层在 LLD 生成 /
   // 上传 / 完成后不会及时清空，会把已更新的实时 sduiDoc 永久挡住，导致「输出件不刷新、
-  // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
-  // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
+  // 对话框无后续弹框」。zhgk 等普通 skill 也必须让冻结态和实时 SSE 优先，否则执行中
+  // 会被旧 postUpload/diskPoll 快照盖住，视觉上闪回早期黄金指标页。
   const displayDoc = usesDeliveryWorkbench
     ? (frozenDoc ?? sduiDoc ?? bootDoc)
-    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc ?? bootDoc);
+    : (commissionPollDoc ?? frozenDoc ?? sduiDoc ?? postUploadDoc ?? diskPollDoc ?? bootDoc);
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
@@ -1044,6 +1044,9 @@ export default function SkillAgentScreen({
       console.warn('[SDUI] resume skipped: no active run_id');
       return;
     }
+    postUploadEpochRef.current = 0;
+    setPostUploadDoc(null);
+    setDiskPollDoc(null);
     // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
     const curDoc = displayDocRef.current ?? sduiDocRef.current;
     if (curDoc) {
@@ -1477,17 +1480,23 @@ export default function SkillAgentScreen({
     }
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
-  const handleChoiceSubmit = useCallback(async (value: string) => {
-    await doResume({ choice: value }, resolveDeliveryResumeFromStep(value));
+  const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    await doResume({ choice: value }, stepId ?? resolveDeliveryResumeFromStep(value));
+  }, [doResume]);
+
+  const handleFormSubmit = useCallback(async (payload: Record<string, unknown>, stepId?: string) => {
+    await doResume(payload, stepId);
   }, [doResume]);
 
   // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
   const handleActionRef = useRef(handleAction);
   const handleUploadRef = useRef(handleUpload);
   const handleChoiceSubmitRef = useRef(handleChoiceSubmit);
+  const handleFormSubmitRef = useRef(handleFormSubmit);
   handleActionRef.current = handleAction;
   handleUploadRef.current = handleUpload;
   handleChoiceSubmitRef.current = handleChoiceSubmit;
+  handleFormSubmitRef.current = handleFormSubmit;
 
   const railRuntimeCallbacks = useRef({
     onAction: (action: SduiAction) => { void handleActionRef.current(action); },
@@ -1498,7 +1507,8 @@ export default function SkillAgentScreen({
       slotTag?: string,
       slotLabel?: string,
     ) => handleUploadRef.current(files, purpose, stepId, slotTag, slotLabel),
-    onChoiceSubmit: (value: string) => { void handleChoiceSubmitRef.current(value); },
+    onChoiceSubmit: (value: string, stepId?: string) => { void handleChoiceSubmitRef.current(value, stepId); },
+    onFormSubmit: (payload: Record<string, unknown>, stepId?: string) => { void handleFormSubmitRef.current(payload, stepId); },
   }).current;
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
@@ -1517,6 +1527,7 @@ export default function SkillAgentScreen({
       setSkillHitl({
         skillId, runId: rid, node: card,
         onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
         onUpload: railRuntimeCallbacks.onUpload,
         onAction: railRuntimeCallbacks.onAction,
       });
@@ -1545,6 +1556,7 @@ export default function SkillAgentScreen({
           onAction: railRuntimeCallbacks.onAction,
           onUpload: railRuntimeCallbacks.onUpload,
           onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+          onFormSubmit: railRuntimeCallbacks.onFormSubmit,
         },
       });
     } else {
@@ -1561,6 +1573,7 @@ export default function SkillAgentScreen({
     onAction: railRuntimeCallbacks.onAction,
     onUpload: railRuntimeCallbacks.onUpload,
     onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+    onFormSubmit: railRuntimeCallbacks.onFormSubmit,
     onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
     onRunPatch: handleRunPatch,
     streamEpoch,

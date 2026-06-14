@@ -26,7 +26,7 @@ from agent.sdui.builder import (
     SduiBarChartNode, SduiBarDatum,
     SduiStatisticRowNode, SduiStatisticRowItem,
     SduiMarkdownNode, SduiArtifactGridNode, SduiArtifactItem,
-    SduiFilePickerNode, SduiChoiceCardNode, SduiDividerNode,
+    SduiFilePickerNode, SduiChoiceCardNode, SduiHitlFormNode, SduiDividerNode,
     SduiAlertNode, SduiNumberCardNode,
     SduiPostUserMessage,
     choice_options,
@@ -544,9 +544,10 @@ def build_hitl(
     card_title: str = "需要补充",
     default_choice_title: str = "请确认",
 ) -> SduiCardNode | None:
-    """HITL 卡（两形态）：
+    """HITL 卡：
       - 文件型：hitl.need_files → FilePicker（前端走 /upload/batch）
       - 确认型：hitl.need_inputs → ChoiceCard（前端走 /resume，payload={"choice": value}）
+      - 表单型：hitl.need_inputs[type=form] → HitlForm（前端走 /resume，payload={payloadKey: rows}）
     options 统一经 builder.choice_options 容错 str/dict。hitl.step 为空 → None。"""
     hitl = state.get("hitl") or {}
     step_key = hitl.get("step")
@@ -567,14 +568,29 @@ def build_hitl(
         ))
     elif need_inputs:
         inp = need_inputs[0]
-        options = choice_options(inp.get("options"))
-        if options:
+        fields = inp.get("fields") or []
+        if inp.get("type") == "form" and fields:
             children.append(SduiDividerNode())
-            children.append(SduiChoiceCardNode(
-                id=f"hitl-choice-{step_key}",
+            children.append(SduiHitlFormNode(
+                id=f"hitl-form-{step_key}",
                 title=inp.get("label", default_choice_title),
-                options=options, hitlRequestId=step_key, stepId=step_key,
+                fields=fields,
+                payloadKey=inp.get("payloadKey") or inp.get("id"),
+                repeatable=inp.get("repeatable"),
+                submitLabel=inp.get("submitLabel") or "提交",
+                helpText=inp.get("helpText"),
+                hitlRequestId=step_key,
+                stepId=step_key,
             ))
+        else:
+            options = choice_options(inp.get("options"))
+            if options:
+                children.append(SduiDividerNode())
+                children.append(SduiChoiceCardNode(
+                    id=f"hitl-choice-{step_key}",
+                    title=inp.get("label", default_choice_title),
+                    options=options, hitlRequestId=step_key, stepId=step_key,
+                ))
 
     if state.get("error"):
         children.append(SduiTextNode(content=f"错误：{state['error']}", variant="caption", color="error"))

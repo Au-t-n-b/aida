@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  IconCheck,
+  IconDownload,
+  IconRefresh,
+  IconSettings,
+  IconUpload,
+} from '@/components/icons';
 import './survey-twin.css';
 
 // 与 useSduiStream 同源：SOG 资产端点（/api/sog/*、/data/sog-assets/*）挂在 aida/agent 上。
@@ -22,18 +29,24 @@ type Hotspot = {
   position: [number, number, number];
 };
 
+type SogScene = {
+  id: string;
+  name: string;
+  status: 'ready' | 'training';
+  uploadedAt: string;
+  assetId?: string | null;
+  sourceVideoName?: string;
+  sceneExists?: boolean;
+  contentUrl?: string;
+  settingsUrl?: string;
+  hotspotsUrl?: string;
+};
+
 type SogAsset = {
   id: string;
   contentUrl: string;
   settingsUrl: string;
   hotspotsUrl: string;
-};
-
-const CHANNEL1_ASSET: SogAsset = {
-  id: 'channel1',
-  contentUrl: `${AGENT_BASE}/data/sog-assets/channel1/scene.sog`,
-  settingsUrl: `${AGENT_BASE}/api/sog/assets/channel1/settings`,
-  hotspotsUrl: `${AGENT_BASE}/api/sog/assets/channel1/hotspots`,
 };
 
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
@@ -43,6 +56,23 @@ async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(json.error || json.detail || '请求失败');
   }
   return json as T;
+}
+
+function sceneToAsset(scene: SogScene): SogAsset | null {
+  const assetId = scene.assetId || scene.id;
+  if (!assetId || scene.status !== 'ready') return null;
+  return {
+    id: assetId,
+    contentUrl: scene.contentUrl
+      ? `${AGENT_BASE}${scene.contentUrl}`
+      : `${AGENT_BASE}/data/sog-assets/${assetId}/scene.sog`,
+    settingsUrl: scene.settingsUrl
+      ? `${AGENT_BASE}${scene.settingsUrl}`
+      : `${AGENT_BASE}/api/sog/assets/${assetId}/settings`,
+    hotspotsUrl: scene.hotspotsUrl
+      ? `${AGENT_BASE}${scene.hotspotsUrl}`
+      : `${AGENT_BASE}/api/sog/assets/${assetId}/hotspots`,
+  };
 }
 
 function buildViewerUrl(asset: SogAsset, useWebgl: boolean) {
@@ -59,13 +89,49 @@ function buildViewerUrl(asset: SogAsset, useWebgl: boolean) {
   return `${VIEWER_BASE}?${params.toString()}`;
 }
 
+function formatDate(value?: string) {
+  if (!value) return '未记录';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function trainingProgress(uploadedAt: string, now: number) {
+  const start = new Date(uploadedAt).getTime();
+  if (!Number.isFinite(start)) return 0;
+  const elapsedMs = Math.max(0, now - start);
+  return Math.min(90, Math.floor(elapsedMs / (5 * 60 * 1000)));
+}
+
+function trainingCountdown(uploadedAt: string, now: number) {
+  const start = new Date(uploadedAt).getTime();
+  if (!Number.isFinite(start)) return '计算中';
+  const target = start + 90 * 5 * 60 * 1000;
+  const remainingMs = Math.max(0, target - now);
+  if (remainingMs <= 0) return '即将完成';
+  const totalSeconds = Math.ceil(remainingMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (hours > 0) return `${hours}小时 ${pad(minutes)}分 ${pad(seconds)}秒`;
+  return `${minutes}分 ${pad(seconds)}秒`;
+}
+
+function chooseInitialScene(scenes: SogScene[]) {
+  return scenes.find((scene) => scene.status === 'ready') || scenes[scenes.length - 1] || null;
+}
+
 export function SurveyTwinViewer() {
   const viewerFrameRef = useRef<HTMLIFrameElement>(null);
   const hotspotDialogRef = useRef<HTMLDialogElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const loadWatchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [fileStatus, setFileStatus] = useState('正在加载通道1.sog…');
-  const [currentAsset, setCurrentAsset] = useState<SogAsset | null>(null);
+  const [scenes, setScenes] = useState<SogScene[]>([]);
+  const [selectedSceneId, setSelectedSceneId] = useState<string>('');
+  const [fileStatus, setFileStatus] = useState('正在加载场景列表…');
   const [currentHotspots, setCurrentHotspots] = useState<Hotspot[]>([]);
   const [pendingPosition, setPendingPosition] = useState<[number, number, number] | null>(null);
   const [editingHotspotId, setEditingHotspotId] = useState<string | null>(null);
@@ -74,12 +140,34 @@ export function SurveyTwinViewer() {
   const [useWebgl, setUseWebgl] = useState(
     () => localStorage.getItem('sog-viewer-renderer') === 'webgl',
   );
-  const [dialogTitle, setDialogTitle] = useState('新增热点');
+  const [dialogTitle, setDialogTitle] = useState('新增标签');
   const [hotspotTitle, setHotspotTitle] = useState('');
   const [hotspotText, setHotspotText] = useState('');
   const [hotspotMode, setHotspotMode] = useState<HotspotMode>('normal');
   const [hotspotStatusLabel, setHotspotStatusLabel] = useState<string>(STATUS_LABEL_DEFAULTS.normal);
   const [statusLabelAuto, setStatusLabelAuto] = useState(true);
+  const [viewerSrc, setViewerSrc] = useState('');
+  const [now, setNow] = useState(() => Date.now());
+  const [isUploading, setIsUploading] = useState(false);
+  const [editingSceneId, setEditingSceneId] = useState('');
+  const [editingSceneName, setEditingSceneName] = useState('');
+
+  const selectedScene = useMemo(
+    () => scenes.find((scene) => scene.id === selectedSceneId) || null,
+    [scenes, selectedSceneId],
+  );
+  const currentAsset = useMemo(
+    () => (selectedScene ? sceneToAsset(selectedScene) : null),
+    [selectedScene],
+  );
+
+  const applyViewerSrc = useCallback((asset: SogAsset, webgl: boolean) => {
+    const url = buildViewerUrl(asset, webgl);
+    setViewerSrc(url);
+    if (viewerFrameRef.current) {
+      viewerFrameRef.current.src = url;
+    }
+  }, []);
 
   const watchViewerLoad = useCallback(
     (asset: SogAsset) => {
@@ -95,39 +183,24 @@ export function SurveyTwinViewer() {
           setUseWebgl(true);
           localStorage.setItem('sog-viewer-renderer', 'webgl');
           setFileStatus('加载停留时间较长，已切换到兼容模式重新加载');
-          setViewerSrc(buildViewerUrl(asset, true));
-          frame.src = buildViewerUrl(asset, true);
+          applyViewerSrc(asset, true);
         }
       }, 25000);
     },
-    [currentAsset?.id, useWebgl],
+    [applyViewerSrc, currentAsset?.id, useWebgl],
   );
 
-  const [viewerSrc, setViewerSrc] = useState(() => buildViewerUrl(CHANNEL1_ASSET, useWebgl));
-
-  const applyViewerSrc = useCallback(
-    (asset: SogAsset, webgl: boolean) => {
-      const url = buildViewerUrl(asset, webgl);
-      setViewerSrc(url);
-      if (viewerFrameRef.current) {
-        viewerFrameRef.current.src = url;
-      }
-    },
-    [],
-  );
-
-  const loadAsset = useCallback(
-    async (asset: SogAsset, label: string) => {
-      setCurrentAsset(asset);
+  const loadSceneAsset = useCallback(
+    async (scene: SogScene, asset: SogAsset) => {
       applyViewerSrc(asset, useWebgl);
       try {
         const hotspots = await requestJson<Hotspot[]>(asset.hotspotsUrl);
         setCurrentHotspots(hotspots);
-        setFileStatus(`${label}，已加载 ${hotspots.length} 个热点`);
+        setFileStatus(`${scene.name}，已加载 ${hotspots.length} 个标签`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (message.includes('scene.sog not found') || message.includes('404')) {
-          setFileStatus('缺少 data/sog-assets/channel1/scene.sog，请按安装手册部署通道1文件');
+          setFileStatus('3D 场景文件未就绪，请确认历史场景文件已部署');
         } else if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
           setFileStatus('无法连接 Agent（7401），请确认后端已启动');
         } else {
@@ -136,8 +209,62 @@ export function SurveyTwinViewer() {
       }
       watchViewerLoad(asset);
     },
-    [useWebgl, watchViewerLoad, applyViewerSrc],
+    [applyViewerSrc, useWebgl, watchViewerLoad],
   );
+
+  const refreshScenes = useCallback(async (preferredId?: string) => {
+    const list = await requestJson<SogScene[]>(`${AGENT_BASE}/api/sog/scenes`);
+    setScenes(list);
+    const next = preferredId
+      ? list.find((scene) => scene.id === preferredId) || chooseInitialScene(list)
+      : chooseInitialScene(list);
+    setSelectedSceneId(next?.id || '');
+    if (!next) setFileStatus('暂无 3D 场景');
+  }, []);
+
+  useEffect(() => {
+    void refreshScenes().catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      setFileStatus(`场景列表加载失败：${message}`);
+    });
+    return () => {
+      if (loadWatchTimerRef.current) {
+        clearTimeout(loadWatchTimerRef.current);
+      }
+    };
+  }, [refreshScenes]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!selectedScene) return;
+    setIsHotspotEditing(false);
+    setHotspotPanelCollapsed(false);
+    if (selectedScene.status === 'training') {
+      setViewerSrc('');
+      setCurrentHotspots([]);
+      setFileStatus(`${selectedScene.name} 正在生成 3D 场景`);
+      return;
+    }
+    const asset = sceneToAsset(selectedScene);
+    if (!asset || !selectedScene.sceneExists) {
+      setViewerSrc('');
+      setCurrentHotspots([]);
+      setFileStatus('3D 场景文件未就绪，请确认历史场景文件已部署');
+      return;
+    }
+    void loadSceneAsset(selectedScene, asset);
+  }, [loadSceneAsset, selectedScene]);
+
+  useEffect(() => {
+    if (selectedScene && currentAsset && selectedScene.status === 'ready' && selectedScene.sceneExists) {
+      applyViewerSrc(currentAsset, useWebgl);
+      watchViewerLoad(currentAsset);
+    }
+  }, [useWebgl, selectedScene, currentAsset, applyViewerSrc, watchViewerLoad]);
 
   const saveHotspots = useCallback(
     async (hotspots: Hotspot[]) => {
@@ -151,24 +278,8 @@ export function SurveyTwinViewer() {
       applyViewerSrc(currentAsset, useWebgl);
       watchViewerLoad(currentAsset);
     },
-    [currentAsset, useWebgl, watchViewerLoad, applyViewerSrc],
+    [applyViewerSrc, currentAsset, useWebgl, watchViewerLoad],
   );
-
-  useEffect(() => {
-    void loadAsset(CHANNEL1_ASSET, '正在浏览预置文件：通道1.sog');
-    return () => {
-      if (loadWatchTimerRef.current) {
-        clearTimeout(loadWatchTimerRef.current);
-      }
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (currentAsset) {
-      applyViewerSrc(currentAsset, useWebgl);
-      watchViewerLoad(currentAsset);
-    }
-  }, [useWebgl, currentAsset, applyViewerSrc, watchViewerLoad]);
 
   const resetHotspotForm = ({
     title = '',
@@ -192,7 +303,7 @@ export function SurveyTwinViewer() {
   const openEditDialog = (hotspot: Hotspot) => {
     setEditingHotspotId(hotspot.id);
     setPendingPosition(hotspot.position);
-    setDialogTitle('编辑热点');
+    setDialogTitle('编辑标签');
     resetHotspotForm({
       title: hotspot.title || '',
       text: hotspot.text || '',
@@ -207,7 +318,7 @@ export function SurveyTwinViewer() {
     const frame = viewerFrameRef.current;
     const viewer = (frame?.contentWindow as { sse?: { viewer?: { picker?: { pick: (x: number, y: number) => Promise<{ x: number; y: number; z: number } | null> } } } } | null)?.sse?.viewer;
     if (!viewer?.picker || !frame) {
-      setFileStatus('场景尚未准备好，请稍后再设置热点');
+      setFileStatus('场景尚未准备好，请稍后再设置标签');
       return;
     }
     const rect = frame.getBoundingClientRect();
@@ -220,7 +331,7 @@ export function SurveyTwinViewer() {
     }
     setPendingPosition([position.x, position.y, position.z]);
     setEditingHotspotId(null);
-    setDialogTitle('新增热点');
+    setDialogTitle('新增标签');
     resetHotspotForm();
     hotspotDialogRef.current?.showModal();
   };
@@ -246,158 +357,349 @@ export function SurveyTwinViewer() {
     setEditingHotspotId(null);
     setFileStatus(
       wasEditing
-        ? `热点已更新，当前共有 ${nextHotspots.length} 个热点`
-        : `热点已保存，当前共有 ${nextHotspots.length} 个热点`,
+        ? `标签已更新，当前共有 ${nextHotspots.length} 个标签`
+        : `标签已保存，当前共有 ${nextHotspots.length} 个标签`,
     );
   };
 
   const deleteHotspot = async (hotspotId: string) => {
     const next = currentHotspots.filter((item) => item.id !== hotspotId);
     await saveHotspots(next);
-    setFileStatus(`热点已删除，当前共有 ${next.length} 个热点`);
+    setFileStatus(`标签已删除，当前共有 ${next.length} 个标签`);
   };
+
+  const handleUpload = async (file: File | null | undefined) => {
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const scene = await requestJson<SogScene>(`${AGENT_BASE}/api/sog/scenes/upload`, {
+        method: 'POST',
+        body: form,
+      });
+      await refreshScenes(scene.id);
+      setFileStatus(`${scene.name} 正在生成 3D 场景`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFileStatus(`上传失败：${message}`);
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const beginSceneRename = (scene: SogScene) => {
+    setEditingSceneId(scene.id);
+    setEditingSceneName(scene.name);
+  };
+
+  const cancelSceneRename = () => {
+    setEditingSceneId('');
+    setEditingSceneName('');
+  };
+
+  const saveSceneName = async (scene: SogScene) => {
+    const name = editingSceneName.trim();
+    if (!name) {
+      setFileStatus('场景名称不能为空');
+      return;
+    }
+    try {
+      const updated = await requestJson<SogScene>(`${AGENT_BASE}/api/sog/scenes/${scene.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      setScenes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setFileStatus(`已重命名为 ${updated.name}`);
+      cancelSceneRename();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setFileStatus(`重命名失败：${message}`);
+    }
+  };
+
+  const selectedProgress = selectedScene?.status === 'training'
+    ? trainingProgress(selectedScene.uploadedAt, now)
+    : 0;
+  const selectedCountdown = selectedScene?.status === 'training'
+    ? trainingCountdown(selectedScene.uploadedAt, now)
+    : '';
 
   return (
     <div className="st-root">
-      <section className="st-toolbar" aria-label="工勘孪生工具栏">
-        <div className="st-titleBlock">
-          <h1>工勘孪生</h1>
-          <p>{fileStatus}</p>
-        </div>
-        <div className="st-actions">
-          <button
-            type="button"
-            className={`st-button ${!isHotspotEditing ? 'st-active' : ''}`}
-            aria-pressed={!isHotspotEditing}
-            onClick={() => setIsHotspotEditing(false)}
-          >
-            浏览模式
-          </button>
-          <button
-            type="button"
-            className={`st-button ${isHotspotEditing ? 'st-active' : ''}`}
-            aria-pressed={isHotspotEditing}
-            onClick={() => setIsHotspotEditing(true)}
-          >
-            编辑热点模式
-          </button>
-          <button
-            type="button"
-            className="st-button"
-            onClick={() => {
-              const blob = new Blob([JSON.stringify(currentHotspots, null, 2)], {
-                type: 'application/json',
-              });
-              const url = URL.createObjectURL(blob);
-              const link = document.createElement('a');
-              link.href = url;
-              link.download = currentAsset ? `${currentAsset.id}-hotspots.json` : 'hotspots.json';
-              link.click();
-              URL.revokeObjectURL(url);
-            }}
-          >
-            导出热点
-          </button>
-          <button
-            type="button"
-            className={`st-button ${useWebgl ? 'st-active' : ''}`}
-            onClick={() => {
-              const next = !useWebgl;
-              setUseWebgl(next);
-              localStorage.setItem('sog-viewer-renderer', next ? 'webgl' : 'webgpu');
-              setFileStatus(next ? '已切换到兼容模式，正在重新加载' : '已切换到默认模式，正在重新加载');
-            }}
-          >
-            {useWebgl ? '兼容模式：开' : '兼容模式：关'}
-          </button>
-          <button
-            type="button"
-            className="st-button"
-            onClick={async () => {
-              if (viewerFrameRef.current?.requestFullscreen) {
-                await viewerFrameRef.current.requestFullscreen();
-              }
-            }}
-          >
-            全屏查看
-          </button>
-        </div>
-      </section>
-
-      <section className="st-viewerShell" aria-label="三维预览区">
-        <iframe
-          ref={viewerFrameRef}
-          title="工勘孪生三维预览"
-          allow="fullscreen; xr-spatial-tracking; pointer-lock"
-          src={viewerSrc}
-        />
-        {isHotspotEditing && (
-          <div className="st-pickLayer" onClick={(event) => void handlePick(event)}>
-            <div className="st-pickHint">点击场景中的物体位置创建热点</div>
+      <aside className="st-sidebar" aria-label="实景孪生场景列表">
+        <div className="st-sidebarHead">
+          <div>
+            <h1>实景孪生</h1>
+            <p>视频建模与 3D 场景浏览</p>
           </div>
-        )}
-        {isHotspotEditing && !hotspotPanelCollapsed && (
-          <aside className="st-hotspotPanel" aria-label="热点编辑面板">
-            <div className="st-panelHeader">
-              <h2>热点列表</h2>
-              <span>{currentHotspots.length} 个</span>
+          <button
+            type="button"
+            className="st-iconButton"
+            title="刷新场景"
+            onClick={() => void refreshScenes(selectedSceneId)}
+          >
+            <IconRefresh size={15} />
+          </button>
+        </div>
+
+        <input
+          ref={fileInputRef}
+          className="st-fileInput"
+          type="file"
+          accept="video/*"
+          onChange={(event) => void handleUpload(event.currentTarget.files?.[0])}
+        />
+        <button
+          type="button"
+          className="st-uploadButton"
+          disabled={isUploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <IconUpload size={15} />
+          {isUploading ? '上传中' : '上传视频'}
+        </button>
+
+        <div className="st-sceneList">
+          {scenes.length === 0 ? (
+            <p className="st-emptyText">暂无 3D 场景</p>
+          ) : (
+            scenes.map((scene) => {
+              const isEditing = editingSceneId === scene.id;
+              return (
+                <article
+                  key={scene.id}
+                  className={`st-sceneItem ${scene.id === selectedSceneId ? 'is-active' : ''}`}
+                >
+                  <button
+                    type="button"
+                    className="st-sceneSelect"
+                    onClick={() => setSelectedSceneId(scene.id)}
+                  >
+                    {isEditing ? (
+                      <input
+                        className="st-sceneNameInput"
+                        value={editingSceneName}
+                        autoFocus
+                        maxLength={40}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) => setEditingSceneName(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void saveSceneName(scene);
+                          }
+                          if (event.key === 'Escape') {
+                            event.preventDefault();
+                            cancelSceneRename();
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="st-sceneName">{scene.name}</span>
+                    )}
+                    <span className="st-sceneMeta">{formatDate(scene.uploadedAt)}</span>
+                  </button>
+                  <div className="st-sceneSide">
+                    <span className={`st-statusTag ${scene.status === 'ready' ? 'is-ready' : 'is-training'}`}>
+                      {scene.status === 'ready' ? '已完成' : '训练中'}
+                    </span>
+                    {isEditing ? (
+                      <span className="st-sceneEditActions">
+                        <button type="button" onClick={() => void saveSceneName(scene)}>保存</button>
+                        <button type="button" onClick={cancelSceneRename}>取消</button>
+                      </span>
+                    ) : (
+                      <button type="button" className="st-renameButton" onClick={() => beginSceneRename(scene)}>
+                        修改场景名
+                      </button>
+                    )}
+                  </div>
+                </article>
+              );
+            })
+          )}
+        </div>
+      </aside>
+
+      <main className="st-main">
+        <section className="st-topbar" aria-label="实景孪生状态栏">
+          <div className="st-titleBlock">
+            <h2>{selectedScene?.name || '实景孪生'}</h2>
+            <p>{fileStatus}</p>
+          </div>
+          {selectedScene?.status === 'ready' && selectedScene.sceneExists && currentAsset && (
+            <div className="st-actions">
               <button
                 type="button"
-                className="st-panelIconButton"
-                onClick={() => setHotspotPanelCollapsed(true)}
+                className={`st-button ${!isHotspotEditing ? 'st-active' : ''}`}
+                aria-pressed={!isHotspotEditing}
+                onClick={() => setIsHotspotEditing(false)}
               >
-                收起
+                浏览
+              </button>
+              <button
+                type="button"
+                className={`st-button ${isHotspotEditing ? 'st-active' : ''}`}
+                aria-pressed={isHotspotEditing}
+                onClick={() => setIsHotspotEditing(true)}
+              >
+                <IconSettings size={14} />
+                标签
+              </button>
+              <button
+                type="button"
+                className="st-button"
+                onClick={() => {
+                  const blob = new Blob([JSON.stringify(currentHotspots, null, 2)], {
+                    type: 'application/json',
+                  });
+                  const url = URL.createObjectURL(blob);
+                  const link = document.createElement('a');
+                  link.href = url;
+                  link.download = `${currentAsset.id}-hotspots.json`;
+                  link.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <IconDownload size={14} />
+                导出
+              </button>
+              <button
+                type="button"
+                className={`st-button ${useWebgl ? 'st-active' : ''}`}
+                onClick={() => {
+                  const next = !useWebgl;
+                  setUseWebgl(next);
+                  localStorage.setItem('sog-viewer-renderer', next ? 'webgl' : 'webgpu');
+                  setFileStatus(next ? '已切换到兼容模式，正在重新加载' : '已切换到默认模式，正在重新加载');
+                }}
+              >
+                兼容模式
+              </button>
+              <button
+                type="button"
+                className="st-button"
+                onClick={async () => {
+                  if (viewerFrameRef.current?.requestFullscreen) {
+                    await viewerFrameRef.current.requestFullscreen();
+                  }
+                }}
+              >
+                全屏
               </button>
             </div>
-            <div className="st-hotspotList">
-              {currentHotspots.length === 0 ? (
-                <p className="st-emptyText">还没有热点。点击场景中的位置可新增。</p>
-              ) : (
-                currentHotspots.map((hotspot, index) => (
-                  <article key={hotspot.id} className="st-hotspotItem">
-                    <div className="st-hotspotItemText">
-                      <strong>{hotspot.title || `热点 ${index + 1}`}</strong>
-                      <span
-                        className={`st-hotspotStatus ${
-                          hotspot.mode === 'abnormal' ? 'st-abnormal' : 'st-normal'
-                        }`}
-                      >
-                        {hotspot.statusLabel || STATUS_LABEL_DEFAULTS[hotspot.mode === 'abnormal' ? 'abnormal' : 'normal']}
-                      </span>
-                      <span>{hotspot.text || '无说明'}</span>
-                    </div>
-                    <div className="st-hotspotItemActions">
-                      <button
-                        type="button"
-                        className="st-editHotspotButton"
-                        onClick={() => openEditDialog(hotspot)}
-                      >
-                        编辑
-                      </button>
-                      <button
-                        type="button"
-                        className="st-deleteHotspotButton"
-                        onClick={() => void deleteHotspot(hotspot.id)}
-                      >
-                        删除
-                      </button>
-                    </div>
-                  </article>
-                ))
-              )}
+          )}
+        </section>
+
+        <section className="st-viewerShell" aria-label="三维预览区">
+          {selectedScene?.status === 'training' ? (
+            <div className="st-trainingShell">
+              <div className="st-trainingCard">
+                <div className="st-trainingIcon">
+                  <IconRefresh size={22} />
+                </div>
+                <h2>3D 场景生成中</h2>
+                <p>视频已上传，系统正在生成 3D 场景，请稍后查看。</p>
+                <div className="st-progressTrack" aria-label={`训练进度 ${selectedProgress}%`}>
+                  <div className="st-progressFill" style={{ width: `${selectedProgress}%` }} />
+                </div>
+                <div className="st-trainingMeta">
+                  <span>进度 {selectedProgress}%</span>
+                  <span>预计剩余 {selectedCountdown}</span>
+                  <span>上传时间 {formatDate(selectedScene.uploadedAt)}</span>
+                  <span className="st-statusTag is-training">训练中</span>
+                </div>
+              </div>
             </div>
-          </aside>
-        )}
-        {isHotspotEditing && hotspotPanelCollapsed && (
-          <button
-            type="button"
-            className="st-expandHotspotPanel"
-            onClick={() => setHotspotPanelCollapsed(false)}
-          >
-            展开热点列表
-          </button>
-        )}
-      </section>
+          ) : selectedScene && selectedScene.sceneExists && viewerSrc ? (
+            <>
+              <iframe
+                ref={viewerFrameRef}
+                title="实景孪生三维预览"
+                allow="fullscreen; xr-spatial-tracking; pointer-lock"
+                src={viewerSrc}
+              />
+              {isHotspotEditing && (
+                <div className="st-pickLayer" onClick={(event) => void handlePick(event)}>
+                  <div className="st-pickHint">点击场景中的物体位置创建标签</div>
+                </div>
+              )}
+              {isHotspotEditing && !hotspotPanelCollapsed && (
+                <aside className="st-hotspotPanel" aria-label="标签编辑面板">
+                  <div className="st-panelHeader">
+                    <h2>标签列表</h2>
+                    <span>{currentHotspots.length} 个</span>
+                    <button
+                      type="button"
+                      className="st-panelIconButton"
+                      onClick={() => setHotspotPanelCollapsed(true)}
+                    >
+                      收起
+                    </button>
+                  </div>
+                  <div className="st-hotspotList">
+                    {currentHotspots.length === 0 ? (
+                      <p className="st-emptyText">还没有标签。点击场景中的位置可新增。</p>
+                    ) : (
+                      currentHotspots.map((hotspot, index) => (
+                        <article key={hotspot.id} className="st-hotspotItem">
+                          <div className="st-hotspotItemText">
+                            <strong>{hotspot.title || `标签 ${index + 1}`}</strong>
+                            <span
+                              className={`st-hotspotStatus ${
+                                hotspot.mode === 'abnormal' ? 'st-abnormal' : 'st-normal'
+                              }`}
+                            >
+                              {hotspot.statusLabel || STATUS_LABEL_DEFAULTS[hotspot.mode === 'abnormal' ? 'abnormal' : 'normal']}
+                            </span>
+                            <span>{hotspot.text || '无说明'}</span>
+                          </div>
+                          <div className="st-hotspotItemActions">
+                            <button
+                              type="button"
+                              className="st-editHotspotButton"
+                              onClick={() => openEditDialog(hotspot)}
+                            >
+                              编辑
+                            </button>
+                            <button
+                              type="button"
+                              className="st-deleteHotspotButton"
+                              onClick={() => void deleteHotspot(hotspot.id)}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </aside>
+              )}
+              {isHotspotEditing && hotspotPanelCollapsed && (
+                <button
+                  type="button"
+                  className="st-expandHotspotPanel"
+                  onClick={() => setHotspotPanelCollapsed(false)}
+                >
+                  展开标签列表
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="st-emptyViewer">
+              <div className="st-emptyViewerCard">
+                <IconCheck size={22} />
+                <h2>3D 场景文件未就绪</h2>
+                <p>请选择已完成的场景，或确认历史 3D 场景文件已经部署。</p>
+              </div>
+            </div>
+          )}
+        </section>
+      </main>
 
       <dialog ref={hotspotDialogRef} className="st-hotspotDialog">
         <form onSubmit={(event) => void handleSubmitHotspot(event)}>
@@ -464,7 +766,7 @@ export function SurveyTwinViewer() {
               取消
             </button>
             <button type="submit" className="st-button st-active">
-              保存热点
+              保存标签
             </button>
           </div>
         </form>

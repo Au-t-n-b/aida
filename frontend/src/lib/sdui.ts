@@ -100,6 +100,12 @@ export type SduiBarChartNode = OptId & { type: 'BarChart'; data?: SduiBarDatum[]
 
 export type SduiGoldenMetricItem = { id?: string; label?: string; value?: number | string; color?: string };
 export type SduiGoldenMetricsNode = OptId & { type: 'GoldenMetrics'; metrics?: SduiGoldenMetricItem[] };
+export type SduiZhgkGoldenMetricsNode = OptId & {
+  type: 'ZhgkGoldenMetrics';
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+};
 
 export type SduiArtifactGridNode = OptId & { type: 'ArtifactGrid'; artifacts: SduiArtifactItem[]; mode?: 'input' | 'output'; title?: string };
 
@@ -485,7 +491,7 @@ export type SduiNode =
   | SduiBadgeNode | SduiStatisticNode | SduiStatisticRowNode
   | SduiKeyValueListNode | SduiTableNode
   | SduiButtonNode | SduiLinkNode
-  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode
+  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode | SduiZhgkGoldenMetricsNode
   | SduiArtifactGridNode
   // v1.1 display nodes
   | SduiAlertNode | SduiTimelineNode | SduiNumberCardNode | SduiPlaneMatrixNode

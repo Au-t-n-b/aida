@@ -9,9 +9,8 @@ HITL FilePicker：等待勘测工程师填写全量勘测结果表并上传。
 
 多轮复勘支持：
   - 若 project["resurvey_decision"] == "resurvey"，跳过「已有结果」检测，
-    直接等待新上传（复勘第 N+1 轮）
-  - resume 时 apply_resume_payload("wait_survey") 清除 resurvey_decision，
-    确保下次进来走正常路径
+    按复勘方式等待 App 回传或本地上传（复勘第 N+1 轮）
+  - 合并成功后清除复勘标记，确保下次进来走正常路径
 """
 from __future__ import annotations
 
@@ -92,6 +91,17 @@ def _has_survey_results(survey_table_path: str) -> bool:
     return False
 
 
+def _is_resurvey_app_mode(ctx: SkillContext) -> bool:
+    return (
+        ctx.project.get("resurvey_decision") == "resurvey"
+        and ctx.project.get("resurvey_dispatch_decision") == "dispatch"
+    )
+
+
+def _gkclaw_task_info_key(ctx: SkillContext) -> str:
+    return "resurvey_gkclaw_task_id" if _is_resurvey_app_mode(ctx) else "gkclaw_task_id"
+
+
 class WaitSurveyStep(BaseStep):
     key = "wait_survey"
     name = "等待现场上传"
@@ -108,7 +118,7 @@ class WaitSurveyStep(BaseStep):
             if not info_path.exists():
                 return ""
             info = json.loads(info_path.read_text(encoding="utf-8"))
-            tid = info.get("gkclaw_task_id", "")
+            tid = info.get(_gkclaw_task_info_key(ctx), "")
             if not tid:
                 return ""
             from ..services.gkclaw.registry import TaskRegistry
@@ -147,9 +157,27 @@ class WaitSurveyStep(BaseStep):
         survey_table = _get_survey_table(ctx)
 
         if resurvey_pending:
-            # 复勘模式：忽略「已有结果」检测，必须有新上传文件
+            # 复勘模式：忽略「已有结果」检测，必须有本轮回传/上传文件
             if _find_uploaded_table(ctx) is not None:
                 return {"ok": True, "missing": []}
+            if _is_resurvey_app_mode(ctx):
+                return {
+                    "ok": False,
+                    "missing": [],
+                    "need_inputs": [{
+                        "id": "resurvey_wait_result",
+                        "label": "等待现场 App 复勘回传",
+                        "options": [
+                            {
+                                "label": "刷新检查回传",
+                                "value": "refresh",
+                                "description": "重新拉取 mailgw/GKCLAW 回传，若已到达将自动合并",
+                            },
+                        ],
+                    }],
+                    "note": "复勘任务已下发，等待现场 App 回传结果"
+                            + (f"\n{gk_note}" if gk_note else ""),
+                }
             base_note = (
                 "请将第 N+1 轮复勘后的全量勘测结果表（填写「最新检查结果」列）"
                 f"保存为 {UPLOADED_FILENAME} 并上传到 ProjectData/Input/"
@@ -255,5 +283,10 @@ class WaitSurveyStep(BaseStep):
                 "survey_skipped": skipped,
                 "survey_skipped_seqs": stat.get("skipped_seqs", []),
                 "survey_round_history": history,
-            }
+            },
+            "project": {
+                **ctx.project,
+                "resurvey_decision": "",
+                "resurvey_dispatch_decision": "",
+            } if resurvey_pending else ctx.project,
         }
