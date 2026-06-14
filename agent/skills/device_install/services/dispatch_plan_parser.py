@@ -154,6 +154,52 @@ def _parse_sn_sheet(all_rows: list[tuple]) -> list[dict]:
     return rows_out
 
 
+def plan_row_ids_for_task(t: dict) -> set[str]:
+    """下发任务可匹配的 plan row id（任务 UUID + 管理单元::活动ID + plan_row_id）。"""
+    ids: set[str] = set()
+    tid = as_str(t.get("id"))
+    if tid:
+        ids.add(tid)
+    pr = as_str(t.get("plan_row_id"))
+    if pr:
+        ids.add(pr)
+    unit = as_str(t.get("unit"))
+    aid = as_str(t.get("activity_id"))
+    if unit and aid:
+        ids.add(f"{unit}::{aid}")
+    return ids
+
+
+def filter_sn_pool_by_dispatch(
+    dispatch_tasks: list[dict], all_sn: list[dict],
+) -> tuple[list[dict], bool]:
+    """按「计划下发」勾选范围过滤 SN 全量池。
+
+    SN 池行的「关联计划行ID」格式为「管理单元::活动ID」，须与下发任务的
+    plan_row_id / unit::activity_id 对齐（不能仅用任务内部 UUID）。
+    返回 (filtered_rows, used_task_level)。
+    """
+    selected: set[str] = set()
+    for t in dispatch_tasks:
+        selected |= plan_row_ids_for_task(t)
+    dispatched_units = {as_str(t.get("unit")) for t in dispatch_tasks if as_str(t.get("unit"))}
+
+    def _row_plan_ids(r: dict) -> set[str]:
+        return {p for p in as_str(r.get("关联计划行ID")).split(";") if p}
+
+    filtered: list[dict] = []
+    used_task_level = False
+    for r in all_sn:
+        pids = _row_plan_ids(r)
+        if pids:
+            used_task_level = True
+            if pids & selected:
+                filtered.append(r)
+        elif as_str(r.get("所属管理单元")) in dispatched_units:
+            filtered.append(r)
+    return filtered, used_task_level
+
+
 def group_sn_rows_to_tables(sn_rows: list[dict]) -> list[dict]:
     """将扁平行按 (所属机房, 设备大类) 分组，结构对齐 sn_tables.json 的 tables[]。"""
     from collections import defaultdict

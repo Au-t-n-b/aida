@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -22,6 +23,7 @@ import type { ProjectDataContext } from '@/lib/datacenter/types';
 import { syncProposalLocalFiles } from '@/lib/datacenter/client';
 import { DEFAULT_PROJECT_ROOT } from '@/data/project-paths';
 import {
+  applyTestCasesFromUpload,
   buildProjectDataContext,
   clearDraftRaci,
   getStoredVersions,
@@ -105,27 +107,36 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   const [cardScale, setCardScale] = useState(384);
   const [acceptanceReady, setAcceptanceReady] = useState(false);
   const [testCasesReady, setTestCasesReady] = useState(false);
+  const loadInflight = useRef<AbortController | null>(null);
 
-  const loadAll = useCallback(async (isCancelled?: () => boolean) => {
+  const loadAll = useCallback(async () => {
     if (!projectCtx) {
-      if (!isCancelled?.()) setLoading(false);
+      setLoading(false);
       return;
     }
-    if (!isCancelled?.()) setLoading(true);
+    if (loadInflight.current) {
+      loadInflight.current.abort();
+    }
+    const ac = new AbortController();
+    loadInflight.current = ac;
+    const isAborted = () => ac.signal.aborted;
+
+    setLoading(true);
     navDebug('proposal-data loadAll start', { projectName });
     try {
       const syncResult = await syncProposalLocalFiles(projectCtx);
-      if (isCancelled?.()) return;
+      if (isAborted()) return;
       if (syncResult.warnings.length) {
         setDataWarnings(syncResult.warnings);
       }
       const stored = getStoredVersions(projectName);
-      const [raci, plan, scale] = await Promise.all([
+      const scale = await loadCardScale(projectCtx);
+      if (isAborted()) return;
+      const [raci, plan] = await Promise.all([
         loadRaciMatrix(projectCtx),
         loadPlan(projectCtx),
-        loadCardScale(projectCtx),
       ]);
-      if (isCancelled?.()) return;
+      if (isAborted()) return;
       setCardScale(scale);
       setRaciRows(raci.rows);
       setVersions({
@@ -137,7 +148,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
 
       if (isTechProposalUploaded(projectName)) {
         const items = await loadAcceptance(projectCtx);
-        if (isCancelled?.()) return;
+        if (isAborted()) return;
         setAcceptanceItems(items);
         setAcceptanceReady(items.length > 0);
       } else {
@@ -147,7 +158,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
 
       if (isTestCasesUploaded(projectName)) {
         const loaded = await loadTestCasesIfReady(projectCtx, scale);
-        if (isCancelled?.()) return;
+        if (isAborted()) return;
         setTestCases(loaded.cases);
         setSelectedTcKeys(
           loaded.selectedKeys ?? new Set(loaded.cases.map((c, i) => tcKey(c, i))),
@@ -159,12 +170,14 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
         setTestCasesReady(false);
       }
     } catch (err) {
+      if (isAborted()) return;
       console.error('[AIDA DC] loadAll failed', err);
     } finally {
-      if (!isCancelled?.()) {
+      if (!isAborted()) {
         setLoading(false);
         navDebug('proposal-data loadAll done', { projectName });
       }
+      if (loadInflight.current === ac) loadInflight.current = null;
     }
   }, [projectCtx, projectName]);
 
@@ -210,17 +223,10 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   }, [projectCtx, cardScale, projectName]);
 
   useEffect(() => {
-    let cancelled = false;
-    const isCancelled = () => cancelled;
-    const run = async () => {
-      await loadAll(isCancelled);
-      if (cancelled) {
-        navDebug('proposal-data loadAll aborted (unmounted)', { projectName });
-      }
-    };
-    void run();
+    void loadAll();
     return () => {
-      cancelled = true;
+      loadInflight.current?.abort();
+      navDebug('proposal-data loadAll aborted (unmounted)', { projectName });
     };
   }, [loadAll, projectName]);
 
@@ -234,6 +240,34 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     window.addEventListener('aida:data-fallback', onFallback);
     return () => window.removeEventListener('aida:data-fallback', onFallback);
   }, []);
+
+  useEffect(() => {
+    const onParsed = (e: Event) => {
+      const detail = (e as CustomEvent<{ rows?: AcceptanceItem[] }>).detail;
+      if (detail?.rows?.length) {
+        setAcceptanceItems(detail.rows);
+        setAcceptanceCache(projectName, detail.rows);
+        setAcceptanceReady(true);
+        setDirty(true);
+      }
+    };
+    window.addEventListener('aida:proposal-acceptance-parsed', onParsed);
+    return () => window.removeEventListener('aida:proposal-acceptance-parsed', onParsed);
+  }, [projectName]);
+
+  useEffect(() => {
+    const onTcParsed = (e: Event) => {
+      const detail = (e as CustomEvent<{ rows?: unknown[] }>).detail;
+      if (!detail?.rows) return;
+      const cases = applyTestCasesFromUpload(projectName, detail.rows, cardScale);
+      setTestCases(cases);
+      setSelectedTcKeys(new Set(cases.map((c, i) => tcKey(c, i))));
+      setTestCasesReady(cases.length > 0);
+      setDirty(true);
+    };
+    window.addEventListener('aida:proposal-testcases-parsed', onTcParsed);
+    return () => window.removeEventListener('aida:proposal-testcases-parsed', onTcParsed);
+  }, [projectName, cardScale]);
 
   useEffect(() => {
     const onRevealAcceptance = () => { void revealAcceptance(); };

@@ -3,7 +3,8 @@ device_install SDUI 投影器 · SkillState → SduiDocument
 
 通用段（stepper / 进度环 / 产物栏 / HITL / 日志）走 agent.sdui.projector_base；
 本文件只保留设备安装自有业务：KPI 指标、任务进展表等。
-纯函数：project(state) → dict，无副作用、不读盘（数据来自 state.metrics，由各 step 写入）。
+纯函数：project(state) → dict，无副作用；数据来自 state.metrics / state.steps。
+ESN 完工后作业结果会补扫 Output 目录（glob 产物），确保完工清单等文件出现在「作业结果」。
 
 Metrics 键约定（di_ 命名空间，由 task_store.task_summary 写入）：
   di_total / di_done / di_in_progress / di_pending / di_dispatched / di_completion_pct
@@ -24,17 +25,37 @@ from agent.sdui.builder import (
     SduiArtifactGridNode, SduiArtifactItem,
     SduiCardHeaderAction, SduiResetSession,
     SduiDashboardLayoutNode,
+    SduiTabGroupNode, SduiTabPanel,
+    SduiGanttChartNode, SduiGanttRow,
     dump_sdui_json, SduiDocument,
 )
 from agent.sdui.projector_base import (
     collect_metrics, overall_status,
     artifact_kind,
     build_stepper,
-    build_artifacts, build_hitl, build_editable_table,
+    build_hitl, build_editable_table,
 )
 
 from .go_back import can_go_back
 from .pipeline import DI_STEP_NAMES, DI_STEP_ORDER
+from .bridge import get_device_install_root
+from .path_config import get_output_dir, output_rel
+
+# ESN 完工后作业结果扫描（补全 step 记录未携带的 glob 产物，如多张 SN/完工清单）
+_OUTPUT_SCAN_PATTERNS = (
+    "责任人信息表.xlsx",
+    "设备安装实施计划.xlsx",
+    "SN扫码表_*.xlsx",
+    "完工清单_*.xlsx",
+    "设备安装完工报告.xlsx",
+)
+_ARTIFACT_SORT_PREFIX = (
+    "责任人信息表",
+    "设备安装实施计划",
+    "SN扫码表",
+    "完工清单",
+    "设备安装完工报告",
+)
 
 
 def _build_progress_donut(state: dict[str, Any]) -> SduiDonutChartNode:
@@ -79,9 +100,9 @@ def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
 
 
 def _plan_receive_done(state: dict[str, Any]) -> bool:
-    """上游实施计划已接收解析（plan_receive 完成）→ 才展示黄金指标。"""
+    """实施计划已生成（tasks_generate 完成）→ 才展示黄金指标。"""
     for s in state.get("steps") or []:
-        if s.get("key") == "plan_receive" and s.get("status") == "completed":
+        if s.get("key") == "tasks_generate" and s.get("status") == "completed":
             return True
     return False
 
@@ -197,8 +218,8 @@ def _build_task_progress_table(state: dict[str, Any]) -> SduiDataTableNode | Non
         return None
     columns = [
         SduiDataTableColumn(key="unit", label="管理单元", type="text", width=110),
-        SduiDataTableColumn(key="activity_name", label="活动名称", type="text"),
-        SduiDataTableColumn(key="principal", label="责任人", type="text", width=90),
+        SduiDataTableColumn(key="activity_name", label="活动名称", type="text", width=168, paddingLeft=16),
+        SduiDataTableColumn(key="principal", label="责任人", type="text", width=72),
         SduiDataTableColumn(key="end_date", label="结束日期", type="text", width=110),
         SduiDataTableColumn(key="status", label="状态", type="status", width=90),
         SduiDataTableColumn(key="progress", label="进度", type="progress", width=140),
@@ -231,12 +252,21 @@ def _build_back_toolbar_dt() -> SduiDataTableNode:
     )
 
 
-def _unwrap_edit_table(card: SduiCardNode) -> SduiNode | None:
-    """从编辑 Card 中取出 DataTable（去掉外层 Card 标题/边框嵌套）。"""
+def _flatten_edit_card(card: SduiCardNode) -> SduiNode:
+    """去掉外层 Card（如 card_title「生成责任矩阵」），保留 Alert 提示 + DataTable 单层。"""
+    hints: list[SduiNode] = []
+    table: SduiNode | None = None
     for c in card.children or []:
-        if getattr(c, "type", None) == "DataTable":
-            return c
-    return None
+        t = getattr(c, "type", None)
+        if t == "DataTable":
+            table = c
+        elif t == "Alert":
+            hints.append(c)
+    if table is None:
+        return card
+    if not hints:
+        return table
+    return SduiStackNode(id=f"{card.id}-flat", gap="sm", children=[*hints, table])
 
 
 def _strip_edit_card_text_hints(card: SduiCardNode) -> SduiCardNode:
@@ -247,6 +277,53 @@ def _strip_edit_card_text_hints(card: SduiCardNode) -> SduiCardNode:
     if len(kept) == len(card.children or []):
         return card
     return SduiCardNode(id=card.id, title=card.title, children=kept)
+
+
+def _as_row_str(v: Any) -> str:
+    if v is None:
+        return ""
+    return str(v).strip()
+
+
+def _build_gantt_from_rows(rows: list[Any]) -> SduiGanttChartNode | None:
+    """need_edit.rows → 只读 GanttChart（按管理单元 group 分组）。"""
+    gantt_rows: list[SduiGanttRow] = []
+    for i, r in enumerate(rows):
+        if not isinstance(r, dict):
+            continue
+        start = _as_row_str(r.get("start_date") or r.get("start"))
+        end = _as_row_str(r.get("end_date") or r.get("end"))
+        if not start or not end:
+            continue
+        label = _as_row_str(r.get("activity_name") or r.get("label")) or f"任务 {i + 1}"
+        gantt_rows.append(
+            SduiGanttRow(
+                id=_as_row_str(r.get("id")) or f"gantt-{i}",
+                label=label,
+                group=_as_row_str(r.get("unit")) or None,
+                start=start,
+                end=end,
+                status=_as_row_str(r.get("status")) or None,
+            )
+        )
+    if not gantt_rows:
+        return None
+    return SduiGanttChartNode(id="plan-gantt", rows=gantt_rows)
+
+
+def _wrap_table_gantt_tabs(flat: SduiNode, rows: list[Any], hitl_step: str) -> SduiNode:
+    """表格 + 甘特图双页签（甘特只读；编辑/提交仍在表格页）。"""
+    gantt = _build_gantt_from_rows(rows)
+    if not gantt:
+        return flat
+    return SduiTabGroupNode(
+        id=f"view-tabs-{hitl_step}",
+        activeTab="table",
+        tabs=[
+            SduiTabPanel(id="table", label="表格", children=[flat]),
+            SduiTabPanel(id="gantt", label="甘特图", children=[gantt]),
+        ],
+    )
 
 
 def _show_go_back_toolbar(state: dict[str, Any]) -> bool:
@@ -265,16 +342,29 @@ def _build_editable_table_di(state: dict[str, Any]) -> SduiNode | None:
     if not card:
         return None
     hitl_step = (state.get("hitl") or {}).get("step")
-    if hitl_step in ("task_dispatch", "esn_fill"):
-        card = _strip_edit_card_text_hints(card)
-        table = _unwrap_edit_table(card)
-        if table:
+    if hitl_step in ("principal_fill", "tasks_generate", "task_dispatch", "esn_fill"):
+        spec = (state.get("hitl") or {}).get("need_edit") or {}
+        rows = spec.get("rows") or []
+        # 计划下发无待下发条目时保留 Card + subtitle，避免界面「什么都没有」
+        keep_hints = hitl_step == "task_dispatch" and not rows
+        if not keep_hints:
+            card = _strip_edit_card_text_hints(card)
+        if keep_hints:
             extras: list[SduiNode] = []
             if _show_go_back_toolbar(state):
                 extras.append(_build_back_toolbar_dt())
-            if not extras:
-                return table
-            return SduiStackNode(id=f"edit-stack-{hitl_step}", gap="sm", children=[*extras, table])
+            if extras:
+                return SduiStackNode(id=f"edit-stack-{hitl_step}", gap="sm", children=[*extras, card])
+            return card
+        flat = _flatten_edit_card(card)
+        if hitl_step in ("tasks_generate", "task_dispatch") and rows:
+            flat = _wrap_table_gantt_tabs(flat, rows, hitl_step)
+        extras: list[SduiNode] = []
+        if _show_go_back_toolbar(state):
+            extras.append(_build_back_toolbar_dt())
+        if not extras:
+            return flat
+        return SduiStackNode(id=f"edit-stack-{hitl_step}", gap="sm", children=[*extras, flat])
     if _show_go_back_toolbar(state):
         children: list[SduiNode] = list(card.children or [])
         children.insert(0, _build_back_toolbar_dt())
@@ -301,6 +391,78 @@ def _build_step_result_artifacts(state: dict[str, Any]) -> SduiCardNode | None:
     return SduiCardNode(
         id="step-result-card", title="作业结果",
         children=[SduiArtifactGridNode(id="step-result-grid", mode="output", artifacts=items)],
+    )
+
+
+def _artifact_sort_key(path: str) -> tuple[int, str]:
+    name = Path(path).name
+    for i, prefix in enumerate(_ARTIFACT_SORT_PREFIX):
+        if name.startswith(prefix):
+            return (i, name)
+    return (len(_ARTIFACT_SORT_PREFIX), name)
+
+
+def _norm_artifact_path(path: str) -> str:
+    return path.replace("\\", "/")
+
+
+def _collect_di_artifact_paths(state: dict[str, Any]) -> list[str]:
+    """汇总主建设流水线作业产物：已完成 step 记录 + ESN 完工后扫 Output 目录（glob 产物）。"""
+    seen: set[str] = set()
+    paths: list[str] = []
+
+    def _add(p: str) -> None:
+        norm = _norm_artifact_path(p)
+        if norm and norm not in seen:
+            seen.add(norm)
+            paths.append(p)
+
+    # 每步取最后一次 completed 记录（resume 重跑时以最新为准）
+    latest: dict[str, dict[str, Any]] = {}
+    for rec in state.get("steps") or []:
+        if rec.get("status") != "completed":
+            continue
+        key = str(rec.get("key") or "")
+        if key:
+            latest[key] = rec
+    for rec in latest.values():
+        for p in rec.get("artifacts") or []:
+            if isinstance(p, str) and p:
+                _add(p)
+
+    # ESN 完工后：补扫 Output（step 记录可能缺 glob 产物或路径在外置目录）
+    if _esn_fill_done(state) or _pipeline_done(state):
+        project = state.get("project") or {}
+        work_root = Path(get_device_install_root())
+        out_dir = get_output_dir(project)
+        for pat in _OUTPUT_SCAN_PATTERNS:
+            for f in sorted(out_dir.glob(pat)):
+                if not f.is_file():
+                    continue
+                if "模板" in f.name:
+                    continue
+                _add(output_rel(work_root, f))
+
+    paths.sort(key=_artifact_sort_key)
+    return paths
+
+
+def _build_di_artifacts(state: dict[str, Any]) -> SduiCardNode | None:
+    """设备安装 · 作业结果卡（完工界面展示责任人表/实施计划/SN/完工清单/完工报告等）。"""
+    paths = _collect_di_artifact_paths(state)
+    if not paths:
+        return None
+    items = [
+        SduiArtifactItem(
+            id=f"di-art-{i}", label=Path(p).name, path=p,
+            kind=artifact_kind(p),  # type: ignore[arg-type]
+            status="ready",
+        )
+        for i, p in enumerate(paths)
+    ]
+    return SduiCardNode(
+        id="di-artifacts-card", title="作业结果",
+        children=[SduiArtifactGridNode(id="di-artifacts-grid", mode="output", artifacts=items)],
     )
 
 
@@ -341,6 +503,10 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if editable:
         # 在线编辑（计划下发 / ESN 等）：宽表需要全宽，单列呈现
         nodes.append(editable)
+        # 编辑卡下方追加「作业结果」卡（如该步预生成了产物，如责任人信息表模板）
+        step_result = _build_step_result_artifacts(state)
+        if step_result:
+            nodes.append(step_result)
     else:
         # 结果 / 进度 / 运行视图：DashboardLayout 5:2 填充横向空间，避免单列稀疏
         main_content = [
@@ -351,7 +517,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
             ) if n
         ]
         step_result = _build_step_result_artifacts(state)
-        side_content = [n for n in (step_result or build_artifacts(state),) if n]
+        side_content = [n for n in (step_result or _build_di_artifacts(state),) if n]
         if main_content and side_content:
             if _show_task_progress(state):
                 # ESN 完工后：任务进展全宽在上，作业结果全宽在下（不用 5:2 侧栏）

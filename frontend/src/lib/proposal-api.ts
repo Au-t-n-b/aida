@@ -1343,9 +1343,70 @@ export interface RoomRackRow {
   data_source?: string;
 }
 
+export interface UploadedFileResult {
+  saved_path: string;
+  logical_path?: string;
+  uploaded: boolean;
+  warning?: string;
+}
+
+export interface ChapterUploadResult<Row> extends UploadedFileResult {
+  rows: Row[];
+  common_plane?: UploadedFileResult;
+}
+
+export function chapterUploadMessage(result: ChapterUploadResult<unknown>): string {
+  const describe = (file: UploadedFileResult, label = '') => {
+    const prefix = label ? `${label}：` : '';
+    const remote = file.uploaded
+      ? `已上传远端 ${file.logical_path || '上传成功'}`
+      : `远端未上传 ${file.warning || '未返回远端路径'}`;
+    return `${prefix}已保存本地 ${file.saved_path}；${remote}`;
+  };
+  const messages = [describe(result)];
+  if (result.common_plane) messages.push(describe(result.common_plane, '共平面类型表'));
+  return messages.join('\n');
+}
+
 interface LegacyEnvelope<T> {
   data?: T;
   detail?: string | { message?: string };
+}
+
+function chapterRequestContext(
+  url: string,
+  init?: RequestInit,
+): { url: string; init?: RequestInit } {
+  let resolvedUrl = url;
+  const headers = new Headers(init?.headers);
+  try {
+    const project = JSON.parse(sessionStorage.getItem('aida:current-project') || '{}') as {
+      id?: string;
+      code?: string;
+    };
+    const session = JSON.parse(sessionStorage.getItem('aida:session') || '{}') as {
+      accessToken?: string;
+    };
+    const defaultProjectSegment = `/api/v1/projects/${DEFAULT_PROJECT_ID}/proposal/chapters/`;
+    const currentProjectSegment = project.code
+      ? `/api/v1/projects/${encodeURIComponent(project.code)}/proposal/chapters/`
+      : '';
+    const usesCurrentProject = url.includes(defaultProjectSegment)
+      || Boolean(currentProjectSegment && url.includes(currentProjectSegment));
+    if (project.code && url.includes(defaultProjectSegment)) {
+      resolvedUrl = url.replace(defaultProjectSegment, currentProjectSegment);
+    }
+    if (session.accessToken) headers.set('Authorization', `Bearer ${session.accessToken}`);
+    if (usesCurrentProject && project.id && /^[0-9a-f]{32}$/i.test(project.id)) {
+      headers.set('X-Data-Center-Project-Id', project.id);
+    }
+  } catch {
+    // Session context is optional; explicit projectId and caller headers remain authoritative.
+  }
+  return {
+    url: resolvedUrl,
+    init: { ...init, headers },
+  };
 }
 
 async function legacyRequest<T>(url: string, init?: RequestInit): Promise<T> {
@@ -1374,19 +1435,50 @@ async function legacyRequest<T>(url: string, init?: RequestInit): Promise<T> {
   return undefined as T;
 }
 
+async function chapterRequest<T>(url: string, init?: RequestInit): Promise<T> {
+  const request = chapterRequestContext(url, init);
+  const headers = new Headers(request.init?.headers);
+  if (!(request.init?.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  const resp = await fetch(request.url, withNoCache({
+    ...request.init,
+    headers,
+    signal: fetchTimeoutSignal(),
+  }));
+  const text = await resp.text();
+  let json: LegacyEnvelope<T> | null = null;
+  if (text) {
+    try {
+      json = JSON.parse(text) as LegacyEnvelope<T>;
+    } catch {
+      if (!resp.ok) throw new Error(text || `HTTP ${resp.status}`);
+      throw new Error('响应解析失败');
+    }
+  }
+  if (!resp.ok) {
+    const detail = json?.detail;
+    if (typeof detail === 'string') throw new Error(detail);
+    if (detail && typeof detail === 'object' && detail.message) throw new Error(detail.message);
+    throw new Error(`HTTP ${resp.status}`);
+  }
+  if (json && 'data' in json) return json.data as T;
+  return undefined as T;
+}
+
 export const proposalApi = {
   listNetPlanes(projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ rows: NetPlaneRow[] }>(
+    return chapterRequest<{ rows: NetPlaneRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane`,
     );
   },
   listAvailableDevices(projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ devices: AvailableDeviceItem[] }>(
+    return chapterRequest<{ devices: AvailableDeviceItem[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/available-devices`,
     );
   },
   createNetPlane(sourceRowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ row: NetPlaneRow }>(
+    return chapterRequest<{ row: NetPlaneRow }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane`,
       { method: 'POST', body: JSON.stringify({ source_row_id: sourceRowId }) },
     );
@@ -1404,25 +1496,40 @@ export const proposalApi = {
     },
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return legacyRequest<{ row: NetPlaneRow; warnings: { code: string; message: string }[] }>(
+    return chapterRequest<{ row: NetPlaneRow; warnings: { code: string; message: string }[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/${rowId}`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
   deleteNetPlane(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ deleted: string }>(
+    return chapterRequest<{ deleted: string }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/${rowId}?confirm=true`,
       { method: 'DELETE' },
     );
   },
+  importNetPlanes(file: File, projectId = DEFAULT_PROJECT_ID) {
+    const body = new FormData();
+    body.append('file', file);
+    return chapterRequest<{ rows: NetPlaneRow[] }>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/upload`,
+      { method: 'POST', body },
+    );
+  },
+  autosaveNetPlanes(rows: NetPlaneRow[], commonPlaneTypes: string[], projectId = DEFAULT_PROJECT_ID) {
+    return chapterRequest<ChapterUploadResult<NetPlaneRow>>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/autosave`,
+      { method: 'POST', body: JSON.stringify({ rows, common_plane_types: commonPlaneTypes }) },
+    );
+  },
+  /** @deprecated 使用 autosaveNetPlanes */
   exportNetPlanes(rows: NetPlaneRow[], commonPlaneTypes: string[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
+    return chapterRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.1/net-plane/export`,
       { method: 'POST', body: JSON.stringify({ rows, common_plane_types: commonPlaneTypes }) },
     );
   },
   initializeNetMgmt(projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ rows: NetMgmtRow[] }>(
+    return chapterRequest<{ rows: NetMgmtRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/initialize`,
       { method: 'POST' },
     );
@@ -1432,30 +1539,45 @@ export const proposalApi = {
     patch: { server_model?: string; quantity?: number },
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return legacyRequest<NetMgmtRow>(
+    return chapterRequest<NetMgmtRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/${rowId}`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
   deleteNetMgmt(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<void>(
+    return chapterRequest<void>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/${rowId}`,
       { method: 'DELETE' },
     );
   },
+  importNetMgmt(file: File, projectId = DEFAULT_PROJECT_ID) {
+    const body = new FormData();
+    body.append('file', file);
+    return chapterRequest<{ rows: NetMgmtRow[] }>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/upload`,
+      { method: 'POST', body },
+    );
+  },
+  autosaveNetMgmt(rows: NetMgmtRow[], projectId = DEFAULT_PROJECT_ID) {
+    return chapterRequest<ChapterUploadResult<NetMgmtRow>>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/autosave`,
+      { method: 'POST', body: JSON.stringify({ rows }) },
+    );
+  },
+  /** @deprecated 使用 autosaveNetMgmt */
   exportNetMgmt(rows: NetMgmtRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
+    return chapterRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.2/net-mgmt/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
   },
   listClusterDevices(projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ rows: ClusterDeviceRow[] }>(
+    return chapterRequest<{ rows: ClusterDeviceRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list`,
     );
   },
   createClusterDevice(sourceNetPlaneId: string, projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<ClusterDeviceRow>(
+    return chapterRequest<ClusterDeviceRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list`,
       { method: 'POST', body: JSON.stringify({ source_net_plane_id: sourceNetPlaneId }) },
     );
@@ -1478,19 +1600,34 @@ export const proposalApi = {
     },
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return legacyRequest<ClusterDeviceRow>(
+    return chapterRequest<ClusterDeviceRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/${rowId}`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
   deleteClusterDevice(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<void>(
+    return chapterRequest<void>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/${rowId}?confirm=true`,
       { method: 'DELETE' },
     );
   },
+  importClusterDevices(file: File, projectId = DEFAULT_PROJECT_ID) {
+    const body = new FormData();
+    body.append('file', file);
+    return chapterRequest<{ rows: ClusterDeviceRow[] }>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/upload`,
+      { method: 'POST', body },
+    );
+  },
+  autosaveClusterDevices(rows: ClusterDeviceRow[], projectId = DEFAULT_PROJECT_ID) {
+    return chapterRequest<ChapterUploadResult<ClusterDeviceRow>>(
+      `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/autosave`,
+      { method: 'POST', body: JSON.stringify({ rows }) },
+    );
+  },
+  /** @deprecated 使用 autosaveClusterDevices */
   exportClusterDevices(rows: ClusterDeviceRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
+    return chapterRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/5.3/cluster-device-list/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );
@@ -1499,7 +1636,7 @@ export const proposalApi = {
 
 export const roomRackApi = {
   list(projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ rows: RoomRackRow[] }>(
+    return chapterRequest<{ rows: RoomRackRow[] }>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack`,
     );
   },
@@ -1508,7 +1645,7 @@ export const roomRackApi = {
     row: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return legacyRequest<RoomRackRow>(
+    return chapterRequest<RoomRackRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack?source_row_id=${encodeURIComponent(sourceRowId)}`,
       { method: 'POST', body: JSON.stringify(row) },
     );
@@ -1518,19 +1655,34 @@ export const roomRackApi = {
     patch: Partial<Omit<RoomRackRow, 'row_id' | 'data_source'>>,
     projectId = DEFAULT_PROJECT_ID,
   ) {
-    return legacyRequest<RoomRackRow>(
+    return chapterRequest<RoomRackRow>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/${rowId}`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     );
   },
   delete(rowId: string, projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<void>(
+    return chapterRequest<void>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/${rowId}?confirm=true`,
       { method: 'DELETE' },
     );
   },
+  import(file: File, projectId = DEFAULT_PROJECT_ID) {
+    const body = new FormData();
+    body.append('file', file);
+    return chapterRequest<{ rows: RoomRackRow[] }>(
+      `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/upload`,
+      { method: 'POST', body },
+    );
+  },
+  autosave(rows: RoomRackRow[], projectId = DEFAULT_PROJECT_ID) {
+    return chapterRequest<ChapterUploadResult<RoomRackRow>>(
+      `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/autosave`,
+      { method: 'POST', body: JSON.stringify({ rows }) },
+    );
+  },
+  /** @deprecated 使用 autosave */
   export(rows: RoomRackRow[], projectId = DEFAULT_PROJECT_ID) {
-    return legacyRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
+    return chapterRequest<{ saved_path: string; logical_path?: string; uploaded: boolean }>(
       `/api/v1/projects/${projectId}/proposal/chapters/7.1/room-rack/export`,
       { method: 'POST', body: JSON.stringify({ rows }) },
     );

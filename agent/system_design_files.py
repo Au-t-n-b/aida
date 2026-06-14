@@ -322,6 +322,30 @@ def resolve_artifact_path(work_root: Path, path: str) -> Path:
     return resolve_artifact_file(path)
 
 
+async def override_output_artifact(root: Path, target_rel_path: str, file: UploadFile) -> dict[str, Any]:
+    """覆盖写盘 output/ 下已有产物（相对 data_root 的 path · 不使用上传文件名）。"""
+    _ = root
+    rel = (target_rel_path or "").strip().replace("\\", "/")
+    if not rel or ".." in Path(rel).parts:
+        return {"ok": False, "error": "invalid path"}
+
+    out_dir = abs_artifacts_dir().resolve()
+    data_root = resolve_data_root().resolve()
+    dest = (data_root / rel).resolve()
+    try:
+        dest.relative_to(out_dir)
+    except ValueError:
+        return {"ok": False, "error": "path must be under output directory"}
+
+    content = await file.read()
+    if not content:
+        return {"ok": False, "error": "file is empty"}
+
+    ensure_parent_dir(dest)
+    dest.write_bytes(content)
+    return {"ok": True, "path": relpath_from_data_root(dest), "size": len(content)}
+
+
 def _clear_dir_files(target: Path, removed: list[str]) -> None:
     """清空一个目录下的全部文件与空子目录（保留目录本身，跳过 ~$ 临时锁文件）。"""
     if not target.is_dir():

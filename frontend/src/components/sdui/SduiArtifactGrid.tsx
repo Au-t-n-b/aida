@@ -69,6 +69,8 @@ function InputCard({ item, index }: { item: SduiArtifactItem; index: number }) {
 }
 
 // ── output 模式：行卡（预览 / 下载 / 上传覆盖）──────────────────────────────────
+const OVERRIDE_MARK = '已覆盖';
+
 function OutputRow({ item, index }: { item: SduiArtifactItem; index: number }) {
   const { onAction, onUpload, skillId } = useSduiRuntime();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -76,6 +78,12 @@ function OutputRow({ item, index }: { item: SduiArtifactItem; index: number }) {
   const isGenerating = item.status === 'generating';
   const highlighted = !!item.highlight;
   const staggerDelay = `${Math.min(index, 5) * 0.06}s`;
+  const overridden =
+    item.badge === OVERRIDE_MARK || item.label.endsWith(` · ${OVERRIDE_MARK}`);
+  const fileLabel = overridden
+    ? item.label.replace(new RegExp(` · ${OVERRIDE_MARK}$`), '')
+    : item.label;
+  const canOverride = skillId !== 'system_design' || !!item.path;
 
   const btn: React.CSSProperties = {
     padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)',
@@ -88,7 +96,13 @@ function OutputRow({ item, index }: { item: SduiArtifactItem; index: number }) {
 
   const onPicked = (e: React.ChangeEvent<HTMLInputElement>) => {
     const fs = e.target.files;
-    if (fs && fs.length) onUpload(fs, `override_${item.id ?? item.label}`);
+    if (fs && fs.length) {
+      if (skillId === 'system_design' && item.path) {
+        onUpload(fs, `override:${item.path}`);
+      } else {
+        onUpload(fs, `override_${item.id ?? item.label}`);
+      }
+    }
     e.target.value = '';
   };
 
@@ -115,15 +129,23 @@ function OutputRow({ item, index }: { item: SduiArtifactItem; index: number }) {
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
-          {item.badge && (
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fileLabel}</span>
+          {overridden ? (
+            <span style={{
+              flexShrink: 0, fontSize: 10, fontWeight: 600,
+              color: 'var(--c-success-text)', background: 'var(--c-success-soft)',
+              borderRadius: 4, padding: '1px 6px',
+            }}>
+              {OVERRIDE_MARK}
+            </span>
+          ) : item.badge ? (
             <span style={{
               flexShrink: 0, fontSize: 10, fontWeight: 600, color: '#3551d8',
               background: '#e8edfc', borderRadius: 4, padding: '1px 6px',
             }}>
               {item.badge}
             </span>
-          )}
+          ) : null}
         </div>
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2 }}>
           {isGenerating ? '生成中…' : (item.kind ?? 'file').toUpperCase()}
@@ -134,7 +156,7 @@ function OutputRow({ item, index }: { item: SduiArtifactItem; index: number }) {
           {item.path && (
             <button style={btn} onClick={() => onAction({ kind: 'open_preview', path: item.path })}>预览</button>
           )}
-          <button style={btn} onClick={() => fileRef.current?.click()}>上传覆盖</button>
+          <button style={btn} disabled={!canOverride} onClick={() => canOverride && fileRef.current?.click()}>上传覆盖</button>
           {item.path && (
             <a style={btnPrimary} href={artifactUrl(skillId, item.path)} download={item.label}>下载</a>
           )}
