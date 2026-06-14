@@ -66,7 +66,7 @@ function isLldDeliveryIntent(text: string): boolean {
   return (/完整/i.test(t) && /LLD/i.test(t)) || (/生成/.test(t) && /LLD/i.test(t));
 }
 
-/** LLD 融合续跑：显式 from_step 避免 hitl 快照丢失时 route_to 未命中 */
+/** LLD 融合续跑：显式 from_step 避免 hitl 快照丢失时 route_to 未命中（仅 system_design 交付台） */
 function resolveDeliveryResumeFromStep(text: string): string | undefined {
   const t = text.trim();
   if (isLldDeliveryIntent(text)) return 'plane_planning';
@@ -78,6 +78,25 @@ function resolveDeliveryResumeFromStep(text: string): string | undefined {
     return 'publish_confirm';
   }
   return undefined;
+}
+
+/**
+ * ChoiceCard / IoConfirm 提交时的 from_step。
+ * - system_design：优先 SDUI stepId；无 stepId 时走 NL 专用映射（LLD / publish_confirm 等）。
+ * - guihua / zhgk / device_install / software_deployment：仅传 stepId，否则省略 from_step 由后端读 hitl.step。
+ *   禁止把通用 value「confirm」映射成 publish_confirm，否则会破坏 guihua 等确认门。
+ */
+function resolveChoiceResumeFromStep(
+  skillId: string,
+  value: string,
+  stepId?: string,
+): string | undefined {
+  const sid = stepId?.trim();
+  if (skillId === 'system_design') {
+    if (sid) return sid;
+    return resolveDeliveryResumeFromStep(value);
+  }
+  return sid || undefined;
 }
 
 /** MacroStepRail「发布完成」(bp_publish) 是否已 done */
@@ -1477,9 +1496,12 @@ export default function SkillAgentScreen({
     }
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
-  const handleChoiceSubmit = useCallback(async (value: string) => {
-    await doResume({ choice: value }, resolveDeliveryResumeFromStep(value));
-  }, [doResume]);
+  const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    await doResume(
+      { choice: value },
+      resolveChoiceResumeFromStep(skillId, value, stepId),
+    );
+  }, [doResume, skillId]);
 
   // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
   const handleActionRef = useRef(handleAction);
@@ -1498,7 +1520,9 @@ export default function SkillAgentScreen({
       slotTag?: string,
       slotLabel?: string,
     ) => handleUploadRef.current(files, purpose, stepId, slotTag, slotLabel),
-    onChoiceSubmit: (value: string) => { void handleChoiceSubmitRef.current(value); },
+    onChoiceSubmit: (value: string, stepId?: string) => {
+      void handleChoiceSubmitRef.current(value, stepId);
+    },
   }).current;
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
