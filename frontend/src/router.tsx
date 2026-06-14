@@ -1,42 +1,50 @@
-import { lazy, Suspense, type ComponentType } from 'react';
+import { lazy, type ComponentType } from 'react';
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { GuestOnly, RequireAuth, RequireProject, RootRedirect } from '@/lib/auth-guard';
+import { TweaksProvider } from '@/lib/tweaks-context';
+import { TweaksPanel } from '@/components/tweaks-panel';
+import WorkspaceShell from '@/routes/workspace-shell';
 import LoginPage from '@/routes/login';
 import LandingPage from '@/routes/landing';
 
+/** 工作台子路由：同步 import，避免 lazy + React 19 在重页（交付预案）卸载时残留 DOM */
+import CockpitPage from '@/routes/cockpit';
+import DesignPage from '@/routes/design';
+import TwinPage from '@/routes/twin';
+import TwinDigitalDemoPage from '@/routes/twin-digital-demo';
+import MilestonesPage from '@/routes/milestones';
+import CommissioningPage from '@/routes/commissioning';
+import SandboxPage from '@/routes/sandbox';
+import ProposalPage from '@/routes/proposal';
+import PreviewPage from '@/routes/preview';
+import JourneyPage from '@/routes/journey';
+import CreatePage from '@/routes/create';
+import ModuleRoutePage from '@/routes/module';
+
+/** 非工作台路由仍 lazy 加载 */
 function lazyPage(loader: () => Promise<{ default: ComponentType }>) {
-  const Lazy = lazy(loader);
-  return function LazyPage() {
-    return (
-      <Suspense fallback={<div style={{ padding: 32, color: '#64748b', fontSize: 14 }}>页面加载中…</div>}>
-        <Lazy />
-      </Suspense>
-    );
-  };
+  return lazy(loader);
 }
 
-const CockpitPage = lazyPage(() => import('@/routes/cockpit'));
 const AssetsPage = lazyPage(() => import('@/routes/assets'));
 const ConfigPage = lazyPage(() => import('@/routes/config'));
-const DesignPage = lazyPage(() => import('@/routes/design'));
-const TwinPage = lazyPage(() => import('@/routes/twin'));
-const TwinSurveyPage = lazyPage(() => import('@/routes/twin-survey'));
-const TwinDigitalDemoPage = lazyPage(() => import('@/routes/twin-digital-demo'));
-const MilestonesPage = lazyPage(() => import('@/routes/milestones'));
 const AdminPage = lazyPage(() => import('@/routes/admin'));
-const CommissioningPage = lazyPage(() => import('@/routes/commissioning'));
-const SandboxPage = lazyPage(() => import('@/routes/sandbox'));
-const ProposalPage = lazyPage(() => import('@/routes/proposal'));
-const PreviewPage = lazyPage(() => import('@/routes/preview'));
 const PlanPage = lazyPage(() => import('@/routes/plan'));
 const OnboardPage = lazyPage(() => import('@/routes/onboard'));
-const JourneyPage = lazyPage(() => import('@/routes/journey'));
-const CreatePage = lazyPage(() => import('@/routes/create'));
-const ModuleRoutePage = lazyPage(() => import('@/routes/module'));
 const EvalsPage = lazyPage(() => import('@/routes/evals'));
 const ChatPage = lazyPage(() => import('@/routes/chat'));
 const SduiPreviewPage = lazyPage(() => import('@/routes/sdui-preview'));
 const RiskReportPage = lazyPage(() => import('@/features/schedule/components/risk-report'));
+
+/** 项目空间 · 共享 LeftNav + ClawRail 壳层（ClawRail 不随子路由卸载） */
+const workspaceLayout = (
+  <RequireAuth>
+    <TweaksProvider>
+      <WorkspaceShell />
+      <TweaksPanel />
+    </TweaksProvider>
+  </RequireAuth>
+);
 
 export const router = createBrowserRouter([
   { path: '/', element: <RootRedirect /> },
@@ -57,15 +65,30 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/cockpit',
-    element: (
-      <RequireAuth>
-        <RequireProject>
-          <CockpitPage />
-        </RequireProject>
-      </RequireAuth>
-    ),
+    element: workspaceLayout,
+    children: [
+      {
+        path: '/cockpit',
+        element: (
+          <RequireProject>
+            <CockpitPage />
+          </RequireProject>
+        ),
+      },
+      { path: '/design', element: <DesignPage /> },
+      { path: '/twin', element: <TwinPage /> },
+      { path: '/twin/digital-demo', element: <TwinDigitalDemoPage /> },
+      { path: '/milestones', element: <MilestonesPage /> },
+      { path: '/commissioning', element: <CommissioningPage /> },
+      { path: '/sandbox', element: <SandboxPage /> },
+      { path: '/proposal', element: <ProposalPage /> },
+      { path: '/preview', element: <PreviewPage /> },
+      { path: '/journey', element: <JourneyPage /> },
+      { path: '/create', element: <CreatePage /> },
+      { path: '/module/:key', element: <ModuleRoutePage /> },
+    ],
   },
+  { path: '/foundation', element: <Navigate to="/twin" replace /> },
   {
     path: '/assets',
     element: (
@@ -83,39 +106,6 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/design',
-    element: (
-      <RequireAuth>
-        <DesignPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/twin',
-    element: (
-      <RequireAuth>
-        <TwinPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/twin/survey',
-    element: (
-      <RequireAuth>
-        <TwinSurveyPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/twin/digital-demo',
-    element: (
-      <RequireAuth>
-        <TwinDigitalDemoPage />
-      </RequireAuth>
-    ),
-  },
-  { path: '/foundation', element: <Navigate to="/twin" replace /> },
-  {
     path: '/plan-init',
     element: (
       <RequireAuth>
@@ -132,50 +122,10 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/milestones',
-    element: (
-      <RequireAuth>
-        <MilestonesPage />
-      </RequireAuth>
-    ),
-  },
-  {
     path: '/admin',
     element: (
       <RequireAuth>
         <AdminPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/commissioning',
-    element: (
-      <RequireAuth>
-        <CommissioningPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/sandbox',
-    element: (
-      <RequireAuth>
-        <SandboxPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/proposal',
-    element: (
-      <RequireAuth>
-        <ProposalPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/preview',
-    element: (
-      <RequireAuth>
-        <PreviewPage />
       </RequireAuth>
     ),
   },
@@ -204,22 +154,6 @@ export const router = createBrowserRouter([
     ),
   },
   {
-    path: '/journey',
-    element: (
-      <RequireAuth>
-        <JourneyPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/create',
-    element: (
-      <RequireAuth>
-        <CreatePage />
-      </RequireAuth>
-    ),
-  },
-  {
     path: '/evals',
     element: (
       <RequireAuth>
@@ -240,14 +174,6 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <SduiPreviewPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/module/:key',
-    element: (
-      <RequireAuth>
-        <ModuleRoutePage />
       </RequireAuth>
     ),
   },

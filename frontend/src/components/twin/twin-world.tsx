@@ -2,6 +2,7 @@
 /* 从 DS-1 / twin-world-export 整体移植，与项目里既有 screens/*.tsx 同等做法 — 保留 @ts-nocheck */
 import React from 'react';
 import { DigitalTwinOntology } from './digital-ontology';
+import { SurveyTwinViewer } from './survey-twin/survey-twin-viewer';
 import { useContingencyOntology } from '@/lib/use-contingency-ontology';
 /* AIDA · 算力底座孪生模块 — 构建动效 v2 */
 import { useState as useStateTW, useEffect as useEffectTW, useRef as useRefTW } from 'react';
@@ -263,6 +264,19 @@ function PhysicalTwinFrame({ compact, building  }: any) {
     .tw-digi-detail-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
     .tw-gen-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--c-border);border-top-color:var(--c-brand);animation:twGenSpin .8s linear infinite}
     @keyframes twGenSpin{to{transform:rotate(360deg)}}
+
+    /* ── 物理孪生详情：机房三维 / 工勘孪生 页签 + 全屏 ── */
+    .tw-phys-detail{height:100%;width:100%;display:flex;flex-direction:column;min-height:0;background:#0a0f18}
+    .tw-phys-detail:fullscreen{background:#0a0f18}
+    .tw-phys-tabbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(10,15,24,.92);border-bottom:1px solid rgba(148,163,184,.14);flex-shrink:0}
+    .tw-phys-tabs{display:flex;gap:2px;background:rgba(148,163,184,.1);border-radius:8px;padding:3px}
+    .tw-phys-tabs button{padding:5px 14px;border:none;border-radius:5px;background:transparent;color:rgba(148,163,184,.85);font-size:12px;font-weight:550;cursor:pointer;font-family:var(--font-sans);transition:background .15s,color .15s}
+    .tw-phys-tabs button.on{background:rgba(148,163,184,.16);color:#eaf1fb}
+    .tw-phys-tabs button:hover:not(.on){color:#cdd7e3}
+    .tw-phys-fs{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid rgba(148,163,184,.24);border-radius:6px;background:rgba(148,163,184,.07);color:#aeb9c9;font-size:12px;cursor:pointer;font-family:var(--font-sans);transition:border-color .15s,background .15s,color .15s}
+    .tw-phys-fs:hover{border-color:rgba(125,211,252,.4);background:rgba(56,130,200,.18);color:#eaf1fb}
+    .tw-phys-detail-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+    .tw-phys-pane{flex:1;min-height:0;flex-direction:column}
   `;
   document.head.appendChild(s);
 })();
@@ -283,6 +297,13 @@ const IcRefreshTW = () => (
 const IcBack = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
     <path d="M8 1 L3 6 L8 11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IcFullscreen = ({ exit }: any) => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    {exit
+      ? <path d="M4.5 1.5V4.5H1.5M7.5 1.5V4.5H10.5M4.5 10.5V7.5H1.5M7.5 10.5V7.5H10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      : <path d="M1.5 4V1.5H4M11.5 4V1.5H8M1.5 8V10.5H4M11.5 8V10.5H8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />}
   </svg>
 );
 
@@ -763,6 +784,10 @@ function TwinWorld({ phase, onPhase  }: any) {
   const [physStats, setPhysStats] = useStateTW<any>(null);
   const [physFrameFailed, setPhysFrameFailed] = useStateTW<any>(false);
   const [buildSeq, setBuildSeq] = useStateTW<any>(0);
+  const [physTab, setPhysTab] = useStateTW<any>('room3d');   // 物理详情页签：room3d=机房三维 · survey=工勘孪生
+  const [surveyMounted, setSurveyMounted] = useStateTW<any>(false);  // 工勘 viewer 首次打开后保持挂载，避免来回切重载 SOG
+  const [isPhysFs, setIsPhysFs] = useStateTW<any>(false);
+  const physDetailRef = useRefTW<any>(null);
   const rootRef = useRefTW<any>(null);
   const buildTimer = useRefTW<any>(null);
   const exitTimer = useRefTW<any>(null);
@@ -811,6 +836,21 @@ function TwinWorld({ phase, onPhase  }: any) {
     const t = setTimeout(() => setPhysFrameFailed(true), 8000);
     return () => clearTimeout(t);
   }, [phase, physStats, physFrameFailed]);
+
+  /* 物理详情全屏：跟随浏览器 fullscreenchange 同步按钮态（ESC 退出也能感知） */
+  useEffectTW(() => {
+    const onFs = () => setIsPhysFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  const switchPhysTab = (t: any) => { setPhysTab(t); if (t === 'survey') setSurveyMounted(true); };
+  const togglePhysFs = () => {
+    const el = physDetailRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else el.requestFullscreen?.();
+  };
 
   const handleBuild = () => {
     // 捕获中央呼吸方块(emblem)的位置, 供两个矩形从它身上裂开
@@ -870,9 +910,35 @@ function TwinWorld({ phase, onPhase  }: any) {
                 </div>
               )}
               <div className="tw-half-viz" style={phase === 'physical' ? { padding: 0 } : undefined}>
-                {physFrameFailed
-                  ? <PhysicalViz playing={playing} />
-                  : <PhysicalTwinFrame key={phase === 'physical' ? 'phys-detail' : `phys-compact-${buildSeq}`} compact={phase !== 'physical'} building={phase === 'building'} />}
+                {phase === 'physical' ? (
+                  <div className="tw-phys-detail" ref={physDetailRef}>
+                    <div className="tw-phys-tabbar">
+                      <div className="tw-phys-tabs">
+                        <button type="button" className={physTab === 'room3d' ? 'on' : ''} onClick={() => switchPhysTab('room3d')}>机房三维视图</button>
+                        <button type="button" className={physTab === 'survey' ? 'on' : ''} onClick={() => switchPhysTab('survey')}>工勘孪生</button>
+                      </div>
+                      <button type="button" className="tw-phys-fs" onClick={togglePhysFs} title={isPhysFs ? '退出全屏' : '全屏显示'}>
+                        <IcFullscreen exit={isPhysFs} />{isPhysFs ? '退出全屏' : '全屏'}
+                      </button>
+                    </div>
+                    <div className="tw-phys-detail-body">
+                      <div className="tw-phys-pane" style={{ display: physTab === 'room3d' ? 'flex' : 'none' }}>
+                        {physFrameFailed
+                          ? <PhysicalViz playing={false} />
+                          : <PhysicalTwinFrame key="phys-detail" compact={false} building={false} />}
+                      </div>
+                      {surveyMounted && (
+                        <div className="tw-phys-pane" style={{ display: physTab === 'survey' ? 'flex' : 'none' }}>
+                          <SurveyTwinViewer />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  physFrameFailed
+                    ? <PhysicalViz playing={playing} />
+                    : <PhysicalTwinFrame key={`phys-compact-${buildSeq}`} compact={true} building={phase === 'building'} />
+                )}
               </div>
               {phase !== 'physical' && (
                 <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入机房孪生视图 <i>→</i></span> : '正在构建物理映射…'}</div>

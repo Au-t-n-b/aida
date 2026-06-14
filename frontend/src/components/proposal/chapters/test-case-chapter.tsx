@@ -2,14 +2,47 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ProposalChapterCard } from '../primitives';
-import { ACCEPTANCE_TEST_CASES, type AcceptanceTestCase } from '../proposal-testcases';
+import type { AcceptanceTestCase } from '@/types/domain';
 
 type KeyedCase = AcceptanceTestCase & { key: string };
 const CB = 'h-4 w-4 shrink-0 cursor-pointer accent-blue-600';
+
+function toStringList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x));
+  if (typeof v === 'string' && v.trim()) {
+    return v.split('\n').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+function rowsToCases(input: unknown): KeyedCase[] {
+  if (!Array.isArray(input) || input.length === 0) return [];
+  return input
+    .filter((row) => row && typeof row === 'object')
+    .map((row, i) => {
+      const item = row as Record<string, unknown>;
+      return {
+        id: String(item.id ?? ''),
+        l1: String(item.l1 ?? ''),
+        l2: String(item.l2 ?? ''),
+        l3: String(item.l3 ?? ''),
+        purpose: String(item.purpose ?? ''),
+        topology: String(item.topology ?? ''),
+        pre: String(item.pre ?? ''),
+        steps: toStringList(item.steps),
+        expects: toStringList(item.expects),
+        result: String(item.result ?? ''),
+        remark: String(item.remark ?? ''),
+        key: `tc-${String(item.id ?? i)}-${i}`,
+      };
+    })
+    .filter((c) => c.id || c.l3);
+}
 interface TestCaseChapterProps {
   initialRows?: unknown;
   readOnly?: boolean;
-  onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
+  /** 用户勾选变化时回调；不再在 mount 时自动上报，避免与父级缓存循环同步 */
+  onSelectionChange?: (selectedKeys: Set<string>) => void;
 }
 
 /* ── 右侧详情：字段块 + 编号步骤 ── */
@@ -84,12 +117,9 @@ function CaseDetail({
 export function TestCaseChapter({
   initialRows,
   readOnly = false,
-  onRowsChange,
+  onSelectionChange,
 }: TestCaseChapterProps) {
-  const cases = useMemo<KeyedCase[]>(
-    () => ACCEPTANCE_TEST_CASES.map((c, i) => ({ ...c, key: `tc${i}` })),
-    [],
-  );
+  const cases = useMemo<KeyedCase[]>(() => rowsToCases(initialRows), [initialRows]);
   const groups = useMemo(() => {
     const m = new Map<string, Map<string, KeyedCase[]>>();
     for (const c of cases) {
@@ -105,11 +135,14 @@ export function TestCaseChapter({
     }));
   }, [cases]);
 
-  const initialSelected = useMemo(() => {
+  /** 受控选中态：直接由父级（session 缓存）驱动，不在本地维护副本 */
+  const selectedKeys = useMemo(() => {
+    if (cases.length === 0) return new Set<string>();
     if (!Array.isArray(initialRows) || initialRows.length === 0) {
       return new Set(cases.map((c) => c.key));
     }
-    const selectedKeys = new Set<string>();
+    let hasExplicitSelected = false;
+    const keys = new Set<string>();
     for (const row of initialRows) {
       if (!row || typeof row !== 'object') continue;
       const item = row as Record<string, unknown>;
@@ -117,48 +150,50 @@ export function TestCaseChapter({
       const l3 = String(item.l3 ?? '');
       const selected = item.selected;
       const key = cases.find((c) => c.id === id && c.l3 === l3)?.key;
-      if (key && (selected === undefined || selected === true || selected === 'true' || selected === 1)) {
-        selectedKeys.add(key);
+      if (!key) continue;
+      if (selected !== undefined) hasExplicitSelected = true;
+      if (selected === undefined || selected === true || selected === 'true' || selected === 1) {
+        keys.add(key);
       }
     }
-    return selectedKeys.size ? selectedKeys : new Set(cases.map((c) => c.key));
+    if (!hasExplicitSelected) {
+      return new Set(cases.map((c) => c.key));
+    }
+    return keys;
   }, [cases, initialRows]);
-  const [selected, setSelected] = useState<Set<string>>(initialSelected);
-  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set(groups.map((g) => g.l1)));
-  // 默认：一级展开、二级全部折叠（三级隐藏）——用户单击二级三角再展开其用例
+
+  const [openL1, setOpenL1] = useState<Set<string>>(() => new Set());
   const [openL2, setOpenL2] = useState<Set<string>>(() => new Set());
-  const [active, setActive] = useState<string>(() => cases[0]?.key ?? '');
+  const [active, setActive] = useState<string>('');
   const [query, setQuery] = useState('');
 
   useEffect(() => {
-    setSelected(initialSelected);
-  }, [initialSelected]);
+    setOpenL1(new Set(groups.map((g) => g.l1)));
+  }, [groups]);
 
   useEffect(() => {
-    const payloadRows = cases.map((c) => ({
-      id: c.id,
-      l1: c.l1,
-      l2: c.l2,
-      l3: c.l3,
-      purpose: c.purpose,
-      topology: c.topology,
-      pre: c.pre,
-      steps: c.steps,
-      expects: c.expects,
-      remark: c.remark,
-      result: c.result,
-      selected: selected.has(c.key),
-    }));
-    onRowsChange?.(payloadRows);
-  }, [cases, onRowsChange, selected]);
+    if (cases.length && !cases.some((c) => c.key === active)) {
+      setActive(cases[0]?.key ?? '');
+    }
+  }, [cases, active]);
 
   const q = query.trim();
   const hit = (c: KeyedCase) => !q || c.id.includes(q) || c.l3.includes(q) || c.purpose.includes(q);
 
-  const toggleSel = (k: string) =>
-    setSelected((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; });
-  const setMany = (keys: string[], on: boolean) =>
-    setSelected((s) => { const n = new Set(s); keys.forEach((k) => (on ? n.add(k) : n.delete(k))); return n; });
+  const emitSelection = (next: Set<string>) => {
+    onSelectionChange?.(next);
+  };
+  const toggleSel = (k: string) => {
+    const next = new Set(selectedKeys);
+    if (next.has(k)) next.delete(k);
+    else next.add(k);
+    emitSelection(next);
+  };
+  const setMany = (keys: string[], on: boolean) => {
+    const next = new Set(selectedKeys);
+    keys.forEach((k) => (on ? next.add(k) : next.delete(k)));
+    emitSelection(next);
+  };
   const toggleL1 = (l1: string) =>
     setOpenL1((s) => { const n = new Set(s); if (n.has(l1)) n.delete(l1); else n.add(l1); return n; });
   const toggleL2 = (key: string) =>
@@ -181,10 +216,15 @@ export function TestCaseChapter({
             />
           </div>
           <div className="max-h-[520px] overflow-y-auto rounded-lg border border-slate-200/80 bg-white">
+            {cases.length === 0 && (
+              <div className="px-4 py-8 text-center text-sm text-slate-400">
+                请先上传场景测试用例
+              </div>
+            )}
             {groups.map((g) => {
               const visKeys = g.l2s.flatMap((s) => s.cases).filter(hit).map((c) => c.key);
               if (q && visKeys.length === 0) return null;
-              const gSel = g.keys.filter((k) => selected.has(k)).length;
+              const gSel = g.keys.filter((k) => selectedKeys.has(k)).length;
               const allSel = gSel === g.keys.length;
               const open = openL1.has(g.l1) || !!q;
               return (
@@ -209,7 +249,7 @@ export function TestCaseChapter({
                     const cs = list.filter(hit);
                     if (!cs.length) return null;
                     const l2Keys = list.map((c) => c.key);
-                    const l2Sel = l2Keys.filter((k) => selected.has(k)).length;
+                    const l2Sel = l2Keys.filter((k) => selectedKeys.has(k)).length;
                     const l2All = l2Sel === l2Keys.length;
                     const l2key = `${g.l1}::${l2}`;
                     const l2Open = openL2.has(l2key) || !!q;
@@ -234,23 +274,30 @@ export function TestCaseChapter({
                         {l2Open && cs.map((c) => {
                           const isActive = c.key === active;
                           return (
-                            <button
+                            <div
                               key={c.key}
-                              type="button"
+                              role="button"
+                              tabIndex={0}
                               onClick={() => setActive(c.key)}
-                              className={`flex w-full items-center gap-2 py-1.5 pl-7 pr-2 text-left transition-colors ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setActive(c.key);
+                                }
+                              }}
+                              className={`flex w-full cursor-pointer items-center gap-2 py-1.5 pl-7 pr-2 text-left transition-colors ${isActive ? 'bg-blue-50' : 'hover:bg-slate-50'}`}
                             >
                               <input
                                 type="checkbox"
-                                checked={selected.has(c.key)}
-                                onChange={(e) => { e.stopPropagation(); toggleSel(c.key); }}
+                                checked={selectedKeys.has(c.key)}
+                                onChange={() => toggleSel(c.key)}
                                 onClick={(e) => e.stopPropagation()}
                                 className={CB}
                                 disabled={readOnly}
                               />
                               <span className={`shrink-0 font-mono text-[11px] ${isActive ? 'font-semibold text-blue-600' : 'text-slate-400'}`}>{c.id}</span>
                               <span className={`truncate text-[12px] ${isActive ? 'font-medium text-blue-700' : 'text-slate-600'}`}>{c.l3}</span>
-                            </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -267,13 +314,13 @@ export function TestCaseChapter({
           {activeCase ? (
             <CaseDetail
               c={activeCase}
-              selected={selected.has(activeCase.key)}
+              selected={selectedKeys.has(activeCase.key)}
               onToggle={() => toggleSel(activeCase.key)}
               readOnly={readOnly}
             />
           ) : (
             <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-200 text-sm text-slate-400">
-              从左侧选择一个用例查看详情
+              {cases.length === 0 ? '请先上传场景测试用例' : '从左侧选择一个用例查看详情'}
             </div>
           )}
         </div>

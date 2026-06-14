@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import { AcceptanceChapter } from './chapters/acceptance-chapter';
 import { CustomerChapterWrapper } from './chapters/customer-chapter';
 import { DeviceChapter } from './chapters/device-chapter';
@@ -15,6 +16,8 @@ import { ServiceChapterWrapper } from './chapters/service-chapters';
 import { SoftwareChapter } from './chapters/software-chapter';
 import { TestCaseChapter } from './chapters/test-case-chapter';
 import { CHAPTERS_BY_SNAP, SNAP_ALIASES, SNAPSHOTS, type SnapKey } from './proposal-data';
+import type { AcceptanceItem, RaciRow } from '@/types/domain';
+import { useProposalData, tcKey } from '@/hooks/useProposalData';
 import {
   anchorToChapterKey,
   CHAPTER_TARGETS,
@@ -46,6 +49,8 @@ import {
   type ProposalVersionItem,
   type VersionInfoMetadata,
 } from '@/lib/proposal-api';
+import { navDebug } from '@/lib/nav-debug';
+import { useRouteActive } from '@/lib/route-active';
 
 const DEFAULT_MANIFEST: DraftManifest = {
   workingVersionLabel: '草稿',
@@ -70,8 +75,26 @@ const FALLBACK_VERSIONS: ProposalVersionItem[] = [
 ];
 
 export default function ProposalScreen() {
+  const location = useLocation();
+  const routeActive = useRouteActive('/proposal');
+  const mountedRef = useRef(true);
   const headers = useProposalApiHeaders();
   const projectId = getDefaultProjectId();
+  const {
+    raciRows,
+    planRows,
+    acceptanceItems,
+    testCases,
+    selectedTcKeys,
+    acceptanceReady,
+    testCasesReady,
+    updateRaci,
+    refreshAcceptance,
+    updateTestCaseSelection,
+    saveDraftTables,
+    saveAndConfirmTables,
+    setDirty: setTableDirty,
+  } = useProposalData();
 
   const [proposalVersion, setProposalVersion] = useState('draft');
   const [versions, setVersions] = useState<ProposalVersionItem[]>([]);
@@ -93,9 +116,21 @@ export default function ProposalScreen() {
   const [outlineHover, setOutlineHover] = useState(false);
   const [outlinePinned, setOutlinePinned] = useState(false);
   const [outlineHidden, setOutlineHidden] = useState(false);
+  const saveInFlightRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    navDebug('proposal-screen mount', { pathname: location.pathname });
+    return () => {
+      mountedRef.current = false;
+      navDebug('proposal-screen unmount', { pathname: location.pathname });
+    };
+  }, [location.pathname]);
 
   const isEditable = proposalVersion === 'draft';
   const outlineWide = !outlineCollapsed || outlineHover || outlinePinned;
+  /** 页壳只等草稿/版本元数据；表格 slot 在后台加载，避免整页卡在「加载预案数据」 */
+  const pageLoading = loading;
 
   const fireDocToast = useCallback((msg: string) => {
     setDocToast(msg);
@@ -221,7 +256,9 @@ export default function ProposalScreen() {
   }, [draftChapters, etag, headers, manualChangeLog, projectId]);
 
   const loadProposalState = useCallback(async () => {
+    if (!mountedRef.current) return;
     setLoading(true);
+    navDebug('proposal-state load start');
     const errors: string[] = [];
 
     let draftData: Awaited<ReturnType<typeof fetchDraft>> | null = null;
@@ -229,61 +266,78 @@ export default function ProposalScreen() {
     let changeLog: CumulativeChangeEntry[] = [];
 
     try {
-      draftData = await fetchDraft(projectId, headers);
-    } catch (err) {
-      errors.push(
-        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
-      );
+      try {
+        draftData = await fetchDraft(projectId, headers);
+      } catch (err) {
+        errors.push(
+          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '草稿加载失败',
+        );
+      }
+
+      try {
+        versionList = await fetchVersions(projectId, headers);
+      } catch (err) {
+        errors.push(
+          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
+        );
+      }
+
+      if (!mountedRef.current) {
+        navDebug('proposal-state load aborted (unmounted)');
+        return;
+      }
+
+      if (draftData) {
+        try {
+          changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
+        } catch {
+          changeLog = draftData.cumulativeChangeLog ?? [];
+        }
+        if (!mountedRef.current) {
+          navDebug('proposal-state load aborted (unmounted)');
+          return;
+        }
+        setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
+        setDraftChapters((draftData.chapters ?? {}) as Record<string, unknown>);
+        setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
+        setEtag(draftData.manifest?.etag);
+        setDirty(draftData.manifest?.dirty ?? false);
+        setCumulativeLog(changeLog);
+        setManualChangeLog(
+          changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+        );
+      } else {
+        setCumulativeLog(changeLog);
+        setManualChangeLog(
+          changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
+        );
+        setDraftChapters({});
+      }
+
+      setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
+      setProposalVersion('draft');
+
+      if (errors.length > 0) {
+        fireDocToast(errors[0] ?? '预案加载失败');
+      }
+    } finally {
+      if (mountedRef.current) {
+        setLoading(false);
+        navDebug('proposal-state load done');
+      }
     }
-
-    try {
-      versionList = await fetchVersions(projectId, headers);
-    } catch (err) {
-      errors.push(
-        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '版本列表加载失败',
-      );
-    }
-
-    if (draftData) {
-      const chapterRowCounts = Object.fromEntries(
-        Object.entries((draftData.chapters ?? {}) as Record<string, unknown>).map(([k, v]) => {
-          const rows = (v as { rows?: unknown[] } | undefined)?.rows;
-          return [k, Array.isArray(rows) ? rows.length : -1];
-        }),
-      );
-      // #region agent log
-      fetch('http://127.0.0.1:7352/ingest/999a6fc6-bdf5-4483-92bb-6f74d9cda702',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'5609cc'},body:JSON.stringify({sessionId:'5609cc',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/components/proposal/proposal-screen.tsx:248',message:'draft loaded with chapter row counts',data:{projectId,proposalVersion:draftData.manifest?.workingVersionLabel,chapterRowCounts},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      changeLog = await loadChangeLogForDraft(projectId, headers, draftData);
-      setManifest(draftData.manifest ?? DEFAULT_MANIFEST);
-      setDraftChapters((draftData.chapters ?? {}) as Record<string, unknown>);
-      setMetadata(resolveVersionInfoMetadata(draftData, DEFAULT_METADATA));
-      setEtag(draftData.manifest?.etag);
-      setDirty(draftData.manifest?.dirty ?? false);
-      setCumulativeLog(changeLog);
-      setManualChangeLog(
-        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-    } else {
-      setCumulativeLog(changeLog);
-      setManualChangeLog(
-        changeLog.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-      setDraftChapters({});
-    }
-
-    setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
-    setProposalVersion('draft');
-
-    if (errors.length > 0) {
-      fireDocToast(errors[0] ?? '预案加载失败');
-    }
-
-    setLoading(false);
   }, [fireDocToast, headers, projectId]);
 
   useEffect(() => {
-    void loadProposalState();
+    let cancelled = false;
+    const run = async () => {
+      await loadProposalState();
+      if (cancelled) navDebug('proposal-state effect cancelled');
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
   }, [loadProposalState]);
 
   useEffect(() => {
@@ -305,6 +359,7 @@ export default function ProposalScreen() {
 
     const io = new IntersectionObserver(
       (entries) => {
+        if (!mountedRef.current) return;
         const visible = entries.filter((e) => e.isIntersecting);
         if (visible.length === 0) return;
         const top = visible.reduce((a, b) =>
@@ -391,45 +446,53 @@ export default function ProposalScreen() {
     }, 50);
   }, []);
 
-  const handleSaveDraft = useCallback(async () => {
+  const handleSaveDraft = useCallback(() => {
     if (!isEditable) {
       fireDocToast('历史版本只读，请切换到草稿编辑');
       return;
     }
-    setActionBusy(true);
-    try {
-      const result = await saveDraftWithEtagRetry();
-      setDirty(false);
-      setEtag(result.etag);
-      setManifest((m) => ({
-        ...m,
-        workingVersionLabel: result.workingVersionLabel ?? m.workingVersionLabel,
-        dirty: false,
-      }));
-      if (result.metadata || result.createdBy) {
-        setMetadata(
-          resolveVersionInfoMetadata(
-            { metadata: result.metadata, manifest: { ...manifest, ...result } },
-            metadata,
-          ),
+    if (saveInFlightRef.current) return;
+
+    fireDocToast('草稿已保存');
+    saveInFlightRef.current = true;
+
+    void (async () => {
+      try {
+        const result = await saveDraftWithEtagRetry();
+        await saveDraftTables();
+        setDirty(false);
+        setTableDirty(false);
+        setEtag(result.etag);
+        setManifest((m) => ({
+          ...m,
+          workingVersionLabel: result.workingVersionLabel ?? m.workingVersionLabel,
+          dirty: false,
+        }));
+        if (result.metadata || result.createdBy) {
+          setMetadata(
+            resolveVersionInfoMetadata(
+              { metadata: result.metadata, manifest: { ...manifest, ...result } },
+              metadata,
+            ),
+          );
+        }
+        const draftAfterSave = await fetchDraft(projectId, headers);
+        const logAfterSave = await loadChangeLogForDraft(projectId, headers, draftAfterSave);
+        setCumulativeLog(logAfterSave);
+        setManualChangeLog(
+          logAfterSave.filter((e) => e.editable !== false && e.source !== 'snapshot'),
         );
+        if (draftAfterSave.manifest?.etag) setEtag(draftAfterSave.manifest.etag);
+      } catch (err) {
+        const msg =
+          err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '保存失败';
+        fireDocToast(msg);
+        setDirty(true);
+      } finally {
+        saveInFlightRef.current = false;
       }
-      const draftAfterSave = await fetchDraft(projectId, headers);
-      const logAfterSave = await loadChangeLogForDraft(projectId, headers, draftAfterSave);
-      setCumulativeLog(logAfterSave);
-      setManualChangeLog(
-        logAfterSave.filter((e) => e.editable !== false && e.source !== 'snapshot'),
-      );
-      if (draftAfterSave.manifest?.etag) setEtag(draftAfterSave.manifest.etag);
-      fireDocToast('草稿已保存 · 版本号不变');
-    } catch (err) {
-      const msg =
-        err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '保存失败';
-      fireDocToast(msg);
-    } finally {
-      setActionBusy(false);
-    }
-  }, [fireDocToast, headers, isEditable, manifest, metadata, manualChangeLog, projectId, saveDraftWithEtagRetry]);
+    })();
+  }, [fireDocToast, headers, isEditable, manifest, metadata, projectId, saveDraftTables, saveDraftWithEtagRetry, setTableDirty]);
 
   const handleConfirm = useCallback(async () => {
     if (!isEditable) {
@@ -439,6 +502,7 @@ export default function ProposalScreen() {
     setActionBusy(true);
     try {
       await saveDraftWithEtagRetry();
+      await saveAndConfirmTables();
       await releaseAndDecide(projectId, headers, {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
@@ -450,7 +514,7 @@ export default function ProposalScreen() {
       fireDocToast(msg);
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
 
   const upsertDraftChapterRows = useCallback(
     (chapterKey: string, chapterTitle: string, rows: Array<Record<string, unknown>>) => {
@@ -474,8 +538,30 @@ export default function ProposalScreen() {
           },
         };
       });
+      setDirty(true);
+      setTableDirty(true);
     },
-    [],
+    [setTableDirty],
+  );
+
+  const handleRaciRowsChange = useCallback(
+    (rows: Array<Record<string, unknown>>) => {
+      updateRaci(rows as unknown as RaciRow[]);
+      upsertDraftChapterRows('9', '9. 责任矩阵信息', rows);
+    },
+    [updateRaci, upsertDraftChapterRows],
+  );
+
+  const handleTestCaseSelectionChange = useCallback(
+    (selectedKeys: Set<string>) => {
+      updateTestCaseSelection(selectedKeys);
+      const rows = testCases.map((c, i) => ({
+        ...c,
+        selected: selectedKeys.has(tcKey(c, i)),
+      }));
+      upsertDraftChapterRows('12', '12. 测试用例', rows);
+    },
+    [testCases, updateTestCaseSelection, upsertDraftChapterRows],
   );
 
   const handleExport = useCallback(async () => {
@@ -501,6 +587,8 @@ export default function ProposalScreen() {
     }
   }, [fireDocToast, headers, metadata.projectName, projectId, proposalVersion]);
 
+  const handleProposalDirty = useCallback(() => setDirty(true), []);
+
   const chapters = CHAPTERS_BY_SNAP[snapKey] || [];
   const outlinePageClass = outlineHidden
     ? 'proposal-page--outline-hidden'
@@ -509,6 +597,11 @@ export default function ProposalScreen() {
       : 'proposal-page--outline-collapsed';
 
   const pageTitle = `${metadata.projectName ?? '京东三期项目'}交付预案`;
+
+  if (!routeActive) {
+    navDebug('proposal-screen stale guard', { pathname: location.pathname });
+    return null;
+  }
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>
@@ -544,7 +637,7 @@ export default function ProposalScreen() {
                   type="button"
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                   onClick={() => void handleExport()}
-                  disabled={actionBusy || loading}
+                  disabled={actionBusy || pageLoading}
                 >
                   下载文档
                 </button>
@@ -552,7 +645,7 @@ export default function ProposalScreen() {
                   type="button"
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                   onClick={() => void handleSaveDraft()}
-                  disabled={actionBusy || loading || !isEditable}
+                  disabled={actionBusy || pageLoading || !isEditable}
                 >
                   保存草稿
                 </button>
@@ -560,7 +653,7 @@ export default function ProposalScreen() {
                   type="button"
                   className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-normal text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                   onClick={() => void handleConfirm()}
-                  disabled={actionBusy || loading || !isEditable}
+                  disabled={actionBusy || pageLoading || !isEditable}
                 >
                   生成预案并决策
                 </button>
@@ -591,7 +684,7 @@ export default function ProposalScreen() {
             </div>
           </div>
 
-          {loading ? (
+          {pageLoading ? (
             <p className="py-8 text-center text-sm text-slate-500">加载预案数据…</p>
           ) : (
             <>
@@ -612,7 +705,7 @@ export default function ProposalScreen() {
               <DeviceChapter
                 proposalVersion={proposalVersion}
                 readOnly={!isEditable}
-                onDirty={() => setDirty(true)}
+                onDirty={handleProposalDirty}
                 onManifestActivity={handleManifestActivity}
               />
               <PartsChapter
@@ -637,34 +730,42 @@ export default function ProposalScreen() {
               <ServiceChapterWrapper
                 proposalVersion={proposalVersion}
                 readOnly={!isEditable}
-                onDirty={() => setDirty(true)}
+                onDirty={handleProposalDirty}
                 onManifestActivity={handleManifestActivity}
               />
 
               <RaciChapter
-                initialRows={(draftChapters['9'] as { rows?: unknown[] } | undefined)?.rows}
+                initialRows={raciRows}
                 readOnly={!isEditable}
-                onRowsChange={(rows) => upsertDraftChapterRows('9', '9. 责任矩阵信息', rows)}
+                onRowsChange={handleRaciRowsChange}
               />
               <PlanChapter
-                initialRows={(draftChapters['10'] as { rows?: unknown[] } | undefined)?.rows}
+                initialRows={planRows}
                 onRowsChange={(rows) => upsertDraftChapterRows('10', '10. 计划', rows)}
               />
               <AcceptanceChapter
-                initialRows={(draftChapters['11'] as { rows?: unknown[] } | undefined)?.rows}
-                onRowsChange={(rows) => upsertDraftChapterRows('11', '11. 验收策略', rows)}
+                initialRows={acceptanceReady ? acceptanceItems : []}
+                onRowsChange={(rows) => {
+                  refreshAcceptance(rows as unknown as AcceptanceItem[]);
+                  upsertDraftChapterRows('11', '11. 验收策略', rows);
+                }}
               />
               <TestCaseChapter
-                initialRows={(draftChapters['12'] as { rows?: unknown[] } | undefined)?.rows}
+                initialRows={testCasesReady
+                  ? testCases.map((c, i) => ({
+                      ...c,
+                      selected: selectedTcKeys.has(tcKey(c, i)),
+                    }))
+                  : []}
                 readOnly={!isEditable}
-                onRowsChange={(rows) => upsertDraftChapterRows('12', '12. 测试用例', rows)}
+                onSelectionChange={handleTestCaseSelectionChange}
               />
             </>
           )}
         </div>
-
-        {docToast && <div className="boq-attach-toast">{docToast}</div>}
       </main>
+
+      {docToast && <div className="boq-attach-toast">{docToast}</div>}
 
       {!outlineHidden && (
         <div className="proposal-outline-aside">

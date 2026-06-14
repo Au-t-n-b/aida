@@ -89,9 +89,11 @@ _llm_instance: ChatOpenAI | None = None
 
 
 def _proxy_url() -> str | None:
-    """内网服务器经 HTTP_PROXY/HTTPS_PROXY 访问智谱 API。"""
+    """LLM 外网调用代理；优先 ZHIPU_HTTPS_PROXY，避免污染 Manager 数据中心直连。"""
     return (
-        os.environ.get("HTTPS_PROXY")
+        os.environ.get("ZHIPU_HTTPS_PROXY")
+        or os.environ.get("ZHIPU_HTTP_PROXY")
+        or os.environ.get("HTTPS_PROXY")
         or os.environ.get("https_proxy")
         or os.environ.get("HTTP_PROXY")
         or os.environ.get("http_proxy")
