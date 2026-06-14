@@ -816,21 +816,23 @@ export default function SkillAgentScreen({
   const clawTask = useClawTaskSdui(useClawMode ? taskId : null, session?.accessToken ?? '');
   const directDoc = useSduiStream(skillId, useClawMode ? null : runId, streamEpoch);
   const sduiDoc = useClawMode ? clawTask.doc : directDoc;
+  // 重连间隙后端可能短暂投影 idle 空树；显示层忽略，继续用 bootDoc 兜底
+  const liveSduiDoc = sduiDoc && !isIdleLikeSduiDoc(sduiDoc) ? sduiDoc : null;
 
   useEffect(() => {
-    if (sduiDoc) {
+    if (liveSduiDoc) {
       setBootDoc(null);
       setLoadError(null);
     }
-  }, [sduiDoc]);
+  }, [liveSduiDoc]);
 
   useEffect(() => {
-    if (!runId || sduiDoc || bootDoc || starting) return;
+    if (!runId || liveSduiDoc || bootDoc || starting) return;
     const timer = window.setTimeout(() => {
       setLoadError('工作台加载超时，请重新启动或刷新页面。');
     }, 12000);
     return () => window.clearTimeout(timer);
-  }, [runId, sduiDoc, bootDoc, starting]);
+  }, [runId, liveSduiDoc, bootDoc, starting]);
   // 容器模式：用容器内 aida/agent 的 run_id 做文件上传（clawTask.runId 由 payload 携带）
   const activeRunId = useClawMode ? (clawTask.runId ?? null) : runId;
 
@@ -895,8 +897,8 @@ export default function SkillAgentScreen({
   // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
   // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
   const displayDoc = usesDeliveryWorkbench
-    ? (frozenDoc ?? sduiDoc ?? bootDoc)
-    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc ?? bootDoc);
+    ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
+    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
