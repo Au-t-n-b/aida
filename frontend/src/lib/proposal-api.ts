@@ -8,7 +8,10 @@ import { useAidaSession } from '@/lib/aida-session';
 const DEFAULT_PROJECT_ID = '56A0TXN';
 
 const PROPOSAL_API_BASE =
-  (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)?.replace(/\/$/, '') ?? '';
+  (
+    (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)
+    || (import.meta.env.VITE_AGENT_BASE as string | undefined)
+  )?.replace(/\/$/, '') ?? '';
 
 export type DeliveryChannel = '华为' | '客户';
 export type DataSource = '自动解析' | '人工录入';
@@ -1402,6 +1405,9 @@ function chapterRequestContext(
     }
   } catch {
     // Session context is optional; explicit projectId and caller headers remain authoritative.
+  }
+  if (PROPOSAL_API_BASE && resolvedUrl.startsWith('/')) {
+    resolvedUrl = `${PROPOSAL_API_BASE}${resolvedUrl}`;
   }
   return {
     url: resolvedUrl,

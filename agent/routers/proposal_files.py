@@ -22,8 +22,9 @@ from ..services.proposal_dc_files import (
     write_table_slot,
 )
 from ..services.proposal_parse import parse_acceptance_from_docx
+from ..proposal_request_logging import ProposalLoggingRoute
 
-router = APIRouter(prefix="/api/v1/proposal", tags=["proposal-files"])
+router = APIRouter(prefix="/api/v1/proposal", tags=["proposal-files"], route_class=ProposalLoggingRoute)
 LOG = logging.getLogger("aida.proposal.files")
 
 READ_SLOTS = frozenset({
