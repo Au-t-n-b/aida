@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -93,6 +94,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   const [selectedTcKeys, setSelectedTcKeys] = useState<Set<string>>(new Set());
   const [versions, setVersions] = useState<ProposalTableVersions>({ raci: 0, acceptance: 0, testCases: 0 });
   const [cardScale, setCardScale] = useState(384);
+  const loadInflight = useRef<AbortController | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!projectCtx) {
@@ -104,6 +106,12 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    if (loadInflight.current) {
+      loadInflight.current.abort();
+    }
+    const ac = new AbortController();
+    loadInflight.current = ac;
+
     console.info('[AIDA DC] loadAll start', {
       projectId: projectCtx.dcProjectId,
       projectName: projectCtx.projectName,
@@ -113,17 +121,20 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     try {
       const syncResult = await syncProposalLocalFiles(projectCtx);
+      if (ac.signal.aborted) return;
       if (syncResult.warnings.length) {
         setDataWarnings(syncResult.warnings);
       }
       const stored = getStoredVersions(projectName);
       const scale = await loadCardScale(projectCtx);
+      if (ac.signal.aborted) return;
       const [raci, plan, accept, tcLoaded] = await Promise.all([
         loadRaciMatrix(projectCtx),
         loadPlan(projectCtx),
         loadAcceptance(projectCtx),
         loadTestCasesIfReady(projectCtx, scale),
       ]);
+      if (ac.signal.aborted) return;
       setCardScale(scale);
       setRaciRows(raci.rows);
       setVersions({
@@ -144,14 +155,17 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
         testCases: tcLoaded.cases.length,
       });
     } catch (err) {
+      if (ac.signal.aborted) return;
       console.error('[AIDA DC] loadAll failed', err);
     } finally {
-      setLoading(false);
+      if (!ac.signal.aborted) setLoading(false);
+      if (loadInflight.current === ac) loadInflight.current = null;
     }
   }, [projectCtx, projectName, project?.id, project?.name, session?.accessToken]);
 
   useEffect(() => {
     void loadAll();
+    return () => { loadInflight.current?.abort(); };
   }, [loadAll]);
 
   useEffect(() => {

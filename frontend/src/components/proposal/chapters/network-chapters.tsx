@@ -9,7 +9,14 @@ import {
   ProposalDataTableHead,
 } from '../primitives';
 import { COMMON_PLANE_TYPES } from '../proposal-data';
-import { proposalApi, type AvailableDeviceItem, type NetMgmtRow, type NetPlaneRow } from '@/lib/proposal-api';
+import {
+  chapterUploadMessage,
+  proposalApi,
+  type AvailableDeviceItem,
+  type ChapterUploadResult,
+  type NetMgmtRow,
+  type NetPlaneRow,
+} from '@/lib/proposal-api';
 
 const INPUT_CLS =
   'w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
@@ -20,6 +27,39 @@ const DEL_BTN_CLS =
   'rounded p-1 text-slate-300 transition-colors hover:bg-red-50 hover:text-red-500';
 const ADD_BTN_CLS =
   'mt-3 rounded-md border border-dashed border-slate-300 px-3 py-1.5 text-xs font-normal text-slate-500 transition-colors hover:border-blue-400 hover:text-blue-600';
+
+function useChapterAutosave(
+  save: () => Promise<ChapterUploadResult<unknown>>,
+  onWarning: (message: string) => void,
+  onError: (message: string) => void,
+) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRef = useRef(save);
+  const warningRef = useRef(onWarning);
+  const errorRef = useRef(onError);
+  saveRef.current = save;
+  warningRef.current = onWarning;
+  errorRef.current = onError;
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  return useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      timerRef.current = null;
+      try {
+        const result = await saveRef.current();
+        if (!result.uploaded || (result.common_plane && !result.common_plane.uploaded)) {
+          warningRef.current(chapterUploadMessage(result));
+        }
+      } catch (error) {
+        errorRef.current(error instanceof Error ? error.message : '自动保存失败');
+      }
+    }, 1000);
+  }, []);
+}
 
 const PLANE_LABEL_TO_KEY: Record<string, string> = {
   '网管面': 'outband',
@@ -50,8 +90,17 @@ export function NetworkPlanesChapter() {
     () => new Set(['outband', 'inband', 'business', 'sample']),
   );
   const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingPatches = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const scheduleAutosave = useChapterAutosave(
+    () => proposalApi.autosaveNetPlanes(
+      rows,
+      COMMON_PLANE_TYPES.filter((plane) => selectedPlanes.has(plane.key)).map((plane) => plane.label),
+    ),
+    (message) => setToast({ type: 'warning', message }),
+    (message) => setToast({ type: 'error', message }),
+  );
 
   useEffect(() => {
     return () => { debounceTimers.current.forEach((t) => clearTimeout(t)); };
@@ -90,6 +139,7 @@ export function NetworkPlanesChapter() {
       else ns.add(k);
       return ns;
     });
+    scheduleAutosave();
   };
 
   const filteredRows = rows.filter((r) => matchesFilter(r, selectedPlanes));
@@ -103,6 +153,7 @@ export function NetworkPlanesChapter() {
         return [...rs.slice(0, sourceIndex + 1), data.row, ...rs.slice(sourceIndex + 1)];
       });
       window.dispatchEvent(new CustomEvent('net-plane-updated', { detail: { rowId: data.row.row_id } }));
+      scheduleAutosave();
     } catch (e) {
       setToast({ type: 'error', message: e instanceof Error ? e.message : '新增失败' });
     }
@@ -144,6 +195,7 @@ export function NetworkPlanesChapter() {
         if ('qty' in accumulated || 'vendor' in accumulated || 'model' in accumulated) {
           window.dispatchEvent(new CustomEvent('net-plane-updated', { detail: { rowId } }));
         }
+        scheduleAutosave();
       } catch (e) {
         setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
         load();
@@ -159,22 +211,24 @@ export function NetworkPlanesChapter() {
     setToast(null);
     try {
       await proposalApi.deleteNetPlane(rowId);
+      scheduleAutosave();
     } catch (e) {
       setRows(prev);
       setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
     }
   };
 
-  const handleExport = async () => {
-    if (exporting || rows.length === 0) return;
+  const handleUpload = async (file: File) => {
+    if (exporting) return;
     setExporting(true);
     setToast(null);
     try {
-      const selectedLabels = COMMON_PLANE_TYPES.filter((plane) => selectedPlanes.has(plane.key)).map((plane) => plane.label);
-      const data = await proposalApi.exportNetPlanes(rows, selectedLabels);
-      setToast({ type: 'warning', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
+      const data = await proposalApi.importNetPlanes(file);
+      setRows(data.rows);
+      window.dispatchEvent(new CustomEvent('net-plane-updated'));
+      scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
     } finally {
       setExporting(false);
     }
@@ -336,17 +390,28 @@ export function NetworkPlanesChapter() {
         </ProposalDataTableBody>
       </ProposalDataTable>
       <div className="mt-3 flex justify-end">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void handleUpload(file);
+          }}
+        />
         <button
           type="button"
-          onClick={handleExport}
-          disabled={exporting || rows.length === 0}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={exporting}
           className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
-            exporting || rows.length === 0
+            exporting
               ? 'cursor-not-allowed border-slate-200 text-slate-300'
               : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
           }`}
         >
-          {exporting ? '保存中…' : '保存 Excel'}
+          {exporting ? '上传中…' : '上传'}
         </button>
       </div>
     </ProposalChapterCard>
@@ -359,8 +424,14 @@ export function MgmtServerChapter() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingPatches = useRef<Map<string, { server_model?: string; quantity?: number }>>(new Map());
+  const scheduleAutosave = useChapterAutosave(
+    () => proposalApi.autosaveNetMgmt(rows),
+    (message) => setToast({ type: 'warning', message }),
+    (message) => setToast({ type: 'error', message }),
+  );
 
   const load = async () => {
     setLoading(true);
@@ -393,6 +464,7 @@ export function MgmtServerChapter() {
       try {
         const updated = await proposalApi.updateNetMgmt(rowId, accumulated);
         setRows((current) => current.map((row) => (row.row_id === rowId ? updated : row)));
+        scheduleAutosave();
       } catch (e) {
         setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
         load();
@@ -405,20 +477,22 @@ export function MgmtServerChapter() {
     setRows((current) => current.filter((row) => row.row_id !== rowId));
     try {
       await proposalApi.deleteNetMgmt(rowId);
+      scheduleAutosave();
     } catch (e) {
       setRows(previous);
       setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
     }
   };
 
-  const handleExport = async () => {
-    if (exporting || rows.length === 0) return;
+  const handleUpload = async (file: File) => {
+    if (exporting) return;
     setExporting(true);
     try {
-      const data = await proposalApi.exportNetMgmt(rows);
-      setToast({ type: 'warning', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
+      const data = await proposalApi.importNetMgmt(file);
+      setRows(data.rows);
+      scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
     } finally {
       setExporting(false);
     }
@@ -430,7 +504,7 @@ export function MgmtServerChapter() {
         <div className={`mb-3 rounded border px-3 py-2 text-sm ${
           toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'
         }`}>
-          {toast.message}
+          <span className="whitespace-pre-wrap">{toast.message}</span>
         </div>
       )}
       <div className="overflow-hidden rounded-md border border-slate-100">
@@ -485,17 +559,28 @@ export function MgmtServerChapter() {
           >
             {loading ? '扫描中…' : '重新扫描'}
           </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void handleUpload(file);
+            }}
+          />
           <button
             type="button"
-            onClick={handleExport}
-            disabled={exporting || rows.length === 0}
+            onClick={() => fileInputRef.current?.click()}
+            disabled={exporting}
             className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
-              exporting || rows.length === 0
+              exporting
                 ? 'cursor-not-allowed border-slate-200 text-slate-300'
                 : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
             }`}
           >
-            {exporting ? '保存中…' : '保存 Excel'}
+            {exporting ? '上传中…' : '上传'}
           </button>
         </div>
       </div>
@@ -545,8 +630,14 @@ export function ClusterDeviceChapter() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingPatches = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const scheduleAutosave = useChapterAutosave(
+    () => proposalApi.autosaveClusterDevices(rows),
+    (message) => setToast({ type: 'warning', message }),
+    (message) => setToast({ type: 'error', message }),
+  );
 
   useEffect(() => {
     return () => { debounceTimers.current.forEach((t) => clearTimeout(t)); };
@@ -594,19 +685,21 @@ export function ClusterDeviceChapter() {
         }
         return [...rs, newRow];
       });
+      scheduleAutosave();
     } catch (e) {
       setToast({ type: 'error', message: e instanceof Error ? e.message : '新增失败' });
     }
   };
 
-  const handleExport = async () => {
-    if (exporting || rows.length === 0) return;
+  const handleUpload = async (file: File) => {
+    if (exporting) return;
     setExporting(true);
     try {
-      const data = await proposalApi.exportClusterDevices(rows);
-      setToast({ type: 'warning', message: data.uploaded ? `已上传到 ${data.logical_path}` : `已保存到 ${data.saved_path}` });
+      const data = await proposalApi.importClusterDevices(file);
+      setRows(data.rows);
+      scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '保存失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
     } finally {
       setExporting(false);
     }
@@ -637,6 +730,7 @@ export function ClusterDeviceChapter() {
           accumulated as Parameters<typeof proposalApi.updateClusterDevice>[1],
         );
         setRows((rs) => rs.map((r) => (r.row_id === rowId ? updated : r)));
+        scheduleAutosave();
       } catch (e) {
         setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
         load();
@@ -652,6 +746,7 @@ export function ClusterDeviceChapter() {
     setToast(null);
     try {
       await proposalApi.deleteClusterDevice(rowId);
+      scheduleAutosave();
     } catch (e) {
       setRows(prev);
       setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
@@ -857,17 +952,28 @@ export function ClusterDeviceChapter() {
         <div className="text-xs text-slate-500">
           共 {rows.length} 行 · 自动继承自 5.1 网络平面
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void handleUpload(file);
+          }}
+        />
         <button
           type="button"
-          onClick={handleExport}
-          disabled={exporting || rows.length === 0}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={exporting}
           className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
-            exporting || rows.length === 0
+            exporting
               ? 'border-slate-200 text-slate-300 cursor-not-allowed'
               : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
           }`}
         >
-          {exporting ? '保存中…' : '保存 Excel'}
+          {exporting ? '上传中…' : '上传'}
         </button>
       </div>
     </ProposalChapterCard>
