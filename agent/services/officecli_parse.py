@@ -67,71 +67,18 @@ def parse_testcases_via_officecli(path: Path) -> list[dict[str, Any]]:
         return [_map_testcase_to_frontend(c) for c in result.get("cases", [])]
 
     if suffix in (".xlsx", ".xlsm"):
-        return _parse_testcases_xlsx_officecli(path)
+        from .proposal_parse import parse_testcases_xlsx
+
+        return parse_testcases_xlsx(path)
 
     return []
 
 
 def _parse_testcases_xlsx_officecli(path: Path) -> list[dict[str, Any]]:
-    from .officecli_client import xlsx_sheet_rows
+    """officecli 读 xlsx（慢）；仅作兜底，正常路径请用 parse_testcases_xlsx。"""
+    from .proposal_parse import parse_testcases_xlsx
 
-    try:
-        matrix = xlsx_sheet_rows(path, "测试用例")
-    except Exception:
-        try:
-            matrix = xlsx_sheet_rows(path, "Sheet1")
-        except Exception:
-            from .proposal_parse import parse_testcases_xlsx
-            return parse_testcases_xlsx(path)
-
-    if not matrix:
-        return []
-
-    headers = [str(h or "").strip() for h in matrix[0]]
-    alias = {
-        "用例编号": "id",
-        "一级分类": "l1",
-        "二级分类": "l2",
-        "三级分类": "l3",
-        "测试目的": "purpose",
-        "测试组网": "topology",
-        "预置条件": "pre",
-        "测试步骤": "steps",
-        "预期结果": "expects",
-        "测试结果": "result",
-        "备注": "remark",
-    }
-    idx = {alias.get(h, h): i for i, h in enumerate(headers) if h not in ("项目名称", "版本号", "勾选")}
-
-    out: list[dict[str, Any]] = []
-    for row in matrix[1:]:
-        if not row or all(not str(v).strip() for v in row):
-            continue
-
-        def get(k: str) -> str:
-            if k not in idx or idx[k] >= len(row):
-                return ""
-            v = row[idx[k]]
-            return "" if v is None else str(v).strip()
-
-        if not get("id") or get("id") == "用例编号":
-            continue
-        steps_raw = get("steps")
-        expects_raw = get("expects")
-        out.append({
-            "id": get("id"),
-            "l1": get("l1"),
-            "l2": get("l2"),
-            "l3": get("l3"),
-            "purpose": get("purpose"),
-            "topology": get("topology"),
-            "pre": get("pre"),
-            "steps": [s.strip() for s in steps_raw.split("\n") if s.strip()] if steps_raw else [],
-            "expects": [s.strip() for s in expects_raw.split("\n") if s.strip()] if expects_raw else [],
-            "result": get("result"),
-            "remark": get("remark"),
-        })
-    return out
+    return parse_testcases_xlsx(path)
 
 
 _DETAIL_FIELDS = ("steps", "expects", "pre", "purpose", "topology", "remark", "result", "l3")

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 
 from agent.proposal.auth import (
     ProposalSession,
@@ -42,13 +43,14 @@ router = APIRouter(prefix="/api/v1/projects/{project_id}/proposal", tags=["propo
 
 
 @router.get("/draft")
-def get_draft(
+async def get_draft(
     project_id: str,
     _session: ProposalSession = Depends(require_proposal_read),
 ):
     from agent.proposal.auth import proposal_operator_display_name
 
-    data = draft_service.get_draft(
+    data = await run_in_threadpool(
+        draft_service.get_draft,
         project_id,
         operator=proposal_operator_display_name(_session),
         session=_session,

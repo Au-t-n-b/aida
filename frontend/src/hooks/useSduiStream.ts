@@ -76,13 +76,19 @@ export function isIdleLikeSduiDoc(doc: SduiDocument): boolean {
   return intro;
 }
 
+/** 作业区已有可见节点（含仅 Stepper 的中间态，如设备安装重连首帧）。*/
+function hasWorkbenchContent(doc: SduiDocument): boolean {
+  const ch = (doc.root as { children?: SduiNode[] }).children;
+  return Array.isArray(ch) && ch.length > 0;
+}
+
 /** full_restart 重连时拒绝比当前更低的进度快照（与后端 display_state 双保险）。*/
 function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocument {
   if (!prev) return next;
   const pPrev = extractSduiProgress(prev);
   const pNext = extractSduiProgress(next);
   if (pPrev >= 0 && pNext >= 0 && pNext < pPrev) return prev;
-  if (hasExecutionSurface(prev) && isIdleLikeSduiDoc(next)) return prev;
+  if (isIdleLikeSduiDoc(next) && (hasExecutionSurface(prev) || hasWorkbenchContent(prev))) return prev;
   if (pPrev > 0 && pNext < 0 && !hasExecutionSurface(next)) return prev;
   return next;
 }
@@ -168,7 +174,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
             if (sseReceived || prev?.meta?.error) return prev;
 
-            return null;
+            return prev;
 
           });
 
@@ -183,7 +189,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
           if (prev?.meta?.error && !snap.meta?.error) return prev;
 
-          return useRunLog ? snap : mergeSduiDoc(prev, snap);
+          return mergeSduiDoc(prev, snap);
 
         });
 
@@ -215,7 +221,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
             lastDocJsonRef.current = json;
 
             // SSE 增量经 mergeSduiDoc：与后端 display_state 双保险，防 full_restart 闪回低进度
-            setDoc(prev => useRunLog ? result.doc : mergeSduiDoc(prev, result.doc));
+            setDoc(prev => mergeSduiDoc(prev, result.doc));
 
           }
 
@@ -293,7 +299,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
             const json = JSON.stringify(snap);
             if (json === lastDocJsonRef.current) return;  // 无变化：不触发重渲染
             lastDocJsonRef.current = json;
-            setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
+            setDoc(prev => mergeSduiDoc(prev, snap));
           }).catch(() => { /* ignore */ });
         }, 2500);
       };
@@ -507,6 +513,38 @@ export async function uploadBatch(
   if (runId) form.append('run_id', runId);
 
   const res = await fetch(`${base}/agent/${skillId}/upload/batch`, { method: 'POST', body: form });
+
+  if (!res.ok) throw new Error(await res.text());
+
+  return res.json();
+
+}
+
+
+
+export async function overrideOutputArtifact(
+
+  skillId: string,
+
+  file: File,
+
+  targetPath: string,
+
+  runId?: string | null,
+
+): Promise<{ ok?: boolean; path?: string; size?: number; error?: string }> {
+
+  const base = await ensureAgentBase(skillId);
+
+  const form = new FormData();
+
+  form.append('file', file);
+
+  form.append('target_path', targetPath);
+
+  if (runId) form.append('run_id', runId);
+
+  const res = await fetch(`${base}/agent/${skillId}/artifact/override`, { method: 'POST', body: form });
 
   if (!res.ok) throw new Error(await res.text());
 

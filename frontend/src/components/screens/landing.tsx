@@ -160,6 +160,7 @@ export default function LandingScreen() {
   const openCreate = () => setModal({ open: true, mode: 'create', preset: null, projectId: null });
   const openEdit = (id: string) => {
     const p = projects.find((x) => x.id === id);
+    // 列表卡片作占位预填，弹窗内 fetchProjectDetail 拉全量详情覆盖
     const preset = p ? projectToFormPreset(p) : null;
     setModal({ open: true, mode: 'edit', preset, projectId: id });
   };

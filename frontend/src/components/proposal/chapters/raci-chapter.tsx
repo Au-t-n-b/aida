@@ -1,15 +1,22 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ProposalChapterCard,
   ProposalDataTable,
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { RACI_ROWS } from '../proposal-data';
 
-type RaciRow = (typeof RACI_ROWS)[number];
+type RaciRow = {
+  stack: string;
+  cat: string;
+  act: string;
+  gts: string;
+  hw: string;
+  partner: string;
+  customer: string;
+};
 type RoleField = 'gts' | 'hw' | 'partner' | 'customer';
 interface RaciChapterProps {
   initialRows?: unknown;
@@ -37,13 +44,9 @@ function spans(rows: readonly RaciRow[], keyFn: (r: RaciRow) => string): number[
   });
 }
 
-function _defaultRows(): RaciRow[] {
-  return RACI_ROWS.map((r) => ({ ...r }));
-}
-
 function _normalizeRows(input: unknown): RaciRow[] {
   if (!Array.isArray(input) || input.length === 0) {
-    return _defaultRows();
+    return [];
   }
   const rows = input
     .filter((row) => typeof row === 'object' && row !== null)
@@ -59,21 +62,26 @@ function _normalizeRows(input: unknown): RaciRow[] {
         customer: String(item.customer ?? ''),
       } satisfies RaciRow;
     });
-  return rows.length ? rows : _defaultRows();
+  return rows.filter((r) => r.stack || r.cat || r.act);
 }
 
 export function RaciChapter({ initialRows, readOnly = false, onRowsChange }: RaciChapterProps) {
   const [rows, setRows] = useState<RaciRow[]>(() => _normalizeRows(initialRows));
 
-  useEffect(() => {
-    setRows(_normalizeRows(initialRows));
-  }, [initialRows]);
+  const initialRowsKey = useMemo(
+    () => JSON.stringify(_normalizeRows(initialRows)),
+    [initialRows],
+  );
 
   useEffect(() => {
-    onRowsChange?.(rows.map((r) => ({ ...r })));
-  }, [onRowsChange, rows]);
-  const update = (i: number, key: RoleField, value: string) =>
-    setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [key]: value } : r)));
+    setRows(_normalizeRows(initialRows));
+  }, [initialRowsKey]);
+
+  const update = (i: number, key: RoleField, value: string) => {
+    const next = rows.map((r, idx) => (idx === i ? { ...r, [key]: value } : r));
+    setRows(next);
+    onRowsChange?.(next.map((r) => ({ ...r })));
+  };
 
   const stackSpans = spans(rows, (r) => r.stack);
   const catSpans = spans(rows, (r) => `${r.stack}||${r.cat}`);

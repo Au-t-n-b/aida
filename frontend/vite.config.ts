@@ -25,6 +25,8 @@ export default defineConfig(({ mode }) => {
         // 交付计划里程碑与 Excel 由 Agent 提供，不能被 /api/v1/projects 转发到 Manager
         '^/api/v1/projects/[^/]+/delivery-plan(?:/.*)?$': { target: agentBase, changeOrigin: true },
         '^/api/v1/projects/[^/]+/delivery-plan\\.xlsx$': { target: agentBase, changeOrigin: true },
+        // 项目详情 / 更新（单段 uuid，排除 my / pending-approval）
+        '^/api/v1/projects/(?!my$|pending-approval$)[^/]+$': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '^/api/v1/projects(/my)?$': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         '/api/v1/chat': { target: 'http://127.0.0.1:8000', changeOrigin: true },
         // Agent（skill / 交付预案 / 交付计划 / 产物预览等）— 其余 /api/v1 全走 agent

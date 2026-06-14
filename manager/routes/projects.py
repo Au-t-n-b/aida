@@ -6,7 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from manager.datacenter_client import DataCenterError, create_project, list_my_projects
+from manager.datacenter_client import DataCenterError, create_project, get_project, list_my_projects
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -63,6 +63,20 @@ async def my_projects(
             status=status,
             keyword=keyword,
         )
+    except DataCenterError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return {"code": 0, "message": "success", "data": data}
+
+
+@router.get("/{project_id}")
+async def project_detail(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """代理数据中心「项目详情」GET /api/v1/projects/{uuid}。"""
+    token = _bearer_token(authorization)
+    try:
+        data = await get_project(token, project_id)
     except DataCenterError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return {"code": 0, "message": "success", "data": data}

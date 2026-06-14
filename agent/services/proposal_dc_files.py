@@ -227,7 +227,7 @@ async def ensure_slot_local(
             "candidates": local_logical_candidates(slot, project_name, project_code),
         }
 
-    # 输出表草稿期可能尚未上传数据中心，先 list 避免无意义 download 404
+    # 输出表草稿期可能尚未上传数据中心，先 list 避免无意 download 404
     if slot in OPTIONAL_OUTPUT_SLOTS:
         try:
             client = DataCenterClient(token)
@@ -461,7 +461,7 @@ async def write_table_slot(
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    logical_local = local_logical_candidates(slot, project_name, project_code)[0]
+    logical_local = mock_logical_for_slot(slot, project_name, project_code)
     try:
         mock_write_bytes(logical_local, content)
         LOG.info("proposal write_table_slot local ok slot=%s logical=%s", slot, logical_local)
@@ -482,10 +482,10 @@ async def write_table_slot(
             LOG.exception("proposal write_table_slot DC unexpected slot=%s", slot)
             warnings.append(f"数据中心写入失败({e})，已降级写入本地 mock")
 
-    logical = mock_logical_for_slot(slot, project_name, project_code)
-    mock_write_bytes(logical, content)
-    LOG.info("proposal write_table_slot mock ok slot=%s logical=%s", slot, logical)
-    return {"path": logical, "version": version, "rowCount": len(row_maps)}, "mock", warnings
+    if not token:
+        return {"path": logical_local, "version": version, "rowCount": len(row_maps)}, "mock", warnings
+
+    return {"path": logical_local, "version": version, "rowCount": len(row_maps)}, "mock", warnings
 
 
 async def load_testcases_template_bytes(

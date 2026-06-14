@@ -545,6 +545,11 @@ export async function loadChangeLogForDraft(
   headers: HeadersInit,
   draftData?: DraftPayload | null,
 ): Promise<CumulativeChangeEntry[]> {
+  // get_draft 已带 cumulativeChangeLog，优先用内嵌数据，避免再卡 cumulative-change-log 接口
+  if (draftData?.cumulativeChangeLog && draftData.cumulativeChangeLog.length > 0) {
+    return draftData.cumulativeChangeLog;
+  }
+
   try {
     const fromApi = await fetchCumulativeChangeLog(projectId, headers);
     if (fromApi.length > 0) {
@@ -552,10 +557,6 @@ export async function loadChangeLogForDraft(
     }
   } catch {
     /* 旧后端无此路由 */
-  }
-
-  if (draftData?.cumulativeChangeLog && draftData.cumulativeChangeLog.length > 0) {
-    return draftData.cumulativeChangeLog;
   }
 
   try {

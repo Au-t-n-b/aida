@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useNavigation } from 'react-router-dom';
 import { usePathname, useNavPath } from '@/compat/navigation';
 import {
   getSeedForPath,
@@ -16,11 +17,18 @@ import { useSkillConversationStore, getSkillConversation, clearSkillConversation
 import { startRun } from '@/hooks/useSduiStream';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
-import { useAidaSession } from '@/lib/aida-session';
-import { useCurrentProject } from '@/lib/current-project';
 import { RAIL_SEND_EVENT } from '@/lib/claw-send';
 
 import { agentBaseSync } from '@/lib/agentBase';
+import {
+  clearClawChatSession,
+  genClawConvId,
+  loadClawChatSession,
+  saveClawChatSession,
+  type StoredClawMsg,
+} from '@/lib/claw-chat-store';
+import { useCurrentProject } from '@/lib/current-project';
+import { getUploadMeta, setUploadMetaDoc } from '@/lib/proposal-data-service';
 
 const AGENT_BASE = agentBaseSync();
 
@@ -168,123 +176,90 @@ function ActionIcon({ name }: { name: string }) {
 const PROPOSAL_DOCS = [
   { key: 'hld',     label: 'HLD 总体设计',  accept: '.docx,.pdf', required: true  },
   { key: 'cad',     label: 'CAD 机房底图',  accept: '.dwg,.dxf',  required: false },
-  { key: 'presale', label: '售前工勘 PPT',  accept: '.pptx,.pdf', required: true  },
-  { key: 'maint',   label: '维护建议书',    accept: '.docx,.pdf', required: false },
+  { key: 'presale', label: '售前工勘 PPT',  accept: '.pptx,.pdf', required: false },
+  { key: 'maint',   label: '维保建议书',    accept: '.docx,.pdf', required: true  },
   { key: 'train',   label: '培训建议书',    accept: '.docx,.pdf', required: false },
-  { key: 'service', label: '服务建议书',    accept: '.docx,.pdf', required: false },
-  { key: 'techProposal', label: '技术建议书', accept: '.docx,.pdf', required: false },
-  { key: 'scenarioTc', label: '场景测试用例', accept: '.docx,.pdf', required: false },
+  { key: 'service', label: '服务建议书',    accept: '.docx,.pdf', required: true  },
+  { key: 'techProposal', label: '技术建议书', accept: '.docx,.pdf', required: true  },
+  { key: 'scenarioTc', label: '场景测试用例', accept: '.docx,.pdf', required: true  },
   { key: 'rfp',     label: '提资文件',      accept: '.zip,.pdf',  required: false },
 ];
 
+const UPLOAD_CLASS_A = new Set(['hld', 'cad', 'presale']);
+const UPLOAD_CLASS_B = new Set(['maint', 'train', 'service', 'techProposal', 'scenarioTc']);
+
+function randMs(min: number, max: number): number {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
+
+function fireProposalProgress(body: string, chips: string[], delayMs: number): void {
+  if (typeof window === 'undefined') return;
+  setTimeout(() => {
+    window.dispatchEvent(new CustomEvent('aida:progress', {
+      detail: { role: 'ai', body, chips },
+    }));
+  }, delayMs);
+}
+
+/** A/B 类文件上传 Agent 交互模拟（0613）
+ * 正文【】内为真实文件名；蓝色 chip 为上传栏目名（条目 label） */
+function simulateProposalUpload(docKey: string, itemLabel: string, fileName: string): void {
+  const name = fileName.trim() || docKey;
+  const label = itemLabel.trim() || docKey;
+  fireProposalProgress(`正在上传【${name}】`, [label, '上传中'], 0);
+
+  if (UPLOAD_CLASS_A.has(docKey)) {
+    fireProposalProgress(`【${name}】已上传`, [label, '已上传'], randMs(3000, 5000));
+    return;
+  }
+
+  if (!UPLOAD_CLASS_B.has(docKey)) return;
+
+  const parseStartMs = randMs(3000, 5000);
+  const parseDoneMs = parseStartMs + randMs(5000, 10000);
+  fireProposalProgress(`【${name}】已上传，正在进行解析`, [label, '解析中'], parseStartMs);
+  fireProposalProgress(`【${name}】解析完毕`, [label, '解析完成'], parseDoneMs);
+
+  if (docKey === 'techProposal') {
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('aida:proposal-reveal-acceptance'));
+    }, parseDoneMs);
+  }
+
+  if (docKey === 'scenarioTc') {
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('aida:proposal-reveal-testcases'));
+    }, parseDoneMs);
+  }
+}
+
 function ProposalUploadPanel() {
   const { project } = useCurrentProject();
-  const { session } = useAidaSession();
-  const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>({
-    hld: '1.8 MB',
-    presale: '4.2 MB',
-    rfp: '已上传',
-  });
+  const projectName = project?.name ?? '';
+  const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!projectName) {
+      setUploadedDocs({});
+      return;
+    }
+    setUploadedDocs(getUploadMeta(projectName));
+  }, [projectName]);
 
   const requiredDocs  = PROPOSAL_DOCS.filter(d => d.required);
   const missingRequired = requiredDocs.filter(d => !uploadedDocs[d.key]);
   const uploadedCount = Object.keys(uploadedDocs).length;
 
-  const handleUpload = async (docKey: string, label: string, file: File) => {
+  const handleUpload = (docKey: string, label: string, file: File) => {
     const size = file.size > 1024 * 1024
       ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
       : `${Math.round(file.size / 1024)} KB`;
-    setUploadedDocs(prev => ({ ...prev, [docKey]: size }));
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('aida:progress', {
-        detail: {
-          role: 'ai',
-          body: `已收到「${label}」(${size})，正在后台解析，结果将自动填入对应章节。`,
-          chips: [label, '解析中'],
-        },
-      }));
-    }
-
-    if (docKey === 'techProposal' && file.name.toLowerCase().endsWith('.docx')) {
-      try {
-        const fd = new FormData();
-        fd.append('file', file);
-        const hdrs: HeadersInit = {};
-        if (session?.accessToken) hdrs.Authorization = `Bearer ${session.accessToken}`;
-        const res = await fetch('/api/v1/proposal/parse/tech-proposal', { method: 'POST', headers: hdrs, body: fd });
-        if (res.ok) {
-          const body = await res.json();
-          const rows = body?.data?.rows ?? [];
-          if (rows.length && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('aida:proposal-acceptance-parsed', { detail: { rows } }));
-            window.dispatchEvent(new CustomEvent('aida:progress', {
-              detail: {
-                role: 'ai',
-                body: `「${label}」解析完成 · 已更新第 11 章验收策略（${rows.length} 条）`,
-                chips: [label, '解析完成'],
-              },
-            }));
-          }
-        }
-      } catch {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aida:progress', {
-            detail: {
-              role: 'ai',
-              body: `「${label}」解析失败 · 请确认 Agent 服务已启动`,
-              chips: [label, '解析失败'],
-            },
-          }));
-        }
-      }
-    }
-
-    if (docKey === 'scenarioTc') {
-      const ext = file.name.toLowerCase();
-      if (!ext.endsWith('.docx') && !ext.endsWith('.pdf')) return;
-      if (!project?.id) {
-        window.dispatchEvent(new CustomEvent('aida:progress', {
-          detail: { role: 'ai', body: '请先选择项目后再上传测试用例', chips: ['场景测试用例', '缺少项目'] },
-        }));
-        return;
-      }
-      try {
-        const fd = new FormData();
-        fd.append('file', file);
-        fd.append('projectId', project.id);
-        fd.append('projectName', project.name ?? '');
-        if (project.code) fd.append('projectCode', project.code);
-        const hdrs: HeadersInit = {};
-        if (session?.accessToken) hdrs.Authorization = `Bearer ${session.accessToken}`;
-        const res = await fetch('/api/v1/proposal/parse/testcases', { method: 'POST', headers: hdrs, body: fd });
-        if (res.ok) {
-          const body = await res.json();
-          const rows = body?.data?.rows ?? [];
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('aida:proposal-testcases-parsed', { detail: { rows } }));
-            window.dispatchEvent(new CustomEvent('aida:progress', {
-              detail: {
-                role: 'ai',
-                body: rows.length
-                  ? `「${label}」解析完成 · 已更新第 12 章测试用例（${rows.length} 条，将按卡规模筛选）`
-                  : `「${label}」已处理 · 未解析到用例，第 12 章保持空状态`,
-                chips: [label, rows.length ? '解析完成' : '无数据'],
-              },
-            }));
-          }
-        }
-      } catch {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('aida:progress', {
-            detail: {
-              role: 'ai',
-              body: `「${label}」解析失败 · 请确认 Agent 服务已启动`,
-              chips: [label, '解析失败'],
-            },
-          }));
-        }
-      }
-    }
+    setUploadedDocs((prev) => {
+      const next = { ...prev, [docKey]: size };
+      if (projectName) setUploadMetaDoc(projectName, docKey, size);
+      return next;
+    });
+    simulateProposalUpload(docKey, label, file.name);
   };
 
 
@@ -535,12 +510,6 @@ function displayMsgTs(ts: string): string {
     return formatChatTs(d);
   }
   return ts;
-}
-
-function genConvId(): string {
-  return (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? `conv-${crypto.randomUUID()}`
-    : `conv-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 // ── Skill 运行进度卡（左侧会话 · 轻量版）────────────────────────────────────────
@@ -932,30 +901,90 @@ export default function ClawRail({
   const threadRef = useRef<HTMLDivElement>(null);
   const [maximized, setMaximized] = useState(false);
   const [savedWidth, setSavedWidth] = useState<number | null>(null);
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+  const chatMsgsRef = useRef<Msg[]>([]);
+  const convIdRef = useRef('');
+  const tokenBufRef = useRef('');
+  const tokenRafRef = useRef<number | null>(null);
 
   const pathname = usePathname() ?? '';
   const navPath = useNavPath();
+  const navigation = useNavigation();
+
+  const abortActiveStream = useCallback(() => {
+    streamAbortRef.current?.abort();
+    streamAbortRef.current = null;
+    if (tokenRafRef.current != null) {
+      cancelAnimationFrame(tokenRafRef.current);
+      tokenRafRef.current = null;
+    }
+    tokenBufRef.current = '';
+    if (mountedRef.current) setIsStreaming(false);
+  }, []);
 
   // 技能会话 / HITL / 进度：用作对话流自动滚到底的触发依赖
   const convInfoTop = useSkillConversationStore();
   const hitlInfoTop = useSkillHitlStore();
   const runInfoTop = useSkillRunStore();
 
-  // Real chat messages (user ↔ AI turns)
-  const [chatMsgs, setChatMsgs] = useState<Msg[]>([]);
+  // Real chat messages (user ↔ AI turns) · 按路由持久化（sessionStorage）
+  const initialSession = loadClawChatSession(pathname);
+  const [chatMsgs, setChatMsgs] = useState<Msg[]>(() => initialSession.msgs as Msg[]);
   const [isStreaming, setIsStreaming] = useState(false);
-  // 会话 id：多轮记忆的 key（§3.5）。每条路由 = 独立会话，记忆隔离。
-  const [convId, setConvId] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('aida-conv-id');
-      if (saved) return saved;
-    }
-    return genConvId();
-  });
+  const [convId, setConvId] = useState<string>(() => initialSession.convId || genClawConvId());
+
+  chatMsgsRef.current = chatMsgs;
+  convIdRef.current = convId;
+
+  const persistSession = useCallback((msgs: Msg[], cid: string) => {
+    saveClawChatSession(pathname, { msgs: msgs as StoredClawMsg[], convId: cid });
+  }, [pathname]);
+
+  // 路由切换：中止流式请求、恢复目标页历史会话
+  useEffect(() => {
+    mountedRef.current = true;
+    abortActiveStream();
+
+    const session = loadClawChatSession(pathname);
+    setChatMsgs(session.msgs as Msg[]);
+    setConvId(session.convId || genClawConvId());
+
+    return () => {
+      mountedRef.current = false;
+      abortActiveStream();
+      persistSession(chatMsgsRef.current, convIdRef.current);
+      if (typeof document !== 'undefined') {
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      }
+    };
+  }, [pathname, persistSession, abortActiveStream]);
+
+  // 导航进行中立即中止 SSE，避免阻塞 React Router 提交新页面
+  useEffect(() => {
+    if (navigation.state === 'loading') abortActiveStream();
+  }, [navigation.state, abortActiveStream]);
+
+  // 侧栏 / 页内链接点击时抢先中止流（capture 阶段，早于路由切换）
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onNavIntent = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      const href = anchor.getAttribute('href') ?? '';
+      if (!href.startsWith('/') || href.startsWith('//')) return;
+      if (href.split('?')[0] === pathname) return;
+      abortActiveStream();
+    };
+    window.addEventListener('click', onNavIntent, true);
+    return () => window.removeEventListener('click', onNavIntent, true);
+  }, [pathname, abortActiveStream]);
 
   useEffect(() => {
-    if (convId) localStorage.setItem('aida-conv-id', convId);
-  }, [convId]);
+    persistSession(chatMsgs, convId);
+  }, [chatMsgs, convId, persistSession]);
 
   const toggleMaximize = () => {
     if (typeof window === 'undefined') return;
@@ -974,23 +1003,22 @@ export default function ClawRail({
   const suggestsForPath = getSuggestsForPath(pathname) as string[];
   const navLabel = getNavLabel(navPath);
 
-  // External async events from other parts of the app (BOQ parse progress, etc.)
-  const [appendMsgs, setAppendMsgs] = useState<Msg[]>([]);
-
   const skillRun = useSkillRunStore();
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onProgress = (e: Event) => {
+      if (!mountedRef.current) return;
       const msg = (e as CustomEvent<Partial<Msg>>).detail;
       if (!msg?.body) return;
       const ts = msg.ts ?? nowTs();
-      setAppendMsgs(prev => [...prev, { role: msg.role ?? 'ai', body: msg.body!, ts, ...msg }]);
+      // 与真实对话共用 chatMsgs，保证新气泡始终接在上一条之后
+      setChatMsgs(prev => [...prev, { role: msg.role ?? 'ai', body: msg.body!, ts, ...msg }]);
     };
     const onClear = () => {
-      setAppendMsgs([]);
+      clearClawChatSession(pathname);
       setChatMsgs([]);
-      setConvId(genConvId());
+      setConvId(genClawConvId());
     };
     window.addEventListener('aida:progress', onProgress);
     window.addEventListener('aida:clear', onClear);
@@ -998,13 +1026,10 @@ export default function ClawRail({
       window.removeEventListener('aida:progress', onProgress);
       window.removeEventListener('aida:clear', onClear);
     };
-  }, []);
+  }, [pathname]);
 
-  // Clear per-route messages when navigating（新路由 = 新会话，记忆隔离）
+  // 模块 skill 会话隔离（切换 /module/* 路由时清理不匹配的 HITL / 会话）
   useEffect(() => {
-    setAppendMsgs([]);
-    setChatMsgs([]);
-    setConvId(genConvId());
     const expectedSkill = skillIdFromModulePath(pathname);
     if (expectedSkill) {
       const hitl = getSkillHitl();
@@ -1067,18 +1092,24 @@ export default function ClawRail({
       ? skillRun
       : null;
 
-  // Auto-scroll to bottom on new messages / HITL / 技能会话更新
+  const threadScrollKey = chatMsgs
+    .map(m => `${m.role}:${m.body.length}:${m.isStreaming ? 1 : 0}:${m.toolEvents?.length ?? 0}`)
+    .join('|');
+
+  // Auto-scroll to bottom on new messages / streaming tokens / HITL / 技能会话更新
   useEffect(() => {
-    if (threadRef.current) {
-      threadRef.current.scrollTop = threadRef.current.scrollHeight;
-    }
+    const el = threadRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = el.scrollHeight;
+    });
   }, [
-    appendMsgs.length, chatMsgs.length, pathname,
+    threadScrollKey, chatMsgs.length, pathname, isStreaming,
     convInfoTop?.node, hitlInfoTop?.node,
-    runInfoTop?.phase, runInfoTop?.progress,
+    runInfoTop?.phase, runInfoTop?.progress, uiSkillRun,
   ]);
 
-  const allMsgs: Msg[] = [...seedForPath, ...appendMsgs, ...chatMsgs];
+  const allMsgs: Msg[] = [...seedForPath, ...chatMsgs];
 
   // ── Send helpers ──────────────────────────────────────────────────────────
 
@@ -1102,12 +1133,14 @@ export default function ClawRail({
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
 
-    setChatMsgs(prev => [...prev, { role: 'user', body: trimmed, ts: nowTs() }]);
-    setIsStreaming(true);
-    setChatMsgs(prev => [...prev, { role: 'ai', body: '', ts: nowTs(), isStreaming: true, toolEvents: [] }]);
+    streamAbortRef.current?.abort();
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    const streamPath = pathname;
 
     // Patch the last streaming AI message
     const patch = (fn: (m: Msg) => Msg) => {
+      if (!mountedRef.current) return;
       setChatMsgs(prev => {
         const arr = [...prev];
         const last = arr[arr.length - 1];
@@ -1118,11 +1151,35 @@ export default function ClawRail({
       });
     };
 
+    const flushTokenBuf = () => {
+      if (!tokenBufRef.current || !mountedRef.current) {
+        tokenBufRef.current = '';
+        return;
+      }
+      const chunk = tokenBufRef.current;
+      tokenBufRef.current = '';
+      patch(m => ({ ...m, body: m.body + chunk }));
+    };
+
+    const enqueueToken = (text: string) => {
+      tokenBufRef.current += text;
+      if (tokenRafRef.current != null) return;
+      tokenRafRef.current = requestAnimationFrame(() => {
+        tokenRafRef.current = null;
+        flushTokenBuf();
+      });
+    };
+
+    setChatMsgs(prev => [...prev, { role: 'user', body: trimmed, ts: nowTs() }]);
+    setIsStreaming(true);
+    setChatMsgs(prev => [...prev, { role: 'ai', body: '', ts: nowTs(), isStreaming: true, toolEvents: [] }]);
+
     try {
       const res = await fetch(`${AGENT_BASE}/agent/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, conv_id: convId, context: { page: pathname } }),
+        body: JSON.stringify({ message: trimmed, conv_id: convId, context: { page: streamPath } }),
+        signal: controller.signal,
       });
 
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
@@ -1151,7 +1208,7 @@ export default function ClawRail({
 
           const type = curEvent || (ev.type as string);
           if (type === 'token') {
-            patch(m => ({ ...m, body: m.body + ((ev.text as string | undefined) ?? '') }));
+            enqueueToken((ev.text as string | undefined) ?? '');
           } else if (type === 'tool_call') {
             hadToolCalls = true;
             patch(m => ({
@@ -1207,6 +1264,7 @@ export default function ClawRail({
           }
         }
       }
+      flushTokenBuf();
       if (hadToolCalls && convId) {
         void refreshEvals({ conv_id: convId, force: true }).then(ok => {
           if (ok && typeof window !== 'undefined') {
@@ -1219,6 +1277,11 @@ export default function ClawRail({
         });
       }
     } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        patch(m => (m.isStreaming ? { ...m, isStreaming: false } : m));
+        return;
+      }
+      if (!mountedRef.current) return;
       setChatMsgs(prev => {
         const arr = [...prev];
         const last = arr[arr.length - 1];
@@ -1232,7 +1295,12 @@ export default function ClawRail({
         return arr;
       });
     } finally {
-      setIsStreaming(false);
+      if (streamAbortRef.current === controller) {
+        streamAbortRef.current = null;
+      }
+      if (mountedRef.current) {
+        setIsStreaming(false);
+      }
     }
   }, [isStreaming, pathname, convId]);
 

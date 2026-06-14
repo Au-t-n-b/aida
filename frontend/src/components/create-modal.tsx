@@ -3,15 +3,15 @@
 /* CreateProjectModal · 创建 / 编辑项目模态弹窗 (G-10 + G-11)
  *
  * 创建：校验通过后调用数据中心 POST /api/v1/projects，成功后刷新落地页列表（待审批）。
- * 编辑：暂保留本地预填（后续对接 PUT /projects/{projectId}）。
+ * 编辑：打开时 GET /api/v1/projects/{uuid} 拉详情预填表单（PUT 保存待接）。
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { deriveProjectId, useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
-import { createProject } from '@/lib/claw-manager-client';
-import { formToCreateProjectBody } from '@/lib/landing-projects';
+import { createProject, fetchProjectDetail } from '@/lib/claw-manager-client';
+import { dcProjectDetailToFormPreset, formToCreateProjectBody } from '@/lib/landing-projects';
 import { CONTRACT_PRESALE, INITIAL_FIELDS, FieldsStep } from './screens/create';
 
 interface CreateFieldDef {
@@ -66,13 +66,44 @@ export default function CreateProjectModal({
   const [fields, setFields] = useState<CreateFieldDef[]>(INITIAL_FIELDS as CreateFieldDef[]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const detailReqRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
-    setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], preset));
     setSubmitError(null);
     setSubmitting(false);
-  }, [open, preset]);
+
+    if (mode !== 'edit' || !projectId) {
+      setDetailLoading(false);
+      setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], preset));
+      return;
+    }
+
+    // 编辑：先用列表占位，再拉详情覆盖
+    setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], preset));
+    if (!session?.accessToken) {
+      setSubmitError('登录已失效，请重新登录');
+      return;
+    }
+
+    const reqId = ++detailReqRef.current;
+    setDetailLoading(true);
+    void (async () => {
+      try {
+        const resp = await fetchProjectDetail(session.accessToken, projectId);
+        if (detailReqRef.current !== reqId) return;
+        const presetFromApi = dcProjectDetailToFormPreset(resp.data);
+        setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], presetFromApi));
+        setSubmitError(null);
+      } catch (e) {
+        if (detailReqRef.current !== reqId) return;
+        setSubmitError(e instanceof Error ? e.message : '加载项目详情失败');
+      } finally {
+        if (detailReqRef.current === reqId) setDetailLoading(false);
+      }
+    })();
+  }, [open, preset, mode, projectId, session?.accessToken]);
 
   if (!open) return null;
 
@@ -82,7 +113,7 @@ export default function CreateProjectModal({
     setFields((s) => s.map((f) => ({ ...f, value: SAMPLE[f.key] ?? f.value })));
 
   const handleSubmit = async () => {
-    if (typeof window === 'undefined' || submitting) return;
+    if (typeof window === 'undefined' || submitting || detailLoading) return;
     const obj = fieldsToObj(fields);
 
     if (mode === 'create') {
@@ -119,7 +150,9 @@ export default function CreateProjectModal({
   };
 
   const title = mode === 'edit' ? '编辑项目空间' : '新建项目空间';
-  const ctaLabel = mode === 'edit' ? '保存' : (submitting ? '提交中…' : '提交创建');
+  const ctaLabel = mode === 'edit'
+    ? (detailLoading ? '加载中…' : '保存')
+    : (submitting ? '提交中…' : '提交创建');
 
   return (
     <div className="cm-mask" onClick={onClose} role="dialog" aria-modal="true">
@@ -130,6 +163,11 @@ export default function CreateProjectModal({
         </div>
 
         <div className="cm-body">
+          {detailLoading && mode === 'edit' && (
+            <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+              正在加载项目详情…
+            </div>
+          )}
           {submitError && (
             <div
               className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
