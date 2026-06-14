@@ -43,7 +43,7 @@ body{font-family:var(--font-sans);color:var(--c-text);background:#474f5a}
 #cross::before{left:6px;top:0;width:2px;height:14px}
 #cross::after{left:0;top:6px;width:14px;height:2px}
 /* ── 工勘问题标记（沙盘浮标）── */
-.mk{position:absolute;z-index:6;transform:translate(-50%,-100%);display:flex;align-items:center;gap:6px;
+.mk{position:absolute;left:0;top:0;z-index:6;will-change:transform;display:flex;align-items:center;gap:6px;
   padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.9);border:1px solid rgba(255,255,255,0.95);
   box-shadow:0 6px 16px rgba(60,80,110,.22);font-size:11px;font-weight:600;color:#3a4654;cursor:pointer;
   backdrop-filter:blur(8px);white-space:nowrap;transition:box-shadow .15s,border-color .15s;user-select:none}
@@ -745,6 +745,7 @@ function updateMarkers(t){
   }
   if(!uiReady){for(const o of issObjs)o.el.style.display='none';return;}
   const pulse=1+0.18*Math.sin(t*2.6);
+  camera.updateMatrixWorld();   // 投影前同步相机世界矩阵(含 matrixWorldInverse)，消除旋转/拖拽时标签慢一帧的抖动
   for(const o of issObjs){
     o.ring.scale.set(pulse,pulse,1);
     if(curIssue>=0&&issObjs[curIssue]===o)o.ring.material.opacity=0.95;
@@ -752,8 +753,7 @@ function updateMarkers(t){
     const behind=_v.z>1||_v.z<-1;
     if(behind||_v.x<-1.05||_v.x>1.05||_v.y<-1.05||_v.y>1.05){o.el.style.display='none';continue;}
     o.el.style.display='flex';
-    o.el.style.left=((_v.x+1)/2*W)+'px';
-    o.el.style.top=((1-_v.y)/2*H)+'px';
+    o.el.style.transform='translate3d('+((_v.x+1)/2*W).toFixed(2)+'px,'+((1-_v.y)/2*H).toFixed(2)+'px,0) translate(-50%,-100%)';
   }
 }
 

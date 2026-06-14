@@ -379,7 +379,6 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const navTwin: FdySubItem[] = [
     { name: '算力底座孪生', href: '/twin', status: 'live', statusLabel: '物理 ⇄ 数字' },
     { name: '项目孪生', href: '/cockpit', status: MODULE_STATUS.cockpit?.state, statusLabel: '看板' },
-    { name: '工勘孪生', href: '/twin/survey', status: 'live', statusLabel: 'SOG 通道' },
   ];
   const navEarly: FdySubItem[] = [
     { name: '合同', href: '/preview', status: 'ok', statusLabel: '在线' },
