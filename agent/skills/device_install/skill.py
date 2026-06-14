@@ -2,7 +2,8 @@
 DeviceInstallSkill · 设备安装（新范式 · 单流水线 + 命令路由）
 
 主建设流水线（command=build，线性）：
-  preflight → plan_receive → task_dispatch → sn_generate → esn_fill
+  preflight → principal_fill（生成责任人信息表）→ tasks_generate（生成设备安装实施计划）
+  → task_dispatch → sn_generate → esn_fill
 辅助流（独立 command，经命令守卫跳过其余步骤）：
   progress_report（progress_select + progress_apply）/ progress_query
   / plan_query / plan_adjust / device_overview
@@ -19,7 +20,8 @@ from . import files as _di_files
 from .sdui import project as _sdui_project
 from .steps import (
     PreflightStep,
-    PlanReceiveStep,
+    PrincipalFillStep,
+    TasksGenerateStep,
     TaskDispatchStep,
     SnGenerateStep,
     EsnFillStep,
@@ -42,7 +44,8 @@ class DeviceInstallSkill(BaseSkill):
     )
     steps = [
         PreflightStep(),
-        PlanReceiveStep(),
+        PrincipalFillStep(),
+        TasksGenerateStep(),
         TaskDispatchStep(),
         SnGenerateStep(),
         EsnFillStep(),
@@ -82,7 +85,14 @@ class DeviceInstallSkill(BaseSkill):
         choice = payload.get("choice", "")
         rows = payload.get("rows")
 
-        if hitl_step == "esn_fill":
+        if hitl_step == "principal_fill":
+            project["principal_rows"] = rows or []
+
+        elif hitl_step == "tasks_generate":
+            project["tasks_rows"] = rows or []
+            project["tasks_confirmed"] = True
+
+        elif hitl_step == "esn_fill":
             project["esn_rows"] = rows or []
 
         elif hitl_step == "task_dispatch":

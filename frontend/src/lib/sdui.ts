@@ -21,8 +21,10 @@ export type SduiAction =
 export interface SduiDataTableColumn {
   key: string;
   label: string;
-  type?: 'text' | 'status' | 'progress';
+  type?: 'text' | 'status' | 'progress' | 'date';
   width?: number;
+  paddingLeft?: number;
+  nowrap?: boolean;
   editable?: boolean;
   placeholder?: string;
 }
@@ -239,6 +241,7 @@ export type SduiDataTableNode = OptId & {
   backStepId?: string;
   groupKey?: string;
   groupAsTabs?: boolean;
+  filterKeys?: string[];
   pageSize?: number;
   requiredKeys?: string[];
   /** Tier B 展示/编辑双模式（组件库 DataTable · 编辑/保存/取消） */
@@ -361,6 +364,11 @@ export type SduiInputSlotListNode = OptId & { type: 'InputSlotList'; slots: Sdui
 
 /** TaskTimelineStrip — 任务时间规划条/迷你甘特：计划 vs 实际双轨 + 剩余天数 + 进度填充（remainingDays 逾期为负，progressPct 0–100）。*/
 export type SduiTaskTimelineStripNode = OptId & { type: 'TaskTimelineStrip'; plannedStart: string; plannedEnd: string; actualStart?: string; actualEnd?: string; remainingDays?: number; progressPct?: number };
+
+/** GanttChart 的一行任务条。*/
+export type SduiGanttRow = { id: string; label: string; group?: string; start: string; end: string; status?: string };
+/** GanttChart — 多行甘特图（只读）；rows 按 group 分组展示计划条，status 可选着色。*/
+export type SduiGanttChartNode = OptId & { type: 'GanttChart'; rows: SduiGanttRow[]; title?: string };
 
 /** MacroStepRail 的一个宏观阶段：id + 标题 + 可选 hint + optional 标记 + 状态。*/
 export type SduiMacroStep = { id: string; title: string; hint?: string; optional?: boolean; status?: 'done' | 'running' | 'pending' };
@@ -493,7 +501,7 @@ export type SduiNode =
   | SduiRecipientListNode | SduiDiffViewNode | SduiInlinePreviewNode | SduiImageGridNode | SduiToastNode | SduiSparklineNode
   | SduiDashboardLayoutNode | SduiDrawerNode
   // tier D (v5 业务扩展)
-  | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
+  | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiGanttChartNode | SduiMacroStepRailNode
   | SduiContextBarNode | SduiFlowStepsNode | SduiEmbeddedWebNode | SduiOutputDocsGridNode
   | SduiFilePickerNode | SduiChoiceCardNode | SduiIoConfirmPanelNode | SduiHitlTextInputNode | SduiHitlFormNode;
 
