@@ -4,9 +4,12 @@ description: 设备安装（Skill-First · 新范式单流水线）—— 数据
 idle_screen:
   icon_key: device_install
   title: 设备安装
-  subtitle: 责任人表 · 实施计划 · 计划下发 · SN扫码 · ESN
-  files_hint: 启动前确认文件 · ProjectData\Input
+  subtitle: 计划下发 · SN扫码 · ESN填写
+  files_hint: 启动前确认文件 · ProjectData/Input/
   steps:
+    - key: preflight
+      name: 环境预检
+      sub: 校验输入文件
     - key: principal_fill
       name: 生成责任矩阵
       sub: 在线编辑信息

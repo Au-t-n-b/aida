@@ -11,7 +11,6 @@ import LandingPage from '@/routes/landing';
 import CockpitPage from '@/routes/cockpit';
 import DesignPage from '@/routes/design';
 import TwinPage from '@/routes/twin';
-import TwinSurveyPage from '@/routes/twin-survey';
 import TwinDigitalDemoPage from '@/routes/twin-digital-demo';
 import MilestonesPage from '@/routes/milestones';
 import CommissioningPage from '@/routes/commissioning';
@@ -78,13 +77,26 @@ export const router = createBrowserRouter([
       },
       { path: '/design', element: <DesignPage /> },
       { path: '/twin', element: <TwinPage /> },
-      { path: '/twin/survey', element: <TwinSurveyPage /> },
       { path: '/twin/digital-demo', element: <TwinDigitalDemoPage /> },
       { path: '/milestones', element: <MilestonesPage /> },
       { path: '/commissioning', element: <CommissioningPage /> },
       { path: '/sandbox', element: <SandboxPage /> },
-      { path: '/proposal', element: <ProposalPage /> },
-      { path: '/preview', element: <PreviewPage /> },
+      {
+        path: '/proposal',
+        element: (
+          <RequireProject>
+            <ProposalPage />
+          </RequireProject>
+        ),
+      },
+      {
+        path: '/preview',
+        element: (
+          <RequireProject>
+            <PreviewPage />
+          </RequireProject>
+        ),
+      },
       { path: '/journey', element: <JourneyPage /> },
       { path: '/create', element: <CreatePage /> },
       { path: '/module/:key', element: <ModuleRoutePage /> },

@@ -6,9 +6,13 @@ import { useMemo } from 'react';
 import { useAidaSession } from '@/lib/aida-session';
 
 const DEFAULT_PROJECT_ID = '56A0TXN';
+const CURRENT_PROJECT_STORAGE_KEY = 'aida:current-project';
 
 const PROPOSAL_API_BASE =
-  (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)?.replace(/\/$/, '') ?? '';
+  (
+    (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)
+    || (import.meta.env.VITE_AGENT_BASE as string | undefined)
+  )?.replace(/\/$/, '') ?? '';
 
 export type DeliveryChannel = '华为' | '客户';
 export type DataSource = '自动解析' | '人工录入';
@@ -240,8 +244,21 @@ export function mapProposalRole(role: string | undefined): string {
   return 'td';
 }
 
+function readStoredProjectId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CURRENT_PROJECT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id?: unknown };
+    const id = typeof parsed?.id === 'string' ? parsed.id.trim() : '';
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
 export function getDefaultProjectId(): string {
-  return DEFAULT_PROJECT_ID;
+  return readStoredProjectId() ?? DEFAULT_PROJECT_ID;
 }
 
 function normalizeLegacyPublishedUpdatedAt(meta: VersionInfoMetadata): VersionInfoMetadata {
@@ -1402,6 +1419,9 @@ function chapterRequestContext(
     }
   } catch {
     // Session context is optional; explicit projectId and caller headers remain authoritative.
+  }
+  if (PROPOSAL_API_BASE && resolvedUrl.startsWith('/')) {
+    resolvedUrl = `${PROPOSAL_API_BASE}${resolvedUrl}`;
   }
   return {
     url: resolvedUrl,

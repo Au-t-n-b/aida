@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSessionUser } from '@/hooks/useSessionUser';
+import { substituteMockUserName } from '@/lib/session-user';
 import {
   PLAN_GANTT,
   PLAN_PEOPLE,
@@ -49,6 +51,7 @@ const FOCUS = {
  *   - 责任人字段拆到「项目元数据」侧边栏，不挤占 5 项主字段
  */
 function InfoView() {
+  const sessionUser = useSessionUser();
   const fields = [
     { k: 'Proposal ID',     v: 'PROP-2026-K1903',          state: 'ok' },
     { k: '项目编码',         v: 'PROP-2026-K1903',          state: 'ok' },
@@ -58,7 +61,7 @@ function InfoView() {
   ];
   const meta = [
     { k: 'PD',          v: '李伟' },
-    { k: 'TD',          v: '何博' },
+    { k: 'TD',          v: substituteMockUserName('何博', sessionUser.displayName) },
     { k: 'PCM',         v: '王婷' },
     { k: '合同 ID',      v: 'CON-2026-K1903-001' },
     { k: '合同金额',     v: '¥ 1.84 亿' },

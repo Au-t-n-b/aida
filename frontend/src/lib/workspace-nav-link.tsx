@@ -1,8 +1,14 @@
 'use client';
 
 import { useCallback, type MouseEvent, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { navDebug } from '@/lib/nav-debug';
+
+/** 工作台内路由跳转（与侧栏一致，强制 flushSync 避免重页切换卡住）。 */
+export function workspaceNavigate(navigate: NavigateFunction, href: string, from?: string) {
+  navDebug('workspace navigate', { from: from ?? '(button)', to: href });
+  navigate(href, { flushSync: true });
+}
 
 type WorkspaceNavLinkProps = {
   href: string;
@@ -33,7 +39,7 @@ export function WorkspaceNavLink({ href, children, className, style, onClick }: 
       e.preventDefault();
       e.stopPropagation();
       navDebug('left-nav navigate', { from: location.pathname, to: href });
-      navigate(href, { flushSync: true });
+      workspaceNavigate(navigate, href, location.pathname);
     },
     [href, location.pathname, location.search, navigate, onClick],
   );

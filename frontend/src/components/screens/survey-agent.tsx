@@ -184,13 +184,28 @@ export interface SkillAgentScreenProps {
       font-size:12.5px; color:#64748b; text-align:center;
       line-height:1.6; max-width:300px; margin-bottom:28px;
     }
-    /* ── 横向步骤条 ── */
+    /* ── 横向步骤条（网格：圆点与标题同列居中） ── */
     .skill-idle-steps {
-      display:flex; align-items:flex-start; width:100%; max-width:420px;
+      display:grid;
+      width:100%; max-width:420px;
       margin-bottom:22px;
+      position:relative;
+      gap:0;
     }
-    .skill-idle-step { display:flex; flex-direction:column; align-items:center; flex:1; min-width:0; }
-    .skill-idle-step-row { display:flex; align-items:center; width:100%; }
+    .skill-idle-track {
+      position:absolute;
+      top:14px;
+      left:calc(50% / var(--step-count, 5));
+      right:calc(50% / var(--step-count, 5));
+      height:1.5px;
+      background:#dde3ef;
+      z-index:0;
+      pointer-events:none;
+    }
+    .skill-idle-step {
+      display:flex; flex-direction:column; align-items:center;
+      position:relative; z-index:1; min-width:0;
+    }
     .skill-idle-dot {
       width:28px; height:28px; border-radius:50%; flex-shrink:0;
       background:#fff; border:1.5px solid #c8d1e6;
@@ -199,16 +214,29 @@ export interface SkillAgentScreenProps {
       transition:border-color .2s;
       box-shadow:0 1px 3px rgba(15,23,42,.06);
     }
-    .skill-idle-conn { flex:1; height:1.5px; background:#dde3ef; }
     .skill-idle-step-label {
+      width:100%;
       font-size:10px; color:#64748b; font-weight:500;
-      margin-top:7px; text-align:center; white-space:nowrap;
-      max-width:56px; overflow:hidden; text-overflow:ellipsis;
+      margin-top:7px; text-align:center;
+      line-height:1.35;
+      padding:0 2px;
     }
     .skill-idle-step-sub {
+      width:100%;
       font-size:9.5px; color:#94a3b8; margin-top:2px;
-      text-align:center; max-width:60px; line-height:1.35;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+      text-align:center; line-height:1.35;
+      padding:0 2px;
+    }
+    .skill-idle-root[data-wide] .skill-idle-steps,
+    .skill-idle-root[data-wide] .skill-idle-files,
+    .skill-idle-root[data-wide] .skill-idle-btn {
+      max-width:640px;
+    }
+    .skill-idle-root[data-wide] .skill-idle-step-label {
+      font-size:10px;
+    }
+    .skill-idle-root[data-wide] .skill-idle-step-sub {
+      font-size:9.5px;
     }
     /* ── 文件提示 ── */
     .skill-idle-files {
@@ -272,6 +300,7 @@ export interface SkillAgentScreenProps {
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
   files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
+  filesHint?: string;
   icon: React.ReactNode;
 }> = {
   zhgk: {
@@ -315,6 +344,30 @@ const SKILL_META: Record<string, {
       { name: '建模仿真设备信息表.md', ext: 'md' },
     ],
   },
+  device_install: {
+    icon: (
+      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
+        <rect x="7" y="5" width="18" height="22" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M12 11h10M12 15h10M12 19h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="23" cy="11" r="5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M23 9v4M21 11h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    ),
+    steps: [
+      { key: 'preflight',      name: '环境预检',     sub: '校验输入文件' },
+      { key: 'principal_fill', name: '生成责任矩阵', sub: '在线编辑信息' },
+      { key: 'tasks_generate', name: '生成实施计划', sub: '在线编辑计划' },
+      { key: 'task_dispatch',  name: '计划下发',     sub: '勾选计划下发' },
+      { key: 'sn_generate',    name: 'SN扫码表',     sub: '按单元生成' },
+      { key: 'esn_fill',       name: 'ESN填写',      sub: '完工清单' },
+    ],
+    files: [
+      { name: '交付计划表.xlsx', ext: 'xlsx' },
+      { name: '{批次}_{机房}_{设备型号}到货表_{日期}.xlsx', ext: 'xlsx' },
+      { name: '建模仿真输出文档004-设备位置表.xlsx', ext: 'xlsx' },
+    ],
+    filesHint: '启动前确认文件 · ProjectData/Input/',
+  },
 };
 
 function IdleScreen({ skillId, title, description, onStart, onCommissionStart, loading }: {
@@ -326,9 +379,11 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
   const meta = SKILL_META[skillId];
   const steps = meta?.steps ?? [];
   const files = meta?.files ?? [];
+  const filesHint = meta?.filesHint ?? '启动前确认文件 · ProjectData/Template/ · Input/';
+  const isWide = steps.length >= 6;
 
   return (
-    <div className="skill-idle-root">
+    <div className="skill-idle-root" {...(isWide ? { 'data-wide': '' } : {})}>
 
       {/* ── 动画徽章 ── */}
       <div className="skill-idle-emblem">
@@ -341,19 +396,20 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
 
       {/* ── 横向步骤条 ── */}
       {steps.length > 0 && (
-        <div className="skill-idle-steps">
+        <div
+          className="skill-idle-steps"
+          style={{
+            gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
+            ['--step-count' as string]: String(steps.length),
+          }}
+        >
+          <div className="skill-idle-track" aria-hidden="true" />
           {steps.map((s, i) => (
-            <React.Fragment key={s.key}>
-              <div className="skill-idle-step">
-                <div className="skill-idle-step-row">
-                  {i > 0 && <div className="skill-idle-conn" />}
-                  <div className="skill-idle-dot">{i + 1}</div>
-                  {i < steps.length - 1 && <div className="skill-idle-conn" />}
-                </div>
-                <div className="skill-idle-step-label">{s.name}</div>
-                <div className="skill-idle-step-sub">{s.sub}</div>
-              </div>
-            </React.Fragment>
+            <div key={s.key} className="skill-idle-step">
+              <div className="skill-idle-dot">{i + 1}</div>
+              <div className="skill-idle-step-label">{s.name}</div>
+              <div className="skill-idle-step-sub">{s.sub}</div>
+            </div>
           ))}
         </div>
       )}
@@ -363,7 +419,7 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
         <div className="skill-idle-files">
           <div className="skill-idle-files-ic">📂</div>
           <div className="skill-idle-files-body">
-            <div className="skill-idle-files-title">启动前确认文件 · ProjectData/Template/ · Input/</div>
+            <div className="skill-idle-files-title">{filesHint}</div>
             {files.map(f => (
               <div key={f.name} className="skill-idle-file-row">
                 <span className={`skill-idle-file-ext ${f.ext}`}>{f.ext.toUpperCase()}</span>
@@ -951,12 +1007,17 @@ export default function SkillAgentScreen({
     const hadHitl = frozenDocSnap ? !!findNodeById(frozenDocSnap.root, 'hitl-card') : false;
     const hitlResolved = hadHitl && !hasHitl;
     const publishDone = usesDeliveryWorkbench && isMacroPublishDone(sduiDoc);
+    // HITL 出现/消解即解冻：仅对有进度指标（zhgk / system_design）或交付台 skill 生效。
+    // 不加 idle 守卫 —— system_design 的对话框流程依赖该即时解冻语义；
+    // guihua（frozenTarget===0 且非交付台）不在此列，仍走下方「只前向推进才解冻」护栏。
+    const hitlUnfreeze =
+      (frozenTarget > 0 || usesDeliveryWorkbench)
+      && (hasHitl || hitlResolved);
     // 有进度指标的 skill（zhgk / system_design）：进度追上冻结水位且已脱离 idle；
     // HITL 消解 / 失败 / 完成 / 发布蓝图步 done → 解冻（error 态 progress 常为 0）。
     if (
       (frozenTarget > 0 && progress >= frozenTarget && !isIdleLikeSduiDoc(sduiDoc))
-      || hasHitl
-      || hitlResolved
+      || hitlUnfreeze
       || patch.phase === 'error'
       || patch.phase === 'done'
       || publishDone
@@ -1611,6 +1672,10 @@ export default function SkillAgentScreen({
           postUploadEpochRef.current = Date.now();
           setPostUploadDoc(snap);
         }
+        // 强制重订阅 SSE：sync_inputs 只改磁盘/状态、不推 SSE，而 system_design 左栏弹框/HITL
+        // 读实时 sduiDoc、右栏读 displayDoc→liveSduiDoc（均不含 postUploadDoc 兜底）；
+        // 不重订阅则上传后界面停在旧态（无后续弹框 / 状态不更新）。
+        setStreamEpoch(e => e + 1);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '上传失败，请检查文件格式或网络连接';

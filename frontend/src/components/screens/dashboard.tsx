@@ -6,7 +6,11 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import Link from '@/compat/link';
 import { RISKS, MILESTONES, RISK_SOURCES } from '../../data/app-data';
 import { DispatchTracker } from '../dispatch-tracker';
+import { useSessionUser } from '@/hooks/useSessionUser';
+import { substituteMockUserInText } from '@/lib/session-user';
 import Drawer from '../drawer';
+import MilestoneBoard from './milestone-board/milestone-board';
+import { podMilestonesFromSnapshot } from './milestone-board/data';
 
 const commonRoomReady = {
   expectedEnd: '2025-12-01', actualEnd: '2026-03-10', progress: 100, common: true, owner: '严浩丁 00635652',
@@ -35,19 +39,6 @@ const formatLocalDate = (value) => {
   }
   const match = String(value).match(/\d{4}-\d{2}-\d{2}/);
   return match?.[0] || '';
-};
-
-const addDeliveryDays = (date, days) => {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-};
-
-const currentWeekMonday = () => {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const day = today.getDay() || 7;
-  return addDeliveryDays(today, 1 - day);
 };
 
 const parseProgress = (value, completed) => {
@@ -148,10 +139,6 @@ async function fetchDeliveryPlan(projectId = 'K1903') {
   }
 }
 
-const DELIVERY_GANTT_STYLES = `
-.delivery-gantt{border:1px solid rgba(226,232,240,.8)}.delivery-gantt-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px 12px;border-bottom:1px solid #eef2f7}.delivery-gantt-title{font-size:15px;line-height:22px;font-weight:700;color:#18181b}.delivery-gantt-head-right{display:flex;align-items:center;gap:14px}.delivery-gantt-legend{display:flex;align-items:center;gap:10px;color:#64748b;font-size:9px;font-weight:600}.delivery-gantt-legend span{display:flex;align-items:center;gap:4px;white-space:nowrap}.delivery-gantt-legend i{width:7px;height:7px;border-radius:50%}.delivery-gantt-legend .done{background:#10b981}.delivery-gantt-legend .delayed{background:#f59e0b}.delivery-gantt-legend .not-started{background:#94a3b8}.delivery-gantt-switch{display:inline-flex;padding:3px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}.delivery-gantt-switch button{border:0;border-radius:6px;padding:5px 12px;background:transparent;color:#64748b;font-size:10px;font-weight:600;cursor:pointer}.delivery-gantt-switch button.on{background:#fff;color:#2563eb;box-shadow:0 1px 3px rgba(15,23,42,.12)}.delivery-gantt-scroll{overflow:auto;max-height:430px}.delivery-gantt-canvas{min-width:1280px}.delivery-gantt-axis,.delivery-gantt-row{display:grid;grid-template-columns:150px 1fr}.delivery-gantt-axis{position:sticky;top:0;z-index:20;height:44px;border-bottom:1px solid #e2e8f0;background:rgba(248,250,252,.96)}.delivery-gantt-axis-label{position:sticky;left:0;z-index:24;display:flex;align-items:center;padding:0 16px;border-right:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:10px;font-weight:700}.delivery-gantt-axis-track,.delivery-gantt-row-track{position:relative}.delivery-gantt-tick{position:absolute;top:0;bottom:0;border-left:1px solid #cbd5e1}.delivery-gantt-tick span{position:absolute;top:13px;left:8px;white-space:nowrap;color:#64748b;font-size:10px;font-weight:600}.delivery-gantt-row{min-height:142px;border-bottom:1px solid #eef2f7;background:#fff;transition:background .15s}.delivery-gantt-row:hover{background:#f8fbff}.delivery-gantt-row-label{position:sticky;left:0;z-index:12;padding:16px;border-right:1px solid #e2e8f0;background:inherit}.delivery-gantt-row-title{display:flex;align-items:center;gap:7px;color:#334155;font-size:11px;font-weight:700}.delivery-gantt-row-title i{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 3px #d1fae5}.delivery-gantt-row-sub{margin-top:6px;color:#94a3b8;font-size:9px}.delivery-gantt-row-progress{height:4px;margin-top:10px;overflow:hidden;border-radius:999px;background:#e2e8f0}.delivery-gantt-row-progress span{display:block;height:100%;border-radius:inherit;background:#10b981}.delivery-gantt-grid{position:absolute;inset:0;pointer-events:none}.delivery-gantt-grid i{position:absolute;top:0;bottom:0;border-left:1px dashed #e2e8f0}.delivery-gantt-milestone{position:absolute;width:132px;min-height:35px;transform:translateX(-50%);border:1px solid #a7f3d0;border-radius:7px;padding:5px 7px 4px;background:linear-gradient(180deg,#ecfdf5 0%,#d1fae5 100%);color:#065f46;box-shadow:0 1px 3px rgba(15,23,42,.08);z-index:4}.delivery-gantt-milestone:after{content:"";position:absolute;left:50%;bottom:-6px;width:7px;height:7px;transform:translateX(-50%) rotate(45deg);border-right:1px solid #10b981;border-bottom:1px solid #10b981;background:#d1fae5}.delivery-gantt-milestone.is-delayed{border-color:#fbbf24;background:linear-gradient(180deg,#fffbeb 0%,#fef3c7 100%);color:#92400e}.delivery-gantt-milestone.is-delayed:after{border-color:#f59e0b;background:#fef3c7}.delivery-gantt-milestone.is-not-started{border-color:#cbd5e1;background:linear-gradient(180deg,#f8fafc 0%,#e2e8f0 100%);color:#475569}.delivery-gantt-milestone.is-not-started:after{border-color:#94a3b8;background:#e2e8f0}.delivery-gantt-milestone-head,.delivery-gantt-milestone-dates{display:flex;align-items:center;justify-content:space-between;gap:5px}.delivery-gantt-milestone-head span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;font-weight:700}.delivery-gantt-milestone-head b{font-size:9px;font-weight:800}.delivery-gantt-milestone-dates{margin-top:2px;color:currentColor;opacity:.76;font-size:8px}.delivery-gantt-milestone-progress{height:2px;margin-top:4px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.75)}.delivery-gantt-milestone-progress span{display:block;height:100%;border-radius:inherit;background:currentColor}
-`;
-
 /* ── tiny icons ── */
 const IcSparkle = () => (
   <svg width={9} height={9} viewBox="0 0 11 11" fill="none">
@@ -204,6 +191,7 @@ const IcSandbox = () => (
 
 /* ── Risk Alerts ── */
 function RiskAlerts({ onDrill }) {
+  const sessionUser = useSessionUser();
   const [tab, setTab] = useState('unmeet');
   /* 5.27 M-111 · 风险来源筛选；null = 全部 */
   const [sourceFilter, setSourceFilter] = useState(null);
@@ -275,7 +263,7 @@ function RiskAlerts({ onDrill }) {
               <div className="rr-meta">
                 <span><span className="k">项目</span><span className="v">{r.project}</span></span>
                 <span><span className="k">范围</span><span className="v">{r.pod}</span></span>
-                <span><span className="k">归属</span><span className="v">{r.owner}</span></span>
+                <span><span className="k">归属</span><span className="v">{substituteMockUserInText(r.owner, sessionUser)}</span></span>
               </div>
               <div className="rr-impact">
                 影响 <span className="delay">{r.delay}</span> · SLA <span style={{ color: 'var(--c-text-2)', fontVariantNumeric: 'tabular-nums' }}>{r.sla}</span>
@@ -836,6 +824,7 @@ const RISK_DETAIL_ROWS = [
 ];
 
 function RiskDetailTable() {
+  const sessionUser = useSessionUser();
   return (
     <div className="jn-panel">
       <div className="jn-panel-head" style={{ padding: '10px 14px' }}>风险详情</div>
@@ -873,7 +862,7 @@ function RiskDetailTable() {
                 </td>
                 <td><span className="status-pill green">{r.state}</span></td>
                 <td>{r.owner}</td>
-                <td>{r.responsible}</td>
+                <td>{substituteMockUserInText(r.responsible, sessionUser)}</td>
                 <td>{r.source}</td>
                 <td className="num">{r.start}</td>
                 <td className="num">{r.plan}</td>
@@ -1077,56 +1066,6 @@ function DrillContent({ kind }) {
   );
 }
 
-/* 简易竖向柱状统计（问题统计 / 工程单状态统计） */
-function StatBars({ bars }) {
-  const max = Math.max(...bars.map(b => b.qty), 1);
-  return (
-    <div className="mini-bars">
-      {bars.map((b, i) => (
-        <div key={i} className="mini-bar-col">
-          <div className="mini-bar-num">{b.qty}</div>
-          <div className={`mini-bar tone-${b.tone}`} style={{ height: `${Math.max(4, (b.qty / max) * 72)}px` }} />
-          <div className="mini-bar-label">{b.label}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ProblemStatsCard({ onDrill }) {
-  return (
-    <div className="jn-panel stat-card">
-      <div className="jn-panel-head" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span>问题统计</span>
-        <span style={{ flex: 1 }} />
-        <button className="btn sm ghost" onClick={() => onDrill?.('agent')}>Agent 问题列表 →</button>
-      </div>
-      <StatBars bars={[
-        { label: 'high', qty: 8, tone: 'red' },
-        { label: 'medium', qty: 4, tone: 'amber' },
-        { label: 'low', qty: 1, tone: 'blue' },
-      ]} />
-    </div>
-  );
-}
-
-function WorkOrderStatsCard({ onDrill }) {
-  return (
-    <div className="jn-panel stat-card">
-      <div className="jn-panel-head" style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span>工程单状态统计</span>
-        <span style={{ flex: 1 }} />
-        <button className="btn sm ghost" onClick={() => onDrill?.('workorder')}>客户工程报单 →</button>
-      </div>
-      <StatBars bars={[
-        { label: '已关闭', qty: 22, tone: 'green' },
-        { label: '处理中', qty: 6, tone: 'amber' },
-        { label: '已超期', qty: 2, tone: 'red' },
-      ]} />
-    </div>
-  );
-}
-
 /* ────────────────────────────────────────────────────────────
  * 工程进度矩阵（参考图1：3 阶段 × 11 工序，总计 + 本月进展）
  * 数据驱动 POD_MILESTONE_STAGES，下钻到 PoDMilestoneGrid
@@ -1245,157 +1184,16 @@ const DELIVERY_FLOW_STAGES = [
   { key: 'handover', label: '移交' },
 ];
 
-const DELIVERY_TIMELINE_START = new Date('2025-11-20T00:00:00');
-const DELIVERY_TIMELINE_END = addDeliveryDays(currentWeekMonday(), 28);
-const DELIVERY_TIMELINE_TICKS = (() => {
-  const ticks = [];
-  const cursor = new Date(DELIVERY_TIMELINE_START.getFullYear(), DELIVERY_TIMELINE_START.getMonth() + 1, 1);
-  while (cursor <= DELIVERY_TIMELINE_END) {
-    ticks.push({ date: formatLocalDate(cursor), label: `${cursor.getFullYear()}年 ${cursor.getMonth() + 1}月` });
-    cursor.setMonth(cursor.getMonth() + 1);
-  }
-  return ticks;
-})();
-
 const deliveryDateLabel = (date) => {
   if (!date) return '待回填';
   const [, month, day] = date.split('-');
   return `${Number(month)}/${Number(day)}`;
 };
 
-const deliveryTimelineLeft = (date) => {
-  const value = new Date(`${date}T00:00:00`).getTime();
-  const start = DELIVERY_TIMELINE_START.getTime();
-  const end = DELIVERY_TIMELINE_END.getTime();
-  return `${Math.max(0, Math.min(100, ((value - start) / (end - start)) * 100))}%`;
-};
-
-const makeBatchRows = (pods) => {
-  const batches = new Map();
-  pods.forEach(pod => {
-    const current = batches.get(pod.batch) || { batch: pod.batch, pods: [] };
-    current.pods.push(pod.pod);
-    current.sourcePods = [...(current.sourcePods || []), pod];
-    batches.set(pod.batch, current);
-  });
-  return Array.from(batches.values()).map(batch => ({
-    batch: batch.batch,
-    pods: batch.pods,
-    stages: Object.fromEntries(DELIVERY_FLOW_STAGES.map(({ key }) => {
-      const stages = batch.sourcePods.map(pod => pod.stages[key]);
-      const allCompleted = stages.every(stage => stage.actualEnd);
-      return [key, {
-        expectedEnd: stages.map(stage => stage.expectedEnd).sort().at(-1),
-        actualEnd: allCompleted ? stages.map(stage => stage.actualEnd).sort().at(-1) : '',
-        progress: Math.min(...stages.map(stage => stage.progress)),
-        owner: stages.find(stage => stage.owner)?.owner || '',
-        common: stages.some(stage => stage.common),
-      }];
-    })),
-  }));
-};
-
-function DeliveryTimelineAxis() {
-  return (
-    <div className="delivery-gantt-axis">
-      <div className="delivery-gantt-axis-label">时间线</div>
-      <div className="delivery-gantt-axis-track">
-        {DELIVERY_TIMELINE_TICKS.map(tick => (
-          <div key={tick.date} className="delivery-gantt-tick" style={{ left: deliveryTimelineLeft(tick.date) }}>
-            <span>{tick.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const deliveryPodLabel = (pod) => {
   const match = pod.match(/POD(\d+)$/i);
   return match ? `PoD${match[1]}` : pod;
 };
-
-function DeliveryGanttRow({ item, kind }) {
-  const id = kind === 'pod' ? deliveryPodLabel(item.pod) : item.batch;
-  const count = kind === 'batch' ? `${item.pods.length} 个 PoD` : item.batch;
-  const stages = DELIVERY_FLOW_STAGES.map(({ key }) => item.stages[key]);
-  const overallProgress = Math.round(stages.reduce((sum, stage) => sum + stage.progress, 0) / stages.length);
-  return (
-    <div className="delivery-gantt-row">
-      <div className="delivery-gantt-row-label">
-        <div className="delivery-gantt-row-title"><i />{id}</div>
-        <div className="delivery-gantt-row-sub">{count} · 整体完成 {overallProgress}%</div>
-        <div className="delivery-gantt-row-progress"><span style={{ width: `${overallProgress}%` }} /></div>
-      </div>
-      <div className="delivery-gantt-row-track">
-        <div className="delivery-gantt-grid">
-          {DELIVERY_TIMELINE_TICKS.map(tick => <i key={tick.date} style={{ left: deliveryTimelineLeft(tick.date) }} />)}
-        </div>
-        {DELIVERY_FLOW_STAGES.map((meta, index) => {
-          const stage = item.stages[meta.key];
-          const notStarted = stage.progress === 0 && !stage.actualEnd;
-          const delayed = !stage.actualEnd && stage.progress > 0 && stage.expectedEnd < formatLocalDate(new Date());
-          const statusClass = notStarted ? ' is-not-started' : delayed ? ' is-delayed' : '';
-          return (
-            <div
-              key={meta.key}
-              className={`delivery-gantt-milestone${statusClass}`}
-              style={{ left: deliveryTimelineLeft(stage.expectedEnd), top: `${8 + (index % 3) * 42}px` }}
-              title={`${meta.label} · 预计结束 ${stage.expectedEnd} · 实际结束 ${stage.actualEnd || '待回填'} · ${stage.progress}%`}
-            >
-              <div className="delivery-gantt-milestone-head">
-                <span>{meta.label}</span>
-                <b>{stage.progress}%</b>
-              </div>
-              <div className="delivery-gantt-milestone-dates">
-                <span>预计 {deliveryDateLabel(stage.expectedEnd)}</span>
-                <span>实际 {deliveryDateLabel(stage.actualEnd)}</span>
-              </div>
-              <div className="delivery-gantt-milestone-progress"><span style={{ width: `${stage.progress}%` }} /></div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PlanProgressSection({ snapshot }) {
-  const [view, setView] = useState('pod');
-
-  const rows = view === 'pod' ? snapshot.pods : makeBatchRows(snapshot.pods);
-  return (
-    <div className={`cockpit-plan-flow delivery-gantt bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden`}>
-      <style>{DELIVERY_GANTT_STYLES}</style>
-      <div className="delivery-gantt-head">
-        <div>
-          <div className="delivery-gantt-title">交付作业流</div>
-        </div>
-        <div className="delivery-gantt-head-right">
-          <div className="delivery-gantt-legend">
-            <span><i className="done" />已完成</span>
-            <span><i className="delayed" />延期</span>
-            <span><i className="not-started" />未开始</span>
-          </div>
-          <div className="delivery-gantt-switch">
-            <button className={view === 'pod' ? 'on' : ''} onClick={() => setView('pod')}>Pod 里程碑</button>
-            <button className={view === 'batch' ? 'on' : ''} onClick={() => setView('batch')}>批次里程碑</button>
-          </div>
-        </div>
-      </div>
-      <div className="delivery-gantt-scroll">
-        <div className="delivery-gantt-canvas">
-          <DeliveryTimelineAxis />
-          <div className="delivery-gantt-rows">
-            {rows.map(item => (
-              <DeliveryGanttRow key={view === 'pod' ? item.pod : item.batch} item={item} kind={view} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 /* ────────────────────────────────────────────────────────────
  * 总体进展文字摘要（4 条时序：当前 / 上周 / 本周 / 昨日进展）
@@ -1410,8 +1208,23 @@ const PROGRESS_LINES = [
 const PROGRESS_SUMMARY = [
   { label: '本周完成', text: '完成 1 个 PoD 的综合布线与成端，并完成 4 个 PoD 的设备上电。' },
   { label: '上周完成', text: '完成 1 个 PoD 的设备到货、13 个 PoD 的综合布线与成端，以及 15 个 PoD 的设备上电。' },
-  { label: '上月完成', text: '交付工作集中推进至设备上电阶段，累计完成 37 个 PoD 的到货与综合布线、32 个 PoD 的设备上电。' },
+  { label: '本月完成', text: '交付工作集中推进至设备上电阶段，累计完成 37 个 PoD 的到货与综合布线、32 个 PoD 的设备上电。' },
 ];
+
+/* 时间线按时近着色：本周(靛蓝) / 上周(灰) / 本月(浅灰)，与里程碑看板配色统一 */
+const PROGRESS_PERIODS = [
+  { dot: '#5165F0', spine: 'linear-gradient(#5165F0,#C7CEDB)', pillBg: '#5165F0', pillFg: '#ffffff', textCls: 'text-zinc-600', num: '#3447C9' },
+  { dot: '#8A95AC', spine: '#DCE1EB', pillBg: '#EEF0F5', pillFg: '#43506A', textCls: 'text-zinc-600', num: '#1C2640' },
+  { dot: '#B4BDD0', spine: 'transparent', pillBg: '#F3F5F9', pillFg: '#8A95AC', textCls: 'text-zinc-400', num: '#5F6B7E' },
+] as const;
+
+/* 加重正文里的「N 个」关键数字 */
+const emphasizeNums = (text: string, color: string) =>
+  text.split(/(\d+\s*个)/g).map((p, i) =>
+    /\d+\s*个/.test(p)
+      ? <b key={i} style={{ fontWeight: 600, color }}>{p}</b>
+      : <span key={i}>{p}</span>,
+  );
 
 const getDelayedActivities = (snapshot) => {
   const today = new Date();
@@ -1434,61 +1247,81 @@ const getDelayedActivities = (snapshot) => {
 
 function ProgressSummaryRow({ delayItems }) {
   return (
-    /* 两列 grid：总体进展(3fr) + 活动延期(2fr)，与原 CSS 比例一致 */
+    /* 两列 grid：总体进展(3fr) + 活动延期(2fr) */
     <div className="grid grid-cols-[3fr_2fr] gap-6">
 
-      {/* 左：总体进展文字 */}
+      {/* 左：总体进展 —— 时间线，按时近着色 + 关键数字加重 */}
       <div className={`bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden p-5`}>
-        <div className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50">
+        <div className="flex items-center gap-2 pb-4 mb-4 border-b border-zinc-100/60">
           <span className="text-base font-semibold text-zinc-900">总体进展</span>
+          <span className="text-[11px] text-zinc-400">交付节奏</span>
         </div>
-        <div className="flex flex-col gap-3">
-          {PROGRESS_SUMMARY.map(item => (
-            <div key={item.label} className="flex items-start gap-3 border-b border-zinc-100/70 pb-3 last:border-b-0 last:pb-0">
-              <span className="shrink-0 rounded-md bg-zinc-100 px-2 py-1 text-[10px] font-semibold text-zinc-600">{item.label}</span>
-              <p className="pt-0.5 text-[11px] leading-5 text-zinc-600">{item.text}</p>
-            </div>
-          ))}
+        <div>
+          {PROGRESS_SUMMARY.map((item, i) => {
+            const t = PROGRESS_PERIODS[i] ?? PROGRESS_PERIODS[PROGRESS_PERIODS.length - 1]!;
+            const last = i === PROGRESS_SUMMARY.length - 1;
+            return (
+              <div key={item.label} className="flex gap-3">
+                <div className="flex flex-col items-center pt-1">
+                  <span className="shrink-0 rounded-full" style={{ width: 11, height: 11, background: t.dot }} />
+                  {!last && <span className="w-0.5 flex-1" style={{ background: t.spine, minHeight: 16 }} />}
+                </div>
+                <div className={last ? 'pb-0.5' : 'pb-4'}>
+                  <span className="inline-block rounded-md px-2.5 py-0.5 text-[11px] font-medium" style={{ background: t.pillBg, color: t.pillFg }}>{item.label}</span>
+                  <p className={`mt-2 text-xs leading-relaxed ${t.textCls}`}>{emphasizeNums(item.text, t.num)}</p>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {/* 右：活动延期 */}
+      {/* 右：活动延期 —— 左侧严重度色条 + 进度条 */}
       <div className={`bg-white rounded-2xl ${COCKPIT_SHADOW} overflow-hidden p-5`}>
-        <div className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50">
-          <div className="flex items-center gap-2">
-            <span className="text-base font-semibold text-zinc-900">活动延期</span>
-            {delayItems.length > 0 && (
-              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-                {delayItems.length} 项待关注
-              </span>
-            )}
-          </div>
+        <div className="flex items-center gap-2 pb-4 mb-4 border-b border-zinc-100/60">
+          <span className="text-base font-semibold text-zinc-900">活动延期</span>
+          {delayItems.length > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium" style={{ background: '#FCE3E9', color: '#B22647' }}>
+              <span className="rounded-full" style={{ width: 6, height: 6, background: '#E23A5E' }} />
+              {delayItems.length} 项待关注
+            </span>
+          )}
         </div>
-        <div className="flex flex-col gap-3">
-          {delayItems.map(d => (
-            <div
-              key={`${d.pod}-${d.activity}`}
-              className="rounded-xl border border-amber-100 bg-gradient-to-r from-amber-50/80 to-white px-3.5 py-3"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-semibold text-zinc-800">{d.pod}</span>
-                    <span className="h-3 w-px bg-amber-200" />
-                    <span className="truncate text-[11px] font-medium text-zinc-700">{d.activity}</span>
+        <div className="flex flex-col gap-2.5">
+          {delayItems.map(d => {
+            const severe = d.delayDays >= 5;
+            const accent = severe ? '#E23A5E' : '#C2820F';
+            const chipBg = severe ? '#FCE3E9' : '#FBEFD9';
+            const chipFg = severe ? '#B22647' : '#9A5B08';
+            return (
+              <div
+                key={`${d.pod}-${d.activity}`}
+                className="relative overflow-hidden rounded-xl px-4 py-3"
+                style={{ border: '0.5px solid #EAEDF3', background: '#FBFCFE' }}
+              >
+                <span className="absolute left-0 top-0 bottom-0" style={{ width: 3, background: accent }} />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-semibold text-zinc-800">{d.pod}</span>
+                    <span className="h-3 w-px bg-zinc-200" />
+                    <span className="truncate text-xs text-zinc-600">{d.activity}</span>
                   </div>
-                  <p className="mt-1.5 text-[10px] leading-4 text-zinc-500">
-                    计划于 {deliveryDateLabel(d.expectedEnd)} 完成，目前已完成 {d.progress}%，由 {d.owner} 负责跟进。
-                  </p>
+                  <span className="shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold" style={{ background: chipBg, color: chipFg }}>
+                    延期 {d.delayDays} 天
+                  </span>
                 </div>
-                <span className="shrink-0 rounded-lg bg-amber-100 px-2 py-1 text-[10px] font-bold text-amber-700">
-                  延期 {d.delayDays} 天
-                </span>
+                <div className="flex items-center gap-2 mt-2.5 mb-1.5">
+                  <div className="flex-1 rounded-full overflow-hidden" style={{ height: 5, background: '#EEF0F5' }}>
+                    <span className="block h-full rounded-full" style={{ width: `${d.progress}%`, background: '#C2820F' }} />
+                  </div>
+                  <span className="text-[11px] font-medium tabular-nums" style={{ color: '#C2820F' }}>{d.progress}%</span>
+                </div>
+                <p className="text-[11px] text-zinc-400">计划 {deliveryDateLabel(d.expectedEnd)} 完成 · {d.owner} 负责跟进</p>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {delayItems.length === 0 && (
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-3.5 py-3 text-[11px] text-emerald-700">
+            <div className="rounded-xl px-4 py-3 text-xs" style={{ border: '0.5px solid #DCEFE6', background: '#EAF7F1', color: '#0B7A53' }}>
               当前没有未完成的延期活动，交付节奏正常。
             </div>
           )}
@@ -1502,326 +1335,192 @@ function ProgressSummaryRow({ delayItems }) {
  * 带4 / 带5 数据 + 组件（参考图1 严格对齐，不加不减）
  * ═══════════════════════════════════════════════════════════ */
 
-const WO_MONTH_BARS = [
-  { month: '1月', closed: 22 }, { month: '2月', closed: 18 },
-  { month: '3月', closed: 15 }, { month: '4月', closed: 28 }, { month: '5月', closed: 12 },
-];
+/* 客户工程报单：关闭/非关闭 × 提前/按期/延期（时效） */
+const WORK_ORDER_STATS = {
+  closed: { early: 6, onTime: 14, delayed: 4 },
+  open:   { early: 0, onTime: 5,  delayed: 3 },
+};
 const RISK_STATS_AGG = { closed: 30, active: 6, overdue: 2, total: 38 };
 const PROB_MULTI = [
+  { status: '待处理', high: 7, medium: 0, low: 0 },
   { status: '处理中', high: 6, medium: 4, low: 1 },
   { status: '已关闭', high: 4, medium: 4, low: 0 },
-  { status: '待处理', high: 7, medium: 0, low: 0 },
 ];
-const DOA_TOTAL_BARS = [
-  { label: '和林格尔', qty: 421 },
-  { label: '廊坊涿泽', qty: 394 },
-  { label: '芜湖无为', qty: 18 },
+/* DOA：4 类（未到货 / 已到货 / 已更换 / 好件退还），各一独立语义色 */
+const DOA_STATS = [
+  { label: '未到货',   value: 130, color: '#F2A03C' },
+  { label: '已到货',   value: 221, color: '#0FA371' },
+  { label: '已更换',   value: 4,   color: '#5165F0' },
+  { label: '好件退还', value: 8,   color: '#8A95AC' },
 ];
-const ITO_DELIVERY = [
-  { name: '项目汇总', pods: 37, arrive: 1.8, cable: 6.4, bundle: 2.8, power: 8.3, mount: 4.3, accept: 1 },
-  { name: '和林格尔', pods: 16, arrive: 1.8, cable: 6.4, bundle: 2.0, power: 7.8, mount: 4.3, accept: 1 },
-  { name: '廊坊涿泽', pods: 21, arrive: 1.7, cable: 6.4, bundle: 3.5, power: 8.7, mount: null, accept: null },
-  { name: '芜湖无为', pods: 5,  arrive: null, cable: null, bundle: null, power: null, mount: null, accept: null },
+/* 交付 ITO：6 道工序（冷→暖渐进色），按图2 各项目周期 */
+type ItoRow = { name: string; pods: number; arrive: number | null; cable: number | null; bundle: number | null; power: number | null; mount: number | null; tree: number | null };
+const ITO_STAGES: { key: keyof ItoRow; name: string; color: string }[] = [
+  { key: 'arrive', name: '到货-通液',    color: '#2DBE9F' },
+  { key: 'cable',  name: '通液-绑扎',    color: '#3E8FE0' },
+  { key: 'bundle', name: '绑扎-上电',    color: '#5165F0' },
+  { key: 'power',  name: '上电-ZTP开局', color: '#7C72E8' },
+  { key: 'mount',  name: 'ZTP开局-装机', color: '#B07BD6' },
+  { key: 'tree',   name: '装机-挂树',    color: '#E58AA6' },
 ];
-const ITO_MONTHLY = [
-  { name: '项目汇总', pods: 21, arrive: 1.7, cable: 6.4, bundle: 3.5, power: 8.7, mount: null, accept: null },
-  { name: '廊坊涿泽', pods: 21, arrive: 1.7, cable: 6.4, bundle: 3.5, power: 8.7, mount: null, accept: null },
-  { name: '芜湖无为', pods: 5,  arrive: null, cable: null, bundle: null, power: null, mount: null, accept: null },
+const ITO_DELIVERY: ItoRow[] = [
+  { name: '项目汇总', pods: 63, arrive: 1.9,  cable: 6.1,  bundle: 3,    power: 6.8,  mount: 4.3,  tree: 1 },
+  { name: '和林格尔', pods: 16, arrive: 1.8,  cable: 6.3,  bundle: 2,    power: 7.8,  mount: 4.3,  tree: 1 },
+  { name: '廊坊润泽', pods: 31, arrive: 1.7,  cable: 6.4,  bundle: 4,    power: 6,    mount: null, tree: null },
+  { name: '芜湖无为', pods: 16, arrive: 2.1,  cable: 5.6,  bundle: 3,    power: 6.5,  mount: null, tree: null },
+  { name: '天津',     pods: 8,  arrive: null, cable: null, bundle: null, power: null, mount: null, tree: null },
 ];
 
-/* ── 柱图色彩：主柱 slate-800 午夜分量；超期 amber-700；弱项 slate-300；已闭/历史 faint slate-200 ── */
-const BAR_TONE_CLS: Record<string, string> = {
-  green: 'bg-slate-800',
-  blue:  'bg-slate-800',
-  amber: 'bg-slate-400',
-  red:   'bg-amber-700',
-  gray:  'bg-slate-300',
-  faint: 'bg-slate-200',
-};
+/* ───────── 统计卡（竖向柱状图：单系列 / 堆叠；hover 出分段详情）───────── */
+type ChartSeg = { label: string; value: number; color: string };
+type ChartCol = { label: string; sub?: string; segments: ChartSeg[] };
 
-/* 通用小柱图面板（全 Tailwind 版）─ 复用于工程报单、风险统计 */
-function CpBarPanel({ title, badge, bars, month, setMonth, onDrill, drillKey, footnote }) {
-  const max = Math.max(...bars.map(b => b.qty), 1);
+const fmtNum = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+function ColumnStatCard({ title, legend, columns, onDrill, drillKey, unit = '', height = 104 }: {
+  title: string;
+  legend?: { label: string; color: string }[];
+  columns: ChartCol[];
+  onDrill?: (k: string) => void;
+  drillKey: string;
+  unit?: string;
+  height?: number;
+}) {
+  const totals = columns.map(c => c.segments.reduce((s, x) => s + x.value, 0));
+  const max = Math.max(...totals, 1);
   return (
-    <div className={`group bg-white rounded-2xl ${COCKPIT_SHADOW} flex flex-col overflow-hidden min-h-[160px] p-5 transition-shadow duration-200 hover:shadow-[0_8px_20px_rgba(24,24,27,0.08)]`}>
-
-      {/* 标题栏 */}
-      <div
-        className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50 cursor-pointer flex-shrink-0"
-        onClick={() => onDrill?.(drillKey)}
-      >
-        <div className="flex items-center gap-2">
-          <span className="text-base font-semibold text-zinc-900">{title}</span>
-          {badge != null && (
-            <span className="text-[10px] font-mono bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded border border-zinc-200 leading-none">
-              {badge}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {month !== undefined && (
-            <select
-              className="text-[10px] px-1 py-0.5 border border-zinc-200 rounded bg-white text-zinc-500 outline-none"
-              value={month}
-              onClick={e => e.stopPropagation()}
-              onChange={e => setMonth(e.target.value)}
-            >
-              <option value="">选择月份</option>
-              {WO_MONTH_BARS.map(b => <option key={b.month} value={b.month}>{b.month}</option>)}
-            </select>
-          )}
-          <button
-            className="text-[11px] text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all duration-200 leading-none"
-            onClick={() => onDrill?.(drillKey)} tabIndex={-1} aria-hidden
-          >↗</button>
-        </div>
+    <div className={`group bg-white rounded-2xl ${COCKPIT_SHADOW} flex flex-col overflow-hidden p-5 transition-shadow duration-200 hover:shadow-[0_8px_20px_rgba(24,24,27,0.08)]`}>
+      <div className="flex items-start justify-between gap-3 pb-4 mb-4 border-b border-zinc-100/60 cursor-pointer" onClick={() => onDrill?.(drillKey)}>
+        <span className="text-base font-semibold text-zinc-900 whitespace-nowrap">{title}</span>
+        {legend
+          ? <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">{legend.map(l => (
+              <span key={l.label} className="inline-flex items-center gap-1.5 text-[10.5px] text-zinc-400"><span className="w-2 h-2 rounded-sm" style={{ background: l.color }} />{l.label}</span>
+            ))}</div>
+          : <span className="text-[11px] text-zinc-300 group-hover:text-zinc-500 transition-colors leading-none" aria-hidden>↗</span>}
       </div>
 
-      {/* 柱图区：极淡基线承托柱体 */}
-      <div className="flex items-end justify-around gap-1 flex-1 border-b border-zinc-100/70">
-        {bars.map((b, i) => (
-          <div key={i} className="flex flex-col items-center justify-end gap-0.5 flex-1">
-            <span className={`text-[15px] font-mono font-semibold leading-none tabular-nums ${b.muted ? 'text-zinc-400' : 'text-zinc-800'}`}>
-              {b.qty}
-            </span>
-            <div
-              className={`w-full rounded-t-sm transition-all duration-300 ${BAR_TONE_CLS[b.tone] ?? 'bg-slate-300'}`}
-              style={{ height: `${Math.max(4, (b.qty / max) * 30)}px`, minWidth: '14px' }}
-            />
-            <span className={`text-[9px] text-center leading-tight whitespace-nowrap ${b.muted ? 'text-zinc-300' : 'text-zinc-500'}`}>
-              {b.label}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {footnote && (
-        <div className="flex items-center gap-1.5 pt-2 text-[10px] text-zinc-400 flex-shrink-0">
-          {footnote}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* 带4·A: 客户工程报单（月份过滤） */
-function WorkOrderMonthChart({ onDrill }) {
-  const [month, setMonth] = useState('');
-  const bars = (month ? WO_MONTH_BARS.filter(b => b.month === month) : WO_MONTH_BARS)
-    .map(b => ({ label: b.month, qty: b.closed, tone: 'green' }));
-  return (
-    <CpBarPanel
-      title="客户工程报单" bars={bars}
-      month={month} setMonth={setMonth}
-      onDrill={onDrill} drillKey="workorder"
-      footnote={<><span className="inline-block w-2 h-2 rounded-full bg-slate-800 mr-1" />已关闭</>}
-    />
-  );
-}
-
-/* 带4·B: 风险统计 — 紧急在前（超期→处理中→已关闭），已关闭弱化为背景项 */
-function RiskStatsBarChart({ onDrill }) {
-  const bars = [
-    { label: '已超期', qty: RISK_STATS_AGG.overdue, tone: 'red' },
-    { label: '处理中', qty: RISK_STATS_AGG.active, tone: 'blue' },
-    { label: '已关闭', qty: RISK_STATS_AGG.closed, tone: 'faint', muted: true },  /* 历史项弱化，视线聚焦超期/处理中 */
-  ];
-  return (
-    <CpBarPanel
-      title="风险统计"
-      bars={bars} onDrill={onDrill} drillKey="risk"
-    />
-  );
-}
-
-/* 带4·C: 问题统计（多系列 · 全 Tailwind）*/
-function ProblemMultiBarChart({ onDrill }) {
-  const allVals = PROB_MULTI.flatMap(g => [g.high, g.medium, g.low]);
-  const max = Math.max(...allVals, 1);
-
-  /* high → 红色（异常风险），medium/low → 石板灰 */
-  const MULTI_COLOR = ['bg-red-500', 'bg-slate-400', 'bg-slate-300'];
-
-  return (
-    <div className={`group bg-white rounded-2xl ${COCKPIT_SHADOW} flex flex-col overflow-hidden min-h-[160px] p-5 transition-shadow duration-200 hover:shadow-[0_8px_20px_rgba(24,24,27,0.08)]`}>
-
-      {/* 标题栏 */}
-      <div
-        className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50 cursor-pointer flex-shrink-0"
-        onClick={() => onDrill?.('agent')}
-      >
-        <span className="text-base font-semibold text-zinc-900">问题统计</span>
-        <button
-          className="text-[11px] text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all duration-200 leading-none"
-          onClick={() => onDrill?.('agent')} tabIndex={-1} aria-hidden
-        >↗</button>
-      </div>
-
-      {/* 多系列柱图：极淡基线承托 */}
-      <div className="flex items-end justify-around gap-2 flex-1 border-b border-zinc-100/70">
-        {PROB_MULTI.map((g, i) => (
-          <div key={i} className="flex flex-col items-center gap-0.5 flex-1">
-            {/* 三色柱并排 */}
-            <div className="flex items-end gap-0.5">
-              {([
-                { v: g.high,   cls: MULTI_COLOR[0] },
-                { v: g.medium, cls: MULTI_COLOR[1] },
-                { v: g.low,    cls: MULTI_COLOR[2] },
-              ]).map((b, j) => (
-                <div key={j} className="flex flex-col items-center gap-0.5" style={{ minWidth: '10px' }}>
-                  {b.v > 0 && (
-                    <>
-                      <span className="text-[11px] font-mono font-semibold text-zinc-700 leading-none tabular-nums">
-                        {b.v}
-                      </span>
-                      <div
-                        className={`rounded-t-sm ${b.cls} transition-all duration-300`}
-                        style={{ width: '10px', height: `${Math.max(4, (b.v / max) * 28)}px` }}
-                      />
-                    </>
+      <div className="flex items-end justify-around gap-2" style={{ height: height + 48 }}>
+        {columns.map((c, i) => {
+          const total = totals[i];
+          const multi = c.segments.length > 1;
+          return (
+            <div key={i} className="group/col relative flex h-full min-w-0 flex-1 flex-col items-center justify-end">
+              {total > 0 && (
+                <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-[10.5px] opacity-0 shadow-[0_8px_22px_rgba(20,28,46,.16)] transition-opacity group-hover/col:opacity-100">
+                  <div className="mb-1 font-medium text-zinc-800">{c.label} · {fmtNum(total)}{unit}</div>
+                  {multi && (
+                    <div className="flex flex-col gap-0.5">
+                      {c.segments.filter(s => s.value > 0).slice().reverse().map(s => (
+                        <div key={s.label} className="flex items-center gap-1.5 text-zinc-500"><span className="h-2 w-2 rounded-sm" style={{ background: s.color }} />{s.label} {fmtNum(s.value)}{unit}</div>
+                      ))}
+                    </div>
                   )}
                 </div>
-              ))}
+              )}
+              <span className="mb-1 text-[12px] font-semibold leading-none tabular-nums text-zinc-800">{total > 0 ? fmtNum(total) : ''}</span>
+              <div className="flex w-full max-w-[46px] flex-col-reverse overflow-hidden rounded-t-[4px]">
+                {c.segments.map((s, j) => (s.value > 0 ? <div key={j} style={{ height: Math.max(3, (s.value / max) * height), background: s.color }} /> : null))}
+              </div>
+              <span className="mt-2 text-center leading-tight">
+                <span className="block whitespace-nowrap text-[11px] text-zinc-600">{c.label}</span>
+                {c.sub && <span className="block whitespace-nowrap text-[10px] text-zinc-400">{c.sub}</span>}
+              </span>
             </div>
-            {/* 组标签 */}
-            <span className="text-[9px] text-zinc-400 text-center leading-tight whitespace-nowrap mt-0.5">
-              {g.status}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* 图例 */}
-      <div className="flex items-center gap-2.5 pt-2 text-[9px] text-zinc-400 flex-shrink-0">
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm bg-red-500" />high
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm bg-slate-400" />medium
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="inline-block w-2 h-2 rounded-sm bg-slate-300" />low
-        </span>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-/* 带5·A: DOA 统计 — 单图表 + 维度切换（按机房 / 按状态）*/
-function DOAMergedSection({ onDrill }) {
-  const [dim, setDim] = useState<'room' | 'status'>('room');
-  const bars = dim === 'room' ? DOA_TOTAL_BARS : DOA_BARS;
-  const maxQty = Math.max(...bars.map(b => b.qty), 1);
-
+/* 客户工程报单：已关闭/未关闭 × 提前/按期/延期（堆叠柱，延期置柱底） */
+function WorkOrderStatsCard({ onDrill }: { onDrill?: (k: string) => void }) {
+  const seg = (t: { early: number; onTime: number; delayed: number }): ChartSeg[] => [
+    { label: '延期', value: t.delayed, color: '#E5395B' },
+    { label: '按期', value: t.onTime,  color: '#B9C2D4' },
+    { label: '提前', value: t.early,   color: '#0FA371' },
+  ];
   return (
-    <div className={`group bg-white rounded-2xl ${COCKPIT_SHADOW} flex flex-col overflow-hidden min-h-[160px] p-5 transition-shadow duration-200 hover:shadow-[0_8px_20px_rgba(24,24,27,0.08)]`}>
-
-      {/* 标题栏 */}
-      <div className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50 flex-shrink-0">
-        <div
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={() => onDrill?.('doa')}
-          title="查看 DOA 详情"
-        >
-          <span className="text-base font-semibold text-zinc-900">DOA 统计</span>
-          <span className="text-[10px] font-mono bg-zinc-100 text-zinc-500 px-1.5 py-0.5 rounded border border-zinc-200 leading-none">425</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {/* 分段控制器 */}
-          <div className="flex bg-zinc-100 p-1 rounded-md gap-0.5">
-            {(['room', 'status'] as const).map(d => (
-              <button
-                key={d}
-                onClick={() => setDim(d)}
-                className={`px-2 py-0.5 rounded text-[10px] leading-none transition-all duration-150 ${
-                  dim === d
-                    ? 'bg-white shadow-sm text-zinc-900 font-medium'
-                    : 'text-zinc-500 hover:text-zinc-700'
-                }`}
-              >
-                {d === 'room' ? '按机房' : '按状态'}
-              </button>
-            ))}
-          </div>
-          <button
-            className="text-[11px] text-zinc-300 group-hover:text-zinc-500 group-hover:translate-x-0.5 transition-all duration-200 leading-none"
-            onClick={() => onDrill?.('doa')} tabIndex={-1} aria-hidden
-          >↗</button>
-        </div>
-      </div>
-
-      {/* 图表区：overflow-hidden 固定容器尺寸，切换维度不抖动；极淡基线承托 */}
-      <div className="flex-1 overflow-hidden flex items-end gap-1 border-b border-zinc-100/70">
-        {bars.map((b, i) => (
-          <div key={i} className="flex flex-col items-center justify-end flex-1 min-w-0 gap-0.5">
-            <span className="text-[14px] font-mono font-semibold text-zinc-800 leading-none tabular-nums mb-1">{b.qty}</span>
-            <div
-              className="w-full rounded-t-sm bg-slate-800 hover:bg-slate-900 transition-all duration-300"
-              style={{ height: `${Math.max(4, (b.qty / maxQty) * 44)}px` }}
-            />
-            <span className="text-[9px] text-zinc-400 leading-tight truncate w-full text-center">{b.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <ColumnStatCard
+      title="客户工程报单"
+      legend={[{ label: '提前', color: '#0FA371' }, { label: '按期', color: '#B9C2D4' }, { label: '延期', color: '#E5395B' }]}
+      columns={[
+        { label: '已关闭', segments: seg(WORK_ORDER_STATS.closed) },
+        { label: '未关闭', segments: seg(WORK_ORDER_STATS.open) },
+      ]}
+      onDrill={onDrill} drillKey="workorder"
+    />
   );
 }
 
-/* 带5·B/C: ITO 统计表（全 Tailwind 版，交付 / 当月复用）*/
-function ITOTable({ title, subtitle, data, onDrill }) {
-  const v = (x) => x != null ? x.toFixed(1) : '—';
-  const HEADERS = ['项目', '短', '到货通道', '绑扎', '上电ZTP', '装机', '验收'];
-
+/* 风险统计：已超期 / 处理中 / 已关闭（单系列柱） */
+function RiskStatsCard({ onDrill }: { onDrill?: (k: string) => void }) {
   return (
-    <div
-      className={`group bg-white rounded-2xl ${COCKPIT_SHADOW} flex flex-col overflow-hidden min-h-[180px] cursor-pointer p-5 transition-all duration-200 hover:shadow-[0_8px_20px_rgba(24,24,27,0.08)]`}
-      onClick={() => onDrill?.('workorder')}
-    >
+    <ColumnStatCard
+      title="风险统计"
+      columns={[
+        { label: '已超期', segments: [{ label: '已超期', value: RISK_STATS_AGG.overdue, color: '#E23A5E' }] },
+        { label: '处理中', segments: [{ label: '处理中', value: RISK_STATS_AGG.active,  color: '#5165F0' }] },
+        { label: '已关闭', segments: [{ label: '已关闭', value: RISK_STATS_AGG.closed,  color: '#C7CEDB' }] },
+      ]}
+      onDrill={onDrill} drillKey="risk"
+    />
+  );
+}
 
-      {/* 标题栏 */}
-      <div className="cp-hd flex items-center justify-between pb-4 mb-4 border-b border-zinc-100/50 flex-shrink-0">
-        <span className="text-base font-semibold text-zinc-900">{title}</span>
-        <span className="opacity-0 group-hover:opacity-100 transition-opacity text-zinc-400 text-[11px] leading-none">→</span>
-      </div>
+/* 问题统计：待处理/处理中/已关闭 × 高/中/低（堆叠柱，高危置柱底；已关闭灰阶弱化） */
+function ProblemStatsCard({ onDrill }: { onDrill?: (k: string) => void }) {
+  const live = { high: '#E5395B', medium: '#F2A03C', low: '#B9C2D4' };
+  const closed = { high: '#B6BFCF', medium: '#CFD6E2', low: '#E0E5EC' };
+  const columns: ChartCol[] = PROB_MULTI.map(g => {
+    const c = g.status === '已关闭' ? closed : live;
+    return {
+      label: g.status,
+      segments: [
+        { label: '高', value: g.high,   color: c.high },
+        { label: '中', value: g.medium, color: c.medium },
+        { label: '低', value: g.low,    color: c.low },
+      ],
+    };
+  });
+  return (
+    <ColumnStatCard
+      title="问题统计"
+      legend={[{ label: '高', color: '#E5395B' }, { label: '中', color: '#F2A03C' }, { label: '低', color: '#B9C2D4' }]}
+      columns={columns}
+      onDrill={onDrill} drillKey="agent"
+    />
+  );
+}
 
-      {/* 表格：仅表头底边 + 行底边，Data-Ink 留白对齐 */}
-      <div className="overflow-hidden">
-        <table className="w-full cockpit-data-table" style={{ fontSize: '10.5px', fontFamily: 'var(--font-mono)' }}>
-          <thead>
-            <tr className="border-b border-zinc-100/50 bg-zinc-50/80">
-              {HEADERS.map((h, i) => (
-                <th
-                  key={h}
-                  className={`py-1.5 px-1.5 text-[10.5px] font-medium text-zinc-500 whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}
-                >
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((r, i) => {
-              const isSummary = i === 0;
-              return (
-                <tr key={i} className={`border-b border-zinc-100/50 last:border-b-0 ${isSummary ? '' : 'hover:bg-zinc-50/40'} transition-colors`}>
-                  <td className={`py-1.5 px-1.5 text-left whitespace-nowrap ${isSummary ? 'font-medium text-zinc-700' : 'text-zinc-600'}`}>
-                    {r.name}
-                  </td>
-                  {[r.pods, r.arrive, r.cable, r.bundle, r.mount, r.accept].map((val, j) => (
-                    <td
-                      key={j}
-                      className={`py-1.5 px-1.5 text-right tabular-nums ${val == null ? 'text-zinc-300' : isSummary ? 'font-medium text-zinc-700' : 'text-zinc-600'}`}
-                    >
-                      {j === 0 ? val : v(val)}
-                    </td>
-                  ))}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
+/* DOA 统计：未到货 / 已到货 / 已更换 / 好件退还（单系列柱，各一色） */
+function DOAStatsCard({ onDrill }: { onDrill?: (k: string) => void }) {
+  return (
+    <ColumnStatCard
+      title="DOA 统计"
+      columns={DOA_STATS.map(d => ({ label: d.label, segments: [{ label: d.label, value: d.value, color: d.color }] }))}
+      onDrill={onDrill} drillKey="doa"
+    />
+  );
+}
+
+/* 交付 ITO 统计：每项目一根竖向堆叠柱（按 6 道工序分段），柱高=总交付周期；hover 看工序天数 */
+function ITOStatsCard({ onDrill }: { onDrill?: (k: string) => void }) {
+  const columns: ChartCol[] = ITO_DELIVERY.map(r => ({
+    label: r.name,
+    segments: ITO_STAGES.flatMap(s => {
+      const raw = r[s.key];
+      return typeof raw === 'number' && raw > 0 ? [{ label: s.name, value: raw, color: s.color }] : [];
+    }),
+  }));
+  return (
+    <ColumnStatCard
+      title="交付 ITO 统计"
+      legend={ITO_STAGES.map(s => ({ label: s.name, color: s.color }))}
+      columns={columns}
+      onDrill={onDrill} drillKey="workorder"
+      unit="天" height={110}
+    />
   );
 }
 
@@ -1899,6 +1598,7 @@ export default function DashboardScreen() {
   const [searchParams] = useSearchParams();
   const [deliverySnapshot, setDeliverySnapshot] = useState(DELIVERY_PLAN_FALLBACK);
   const delayedActivities = useMemo(() => getDelayedActivities(deliverySnapshot), [deliverySnapshot]);
+  const milestonePods = useMemo(() => podMilestonesFromSnapshot(deliverySnapshot), [deliverySnapshot]);
 
   useEffect(() => {
     let active = true;
@@ -1918,19 +1618,18 @@ export default function DashboardScreen() {
   return (
     <>
     <div className="cockpit-page">
-      <PlanProgressSection snapshot={deliverySnapshot} />
+      <MilestoneBoard pods={milestonePods} />
       <ProgressSummaryRow delayItems={delayedActivities} />
 
       <div className="grid grid-cols-3 gap-3">
-        <WorkOrderMonthChart onDrill={setDrill} />
-        <RiskStatsBarChart onDrill={setDrill} />
-        <ProblemMultiBarChart onDrill={setDrill} />
+        <WorkOrderStatsCard onDrill={setDrill} />
+        <RiskStatsCard onDrill={setDrill} />
+        <ProblemStatsCard onDrill={setDrill} />
       </div>
 
-      <div className="grid grid-cols-[5fr_3.5fr_3.5fr] gap-3">
-        <DOAMergedSection onDrill={setDrill} />
-        <ITOTable title="交付ITO统计" subtitle="点击可查看全部机房" data={ITO_DELIVERY} onDrill={setDrill} />
-        <ITOTable title="当月ITO统计" subtitle="点击可查看当月机房" data={ITO_MONTHLY} onDrill={setDrill} />
+      <div className="grid grid-cols-[3fr_5fr] gap-3">
+        <DOAStatsCard onDrill={setDrill} />
+        <ITOStatsCard onDrill={setDrill} />
       </div>
     </div>
 

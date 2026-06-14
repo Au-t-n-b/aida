@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import Link from '@/compat/link';
 import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { LeftNavFdy } from './left-nav-fdy';
 type AppShellProps = {
   children: ReactNode;
@@ -95,6 +96,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
   const navigate = useNavigate();
   const doLogout = useLogout();
   const { project, selectProject } = useCurrentProject();
+  const sessionUser = useSessionUser();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -153,8 +155,8 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
         </button>
         <div style={{ position: 'relative' }}>
           <div className="user-chip" onClick={() => setUserOpen(o => !o)}>
-            <div className="av">HE</div>
-            <span>何博</span>
+            <div className="av">{sessionUser.avatarInitials}</div>
+            <span>{sessionUser.displayName}</span>
             <span className="topbar-project-caret">▾</span>
           </div>
           {userOpen && (
@@ -163,7 +165,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
               style={{ left: 'auto', right: 0, minWidth: 200 }}
               onMouseLeave={() => setUserOpen(false)}
             >
-              <div className="topbar-project-pop-head">何博 · 交付经理 · 智算 Q3</div>
+              <div className="topbar-project-pop-head">{sessionUser.profileHeadline}</div>
               <button
                 type="button"
                 className="topbar-project-row"
@@ -214,46 +216,6 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
   );
 }
 
-function DemoWatermark() {
-  const { project } = useCurrentProject();
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (localStorage.getItem('aida:demo-watermark-hidden') === '1') return;
-
-    const sync = () => {
-      const blocked = !!document.querySelector('.action-footer');
-      setVisible(!blocked);
-    };
-    sync();
-    const obs = new MutationObserver(sync);
-    obs.observe(document.body, { childList: true, subtree: true });
-    return () => obs.disconnect();
-  }, []);
-
-  if (!visible) return null;
-
-  const dismiss = () => {
-    setVisible(false);
-    try { localStorage.setItem('aida:demo-watermark-hidden', '1'); } catch { /* ignore */ }
-  };
-
-  return (
-    <button
-      type="button"
-      className="aida-demo-watermark"
-      title="演示版 · 数据均为 mock · 单击关闭"
-      onClick={dismiss}
-    >
-      <span className="aida-demo-dot" />
-      <span className="aida-demo-text">
-        <strong>DEMO</strong> · {project?.id ?? '—'} · 智算 Q3
-      </span>
-    </button>
-  );
-}
-
 /* ── AppShell — full three-column layout
  * 5.25 L02:47:13 拍板：「对话框还是放左边，大家习惯左边」
  * 5.27 SVG 多个面板也都把「会话框 / 消息」画在左侧
@@ -301,7 +263,6 @@ export function AppShell({ children, breadcrumbs = [], withClaw = false, clawRai
           {withClaw && clawSide === 'right' && enrichedClawRail}
         </div>
       </div>
-      <DemoWatermark />
     </div>
   );
 }

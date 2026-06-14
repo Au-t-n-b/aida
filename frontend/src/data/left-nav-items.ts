@@ -16,7 +16,6 @@ export type NavLeafItem = {
 export const NAV_TWIN: NavSubItem[] = [
   { name: '算力底座孪生', href: '/twin' },
   { name: '项目孪生', href: '/cockpit' },
-  { name: '工勘孪生', href: '/twin/survey' },
 ];
 
 export const NAV_EARLY: NavSubItem[] = [

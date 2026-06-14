@@ -17,6 +17,8 @@
  */
 
 import { useState } from 'react';
+import { useSessionUser } from '@/hooks/useSessionUser';
+import { substituteMockUserInText, substituteMockUserName } from '@/lib/session-user';
 import type { ReactNode } from 'react';
 import type {
   DispatchItem,
@@ -114,9 +116,11 @@ interface CardProps {
   onDone: () => void;
 }
 
-function DispatchCard({ item, expanded, onToggle, onUrge, onEscalate, onDone }: CardProps) {
+function DispatchCard({ item, expanded, onToggle, onUrge, onEscalate, onDone, sessionUser }: CardProps & { sessionUser: ReturnType<typeof useSessionUser> }) {
   const m = STATUS_META[item.status];
   const alert = isAlert(item.status);
+  const ownerName = substituteMockUserName(item.owner.name, sessionUser.displayName);
+  const ownerAvatar = item.owner.name === '何博' ? sessionUser.avatarInitials : item.owner.avatar;
   return (
     <div style={{
       borderRadius: 'var(--radius-md)',
@@ -134,7 +138,7 @@ function DispatchCard({ item, expanded, onToggle, onUrge, onEscalate, onDone }: 
           flex: 1, minWidth: 0, fontSize: 'var(--text-xs)', fontWeight: 600, color: 'var(--text-primary)',
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>{item.title}</span>
-        <Avatar text={item.owner.avatar} />
+        <Avatar text={ownerAvatar} />
         <DueChip item={item} />
         <StatusDot status={item.status} />
         <span style={{ display: 'flex', color: 'var(--text-tertiary)', transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>
@@ -147,7 +151,7 @@ function DispatchCard({ item, expanded, onToggle, onUrge, onEscalate, onDone }: 
         <div style={{ padding: '2px 10px 10px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <Row label="责任人">
             <span style={{ fontSize: 'var(--text-xs)', color: 'var(--text-primary)' }}>
-              {item.owner.name} · {item.owner.role}
+              {ownerName} · {item.owner.role}
             </span>
             <Badge tone={m.tone} size="xs">{m.label}</Badge>
           </Row>
@@ -177,7 +181,7 @@ function DispatchCard({ item, expanded, onToggle, onUrge, onEscalate, onDone }: 
               </span>
               {(item.acks ?? []).map((a, i) => (
                 <span key={i} style={{ fontSize: 10, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-                  {a.ts} · {a.actor} · {a.note}
+                  {a.ts} · {substituteMockUserInText(a.actor, sessionUser)} · {a.note}
                 </span>
               ))}
             </div>
@@ -257,8 +261,16 @@ function ReceiptBar({ items }: { items: DispatchItem[] }) {
   );
 }
 
+interface LensProps {
+  items: DispatchItem[];
+  expanded: string | null;
+  setExpanded: (id: string | null) => void;
+  handlers: (it: DispatchItem) => { onUrge: () => void; onEscalate: () => void; onDone: () => void };
+  sessionUser: ReturnType<typeof useSessionUser>;
+}
+
 /* ════════════ 镜头 1：闭环状态板（默认） ════════════ */
-function BoardLens({ items, expanded, setExpanded, handlers }: LensProps) {
+function BoardLens({ items, expanded, setExpanded, handlers, sessionUser }: LensProps) {
   const alerts = items.filter(i => isAlert(i.status));
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -281,6 +293,7 @@ function BoardLens({ items, expanded, setExpanded, handlers }: LensProps) {
                 expanded={expanded === it.id}
                 onToggle={() => setExpanded(expanded === it.id ? null : it.id)}
                 {...handlers(it)}
+                sessionUser={sessionUser}
               />
             ))}
           </div>
@@ -306,6 +319,7 @@ function BoardLens({ items, expanded, setExpanded, handlers }: LensProps) {
                     expanded={expanded === it.id}
                     onToggle={() => setExpanded(expanded === it.id ? null : it.id)}
                     {...handlers(it)}
+                    sessionUser={sessionUser}
                   />
                 ))}
             </div>
@@ -317,24 +331,26 @@ function BoardLens({ items, expanded, setExpanded, handlers }: LensProps) {
 }
 
 /* ════════════ 镜头 2：责任人 ════════════ */
-function PeopleLens({ items, expanded, setExpanded, handlers }: LensProps) {
+function PeopleLens({ items, expanded, setExpanded, handlers, sessionUser }: LensProps) {
   const byOwner = new Map<string, DispatchItem[]>();
   for (const it of items) {
-    const arr = byOwner.get(it.owner.name) ?? [];
+    const ownerKey = substituteMockUserName(it.owner.name, sessionUser.displayName);
+    const arr = byOwner.get(ownerKey) ?? [];
     arr.push(it);
-    byOwner.set(it.owner.name, arr);
+    byOwner.set(ownerKey, arr);
   }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {Array.from(byOwner.entries()).map(([name, list]) => {
         const owner = list[0]?.owner;
+        const ownerAvatar = owner?.name === '何博' ? sessionUser.avatarInitials : (owner?.avatar ?? '??');
         const done = list.filter(i => i.status === 'done').length;
         const overdue = list.filter(i => isAlert(i.status)).length;
         const pct = Math.round((done / list.length) * 100);
         return (
           <div key={name} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', background: 'var(--surface)', padding: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Avatar text={owner?.avatar ?? '??'} />
+              <Avatar text={ownerAvatar} />
               <span style={{ fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--text-primary)' }}>{name}</span>
               <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{owner?.role}</span>
               <span style={{ marginLeft: 'auto', display: 'inline-flex', gap: 8, alignItems: 'center' }}>
@@ -355,6 +371,7 @@ function PeopleLens({ items, expanded, setExpanded, handlers }: LensProps) {
                   expanded={expanded === it.id}
                   onToggle={() => setExpanded(expanded === it.id ? null : it.id)}
                   {...handlers(it)}
+                  sessionUser={sessionUser}
                 />
               ))}
             </div>
@@ -366,7 +383,7 @@ function PeopleLens({ items, expanded, setExpanded, handlers }: LensProps) {
 }
 
 /* ════════════ 镜头 3：孪生空间叠加 ════════════ */
-function TwinLens({ items, expanded, setExpanded, handlers }: LensProps) {
+function TwinLens({ items, expanded, setExpanded, handlers, sessionUser }: LensProps) {
   const byRoom = new Map<string, DispatchItem[]>();
   for (const it of items) {
     const room = it.impact.room ?? '未关联机房';
@@ -402,6 +419,7 @@ function TwinLens({ items, expanded, setExpanded, handlers }: LensProps) {
                   expanded={expanded === it.id}
                   onToggle={() => setExpanded(expanded === it.id ? null : it.id)}
                   {...handlers(it)}
+                  sessionUser={sessionUser}
                 />
               ))}
             </div>
@@ -412,15 +430,10 @@ function TwinLens({ items, expanded, setExpanded, handlers }: LensProps) {
   );
 }
 
-interface LensProps {
-  items: DispatchItem[];
-  expanded: string | null;
-  setExpanded: (id: string | null) => void;
-  handlers: (it: DispatchItem) => { onUrge: () => void; onEscalate: () => void; onDone: () => void };
-}
-
 /* ════════════ 主组件 ════════════ */
 export function DispatchTracker() {
+  const sessionUser = useSessionUser();
+  const currentActor = `${sessionUser.displayName} · ${sessionUser.roleLabel}`;
   const [items, setItems] = useState<DispatchItem[]>(
     () => DISPATCH_ITEMS.map(d => ({ ...d, acks: d.acks ? [...d.acks] : [] })),
   );
@@ -434,12 +447,12 @@ export function DispatchTracker() {
     setItems(prev => prev.map(it => (it.id === id ? fn(it) : it)));
   }
   const handlers = (it: DispatchItem) => ({
-    onUrge: () => patch(it.id, x => ({ ...x, acks: [...(x.acks ?? []), { ts: nowLabel(), actor: '何博 · TD', note: '已催办' }] })),
-    onEscalate: () => patch(it.id, x => ({ ...x, status: 'escalated', acks: [...(x.acks ?? []), { ts: nowLabel(), actor: '何博 · TD', note: '已升级至 PD' }] })),
+    onUrge: () => patch(it.id, x => ({ ...x, acks: [...(x.acks ?? []), { ts: nowLabel(), actor: currentActor, note: '已催办' }] })),
+    onEscalate: () => patch(it.id, x => ({ ...x, status: 'escalated', acks: [...(x.acks ?? []), { ts: nowLabel(), actor: currentActor, note: '已升级至 PD' }] })),
     onDone: () => patch(it.id, x => ({ ...x, status: 'done', acks: [...(x.acks ?? []), { ts: nowLabel(), actor: x.owner.name, note: '已标记完成' }] })),
   });
 
-  const lensProps: LensProps = { items: visible, expanded, setExpanded, handlers };
+  const lensProps: LensProps = { items: visible, expanded, setExpanded, handlers, sessionUser };
   const LENS_TABS: { key: Lens; label: string }[] = [
     { key: 'board', label: '闭环板' },
     { key: 'people', label: '按人' },

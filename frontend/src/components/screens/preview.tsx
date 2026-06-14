@@ -2,6 +2,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { workspaceNavigate } from '@/lib/workspace-nav-link';
 import { JOURNEY_STAGES } from '../../data/journey-data';
 import {
   PARSED_DEVICES, PARSED_SERVICES,
@@ -1253,8 +1255,16 @@ function LLDTab() {
 
 /* SVG 校正：/preview 只承载合同条线；DTRB/DRB/LLD 三快照拆到 /proposal 路由 */
 export default function PreviewScreen() {
+  const navigate = useNavigate();
   const [boqState, setBoqState] = useState({ confirmed: false, parseProgress: 0, selectedCount: 0, totalBoqs: 0 });
   const parseDone = boqState.confirmed && boqState.parseProgress === 100;
+
+  const goProposal = () => workspaceNavigate(navigate, '/proposal', '/preview');
+
+  const confirmBoqParse = () => {
+    if (typeof document === 'undefined') return;
+    document.getElementById('boq-confirm-trigger')?.click();
+  };
 
   return (
     <div className="jn-wrap preview-screen" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -1268,7 +1278,7 @@ export default function PreviewScreen() {
         <ContractTab onStateChange={setBoqState} />
       </div>
 
-      {/* 确认前底部操作栏：居中显示「已选 N / M BOQ」+ 「确认并解析 BOQ →」*/}
+      {/* 确认前底部操作栏：已选 BOQ → 确认并解析 */}
       {!boqState.confirmed && boqState.selectedCount > 0 && (
         <div className="action-footer">
           <span className="action-footer-hint">
@@ -1280,9 +1290,9 @@ export default function PreviewScreen() {
             className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            onClick={() => { if (typeof window !== 'undefined') window.location.href = '/proposal'; }}
+            onClick={confirmBoqParse}
           >
-            进入交付预案 →
+            确认并解析 BOQ →
           </button>
         </div>
       )}
@@ -1297,7 +1307,7 @@ export default function PreviewScreen() {
           <button
             type="button"
             className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
-            onClick={() => { if (typeof window !== 'undefined') window.location.href = '/proposal'; }}
+            onClick={goProposal}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >

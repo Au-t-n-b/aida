@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { fetchMyProjects } from '@/lib/claw-manager-client';
 import {
   mapDcProjectToCard,
@@ -139,17 +140,11 @@ function ProjectCard({ p, onClick, onEdit }) {
   );
 }
 
-function userAvatar(name: string): string {
-  const s = (name || '').trim();
-  if (!s) return 'U';
-  if (/[\u4e00-\u9fff]/.test(s)) return s.slice(0, 2);
-  return s.slice(0, 2).toUpperCase();
-}
-
 export default function LandingScreen() {
   const navigate = useNavigate();
   const doLogout = useLogout();
   const { session } = useAidaSession();
+  const sessionUser = useSessionUser();
   const { selectProject } = useCurrentProject();
   const [projects, setProjects] = useState<LandingProjectCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,6 +155,7 @@ export default function LandingScreen() {
   const openCreate = () => setModal({ open: true, mode: 'create', preset: null, projectId: null });
   const openEdit = (id: string) => {
     const p = projects.find((x) => x.id === id);
+    // 列表卡片作占位预填，弹窗内 fetchProjectDetail 拉全量详情覆盖
     const preset = p ? projectToFormPreset(p) : null;
     setModal({ open: true, mode: 'edit', preset, projectId: id });
   };
@@ -188,9 +184,9 @@ export default function LandingScreen() {
     void reloadProjects();
   }, [reloadProjects]);
 
-  const handleProjectCreated = useCallback(async () => {
+  const handleProjectSaved = useCallback(async (kind: 'create' | 'edit') => {
     await reloadProjects({ silent: true });
-    setFlash('项目已提交创建，状态为待审批');
+    setFlash(kind === 'edit' ? '项目信息已更新' : '项目已提交创建，状态为待审批');
     window.setTimeout(() => setFlash(null), 5000);
   }, [reloadProjects]);
 
@@ -198,13 +194,12 @@ export default function LandingScreen() {
     const p = projects.find((x) => x.id === id);
     if (!p || !p.canEnter) return;
     selectProject({ id: p.id, name: p.name, code: p.code });
-    navigate('/cockpit');
+    navigate('/preview');
   };
 
-  const displayName = session?.user?.display_name || session?.user?.username || '用户';
-  const roleLabel = session?.user?.global_roles?.[0]?.roleName
-    || session?.role
-    || '交付成员';
+  const displayName = sessionUser.displayName;
+  const roleLabel = sessionUser.roleLabel;
+  const userId = sessionUser.userId;
 
   const visibleProjects = visibleLandingProjects(projects);
 
@@ -231,9 +226,9 @@ export default function LandingScreen() {
         <div className="lp-top-user">
           <div className="lp-top-user-meta">
             <div className="lp-top-user-name">{displayName}</div>
-            <div className="lp-top-user-title">{roleLabel}</div>
+            <div className="lp-top-user-title">{roleLabel}{userId ? ` · ${userId}` : ''}</div>
           </div>
-          <div className="lp-top-user-av">{userAvatar(displayName)}</div>
+          <div className="lp-top-user-av">{sessionUser.avatarInitials}</div>
           <button type="button" className="lp-top-logout" onClick={() => void doLogout()}>
             退出
           </button>
@@ -293,7 +288,7 @@ export default function LandingScreen() {
         preset={modal.preset}
         projectId={modal.projectId}
         onClose={closeModal}
-        onCreated={handleProjectCreated}
+        onSaved={handleProjectSaved}
       />
     </div>
   );

@@ -21,8 +21,9 @@ from ..services.proposal_parse import (
     read_saved_version,
     write_xlsx_table,
 )
+from ..proposal_request_logging import ProposalLoggingRoute
 
-router = APIRouter(prefix="/api/v1", tags=["proposal-mock"])
+router = APIRouter(prefix="/api/v1", tags=["proposal-mock"], route_class=ProposalLoggingRoute)
 
 # 0612：交付预案 Mock 根目录（默认 data/delivery/mock）
 _AIDA_ROOT = Path(__file__).resolve().parents[2]

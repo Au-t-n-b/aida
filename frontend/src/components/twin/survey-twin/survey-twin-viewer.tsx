@@ -310,17 +310,6 @@ export function SurveyTwinViewer() {
           >
             {useWebgl ? '兼容模式：开' : '兼容模式：关'}
           </button>
-          <button
-            type="button"
-            className="st-button"
-            onClick={async () => {
-              if (viewerFrameRef.current?.requestFullscreen) {
-                await viewerFrameRef.current.requestFullscreen();
-              }
-            }}
-          >
-            全屏查看
-          </button>
         </div>
       </section>
 

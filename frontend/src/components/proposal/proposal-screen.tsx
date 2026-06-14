@@ -50,7 +50,7 @@ import {
   type VersionInfoMetadata,
 } from '@/lib/proposal-api';
 import { navDebug } from '@/lib/nav-debug';
-import { useRouteActive } from '@/lib/route-active';
+import { useCurrentProject } from '@/lib/current-project';
 
 const DEFAULT_MANIFEST: DraftManifest = {
   workingVersionLabel: '草稿',
@@ -76,10 +76,10 @@ const FALLBACK_VERSIONS: ProposalVersionItem[] = [
 
 export default function ProposalScreen() {
   const location = useLocation();
-  const routeActive = useRouteActive('/proposal');
+  const { project } = useCurrentProject();
   const mountedRef = useRef(true);
   const headers = useProposalApiHeaders();
-  const projectId = getDefaultProjectId();
+  const projectId = project?.id?.trim() || getDefaultProjectId();
   const {
     raciRows,
     planRows,
@@ -596,12 +596,7 @@ export default function ProposalScreen() {
       ? ''
       : 'proposal-page--outline-collapsed';
 
-  const pageTitle = `${metadata.projectName ?? '京东三期项目'}交付预案`;
-
-  if (!routeActive) {
-    navDebug('proposal-screen stale guard', { pathname: location.pathname });
-    return null;
-  }
+  const pageTitle = `${metadata.projectName ?? project?.name ?? '京东三期项目'}交付预案`;
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>
