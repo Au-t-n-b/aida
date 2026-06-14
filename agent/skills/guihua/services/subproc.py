@@ -19,9 +19,41 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Callable
+from urllib.parse import urlparse
+
+from .sim_api import DEFAULT_API_BASE
 
 Emit = Callable[[str], None]
 OnLine = Callable[[str], None]
+
+
+def _sim_gateway_no_proxy_env() -> dict[str, str]:
+    """为子进程合并 NO_PROXY，避免企业代理拦截内网仿真网关（仅 guihua subproc 路径）。"""
+    base = (os.environ.get("SIM_API_BASE") or DEFAULT_API_BASE).strip() or DEFAULT_API_BASE
+    host = urlparse(base).hostname or "100.102.191.17"
+    extras: dict[str, str] = {}
+    for key in ("NO_PROXY", "no_proxy"):
+        parts = [p.strip() for p in (os.environ.get(key) or "").split(",") if p.strip()]
+        for item in (host, "127.0.0.1", "localhost"):
+            if item not in parts:
+                parts.append(item)
+        extras[key] = ",".join(parts)
+    return extras
+
+
+def _subproc_failure_hint(result: dict) -> str:
+    lines = result.get("lines") or []
+    tail = "\n".join(lines[-8:])
+    code = result.get("exit_code")
+    if any(x in tail for x in ("504", "HIS Proxy", "Gateway Time-out", "Gateway Timeout")):
+        return (
+            f"仿真网关请求被企业代理拦截（exit_code={code}）。"
+            "请确认 Agent 环境 NO_PROXY 含仿真网关地址，并以 SIM_API_LIVE=1 重启。"
+        )
+    err = (result.get("error") or "").strip()
+    if err:
+        return f"子进程失败：{err}"
+    return f"子进程失败（exit_code={code}）"
 
 
 def run_script(
@@ -50,6 +82,7 @@ def run_script(
     env = os.environ.copy()
     env.setdefault("PYTHONIOENCODING", "utf-8")
     env.setdefault("PYTHONUTF8", "1")
+    env.update(_sim_gateway_no_proxy_env())
     if extra_env:
         env.update(extra_env)
 

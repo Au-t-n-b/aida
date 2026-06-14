@@ -16,7 +16,7 @@ from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckR
 from ..services import VENDOR_AUTODRAGD
 from ..services.sentinel import is_same_run, read_json
 from ..services.sim_api import is_live
-from ..services.subproc import run_script
+from ..services.subproc import run_script, _subproc_failure_hint
 
 REQUESTS_REL = "ProjectData/RunTime/requests.json"
 CREATED_REL = "ProjectData/RunTime/combo_created.json"
@@ -76,13 +76,16 @@ class ComboCreateStep(BaseStep):
             "live": is_live(),
             "exit_code": result.get("exit_code"),
         }
+        if not record["ok"]:
+            hint = _subproc_failure_hint(result)
+            emit(f"[{self.key}] ⚠ 创建失败：{hint}")
+            record["error"] = hint
         sentinel.parent.mkdir(parents=True, exist_ok=True)
         sentinel.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
         if not record["ok"]:
-            emit(f"[{self.key}] ⚠ 创建失败（exit_code={record['exit_code']}），请检查仿真网关/视图名/token")
-        else:
-            emit(f"[{self.key}] 超节点创建完成：{record['created_count']} 组 / {record['pod_count']} 个 POD")
+            return {"metrics": self._metrics(record), "error": hint}
+        emit(f"[{self.key}] 超节点创建完成：{record['created_count']} 组 / {record['pod_count']} 个 POD")
         return {"metrics": self._metrics(record)}
 
     # ── helpers ──
