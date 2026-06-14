@@ -5,7 +5,7 @@ AIDA + nanobot 融合启动器。
 1. bootstrap nanobot workspace / config.json
 2. 启动 nanobot serve (:8900) — 自由聊天引擎
 3. 启动 AIDA FastAPI (:7401) — LangGraph + SDUI，聊天代理到 nanobot
-4. 启动 Manager (:8000) — UX 鉴权，代理数据中心
+4. 启动 Manager (:8081) — UX 鉴权，代理数据中心
 5. 启动 mailgw 团队邮箱 (:8025) — GKCLAW 邮件网关（需 mailgw/config.yaml）
 6. 启动 ontology backend_app (:8011) — 数据中心 / 本体 API
 7. 启动前端静态服务 (:8080)
@@ -155,7 +155,7 @@ def start_mailgw() -> subprocess.Popen | None:
 
 
 def _manager_port() -> str:
-    return os.environ.get("MANAGER_PORT", "8001")
+    return os.environ.get("MANAGER_PORT", "8081")
 
 
 def start_manager() -> subprocess.Popen:

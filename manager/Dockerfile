@@ -29,8 +29,8 @@ COPY manager/ ./manager/
 COPY shared/ ./shared/
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://127.0.0.1:8000/healthz || exit 1
+    CMD curl -f http://127.0.0.1:8081/healthz || exit 1
 
-EXPOSE 8000
+EXPOSE 8081
 
-CMD ["uvicorn", "manager.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "manager.main:app", "--host", "0.0.0.0", "--port", "8081"]

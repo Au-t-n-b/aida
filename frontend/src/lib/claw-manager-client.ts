@@ -172,7 +172,7 @@ export type ArchiveResponse = {
   detail?: string | null;
 };
 
-const DEFAULT_MANAGER_BASE = 'http://127.0.0.1:8000';
+const DEFAULT_MANAGER_BASE = 'http://127.0.0.1:8081';
 
 export function managerBase(): string {
   const configured = import.meta.env.VITE_CLAWMANAGER_BASE as string | undefined;

@@ -131,6 +131,8 @@ app.include_router(schedule_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "*",  # 演示期放开，生产期改具体源

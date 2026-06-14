@@ -75,7 +75,7 @@
           ],
           "commands": [
             "uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload",
-            "cd frontend && npm run dev   # http://localhost:5173",
+            "cd frontend && npm run dev   # http://localhost:8080",
             "curl http://127.0.0.1:7401/agent/skills   # 看到 zhgk/guihua/xtsj = 成功"
           ],
           "done": "前端能打开、curl 能列出已注册的 skill。"

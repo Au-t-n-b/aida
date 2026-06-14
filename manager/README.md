@@ -7,7 +7,7 @@ UX 协调层：**鉴权**（代理数据中心）、会话管理；后续扩展�
 ```bash
 source agent/.venv/bin/activate
 # agent/.env 配置 DATA_CENTER_BASE_URL
-uvicorn manager.main:app --host 0.0.0.0 --port 8000
+uvicorn manager.main:app --host 0.0.0.0 --port 8081
 ```
 
 或与全栈一并启动：`python scripts/start_aida_nanobot.py`
@@ -22,7 +22,7 @@ uvicorn manager.main:app --host 0.0.0.0 --port 8000
 | `POST /api/v1/chat/access` | 登录后聊天票据（指向 AIDA Agent） |
 | `GET /health` | 健康检查 |
 
-前端 `VITE_CLAWMANAGER_BASE` 指向 Manager（默认 `http://127.0.0.1:8000`）。
+前端 `VITE_CLAWMANAGER_BASE` 指向 Manager（默认 `http://127.0.0.1:8081`）。
 
 ## 环境变量
 
@@ -30,6 +30,6 @@ uvicorn manager.main:app --host 0.0.0.0 --port 8000
 |------|------|------|
 | `DATA_CENTER_BASE_URL` | **必填** | 远端数据中心 API Base URL（例 `http://10.143.2.231:8000`） |
 | `AIDA_AGENT_BASE_URL` | `http://127.0.0.1:7401` | AIDA Agent（chat/access 回传） |
-| `MANAGER_PORT` | `8001` | 监听端口 |
+| `MANAGER_PORT` | `8081` | 监听端口 |
 
 鉴权契约见 `docs/50_数据与接口/接口/auth.md`。

@@ -9,7 +9,7 @@
     "createdBy": "何博",
     "createdAt": "2026-06-13T08:27:16.364558+00:00",
     "updatedBy": "何博",
-    "updatedAt": "2026-06-14T13:03:57.734087+00:00"
+    "updatedAt": "2026-06-14T13:32:26.245439+00:00"
   },
   "snapshots": [
     {
@@ -176,6 +176,18 @@
       "createdAt": "2026-06-13T08:27:16.364558+00:00",
       "updatedBy": "何博",
       "updatedAt": "2026-06-13T13:14:17.255102+00:00",
+      "changeDescription": "",
+      "documentSummary": "56A0TXN项目交付预案",
+      "changeRecords": []
+    },
+    {
+      "projectId": "56A0TXN",
+      "projectName": "京东三期",
+      "proposalVersion": "V2.2_20260614213043_DRB",
+      "createdBy": "何博",
+      "createdAt": "2026-06-13T08:27:16.364558+00:00",
+      "updatedBy": "何博",
+      "updatedAt": "2026-06-14T13:30:44.595368+00:00",
       "changeDescription": "",
       "documentSummary": "56A0TXN项目交付预案",
       "changeRecords": []
