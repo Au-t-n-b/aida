@@ -51,6 +51,7 @@ import {
 } from '@/lib/proposal-api';
 import { navDebug } from '@/lib/nav-debug';
 import { useCurrentProject } from '@/lib/current-project';
+import { resolveTopBarProjectDisplayName } from '@/data/topbar-projects';
 
 const DEFAULT_MANIFEST: DraftManifest = {
   workingVersionLabel: '草稿',
@@ -596,7 +597,7 @@ export default function ProposalScreen() {
       ? ''
       : 'proposal-page--outline-collapsed';
 
-  const pageTitle = `${metadata.projectName ?? project?.name ?? '京东三期项目'}交付预案`;
+  const pageTitle = `${resolveTopBarProjectDisplayName(project)}交付预案`;
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>

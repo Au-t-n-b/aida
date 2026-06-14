@@ -2,6 +2,7 @@
  * ClawRail 对话会话 · 按路由隔离 + sessionStorage 持久化
  *
  * 切换页面时保留各路由独立对话；返回同一路由时恢复历史。
+ * 交付预案等页面可附加 projectScope（通常为项目名称）按项目隔离会话。
  * 不影响 aida:progress / aida:proposal-reveal-* 等交付预案章节加载事件。
  */
 import { useSyncExternalStore } from 'react';
@@ -56,6 +57,13 @@ function routeKey(pathname: string): string {
   return (pathname.split('?')[0] || '/').trim() || '/';
 }
 
+/** 会话存储键：路由 + 可选项目范围（如交付预案按项目名称） */
+export function clawChatSessionKey(pathname: string, projectScope?: string | null): string {
+  const route = routeKey(pathname);
+  const scope = projectScope?.trim();
+  return scope ? `${route}::${scope}` : route;
+}
+
 export function genClawConvId(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID
     ? `conv-${crypto.randomUUID()}`
@@ -96,8 +104,8 @@ function sanitizeMsgs(msgs: StoredClawMsg[]): StoredClawMsg[] {
     });
 }
 
-export function loadClawChatSession(pathname: string): ClawChatSession {
-  const key = routeKey(pathname);
+export function loadClawChatSession(pathname: string, projectScope?: string | null): ClawChatSession {
+  const key = clawChatSessionKey(pathname, projectScope);
   const cached = memory.get(key);
   if (cached) return cached;
 
@@ -116,8 +124,12 @@ export function loadClawChatSession(pathname: string): ClawChatSession {
   return session;
 }
 
-export function saveClawChatSession(pathname: string, session: ClawChatSession): void {
-  const key = routeKey(pathname);
+export function saveClawChatSession(
+  pathname: string,
+  session: ClawChatSession,
+  projectScope?: string | null,
+): void {
+  const key = clawChatSessionKey(pathname, projectScope);
   const normalized: ClawChatSession = {
     convId: session.convId || genClawConvId(),
     msgs: sanitizeMsgs(session.msgs ?? []),
@@ -139,8 +151,8 @@ export function saveClawChatSession(pathname: string, session: ClawChatSession):
   notify();
 }
 
-export function clearClawChatSession(pathname: string): void {
-  const key = routeKey(pathname);
+export function clearClawChatSession(pathname: string, projectScope?: string | null): void {
+  const key = clawChatSessionKey(pathname, projectScope);
   memory.delete(key);
   const all = readStorage();
   delete all[key];
@@ -148,13 +160,13 @@ export function clearClawChatSession(pathname: string): void {
   notify();
 }
 
-export function useClawChatSession(pathname: string): ClawChatSession {
+export function useClawChatSession(pathname: string, projectScope?: string | null): ClawChatSession {
   return useSyncExternalStore(
     (cb) => {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    () => loadClawChatSession(pathname),
+    () => loadClawChatSession(pathname, projectScope),
     () => emptySession(),
   );
 }

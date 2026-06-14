@@ -6,6 +6,7 @@ import { usePathname, useNavPath } from '@/compat/navigation';
 import {
   getSeedForPath,
   getSuggestsForPath,
+  SHOW_PREVIEW_CLAW_SEED,
 } from '../data/claw-seeds';
 import { getNavLabel } from '../data/left-nav-items';
 import { skillIdFromModulePath } from '@/data/module-skill-map';
@@ -27,7 +28,7 @@ import {
   saveClawChatSession,
   type StoredClawMsg,
 } from '@/lib/claw-chat-store';
-import { useCurrentProject } from '@/lib/current-project';
+import { useCurrentProject, type CurrentProject } from '@/lib/current-project';
 import { useSessionUser } from '@/hooks/useSessionUser';
 import { getUploadMeta, setUploadMetaDoc } from '@/lib/proposal-data-service';
 
@@ -234,6 +235,11 @@ function simulateProposalUpload(docKey: string, itemLabel: string, fileName: str
   }
 }
 
+function clawProjectScope(pathname: string, project: CurrentProject | null): string | null {
+  if (!pathname.includes('/proposal')) return null;
+  return project?.name?.trim() || project?.id?.trim() || null;
+}
+
 function ProposalUploadPanel() {
   const { project } = useCurrentProject();
   const projectName = project?.name ?? '';
@@ -340,18 +346,17 @@ function ProposalUploadPanel() {
 function ModuleControlPanel({ pathname }: { pathname: string }) {
   const [parseProgress, setParseProgress] = useState(0);
   const [parseStage, setParseStage] = useState('等待开始');
-  const [needRefresh, setNeedRefresh] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onProgress = (e: Event) => {
       const body = ((e as CustomEvent<{ body?: string }>).detail?.body) ?? '';
-      if (body.includes('开始解析')) { setParseProgress(10); setParseStage('拉取 BOQ 文件…'); setNeedRefresh(false); }
+      if (body.includes('开始解析')) { setParseProgress(10); setParseStage('拉取 BOQ 文件…'); }
       else if (body.includes('收到 · 已挂起'))     { setParseProgress(25); setParseStage('设备类解析中…'); }
       else if (body.includes('设备类 BOQ 已解析')) { setParseProgress(55); setParseStage('检测数据冲突…'); }
       else if (body.includes('服务类 BOQ 已分到')) { setParseProgress(80); setParseStage('服务类分类中…'); }
       else if (body.includes('已把') && body.includes('冲突自动登记')) { setParseProgress(95); setParseStage('写入风险列表…'); }
-      else if (body.includes('全部解析任务已完成')) { setParseProgress(100); setParseStage('解析完成'); setNeedRefresh(true); }
+      else if (body.includes('全部解析任务已完成')) { setParseProgress(100); setParseStage('解析完成'); }
     };
     window.addEventListener('aida:progress', onProgress);
     return () => window.removeEventListener('aida:progress', onProgress);
@@ -381,18 +386,6 @@ function ModuleControlPanel({ pathname }: { pathname: string }) {
             <div className="claw-mc-card-sub">{parseStage}</div>
           </div>
         </div>
-        <button
-          type="button"
-          className={`claw-module-ctl-card claw-mc-hitl${needRefresh ? ' on' : ''}`}
-          onClick={() => { if (needRefresh && typeof window !== 'undefined') window.location.reload(); }}
-          disabled={!needRefresh}
-        >
-          <div className="claw-mc-hitl-ic">{needRefresh ? '⟳' : '○'}</div>
-          <div className="claw-mc-card-body">
-            <div className="claw-mc-card-title">HITL 解析以完成</div>
-            <div className="claw-mc-card-sub">{needRefresh ? '点击刷新页面查看' : '解析进行中…'}</div>
-          </div>
-        </button>
       </div>
     );
   }
@@ -884,6 +877,7 @@ export default function ClawRail({
   clawSide = 'left',
   hideSwap = false,
   hideSuggests = false,
+  hideChat = false,
   inputPlaceholder = '对当前页面提问 / 下指令 · 支持引用 #PoD #机房 #项目',
 }: {
   collapsed: boolean;
@@ -896,6 +890,7 @@ export default function ClawRail({
   /** 用收起/展开按钮替代左右互换 */
   hideSwap?: boolean;
   hideSuggests?: boolean;
+  hideChat?: boolean;
   inputPlaceholder?: string;
 }) {
   const [draft, setDraft] = useState('');
@@ -913,6 +908,10 @@ export default function ClawRail({
   const navPath = useNavPath();
   const navigation = useNavigation();
   const { chatMetaPrefix } = useSessionUser();
+  const { project } = useCurrentProject();
+  const projectScope = clawProjectScope(pathname, project);
+  const projectScopeRef = useRef(projectScope);
+  projectScopeRef.current = projectScope;
 
   const abortActiveStream = useCallback(() => {
     streamAbortRef.current?.abort();
@@ -930,8 +929,8 @@ export default function ClawRail({
   const hitlInfoTop = useSkillHitlStore();
   const runInfoTop = useSkillRunStore();
 
-  // Real chat messages (user ↔ AI turns) · 按路由持久化（sessionStorage）
-  const initialSession = loadClawChatSession(pathname);
+  // Real chat messages (user ↔ AI turns) · 按路由（+ 项目）持久化
+  const initialSession = loadClawChatSession(pathname, projectScope);
   const [chatMsgs, setChatMsgs] = useState<Msg[]>(() => initialSession.msgs as Msg[]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [convId, setConvId] = useState<string>(() => initialSession.convId || genClawConvId());
@@ -939,29 +938,38 @@ export default function ClawRail({
   chatMsgsRef.current = chatMsgs;
   convIdRef.current = convId;
 
-  const persistSession = useCallback((msgs: Msg[], cid: string) => {
-    saveClawChatSession(pathname, { msgs: msgs as StoredClawMsg[], convId: cid });
+  const persistSession = useCallback((
+    msgs: Msg[],
+    cid: string,
+    scope: string | null | undefined = projectScopeRef.current,
+  ) => {
+    saveClawChatSession(pathname, { msgs: msgs as StoredClawMsg[], convId: cid }, scope);
   }, [pathname]);
 
-  // 路由切换：中止流式请求、恢复目标页历史会话
+  // 路由 / 项目切换：中止流式请求、保存旧会话、恢复目标会话
   useEffect(() => {
     mountedRef.current = true;
     abortActiveStream();
 
-    const session = loadClawChatSession(pathname);
+    const session = pathname.includes('/preview') && !SHOW_PREVIEW_CLAW_SEED
+      ? { msgs: [] as StoredClawMsg[], convId: genClawConvId() }
+      : loadClawChatSession(pathname, projectScope);
+    if (pathname.includes('/preview') && !SHOW_PREVIEW_CLAW_SEED) {
+      clearClawChatSession(pathname);
+    }
     setChatMsgs(session.msgs as Msg[]);
     setConvId(session.convId || genClawConvId());
 
     return () => {
       mountedRef.current = false;
       abortActiveStream();
-      persistSession(chatMsgsRef.current, convIdRef.current);
+      persistSession(chatMsgsRef.current, convIdRef.current, projectScope);
       if (typeof document !== 'undefined') {
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
       }
     };
-  }, [pathname, persistSession, abortActiveStream]);
+  }, [pathname, projectScope, persistSession, abortActiveStream]);
 
   // 导航进行中立即中止 SSE，避免阻塞 React Router 提交新页面
   useEffect(() => {
@@ -985,7 +993,7 @@ export default function ClawRail({
   }, [pathname, abortActiveStream]);
 
   useEffect(() => {
-    persistSession(chatMsgs, convId);
+    persistSession(chatMsgs, convId, projectScopeRef.current);
   }, [chatMsgs, convId, persistSession]);
 
   const toggleMaximize = () => {
@@ -1011,6 +1019,7 @@ export default function ClawRail({
     if (typeof window === 'undefined') return;
     const onProgress = (e: Event) => {
       if (!mountedRef.current) return;
+      if (pathname.includes('/preview')) return;
       const msg = (e as CustomEvent<Partial<Msg>>).detail;
       if (!msg?.body) return;
       const ts = msg.ts ?? nowTs();
@@ -1018,7 +1027,7 @@ export default function ClawRail({
       setChatMsgs(prev => [...prev, { role: msg.role ?? 'ai', body: msg.body!, ts, ...msg }]);
     };
     const onClear = () => {
-      clearClawChatSession(pathname);
+      clearClawChatSession(pathname, projectScopeRef.current);
       setChatMsgs([]);
       setConvId(genClawConvId());
     };
@@ -1028,7 +1037,7 @@ export default function ClawRail({
       window.removeEventListener('aida:progress', onProgress);
       window.removeEventListener('aida:clear', onClear);
     };
-  }, [pathname]);
+  }, [pathname, projectScope]);
 
   // 模块 skill 会话隔离（切换 /module/* 路由时清理不匹配的 HITL / 会话）
   useEffect(() => {
@@ -1428,6 +1437,8 @@ export default function ClawRail({
 
       <ModuleControlPanel pathname={pathname} />
 
+      {!hideChat && (
+      <>
       {/* thread */}
       <div className="claw-thread" ref={threadRef}>
         {allMsgs.map((m, i) => (
@@ -1582,6 +1593,8 @@ export default function ClawRail({
           </div>
         </div>
       </div>
+      </>
+      )}
     </aside>
   );
 }

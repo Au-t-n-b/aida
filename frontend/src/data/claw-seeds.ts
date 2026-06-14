@@ -293,9 +293,13 @@ export const CLAW_SUGGESTS_BY_ROUTE = {
 /** 0612：交付预案页是否展示 ClawRail 预制对话（DTRB/ConnectX-7 等种子消息） */
 export const SHOW_PROPOSAL_CLAW_SEED = false;
 
+/** 合同页是否展示 ClawRail 预制对话（ConnectX-7 等种子消息） */
+export const SHOW_PREVIEW_CLAW_SEED = false;
+
 /** 从 pathname 取对应的 seed 对话；未命中回落到 /cockpit */
 export function getSeedForPath(pathname: string) {
   if (pathname.includes('/proposal') && !SHOW_PROPOSAL_CLAW_SEED) return [];
+  if (pathname.includes('/preview') && !SHOW_PREVIEW_CLAW_SEED) return [];
   if (!pathname) return CLAW_SEED_BY_ROUTE['/cockpit'];
   // Skill Agent（/module/*）左侧走真实 SDUI 会话，不用静态 mock 种子
   if (pathname.includes('/module')) return CLAW_SEED_BY_ROUTE['/module'];

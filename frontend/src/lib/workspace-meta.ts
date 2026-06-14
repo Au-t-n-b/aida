@@ -5,6 +5,7 @@ type ProjectMini = Pick<CurrentProject, 'id' | 'name'>;
 export type WorkspaceClawProps = {
   hideSwap?: boolean;
   hideSuggests?: boolean;
+  hideChat?: boolean;
   inputPlaceholder?: string;
 };
 
@@ -23,6 +24,12 @@ const PROPOSAL_CLAW: WorkspaceClawProps = {
   hideSwap: true,
   hideSuggests: true,
   inputPlaceholder: '',
+};
+
+const PREVIEW_CLAW: WorkspaceClawProps = {
+  hideSwap: true,
+  hideSuggests: true,
+  inputPlaceholder: '对当前页面提问 / 下指令…',
 };
 
 function matchPath(pathname: string, prefix: string): boolean {
@@ -49,7 +56,7 @@ export function getWorkspaceMeta(
   }
 
   if (pathname === '/preview') {
-    return { breadcrumbs: ['早期接入 · 合同 + 预案三快照'], clawProps: DEFAULT_CLAW };
+    return { breadcrumbs: ['早期接入 · 合同 + 预案三快照'], clawProps: PREVIEW_CLAW };
   }
 
   if (pathname === '/twin/survey') {
