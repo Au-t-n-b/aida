@@ -5,12 +5,14 @@ import json
 import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.request
+from typing import Callable
 
 log = logging.getLogger(__name__)
 
-_TASK_ID_RE = re.compile(r"task-\d{8}-[A-Z0-9]+-\d+", re.I)
+_TASK_ID_RE = re.compile(r"task-\d{8,20}-[A-Z0-9]+(?:-\d+)?", re.I)
 _GKCLAW_HINT = re.compile(r"task\.(import_ack|result|error)|\[gkclaw\]", re.I)
 
 
@@ -31,6 +33,9 @@ def notify_agent_inbound(
     token: str,
     skill: str = "zhgk",
     timeout: int = 30,
+    attempts: int = 3,
+    retry_sleep_sec: float = 5.0,
+    sleep_fn: Callable[[float], None] = time.sleep,
 ) -> dict | None:
     """POST Agent /agent/{skill}/gkclaw/inbound。失败只打日志，不抛栈。"""
     if not base_url or not token:
@@ -40,26 +45,34 @@ def notify_agent_inbound(
     task_id = _parse_task_id(subject)
     url = f"{base_url.rstrip('/')}/agent/{skill}/gkclaw/inbound"
     body = {"mail_id": mail_id, "task_id": task_id, "subject": subject}
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(body).encode(),
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
+    max_attempts = max(1, int(attempts or 1))
+    for attempt in range(1, max_attempts + 1):
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(body).encode(),
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="POST",
+        )
         try:
-            detail = e.read().decode()
-        except Exception:
-            detail = str(e)
-        log.warning("agent inbound HTTP %s: %s", e.code, detail[:200])
-    except Exception as exc:  # noqa: BLE001
-        log.warning("agent inbound failed mail#%s: %s", mail_id, exc)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                result = json.loads(resp.read().decode())
+                if result.get("deferred") and attempt < max_attempts:
+                    sleep_fn(float(result.get("retry_after_sec") or retry_sleep_sec))
+                    continue
+                return result
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode()
+            except Exception:
+                detail = str(e)
+            log.warning("agent inbound HTTP %s: %s", e.code, detail[:200])
+        except Exception as exc:  # noqa: BLE001
+            log.warning("agent inbound failed mail#%s: %s", mail_id, exc)
+        if attempt < max_attempts:
+            sleep_fn(retry_sleep_sec)
     return None
 
 
@@ -69,8 +82,8 @@ def load_notify_config(raw: dict | None) -> dict:
     return {
         "enabled": bool(raw.get("enabled", True)),
         "base_url": (
-            raw.get("base_url")
-            or os.environ.get("AGENT_NOTIFY_BASE")
+            os.environ.get("AGENT_NOTIFY_BASE")
+            or raw.get("base_url")
             or "http://127.0.0.1:7401"
         ),
         "token": (

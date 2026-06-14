@@ -100,6 +100,43 @@ export type SduiBarChartNode = OptId & { type: 'BarChart'; data?: SduiBarDatum[]
 
 export type SduiGoldenMetricItem = { id?: string; label?: string; value?: number | string; color?: string };
 export type SduiGoldenMetricsNode = OptId & { type: 'GoldenMetrics'; metrics?: SduiGoldenMetricItem[] };
+export type SduiZhgkGoldenMetricsNode = OptId & {
+  type: 'ZhgkGoldenMetrics';
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+};
+
+export type SduiZhgkAssessmentDetail = {
+  item?: string;
+  result?: string;
+  source?: string;
+  time?: string;
+  risk?: string;
+};
+
+export type SduiZhgkAssessmentCategory = {
+  label: string;
+  value: number;
+  tone?: SduiSemanticColor;
+  details?: SduiZhgkAssessmentDetail[];
+};
+
+export type SduiZhgkAssessmentAlert = {
+  tone?: 'info' | 'success' | 'warning' | 'error';
+  title?: string;
+  message: string;
+};
+
+export type SduiZhgkAssessmentPanelNode = OptId & {
+  type: 'ZhgkAssessmentPanel';
+  title?: string;
+  total: number;
+  rateLabel?: string;
+  rateValue: number;
+  categories: SduiZhgkAssessmentCategory[];
+  alerts?: SduiZhgkAssessmentAlert[];
+};
 
 export type SduiArtifactGridNode = OptId & { type: 'ArtifactGrid'; artifacts: SduiArtifactItem[]; mode?: 'input' | 'output'; title?: string };
 
@@ -409,6 +446,8 @@ export type SduiChoiceCardNode = OptId & {
   multiple?: boolean;
   maxSelections?: number;
   submitLabel?: string;
+  /** 可重复触发的动作型选择，例如“刷新检查回传”；后端未命中时仍留在本节点。 */
+  repeatable?: boolean;
 };
 
 export type SduiIoConfirmPanelNode = OptId & {
@@ -485,7 +524,7 @@ export type SduiNode =
   | SduiBadgeNode | SduiStatisticNode | SduiStatisticRowNode
   | SduiKeyValueListNode | SduiTableNode
   | SduiButtonNode | SduiLinkNode
-  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode
+  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode | SduiZhgkGoldenMetricsNode | SduiZhgkAssessmentPanelNode
   | SduiArtifactGridNode
   // v1.1 display nodes
   | SduiAlertNode | SduiTimelineNode | SduiNumberCardNode | SduiPlaneMatrixNode

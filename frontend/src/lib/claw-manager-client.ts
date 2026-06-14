@@ -1,4 +1,5 @@
 import { ApiRequestError, isApiErrorDetail, type ApiErrorDetail } from '@/lib/api-error';
+import { managerBaseUrl } from '@/lib/runtimeBase';
 
 export type { ApiErrorDetail };
 export { ApiRequestError };
@@ -172,13 +173,8 @@ export type ArchiveResponse = {
   detail?: string | null;
 };
 
-const DEFAULT_MANAGER_BASE = 'http://127.0.0.1:8081';
-
 export function managerBase(): string {
-  const configured = import.meta.env.VITE_CLAWMANAGER_BASE as string | undefined;
-  // 开发态留空 → 同源请求走 Vite proxy 到 Manager，避免跨域 Failed to fetch
-  if (configured === '' || configured === '/') return '';
-  return (configured || DEFAULT_MANAGER_BASE).replace(/\/$/, '');
+  return managerBaseUrl();
 }
 
 export async function loginToClawManager(input: {

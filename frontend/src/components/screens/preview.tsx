@@ -10,6 +10,7 @@ import {
   SERVICE_CATEGORY_TONE, PART_TONE,
 } from '../../data/contract-data';
 import VersionBar, { bumpVersion } from '../version-bar';
+import { agentBase } from '@/lib/runtimeBase';
 
 /* 读 URL 参数 — 不用 useSearchParams 避免静态导出后 Suspense fallback=null 空白 */
 function readUrlParam(key) {
@@ -27,7 +28,7 @@ function boqAttachments(b) {
 }
 
 const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+const AGENT_BASE = agentBase();
 const PREVIEW_PROPOSAL_ID = 'PROP-2026-K1903';
 const UNLINKED_CONTRACT_NO = '未关联合同';
 

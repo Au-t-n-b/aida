@@ -24,12 +24,11 @@ class PreflightStep(BaseStep):
             "ProjectData/Template/入场评估标准表.xlsx",
         ],
         "report_gen_run": [
-            "ProjectData/Template/新版项目工勘报告模板.docx",
-            "ProjectData/Template/工勘常见高风险库.xlsx",
+            "ProjectData/Input/*工勘报告*.pdf",
         ],
         "report_distribute": [
             # 实际文件名含 ACT001_ 前缀，使用 glob 模式匹配
-            "ProjectData/Output/*工勘报告*.docx",
+            "ProjectData/Output/*工勘报告*.*",
         ],
     }
 

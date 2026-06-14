@@ -41,6 +41,20 @@ export function extractSduiProgress(doc: SduiDocument): number {
   return best;
 }
 
+/** 从 Stepper 提取已推进到的最远步骤序号；无 Stepper 则 -1。 */
+function extractSduiStepRank(doc: SduiDocument): number {
+  let best = -1;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'Stepper') return;
+    node.steps.forEach((step, index) => {
+      if (['done', 'completed', 'skipped', 'running', 'current', 'error'].includes(step.status)) {
+        best = Math.max(best, index);
+      }
+    });
+  });
+  return best;
+}
+
 /** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡 / 多页签工作台）。*/
 function hasExecutionSurface(doc: SduiDocument): boolean {
   let found = false;
@@ -85,19 +99,53 @@ function hasWorkbenchContent(doc: SduiDocument): boolean {
 /** full_restart 重连时拒绝比当前更低的进度快照（与后端 display_state 双保险）。*/
 function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocument {
   if (!prev) return next;
+  if (isErrorSduiDoc(next)) return next;
   const pPrev = extractSduiProgress(prev);
   const pNext = extractSduiProgress(next);
+  const rPrev = extractSduiStepRank(prev);
+  const rNext = extractSduiStepRank(next);
+  if (rPrev >= 0 && rNext >= 0 && rNext < rPrev) return prev;
   if (pPrev >= 0 && pNext >= 0 && pNext < pPrev) return prev;
   if (isIdleLikeSduiDoc(next) && (hasExecutionSurface(prev) || hasWorkbenchContent(prev))) return prev;
   if (pPrev > 0 && pNext < 0 && !hasExecutionSurface(next)) return prev;
   return next;
 }
 
-import { ensureAgentBase } from '@/lib/agentBase';
+function isErrorSduiDoc(doc: SduiDocument): boolean {
+  return Boolean(doc.meta?.error);
+}
 
-// 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
+export function isRunUnavailableDoc(doc: SduiDocument | null | undefined): boolean {
+  return Boolean(doc?.meta?.run_unavailable);
+}
+
+function makeRunUnavailableDoc(skillId: string, runId: string, message: string): SduiDocument {
+  return {
+    schemaVersion: 1,
+    type: 'SduiDocument',
+    root: {
+      type: 'Stack',
+      id: 'run-unavailable-root',
+      gap: 'md',
+      children: [
+        {
+          type: 'Alert',
+          tone: 'error',
+          title: '运行已失效',
+          message,
+        },
+      ],
+    },
+    meta: { skill: skillId, run_id: runId, phase: 'error', error: message, run_unavailable: true },
+  };
+}
+
+import { ensureAgentBase } from '@/lib/agentBase';
+import { agentBase } from '@/lib/runtimeBase';
+
+// 后端 aida/agent 地址：默认同源反代；本地/演示可用 VITE_AGENT_BASE 覆盖。
 // system_design 走 ensureAgentBase（可探测 7402+）；其余 skill / 旧调用点用此常量。
-export const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+export const AGENT_BASE = agentBase();
 
 const RUN_LOG_SKILLS = new Set(['device_install']);
 
@@ -174,7 +222,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
             if (sseReceived || prev?.meta?.error) return prev;
 
-            return prev;
+            return null;
 
           });
 
@@ -189,7 +237,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
           if (prev?.meta?.error && !snap.meta?.error) return prev;
 
-          return mergeSduiDoc(prev, snap);
+          return useRunLog ? snap : mergeSduiDoc(prev, snap);
 
         });
 
@@ -221,7 +269,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
             lastDocJsonRef.current = json;
 
             // SSE 增量经 mergeSduiDoc：与后端 display_state 双保险，防 full_restart 闪回低进度
-            setDoc(prev => mergeSduiDoc(prev, result.doc));
+            setDoc(prev => useRunLog ? result.doc : mergeSduiDoc(prev, result.doc));
 
           }
 
@@ -299,7 +347,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
             const json = JSON.stringify(snap);
             if (json === lastDocJsonRef.current) return;  // 无变化：不触发重渲染
             lastDocJsonRef.current = json;
-            setDoc(prev => mergeSduiDoc(prev, snap));
+            setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
           }).catch(() => { /* ignore */ });
         }, 2500);
       };
@@ -321,7 +369,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       // run 正常结束（done）后补拉一次快照，避免错过末尾增量（software_deployment）
       const handleDone = () => {
         fetchUiSnapshot(skillId, runId, base).then(snap => {
-          if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
+          if (!cancelled && snap) setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
         }).catch(() => { /* ignore */ });
       };
 
@@ -562,7 +610,16 @@ export async function fetchUiSnapshot(skillId: string, runId: string, base?: str
 
     const res = await fetch(`${agentBase}/agent/${skillId}/ui/${runId}`);
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 404) {
+        return makeRunUnavailableDoc(
+          skillId,
+          runId,
+          '当前运行已不在后端内存中，通常是本地 Agent 重启导致。请刷新页面并重新开始本次流程。',
+        );
+      }
+      return null;
+    }
 
     const raw = await res.json();
 

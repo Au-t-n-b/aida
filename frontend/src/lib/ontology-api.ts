@@ -1,8 +1,8 @@
 import type { ContingencyGeneration, ContingencyRisk } from '@/types/domain';
+import { ontologyBase } from '@/lib/runtimeBase';
 
-/* ontology 服务(:8011)地址：默认本地直连；服务器部署经 VITE_ONTOLOGY_BASE 注入（编译期）。
- * 与 useSduiStream 的 VITE_AGENT_BASE 同范式。后端已对 8080 放行 CORS。 */
-const ONTOLOGY_BASE = import.meta.env.VITE_ONTOLOGY_BASE || 'http://127.0.0.1:8011';
+/* ontology 服务地址：默认同源反代；本地/演示可用 VITE_ONTOLOGY_BASE 覆盖。 */
+const ONTOLOGY_BASE = ontologyBase();
 const ONTOLOGY_ID = 'default';
 
 export interface DeriveContingencyParams {
