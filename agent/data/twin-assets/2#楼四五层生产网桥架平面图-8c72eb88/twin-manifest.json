@@ -1,0 +1,70 @@
+{
+  "contract_version": "1.0",
+  "package_id": "2#楼四五层生产网桥架平面图-8c72eb88",
+  "site": null,
+  "building": null,
+  "floor": null,
+  "rooms": [
+    "F1-R1",
+    "F1-R2",
+    "F1-R3"
+  ],
+  "sources": [
+    {
+      "role": "cad",
+      "file_name": "2#楼四五层生产网桥架平面图.dxf",
+      "sha1": "d3bc0b65b9c716298ab6a0fdcaa372b59a14e2b1"
+    },
+    {
+      "role": "survey",
+      "file_name": "JD HC项目世纪互联机房工勘结果- 1209",
+      "sha1": null
+    }
+  ],
+  "artifacts": {
+    "room3d": "room3d.json",
+    "plan": "plan.svg",
+    "survey_issues": "survey-issues.json"
+  },
+  "generator": {
+    "name": "uniEx",
+    "version": "0.2.0",
+    "generated_at": "2026-06-12T08:40:53+00:00"
+  },
+  "quality": {
+    "counts": {
+      "devices": 249,
+      "by_type": {
+        "ODF柜": 15,
+        "网络柜": 69,
+        "计算柜": 144,
+        "恒湿机": 6,
+        "CDU": 15
+      },
+      "trays": 33,
+      "by_scope": {
+        "走廊": 7,
+        "机房内部": 18,
+        "跨楼层垂直": 2
+      },
+      "walls": 995,
+      "columns": 72,
+      "aisles": 12
+    },
+    "survey": {
+      "total": 24,
+      "located": 21,
+      "unlocated": 3,
+      "by_confidence": {
+        "manual": 13,
+        "low": 9,
+        "high": 2
+      },
+      "by_source": {
+        "override": 13,
+        "llm": 8,
+        "unlocated": 3
+      }
+    }
+  }
+}
