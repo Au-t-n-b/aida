@@ -55,6 +55,17 @@ def manager_port() -> int:
     return int(os.environ.get("MANAGER_PORT", "8001"))
 
 
+def business_root() -> Path:
+    """项目业务数据根目录（与 agent AIDA_BUSINESS_ROOT 对齐）。"""
+    raw = os.environ.get("AIDA_BUSINESS_ROOT", "").strip()
+    if raw:
+        return Path(raw).resolve()
+    linux_default = Path("/opt/aida/aida-data/business")
+    if linux_default.is_dir():
+        return linux_default.resolve()
+    return (_repo_root() / "data").resolve()
+
+
 def _is_local_host(url: str) -> bool:
     from urllib.parse import urlparse
 
