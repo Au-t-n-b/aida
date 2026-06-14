@@ -199,7 +199,7 @@ export default function LandingScreen() {
     const p = projects.find((x) => x.id === id);
     if (!p || !p.canEnter) return;
     selectProject({ id: p.id, name: p.name, code: p.code });
-    navigate('/cockpit');
+    navigate('/preview');
   };
 
   const displayName = session?.user?.display_name || session?.user?.username || '用户';

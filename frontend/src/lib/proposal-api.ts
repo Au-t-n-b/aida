@@ -6,6 +6,7 @@ import { useMemo } from 'react';
 import { useAidaSession } from '@/lib/aida-session';
 
 const DEFAULT_PROJECT_ID = '56A0TXN';
+const CURRENT_PROJECT_STORAGE_KEY = 'aida:current-project';
 
 const PROPOSAL_API_BASE =
   (
@@ -243,8 +244,21 @@ export function mapProposalRole(role: string | undefined): string {
   return 'td';
 }
 
+function readStoredProjectId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(CURRENT_PROJECT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { id?: unknown };
+    const id = typeof parsed?.id === 'string' ? parsed.id.trim() : '';
+    return id || null;
+  } catch {
+    return null;
+  }
+}
+
 export function getDefaultProjectId(): string {
-  return DEFAULT_PROJECT_ID;
+  return readStoredProjectId() ?? DEFAULT_PROJECT_ID;
 }
 
 function normalizeLegacyPublishedUpdatedAt(meta: VersionInfoMetadata): VersionInfoMetadata {

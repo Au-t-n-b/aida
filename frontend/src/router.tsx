@@ -81,8 +81,22 @@ export const router = createBrowserRouter([
       { path: '/milestones', element: <MilestonesPage /> },
       { path: '/commissioning', element: <CommissioningPage /> },
       { path: '/sandbox', element: <SandboxPage /> },
-      { path: '/proposal', element: <ProposalPage /> },
-      { path: '/preview', element: <PreviewPage /> },
+      {
+        path: '/proposal',
+        element: (
+          <RequireProject>
+            <ProposalPage />
+          </RequireProject>
+        ),
+      },
+      {
+        path: '/preview',
+        element: (
+          <RequireProject>
+            <PreviewPage />
+          </RequireProject>
+        ),
+      },
       { path: '/journey', element: <JourneyPage /> },
       { path: '/create', element: <CreatePage /> },
       { path: '/module/:key', element: <ModuleRoutePage /> },
