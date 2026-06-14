@@ -190,8 +190,7 @@ async def ensure_slot_local(
     project_name: str,
     project_code: str | None,
 ) -> dict[str, Any]:
-    """确保 slot 对应文件在本地 mock 目录；缺失且有 token 时从数据中心下载落盘。"""
-    ref = ipo_paths.slot_to_ref(slot, project_id)
+    """确保 slot 对应文件在本地 mock 目录（0613：读路径仅用 mock，不从数据中心下载）。"""
     local_hit = try_resolve_local_slot(slot, project_name, project_code)
     if local_hit:
         path, logical = local_hit
@@ -208,78 +207,24 @@ async def ensure_slot_local(
             "bytes": path.stat().st_size,
         }
 
-    if not token:
-        if slot in OPTIONAL_OUTPUT_SLOTS:
-            return {"status": "optional_missing", "error": "输出文件尚未保存"}
-        mock_hit = try_resolve_mock_project_slot(slot)
-        if mock_hit:
-            path, logical = mock_hit
-            return {
-                "status": "mock_fallback",
-                "localPath": str(path),
-                "logical": logical,
-                "bytes": path.stat().st_size,
-            }
-        return {
-            "status": "missing",
-            "error": "本地无文件且无 token，无法从数据中心下载",
-            "candidates": local_logical_candidates(slot, project_name, project_code),
-        }
-
-    # 输出表草稿期可能尚未上传数据中心，先 list 避免无意义 download 404
     if slot in OPTIONAL_OUTPUT_SLOTS:
-        try:
-            client = DataCenterClient(token)
-            listed = await client.list_files(ref)
-            if not (listed.get("list") or []):
-                LOG.info("proposal ensure_slot_local optional empty slot=%s (no output saved yet)", slot)
-                return {"status": "optional_missing", "error": "数据中心尚无此输出文件"}
-        except DataCenterError as e:
-            LOG.info("proposal ensure_slot_local optional unavailable slot=%s: %s", slot, e)
-            return {"status": "optional_missing", "error": str(e)}
+        return {"status": "optional_missing", "error": "输出文件尚未保存"}
 
-    try:
-        content, logical, _ = await _download_dc(token, ref, slot)
-        if not logical:
-            raise DataCenterError("数据中心未返回 logicalPath")
-        local_path = save_dc_download(logical, content, project_name, project_code)
-        LOG.info(
-            "proposal ensure_slot_local downloaded slot=%s logical=%s localPath=%s bytes=%s",
-            slot,
-            logical,
-            local_path,
-            len(content),
-        )
+    mock_hit = try_resolve_mock_project_slot(slot)
+    if mock_hit:
+        path, logical = mock_hit
         return {
-            "status": "downloaded",
-            "localPath": str(local_path),
+            "status": "mock_fallback",
+            "localPath": str(path),
             "logical": logical,
-            "bytes": len(content),
+            "bytes": path.stat().st_size,
         }
-    except DataCenterError as e:
-        LOG.warning("proposal ensure_slot_local DC error slot=%s: %s", slot, e)
-        mock_hit = try_resolve_mock_project_slot(slot)
-        if mock_hit:
-            path, logical = mock_hit
-            return {
-                "status": "mock_fallback",
-                "localPath": str(path),
-                "logical": logical,
-                "bytes": path.stat().st_size,
-            }
-        return {"status": "missing", "error": str(e)}
-    except Exception as e:
-        LOG.exception("proposal ensure_slot_local unexpected slot=%s", slot)
-        mock_hit = try_resolve_mock_project_slot(slot)
-        if mock_hit:
-            path, logical = mock_hit
-            return {
-                "status": "mock_fallback",
-                "localPath": str(path),
-                "logical": logical,
-                "bytes": path.stat().st_size,
-            }
-        return {"status": "missing", "error": str(e)}
+
+    return {
+        "status": "missing",
+        "error": "本地 mock 无此文件",
+        "candidates": local_logical_candidates(slot, project_name, project_code),
+    }
 
 
 async def sync_proposal_slots(
@@ -456,7 +401,7 @@ async def write_table_slot(
     finally:
         tmp_path.unlink(missing_ok=True)
 
-    logical_local = local_logical_candidates(slot, project_name, project_code)[0]
+    logical_local = mock_logical_for_slot(slot, project_name, project_code)
     try:
         mock_write_bytes(logical_local, content)
         LOG.info("proposal write_table_slot local ok slot=%s logical=%s", slot, logical_local)
@@ -477,10 +422,10 @@ async def write_table_slot(
             LOG.exception("proposal write_table_slot DC unexpected slot=%s", slot)
             warnings.append(f"数据中心写入失败({e})，已降级写入本地 mock")
 
-    logical = mock_logical_for_slot(slot, project_name, project_code)
-    mock_write_bytes(logical, content)
-    LOG.info("proposal write_table_slot mock ok slot=%s logical=%s", slot, logical)
-    return {"path": logical, "version": version, "rowCount": len(row_maps)}, "mock", warnings
+    if not token:
+        return {"path": logical_local, "version": version, "rowCount": len(row_maps)}, "mock", warnings
+
+    return {"path": logical_local, "version": version, "rowCount": len(row_maps)}, "mock", warnings
 
 
 async def load_testcases_template_bytes(

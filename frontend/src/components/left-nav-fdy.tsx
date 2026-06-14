@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useLayoutEffect, useEffect, type ComponentType, type RefObject } from 'react';
-import { motion, LayoutGroup } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Network,
   ClipboardList,
@@ -15,10 +15,10 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
-import Link from '@/compat/link';
+import { WorkspaceNavLink } from '@/lib/workspace-nav-link';
 import { useNavPath } from '@/compat/navigation';
 import { MODULE_STATUS } from '../data/journey-data';
-import { getLeftNavScrollTop, setLeftNavScrollTop, restoreLeftNavScroll } from '@/lib/left-nav-scroll';
+import { getLeftNavScrollTop, setLeftNavScrollTop } from '@/lib/left-nav-scroll';
 import {
   type NavExpandedState,
   applyRouteRequiredExpand,
@@ -112,8 +112,6 @@ function isSubActive(navPath: string, s: FdySubItem, hrefPrefix?: string): boole
   return !!s.active;
 }
 
-const FDY_SUB_ACTIVE_LAYOUT_ID = 'fdyActiveSubIndicator';
-
 function FdySubMenu({
   sub,
   hrefPrefix,
@@ -147,11 +145,9 @@ function FdySubMenu({
                 onClick={(e) => disabled && e.preventDefault()}
               >
                 {active && (
-                  <motion.span
-                    layoutId={FDY_SUB_ACTIVE_LAYOUT_ID}
+                  <span
                     className="fdy-sub-active-dot"
                     aria-hidden
-                    onLayoutAnimationComplete={() => restoreLeftNavScroll(scrollRef.current)}
                   />
                 )}
                 <span className="n">{s.name}</span>
@@ -163,14 +159,13 @@ function FdySubMenu({
               return <div key={i}>{row}</div>;
             }
             return (
-              <Link
+              <WorkspaceNavLink
                 key={i}
                 href={href}
                 style={{ textDecoration: 'none' }}
-                onClick={(e) => e.stopPropagation()}
               >
                 {row}
-              </Link>
+              </WorkspaceNavLink>
             );
           })}
         </div>
@@ -274,7 +269,7 @@ function FdyNavLeaf({
   return (
     <div className="fdy-menu-group">
       {active && <div className="fdy-active-indicator" aria-hidden />}
-      <Link href={href} style={{ display: 'block', textDecoration: 'none' }}>
+      <WorkspaceNavLink href={href} style={{ display: 'block', textDecoration: 'none' }}>
         <motion.div
           layout={false}
           className={`fdy-app fdy-app-v2${active ? ' active' : ''}${collapsed ? ' is-collapsed' : ''}`}
@@ -296,7 +291,7 @@ function FdyNavLeaf({
             {!collapsed && <span className="fdy-label">{label}</span>}
           </div>
         </motion.div>
-      </Link>
+      </WorkspaceNavLink>
     </div>
   );
 }
@@ -473,7 +468,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
       className={`left-nav-fdy left-nav-fdy-v2 fdy-theme-${navTheme}${collapsed ? ' nav-collapsed' : ''}`}
     >
       <div className="fdy-brand fdy-brand-v2">
-        <Link href="/cockpit" className="fdy-brand-link">
+        <WorkspaceNavLink href="/cockpit" className="fdy-brand-link">
           <div className="fdy-brand-mark" title="返回驾驶舱">
             <BrandLogo size={22} light={isNavLight} />
           </div>
@@ -484,7 +479,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
               </div>
             </div>
           )}
-        </Link>
+        </WorkspaceNavLink>
         <button
           type="button"
           className="fdy-collapse-btn fdy-collapse-btn-v2"
@@ -496,7 +491,6 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
       </div>
 
       <div ref={scrollRef} className="fdy-scroll-v2">
-        <LayoutGroup id="fdy-nav-sub-active">
         <div className="fdy-nav-list">
           {groups.slice(0, 2).map(({ key, config }) => (
             <FdyNavGroup
@@ -540,7 +534,6 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
             collapsed={collapsed}
           />
         </div>
-        </LayoutGroup>
       </div>
 
       <div className="fdy-nav-theme-foot">

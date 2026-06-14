@@ -13,7 +13,7 @@ createRoot(document.getElementById('root')!).render(
     <AidaSessionProvider>
       <CurrentProjectProvider>
         <AidaChatBridge />
-        <RouterProvider router={router} />
+        <RouterProvider router={router} useTransitions={false} />
       </CurrentProjectProvider>
     </AidaSessionProvider>
   </StrictMode>,

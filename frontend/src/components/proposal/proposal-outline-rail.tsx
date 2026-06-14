@@ -1,12 +1,6 @@
 'use client';
 
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  ProposalTooltipProvider,
-} from '../ui/tooltip';
-import {
   CHAPTER_TARGETS,
   chapterKeyFromName,
   isSubChapterKey,
@@ -113,8 +107,7 @@ export function ProposalOutlineRail({
     'proposal-outline-rail-action flex items-center justify-center w-[22px] h-[22px] rounded p-0 border-0 bg-transparent cursor-pointer text-slate-400 hover:text-slate-700 transition-colors';
 
   return (
-    <ProposalTooltipProvider>
-      <aside
+    <aside
         className={`proposal-outline-rail${isOpen ? ' expanded' : ''}${pinned ? ' pinned' : ''}${inGrid ? ' proposal-outline-rail--in-grid' : ''}`}
         onMouseEnter={() => {
           if (collapsed) onHoverChange?.(true);
@@ -188,22 +181,27 @@ export function ProposalOutlineRail({
               : chapterKey;
             const collapsedRisk = !isOpen ? topLevelRisk.get(topKey) : null;
 
-            const item = (
+            const itemClassName = [
+              'proposal-outline-rail-item',
+              isActive ? 'active' : '',
+              isPending ? 'pending' : '',
+              isOpen
+                ? isSub
+                  ? 'proposal-outline-rail-item--plain-sub'
+                  : 'proposal-outline-rail-item--plain-top'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ');
+
+            // 展开态章节名已完整展示，无需 Tooltip；收起态用原生 title 避免 Radix ref 循环
+            return (
               <button
+                key={c.name}
                 type="button"
-                className={[
-                  'proposal-outline-rail-item',
-                  isActive ? 'active' : '',
-                  isPending ? 'pending' : '',
-                  isOpen
-                    ? isSub
-                      ? 'proposal-outline-rail-item--plain-sub'
-                      : 'proposal-outline-rail-item--plain-top'
-                    : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                className={itemClassName}
                 onClick={() => onJump(chapterKey)}
+                title={!isOpen ? c.name : undefined}
               >
                 {/* 收起态（44px）：保留数字圆圈 + 风险角标 */}
                 {!isOpen && (
@@ -256,19 +254,11 @@ export function ProposalOutlineRail({
                 )}
               </button>
             );
-
-            return (
-              <Tooltip key={c.name} delayDuration={200}>
-                <TooltipTrigger asChild>{item}</TooltipTrigger>
-                <TooltipContent side="left">{c.name}</TooltipContent>
-              </Tooltip>
-            );
           })}
         </div>
         <div className="proposal-outline-rail-foot">
           {isOpen ? '点击章节跳转正文' : '移入展开大纲'}
         </div>
       </aside>
-    </ProposalTooltipProvider>
   );
 }

@@ -1,0 +1,257 @@
+{
+  "source": {
+    "file": "DSXW算力服务器项目_技术建议书(含算力服务器、网络、存储、机房租赁) -不含人员信息.docx",
+    "parsed_at": "2026-06-14T10:19:03.132864",
+    "engine": "officecli"
+  },
+  "acceptance_table": [
+    {
+      "id": "1",
+      "category": "硬件设备",
+      "acceptance_scheme": "POD",
+      "entry_criteria": "硬件到货",
+      "contract_milestone": "硬件到货",
+      "acceptance_documents": [
+        "硬件设备接收文档"
+      ],
+      "payment_terms": "100%",
+      "total_keyword_matches": 49,
+      "evidence": [
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "设备到货"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=2C97BFBF]] [sdt] 3.2.3 设备到货方案\t166"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "POD",
+            "SuperPoD"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=2C169C53]] [sdt] 3.2.5 AI超节点（Atlas 900 A3 SuperPoD）规划设计与实施\t235"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "设备到货"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=5D0F5705]] [sdt] 3.4.1 设备到货保障方案\t276"
+        },
+        {
+          "chapter": "机房部分",
+          "matched_keywords": [
+            "POD"
+          ],
+          "content": "1） 产品化：以数据中心POD为最小的标准化交付单元（包含供电、暖通、IT机房等完整功能）为单位进行设计及建设，可实现快速交付，并尽可能缩小爆炸半径。"
+        },
+        {
+          "chapter": "技术架构",
+          "matched_keywords": [
+            "POD",
+            "SuperPoD"
+          ],
+          "content": "AI算力集群作为本次项目的核心产品，是支撑未来DSXW 智驾和智舱业务的重要基础设施，需要综合AI芯片架构的领先性、集群的可靠性和扩容性、算力生态的开放性、算力的自主可供应、规模可交付性等因素考虑。为了满足这些要求，本次采用业界最先进的国产算力Atlas 900 A3 SuperPoD超节点，构建高效、灵活、安全的算力基础设施，为DSXW 提供高性能算力支撑。本次AI计算集群包含48台AI计算节点和56台灵衢总线设备，整体提供307.2 PFLOPS FP16稠密算力。"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "category": "软件部分",
+      "acceptance_scheme": "License激活完成软件验收",
+      "entry_criteria": "License加载完成",
+      "contract_milestone": "License加载",
+      "acceptance_documents": [
+        "License加载证明"
+      ],
+      "payment_terms": "100%",
+      "total_keyword_matches": 44,
+      "evidence": [
+        {
+          "chapter": "总体设计思路",
+          "matched_keywords": [
+            "管理系统"
+          ],
+          "content": "1. 构建集群运维统一管理系统，实现计算设备、网络设备、存储设备全生命周期管理能力，打造集群全栈设备软硬件一键式巡检和跨域故障定位定界能力，提升智算资源池运维效率，降低运维成本。"
+        },
+        {
+          "chapter": "训练优势",
+          "matched_keywords": [
+            "CANN"
+          ],
+          "content": "面向AI模型训练场景，包含Atlas及伙伴训练硬件、异构计算架构CANN以及基于CANN打造的计算、通信、I/O基础加速库、AI框架（昇思、tensorflow、pytorch等）以及基于AI框架打造的SOTA模型、大模型加速、MindCluster、以及端到端的训练工具链。训练解决方案持续升级："
+        },
+        {
+          "chapter": "推理优势",
+          "matched_keywords": [
+            "CANN"
+          ],
+          "content": "面向AI模型推理场景，包含Atlas及伙伴推理硬件，以及异构计算架构CANN、昇腾推理引擎MindIE、行业应用开发套件MindSDK，边缘部署使能MindEdge等基础软件。面向大模型推理，支持大语言模型（LLM）推理和多模态模型推理（例如文生图、文生视频、以及视频和图片理解生成），昇腾推理解决方案实现以下客户价值："
+        },
+        {
+          "chapter": "AI计算集群详细设计",
+          "matched_keywords": [
+            "CANN"
+          ],
+          "content": "CANN异构计算架构：提供多层次编程接口，支持用户快速构建基于昇腾平台的AI应用和业务。"
+        },
+        {
+          "chapter": "AI计算集群详细设计",
+          "matched_keywords": [
+            "MindSpore"
+          ],
+          "content": "昇腾支持Pytorch、TensorFlow、MindSpore等多种AI框架，在 23年10月Pytorch 2.1版本起同步支持昇腾路线，昇腾与Pytorch 社区版本同步发布，可在昇腾NPU上直接享受原生PyTorch开发体验。华为成为中国首个，全球第十个PyTorch基金会最高级别会员。"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "category": "服务部分",
+      "acceptance_scheme": "对应服务条目交付完成",
+      "entry_criteria": "对应服务条目交付完成",
+      "contract_milestone": "完工验/PAC",
+      "acceptance_documents": [
+        "完工验/PAC报告"
+      ],
+      "payment_terms": "100%",
+      "total_keyword_matches": 78,
+      "evidence": [
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "实施服务"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=75EC5EA0]] [sdt] 3.2.1 实施服务概览\t165"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "PAC"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=03FE1A62]] [sdt] 3.2.8 混闪存储（OceanStor Pacific 9550）规划设计与实施\t250"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "系统集成"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=0999CB80]] [sdt] 3.2.12 智算集群系统集成\t264"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "调测"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=605DD893]] [sdt] 4.1.4 模型开发调测支持\t287"
+        },
+        {
+          "chapter": "技术架构",
+          "matched_keywords": [
+            "PAC"
+          ],
+          "content": "存储采用全对称分布式并行架构存储，通过全局共享文件系统，对外提供统一命名空间。对象存储由AI全闪存高性能池和混闪存储容量池构成。本次规划SSD全闪存存储可用容量为0.7PiB，由1台2节点高性能全闪存储OceanStor A800组成；混闪存储可用容量为8PiB, 由5台共计10节点大容量存储OceanStor Pacific 9550组成，存储总计8.7PiB存储空间。存储系统基于硬盘池实现热温数据分级架构，即存储空间被分为热、温两个分级等级，支持根据数据的IO热度自动实现智能迁移到热池或者温池，可以满足用户对对象存处理性能、容量和成本的多样需求，以达到合理利用存储空间、提升存储系统访问性能、降低总体部署成本的目的。"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "category": "培训服务",
+      "acceptance_scheme": "培训课程完成即验收",
+      "entry_criteria": "培训课程完成",
+      "contract_milestone": "培训完成",
+      "acceptance_documents": [
+        "签到表"
+      ],
+      "payment_terms": "100%",
+      "total_keyword_matches": 18,
+      "evidence": [
+        {
+          "chapter": "系统架构",
+          "matched_keywords": [
+            "培训"
+          ],
+          "content": "存储系统设计应具有完善的管理措施和功能，便于设备的安装、配置和维护，以及对各种软硬件资源的分配、调度和管理，提高资源和资产利用率，减轻系统管理人员的工作负担。系统应为使用用户提供简单易用的使用接口，降低系统的使用门槛，并为用户提供相关的使用培训及操作文档。"
+        },
+        {
+          "chapter": "双方检查与交接",
+          "matched_keywords": [
+            "培训",
+            "现场培训"
+          ],
+          "content": "由存储/计算/网络领域经验丰富的技术专家团队提供现场项目支持，我方用成熟的项目实施解决方案来保证项目平稳的交付，并且提供有价值的专业服务及指导，有效地降低交付风险。在我方规划设计与实施服务/集成服务期间，我方结合实际项目及客户受培人员情况，合理的安排现场理论培训和实施经验交流。客户工程师通过现场培训提高存储规划设计与实施技能以及项目管理经验。"
+        },
+        {
+          "chapter": "风险预案3：完善的项目风险管理流程",
+          "matched_keywords": [
+            "培训"
+          ],
+          "content": "本项目将设置总体组质量经理，以客户满意度为中心，安装项目交付质量管理-“6步1法”，确定质量标准、做好工前培训、示范站建设、质量自检和抽检、质量问题管理、质量总结。"
+        },
+        {
+          "chapter": "风险预案3：完善的项目风险管理流程",
+          "matched_keywords": [
+            "培训"
+          ],
+          "content": "项目组将采取一切必要措施，保证人身财产安全。严格遵守各项安全生产制度，正确使用个人防护用品。及时汇报各种安全隐患、事故，现场采取必要应对措施。特种作业，持证上岗；一般作业，培训上岗。决不酒后上岗，带病工作。"
+        },
+        {
+          "chapter": "项目质量管理组织保证",
+          "matched_keywords": [
+            "培训"
+          ],
+          "content": "我们拥有强大完善的服务平台，我们有全球客户响应中心，全球备件中心，培训认证中心，有全方位的服务解决方案，有专业的咨询顾问专家团队，再加上先进的IT管理平台，共同支撑我们服务成为客户、合作伙伴信赖的服务伙伴，下面简要介绍一下我们的服务平台。"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "category": "维保服务",
+      "acceptance_scheme": "硬件到货和License激活后30天",
+      "entry_criteria": "OM起算",
+      "contract_milestone": "直线法",
+      "acceptance_documents": [
+        "—"
+      ],
+      "payment_terms": "月度",
+      "total_keyword_matches": 169,
+      "evidence": [
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "运维"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=7A77D9E4]] [sdt] 3.2.6 AI集群运维管理平台软件（CCAE）规划设计与实施\t242"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "售后服务"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=20E5B728]] [sdt] 第四章\t项目售后服务方案\t284"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "技术支持"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=27B04609]] [sdt] 4.1 AI专业技术支持服务方案\t284"
+        },
+        {
+          "chapter": "\t\t目  录",
+          "matched_keywords": [
+            "技术支持"
+          ],
+          "content": "[/body/sdt[1]/p[@paraId=6C3B10E1]] [sdt] 4.2.5 产品原厂技术支持服务\t325"
+        },
+        {
+          "chapter": "具身智能前瞻研发：探索物理交互的算力需求",
+          "matched_keywords": [
+            "巡检"
+          ],
+          "content": "Sim2Real闭环优化：通过仿真引擎生成多样化场景数据（如工业巡检、家庭服务），再结合真实环境数据微调模型，需算力集群支持模型快速迭代。"
+        }
+      ]
+    }
+  ]
+}

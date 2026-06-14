@@ -7,7 +7,6 @@ import {
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { PLAN_ACTIVITIES } from '../proposal-data';
 
 interface PlanChapterProps {
   initialRows?: unknown;
@@ -23,13 +22,9 @@ function PlanProgress({ value, tone }: { value: number; tone: 'blue' | 'green' }
   );
 }
 
-function _defaultRows() {
-  return PLAN_ACTIVITIES.map((row) => ({ ...row }));
-}
-
 function _normalizeRows(input: unknown) {
   if (!Array.isArray(input) || input.length === 0) {
-    return _defaultRows();
+    return [];
   }
   const rows = input
     .filter((row) => typeof row === 'object' && row !== null)
@@ -48,7 +43,7 @@ function _normalizeRows(input: unknown) {
         progressTone: (item.progressTone === 'green' ? 'green' : 'blue') as 'blue' | 'green',
       };
     });
-  return rows.length ? rows : _defaultRows();
+  return rows.filter((r) => r.name?.trim());
 }
 
 export function PlanChapter({ initialRows, onRowsChange }: PlanChapterProps) {
