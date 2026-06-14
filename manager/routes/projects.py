@@ -6,7 +6,13 @@ from typing import Any
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from manager.datacenter_client import DataCenterError, create_project, get_project, list_my_projects
+from manager.datacenter_client import (
+    DataCenterError,
+    create_project,
+    get_project,
+    list_my_projects,
+    update_project,
+)
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -28,6 +34,18 @@ class CreateProjectBody(BaseModel):
     tdUserId: int | None = None
     pdUserId: int | None = None
     pcmUserId: int | None = None
+
+
+class UpdateProjectBody(BaseModel):
+    projectName: str | None = None
+    tdUsername: str | None = None
+    pdUsername: str | None = None
+    pcmUsername: str | None = None
+    stage: str | None = None
+    progress: int | None = None
+    risk: str | None = None
+    description: str | None = None
+    deliveryTraits: list[Any] | None = None
 
 
 @router.post("")
@@ -77,6 +95,24 @@ async def project_detail(
     token = _bearer_token(authorization)
     try:
         data = await get_project(token, project_id)
+    except DataCenterError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+    return {"code": 0, "message": "success", "data": data}
+
+
+@router.put("/{project_id}")
+async def update_project_endpoint(
+    project_id: str,
+    body: UpdateProjectBody,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    """代理数据中心更新项目 PUT /api/v1/projects/{uuid}。"""
+    token = _bearer_token(authorization)
+    payload = body.model_dump(exclude_none=True)
+    if not payload:
+        raise HTTPException(status_code=400, detail="请至少提供一个待更新字段")
+    try:
+        data = await update_project(token, project_id, payload)
     except DataCenterError as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     return {"code": 0, "message": "success", "data": data}

@@ -44,6 +44,19 @@ export type CreateProjectBody = {
   pcmUserId?: number;
 };
 
+/** PUT /api/v1/projects/{uuid} — 更新项目可变字段 */
+export type UpdateProjectBody = {
+  projectName?: string;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
+  stage?: string;
+  progress?: number;
+  risk?: string;
+  description?: string;
+  deliveryTraits?: unknown[];
+};
+
 export type CreateProjectResult = {
   id: number;
   projectId: string;
@@ -213,6 +226,21 @@ export async function fetchProjectDetail(
   if (!id) throw new Error('缺少项目 ID');
   return requestEnvelope<DcProjectDetail>(`/api/v1/projects/${encodeURIComponent(id)}`, {
     accessToken,
+  });
+}
+
+/** 更新项目 PUT /api/v1/projects/{uuid} */
+export async function updateProject(
+  accessToken: string,
+  projectId: string,
+  body: UpdateProjectBody,
+): Promise<DcEnvelope<DcProjectDetail>> {
+  const id = projectId.trim();
+  if (!id) throw new Error('缺少项目 ID');
+  return requestEnvelope<DcProjectDetail>(`/api/v1/projects/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    accessToken,
+    body: JSON.stringify(body),
   });
 }
 

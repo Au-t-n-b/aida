@@ -261,6 +261,50 @@ async def get_project(token: str, project_id: str) -> dict[str, Any]:
         return data
 
 
+async def update_project(token: str, project_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    """更新项目：PUT /api/v1/projects/{uuid}。"""
+    pid = (project_id or "").strip()
+    if not pid:
+        raise DataCenterError(400, "缺少项目 ID", status_code=400)
+    LOG.info(
+        "Manager DC update_project → PUT %s/api/v1/projects/%s token=%s body_keys=%s",
+        datacenter_base(),
+        pid,
+        mask_token(token),
+        sorted(body.keys()),
+    )
+    async with _client() as client:
+        resp = await client.put(
+            f"/api/v1/projects/{pid}",
+            headers={"Authorization": f"Bearer {token}"},
+            json=body,
+        )
+        LOG.info("Manager DC update_project ← HTTP %s", resp.status_code)
+        if resp.status_code == 401:
+            raise DataCenterError(1002, "登录已失效，请重新登录", status_code=401)
+        if resp.status_code == 404:
+            raise DataCenterError(2001, "项目不存在", status_code=404)
+        if resp.status_code >= 400:
+            try:
+                payload = resp.json()
+                if isinstance(payload, dict) and "code" in payload:
+                    _unwrap(payload)
+            except DataCenterError:
+                raise
+            except Exception:
+                pass
+            raise DataCenterError(
+                resp.status_code,
+                f"更新项目失败: HTTP {resp.status_code}",
+                status_code=resp.status_code,
+            )
+        data = _unwrap(resp.json())
+        if not isinstance(data, dict):
+            raise DataCenterError(500, "数据中心更新项目响应异常", status_code=502)
+        LOG.info("Manager DC update_project ok projectId=%s", data.get("projectId") or pid)
+        return data
+
+
 async def get_me(token: str) -> dict[str, Any]:
     LOG.info("Manager DC get_me → GET %s/api/v1/users/me token=%s", datacenter_base(), mask_token(token))
     async with _client() as client:
