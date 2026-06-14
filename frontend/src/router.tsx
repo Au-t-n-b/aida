@@ -20,7 +20,6 @@ const AssetsPage = lazyPage(() => import('@/routes/assets'));
 const ConfigPage = lazyPage(() => import('@/routes/config'));
 const DesignPage = lazyPage(() => import('@/routes/design'));
 const TwinPage = lazyPage(() => import('@/routes/twin'));
-const TwinSurveyPage = lazyPage(() => import('@/routes/twin-survey'));
 const TwinDigitalDemoPage = lazyPage(() => import('@/routes/twin-digital-demo'));
 const MilestonesPage = lazyPage(() => import('@/routes/milestones'));
 const AdminPage = lazyPage(() => import('@/routes/admin'));
@@ -95,14 +94,6 @@ export const router = createBrowserRouter([
     element: (
       <RequireAuth>
         <TwinPage />
-      </RequireAuth>
-    ),
-  },
-  {
-    path: '/twin/survey',
-    element: (
-      <RequireAuth>
-        <TwinSurveyPage />
       </RequireAuth>
     ),
   },
