@@ -951,12 +951,17 @@ export default function SkillAgentScreen({
     const hadHitl = frozenDocSnap ? !!findNodeById(frozenDocSnap.root, 'hitl-card') : false;
     const hitlResolved = hadHitl && !hasHitl;
     const publishDone = usesDeliveryWorkbench && isMacroPublishDone(sduiDoc);
+    // HITL 出现/消解即解冻：仅对有进度指标（zhgk / system_design）或交付台 skill 生效。
+    // 不加 idle 守卫 —— system_design 的对话框流程依赖该即时解冻语义；
+    // guihua（frozenTarget===0 且非交付台）不在此列，仍走下方「只前向推进才解冻」护栏。
+    const hitlUnfreeze =
+      (frozenTarget > 0 || usesDeliveryWorkbench)
+      && (hasHitl || hitlResolved);
     // 有进度指标的 skill（zhgk / system_design）：进度追上冻结水位且已脱离 idle；
     // HITL 消解 / 失败 / 完成 / 发布蓝图步 done → 解冻（error 态 progress 常为 0）。
     if (
       (frozenTarget > 0 && progress >= frozenTarget && !isIdleLikeSduiDoc(sduiDoc))
-      || hasHitl
-      || hitlResolved
+      || hitlUnfreeze
       || patch.phase === 'error'
       || patch.phase === 'done'
       || publishDone
@@ -1611,6 +1616,10 @@ export default function SkillAgentScreen({
           postUploadEpochRef.current = Date.now();
           setPostUploadDoc(snap);
         }
+        // 强制重订阅 SSE：sync_inputs 只改磁盘/状态、不推 SSE，而 system_design 左栏弹框/HITL
+        // 读实时 sduiDoc、右栏读 displayDoc→liveSduiDoc（均不含 postUploadDoc 兜底）；
+        // 不重订阅则上传后界面停在旧态（无后续弹框 / 状态不更新）。
+        setStreamEpoch(e => e + 1);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '上传失败，请检查文件格式或网络连接';
