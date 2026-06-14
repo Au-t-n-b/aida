@@ -38,7 +38,7 @@ ASSETS = Path(__file__).resolve().parent / "portal_assets"
 # read/link 的 path 条目 → 指向 Gitea 仓渲染页（跨机/托管均可点开，且总是该分支最新内容）。
 # 形如 {GITEA_BASE}/src/branch/{GITEA_BRANCH}/<repo-relative-path>。改仓库地址/分支只改这两行。
 GITEA_BASE = "http://10.143.2.109:3010/jintao/aida"
-GITEA_BRANCH = "feat/merge-delivery-frontend"
+GITEA_BRANCH = "feature_new"
 
 # emoji → SVG symbol id（仅用于非可复制 chrome）。含 VS16（FE0F）变体写法。
 _EMOJI_ICON = {
@@ -49,6 +49,7 @@ _EMOJI_ICON = {
     "🆕": "i-newcomer",
     "🏗️": "i-architect", "🏗": "i-architect",
     "🤖": "i-developer",
+    "🔀": "i-merge",
 }
 # note 文本里的状态圆点：🟡/🔴/🟢 → 拉丝钛风的 sdot
 _SDOT = {
@@ -308,7 +309,7 @@ def build_hero(data: dict) -> str:
     parts.append('<div class="sec-head" data-stagger>'
                  '<span class="sec-eyebrow reveal">ROLES</span>'
                  '<h2 class="sec-title reveal titanium">选择你的角色</h2>'
-                 '<p class="sec-desc reveal">三条路径，对应三种身份。挑一个进去，按步骤一路跑通。</p>'
+                 '<p class="sec-desc reveal">三种身份 + 一条合并工作流。挑一个进去，按步骤一路跑通。</p>'
                  '</div>')
     parts.append('<div class="role-grid" data-stagger>')
     for i, d in enumerate(doors):
