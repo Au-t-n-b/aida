@@ -1123,6 +1123,39 @@ async def upload_batch(
     return await _upload_batch_impl(skill, files, need, kinds, slot_labels, run_id)
 
 
+@app.post("/agent/{skill}/artifact/override")
+async def artifact_override(
+    skill: str,
+    file: UploadFile = File(...),
+    target_path: str = Form(..., description="相对 data_root 的产物 path（与 SDUI artifact.path 一致）"),
+    run_id: str | None = Form(default=None, description="关联 run_id · 落盘后 sync_outputs 并推 SDUI"),
+):
+    """system_design 专用：上传覆盖 output/ 产物（不 sync_inputs · 不 resume）。"""
+    if skill != "system_design":
+        raise HTTPException(status_code=501, detail=f"skill '{skill}' 不支持产物覆盖上传")
+    from agent.system_design_files import override_output_artifact, sync_outputs_into_state
+
+    skill_obj = _get_skill_or_404(skill)
+    result = await override_output_artifact(skill_obj.work_root, target_path, file)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=str(result.get("error") or "override failed"))
+
+    rid = (run_id or "").strip()
+    if rid and rid in RUNS:
+        state = RUNS[rid]["state"]
+        sync_outputs_into_state(skill_obj.work_root, state)
+        rel_path = str(result.get("path") or target_path).replace("\\", "/")
+        state.setdefault("artifact_overrides", {})[rel_path] = True
+        try:
+            proj = _get_sdui_projector(skill)
+            if proj is not None:
+                RUNS[rid]["queue"].put_nowait({"event": "sdui", "data": proj(state)})
+        except Exception:
+            pass
+
+    return result
+
+
 # ─── 状态快照 ───
 
 @app.get("/agent/{skill}/status/{run_id}")
@@ -1440,9 +1473,11 @@ def get_skill(skill_name: str):
 
 # ─── 工作流启动 ───
 
-async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None):
+async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None,
+                               suppress_replay: bool = False):
     """后台跑 LangGraph，所有 update 推到 run_id 对应 queue。
-    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。"""
+    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。
+    suppress_replay=True：full_restart 重放时跳过已展示过的 run_log（设备安装左栏日志）。"""
     from .skills.base import register_run_push, unregister_run_push
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
@@ -1472,6 +1507,24 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
     loop = asyncio.get_running_loop()
     RUNS[run_id]["_running_step"] = None   # {key, name, log_tail} | None
     _emit_cnt: dict[str, int] = {}         # step_key → emit 累计次数（节流用）
+    _PACE_VISIBLE_ON_REPLAY = frozenset({"sn_generate"})
+    _runlog_logged: set[str] = RUNS[run_id].setdefault("_runlog_logged", set())
+    _runlog_shown_pass: set[str] = set()
+    _BUILD_AUX_LOG_STEPS = frozenset({
+        "progress_query", "plan_query", "device_overview", "plan_adjust",
+    })
+
+    def _suppress_aux_run_log(step_key: str) -> bool:
+        if step_key not in _BUILD_AUX_LOG_STEPS:
+            return False
+        if skill_id != "device_install":
+            return False
+        project = (RUNS[run_id].get("state") or {}).get("project") or {}
+        try:
+            from agent.skills.device_install.steps._command_guard import should_skip
+            return should_skip(step_key, project)
+        except Exception:
+            return False
 
     def _patched_state_with_running() -> dict:
         """构造带 running 记录的临时 state（不修改原 state）。"""
@@ -1492,8 +1545,16 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             }],
         }
 
+    def _push_run_log(payload: dict) -> None:
+        """向中间对话框推一条逐行运行日志事件（线程安全 · 不节流）。"""
+        loop.call_soon_threadsafe(queue.put_nowait, {"event": "run_log", "data": payload})
+
     def _push_sdui_overlay() -> None:
         """用带 running 记录的 patched state 生成 SDUI 并推入队列（线程安全）。"""
+        if suppress_replay:
+            running = RUNS[run_id].get("_running_step") or {}
+            if running.get("key") not in _PACE_VISIBLE_ON_REPLAY:
+                return
         try:
             _proj = _get_sdui_projector(skill_id)
             if _proj is None:
@@ -1517,6 +1578,13 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
+            # 中间对话框：开一个该节点的日志气泡
+            if not _suppress_aux_run_log(d["step"]) and (
+                (not suppress_replay) or (d["step"] not in _runlog_logged)
+            ):
+                _runlog_shown_pass.add(d["step"])
+                _runlog_logged.add(d["step"])
+                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
 
         elif ev == "step_log":
             d = item["data"]
@@ -1527,10 +1595,18 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 tail.append(d["msg"])
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
+            # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
+            if step_key in _runlog_shown_pass:
+                _push_run_log({
+                    "step": step_key,
+                    "name": (running or {}).get("name", ""),
+                    "msg": d["msg"],
+                    "phase": "log",
+                })
             # 节流：每 5 条 emit 推一次 SDUI（避免高频 LLM step 频繁序列化）
             cnt = _emit_cnt.get(step_key, 0) + 1
             _emit_cnt[step_key] = cnt
-            if cnt % 5 == 0:
+            if (suppress_replay and step_key in _PACE_VISIBLE_ON_REPLAY) or cnt % 5 == 0:
                 _push_sdui_overlay()
 
     register_run_push(run_id, _thread_push)
@@ -1553,6 +1629,17 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                         cur.setdefault(k, []).extend(v)
                     else:
                         cur[k] = v
+                # 中间对话框：节点完成 → 收尾对应日志气泡
+                if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
+                    _last_status = ""
+                    _dsteps = diff.get("steps") if isinstance(diff, dict) else None
+                    if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
+                        _last_status = _dsteps[-1].get("status", "")
+                    if _last_status in ("completed", "failed"):
+                        await queue.put({"event": "run_log", "data": {
+                            "step": node_name,
+                            "phase": "done" if _last_status == "completed" else "failed",
+                        }})
                 # system_design：新 HITL 门出现 → 归档弹框内容到 conv_log（对话区累积展示）
                 if skill_id == "system_design":
                     new_hitl = diff.get("hitl") if isinstance(diff.get("hitl"), dict) else {}
@@ -1600,13 +1687,22 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                             if hitl_after != "publish_confirm":
                                 cur["overall_progress"] = 100
                 # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）
-                try:
-                    _proj = _get_sdui_projector(skill_id)
-                    if _proj is not None:
-                        sdui_doc = _proj(RUNS[run_id]["state"])
-                        await queue.put({"event": "sdui", "data": sdui_doc})
-                except Exception:
-                    pass
+                if not suppress_replay or node_name in _PACE_VISIBLE_ON_REPLAY:
+                    try:
+                        _proj = _get_sdui_projector(skill_id)
+                        if _proj is not None:
+                            sdui_doc = _proj(RUNS[run_id]["state"])
+                            await queue.put({"event": "sdui", "data": sdui_doc})
+                    except Exception:
+                        pass
+
+        if suppress_replay:
+            try:
+                _proj = _get_sdui_projector(skill_id)
+                if _proj is not None:
+                    await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
+            except Exception:
+                pass
 
         final_state = RUNS[run_id]["state"]
         hitl = final_state.get("hitl") or {}
@@ -1978,7 +2074,9 @@ async def resume_run(skill: str, req: ResumeReq):
                 init_state[k] = v
     RUNS[req.run_id]["state"] = init_state
     new_tid = f"{req.run_id}-r{attempt}"
-    task = asyncio.create_task(_run_graph_streaming(req.run_id, init_state, thread_id=new_tid))
+    task = asyncio.create_task(
+        _run_graph_streaming(req.run_id, init_state, thread_id=new_tid, suppress_replay=True)
+    )
     RUNS[req.run_id]["task"] = task
     route_to = str(init_state.get("route_to") or "")
     msg = (

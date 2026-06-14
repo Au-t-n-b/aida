@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -20,24 +21,31 @@ import type {
 } from '@/types/domain';
 import type { ProjectDataContext } from '@/lib/datacenter/types';
 import { syncProposalLocalFiles } from '@/lib/datacenter/client';
+import { DEFAULT_PROJECT_ROOT } from '@/data/project-paths';
 import {
+  applyTestCasesFromUpload,
   buildProjectDataContext,
   clearDraftRaci,
   getStoredVersions,
+  isTechProposalUploaded,
+  isTestCasesUploaded,
   loadAcceptance,
   loadCardScale,
   loadPlan,
   loadRaciMatrix,
-  applyTestCasesFromUpload,
   loadTestCasesIfReady,
+  reloadAcceptanceFromXlsx,
+  reloadTestCasesFromXlsx,
   saveAcceptanceTable,
   saveRaciTable,
   saveTestCasesTable,
   setAcceptanceCache,
   setDraftRaci,
   setStoredVersions,
+  setTestCasesSessionCache,
   testCaseKey,
 } from '@/lib/proposal-data-service';
+import { navDebug } from '@/lib/nav-debug';
 
 export interface ProposalDataContextValue {
   projectCtx: ProjectDataContext | null;
@@ -52,9 +60,13 @@ export interface ProposalDataContextValue {
   selectedTcKeys: Set<string>;
   versions: ProposalTableVersions;
   cardScale: number;
+  acceptanceReady: boolean;
+  testCasesReady: boolean;
   updateRaci: (rows: RaciRow[]) => void;
   setSelectedTc: (keys: Set<string>) => void;
+  updateTestCaseSelection: (keys: Set<string>) => void;
   refreshAcceptance: (items: AcceptanceItem[]) => void;
+  refreshTestCases: (cases: AcceptanceTestCase[], selectedKeys?: Set<string>) => void;
   saveDraftTables: () => Promise<void>;
   saveAndConfirmTables: () => Promise<void>;
   setDirty: (v: boolean) => void;
@@ -77,7 +89,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       token: session?.accessToken,
       dcProjectId: project.id,
       projectName: project.name,
-      projectCode: project.code,
+      projectCode: DEFAULT_PROJECT_ROOT,
     });
   }, [project?.id, project?.name, project?.code, session?.accessToken]);
 
@@ -93,37 +105,38 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   const [selectedTcKeys, setSelectedTcKeys] = useState<Set<string>>(new Set());
   const [versions, setVersions] = useState<ProposalTableVersions>({ raci: 0, acceptance: 0, testCases: 0 });
   const [cardScale, setCardScale] = useState(384);
+  const [acceptanceReady, setAcceptanceReady] = useState(false);
+  const [testCasesReady, setTestCasesReady] = useState(false);
+  const loadInflight = useRef<AbortController | null>(null);
 
   const loadAll = useCallback(async () => {
     if (!projectCtx) {
-      console.warn('[AIDA DC] loadAll skipped: no projectCtx', {
-        projectId: project?.id,
-        projectName: project?.name,
-        hasToken: Boolean(session?.accessToken),
-      });
       setLoading(false);
       return;
     }
-    console.info('[AIDA DC] loadAll start', {
-      projectId: projectCtx.dcProjectId,
-      projectName: projectCtx.projectName,
-      projectCode: projectCtx.projectCode,
-      hasToken: Boolean(projectCtx.token),
-    });
+    if (loadInflight.current) {
+      loadInflight.current.abort();
+    }
+    const ac = new AbortController();
+    loadInflight.current = ac;
+    const isAborted = () => ac.signal.aborted;
+
     setLoading(true);
+    navDebug('proposal-data loadAll start', { projectName });
     try {
       const syncResult = await syncProposalLocalFiles(projectCtx);
+      if (isAborted()) return;
       if (syncResult.warnings.length) {
         setDataWarnings(syncResult.warnings);
       }
       const stored = getStoredVersions(projectName);
       const scale = await loadCardScale(projectCtx);
-      const [raci, plan, accept, tcLoaded] = await Promise.all([
+      if (isAborted()) return;
+      const [raci, plan] = await Promise.all([
         loadRaciMatrix(projectCtx),
         loadPlan(projectCtx),
-        loadAcceptance(projectCtx),
-        loadTestCasesIfReady(projectCtx, scale),
       ]);
+      if (isAborted()) return;
       setCardScale(scale);
       setRaciRows(raci.rows);
       setVersions({
@@ -132,27 +145,90 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
         testCases: stored.testCases,
       });
       setPlanRows(plan);
-      setAcceptanceItems(accept);
-      setTestCases(tcLoaded.cases);
-      setSelectedTcKeys(
-        tcLoaded.selectedKeys ?? new Set(tcLoaded.cases.map((c, i) => tcKey(c, i))),
-      );
-      console.info('[AIDA DC] loadAll done', {
-        raciRows: raci.rows.length,
-        planRows: plan.length,
-        acceptanceItems: accept.length,
-        testCases: tcLoaded.cases.length,
-      });
+
+      if (isTechProposalUploaded(projectName)) {
+        const items = await loadAcceptance(projectCtx);
+        if (isAborted()) return;
+        setAcceptanceItems(items);
+        setAcceptanceReady(items.length > 0);
+      } else {
+        setAcceptanceItems([]);
+        setAcceptanceReady(false);
+      }
+
+      if (isTestCasesUploaded(projectName)) {
+        const loaded = await loadTestCasesIfReady(projectCtx, scale);
+        if (isAborted()) return;
+        setTestCases(loaded.cases);
+        setSelectedTcKeys(
+          loaded.selectedKeys ?? new Set(loaded.cases.map((c, i) => tcKey(c, i))),
+        );
+        setTestCasesReady(loaded.cases.length > 0);
+      } else {
+        setTestCases([]);
+        setSelectedTcKeys(new Set());
+        setTestCasesReady(false);
+      }
     } catch (err) {
+      if (isAborted()) return;
       console.error('[AIDA DC] loadAll failed', err);
     } finally {
-      setLoading(false);
+      if (!isAborted()) {
+        setLoading(false);
+        navDebug('proposal-data loadAll done', { projectName });
+      }
+      if (loadInflight.current === ac) loadInflight.current = null;
     }
-  }, [projectCtx, projectName, project?.id, project?.name, session?.accessToken]);
+  }, [projectCtx, projectName]);
+
+  const revealAcceptance = useCallback(async () => {
+    if (!projectCtx) return;
+    const items = await reloadAcceptanceFromXlsx(projectCtx);
+    setAcceptanceItems(items);
+    setAcceptanceReady(true);
+    setDirty(true);
+  }, [projectCtx]);
+
+  const revealTestCases = useCallback(async () => {
+    console.info('[AIDA TC] claw reveal event received');
+    if (!projectCtx) {
+      console.warn('[AIDA TC] reveal aborted: no project context (请先选择项目)');
+      return;
+    }
+    try {
+      const loaded = await reloadTestCasesFromXlsx(projectCtx, cardScale);
+      if (!loaded.cases.length) {
+        console.warn('[AIDA TC] reveal finished but 0 cases — 第12章保持空态', {
+          source: loaded.source,
+          projectName,
+        });
+        setTestCases([]);
+        setSelectedTcKeys(new Set());
+        setTestCasesReady(false);
+        return;
+      }
+      console.info('[AIDA TC] reveal success — 展示第12章', {
+        caseCount: loaded.cases.length,
+        source: loaded.source,
+      });
+      setTestCases(loaded.cases);
+      setSelectedTcKeys(
+        loaded.selectedKeys ?? new Set(loaded.cases.map((c, i) => tcKey(c, i))),
+      );
+      setTestCasesReady(true);
+      setDirty(true);
+    } catch (err) {
+      console.error('[AIDA TC] reveal error', err);
+    }
+  }, [projectCtx, cardScale, projectName]);
 
   useEffect(() => {
     void loadAll();
-  }, [loadAll]);
+    return () => {
+      loadInflight.current?.abort();
+      navDebug('proposal-data loadAll aborted (unmounted)', { projectName });
+    };
+  }, [loadAll, projectName]);
 
   useEffect(() => {
     const onFallback = (e: Event) => {
@@ -171,6 +247,8 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       if (detail?.rows?.length) {
         setAcceptanceItems(detail.rows);
         setAcceptanceCache(projectName, detail.rows);
+        setAcceptanceReady(true);
+        setDirty(true);
       }
     };
     window.addEventListener('aida:proposal-acceptance-parsed', onParsed);
@@ -184,11 +262,23 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       const cases = applyTestCasesFromUpload(projectName, detail.rows, cardScale);
       setTestCases(cases);
       setSelectedTcKeys(new Set(cases.map((c, i) => tcKey(c, i))));
+      setTestCasesReady(cases.length > 0);
       setDirty(true);
     };
     window.addEventListener('aida:proposal-testcases-parsed', onTcParsed);
     return () => window.removeEventListener('aida:proposal-testcases-parsed', onTcParsed);
   }, [projectName, cardScale]);
+
+  useEffect(() => {
+    const onRevealAcceptance = () => { void revealAcceptance(); };
+    const onRevealTestCases = () => { void revealTestCases(); };
+    window.addEventListener('aida:proposal-reveal-acceptance', onRevealAcceptance);
+    window.addEventListener('aida:proposal-reveal-testcases', onRevealTestCases);
+    return () => {
+      window.removeEventListener('aida:proposal-reveal-acceptance', onRevealAcceptance);
+      window.removeEventListener('aida:proposal-reveal-testcases', onRevealTestCases);
+    };
+  }, [revealAcceptance, revealTestCases]);
 
   const updateRaci = useCallback((rows: RaciRow[]) => {
     setRaciRows(rows);
@@ -198,14 +288,38 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
 
   const setSelectedTc = useCallback((keys: Set<string>) => {
     setSelectedTcKeys(keys);
+    if (testCases.length) {
+      setTestCasesSessionCache(projectName, testCases, keys);
+    }
     setDirty(true);
-  }, []);
+  }, [projectName, testCases]);
+
+  const updateTestCaseSelection = useCallback((keys: Set<string>) => {
+    setSelectedTcKeys(keys);
+    if (testCases.length) {
+      setTestCasesSessionCache(projectName, testCases, keys);
+    }
+    setDirty(true);
+  }, [projectName, testCases]);
 
   const refreshAcceptance = useCallback((items: AcceptanceItem[]) => {
-    setAcceptanceItems(items.length ? items : acceptanceItems);
+    setAcceptanceItems(items);
     setAcceptanceCache(projectName, items);
     setDirty(true);
-  }, [projectName, acceptanceItems]);
+  }, [projectName]);
+
+  const refreshTestCases = useCallback((
+    cases: AcceptanceTestCase[],
+    selectedKeys?: Set<string>,
+  ) => {
+    const keys = selectedKeys ?? new Set(cases.map((c, i) => tcKey(c, i)));
+    setTestCases(cases);
+    setSelectedTcKeys(keys);
+    if (cases.length) {
+      setTestCasesSessionCache(projectName, cases, keys);
+    }
+    setDirty(true);
+  }, [projectName]);
 
   const persistAll = useCallback(async (bumpVersion: boolean) => {
     if (!projectCtx) return;
@@ -221,17 +335,25 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       next.testCases = next.testCases || 1;
     }
 
-    await Promise.all([
+    const saves: Promise<void>[] = [
       saveRaciTable(projectCtx, raciRows, next.raci),
-      saveAcceptanceTable(projectCtx, acceptanceItems, next.acceptance),
-      saveTestCasesTable(projectCtx, testCases, selectedTcKeys, tcKey, next.testCases),
-    ]);
+    ];
+    if (acceptanceReady) {
+      saves.push(saveAcceptanceTable(projectCtx, acceptanceItems, next.acceptance));
+    }
+    if (testCasesReady) {
+      saves.push(saveTestCasesTable(projectCtx, testCases, selectedTcKeys, tcKey, next.testCases));
+    }
+    await Promise.all(saves);
 
     setStoredVersions(projectName, next);
     setVersions(next);
     clearDraftRaci(projectName);
     setDirty(false);
-  }, [projectCtx, projectName, raciRows, acceptanceItems, testCases, selectedTcKeys, versions]);
+  }, [
+    projectCtx, projectName, raciRows, acceptanceItems, testCases,
+    selectedTcKeys, versions, acceptanceReady, testCasesReady,
+  ]);
 
   const saveDraftTables = useCallback(() => persistAll(false), [persistAll]);
   const saveAndConfirmTables = useCallback(() => persistAll(true), [persistAll]);
@@ -249,9 +371,13 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     selectedTcKeys,
     versions,
     cardScale,
+    acceptanceReady,
+    testCasesReady,
     updateRaci,
     setSelectedTc,
+    updateTestCaseSelection,
     refreshAcceptance,
+    refreshTestCases,
     saveDraftTables,
     saveAndConfirmTables,
     setDirty,
@@ -259,7 +385,9 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
   }), [
     projectCtx, projectName, loading, dirty, dataWarnings, raciRows, planRows,
     acceptanceItems, testCases, selectedTcKeys, versions, cardScale,
-    updateRaci, setSelectedTc, refreshAcceptance, saveDraftTables, saveAndConfirmTables, loadAll,
+    acceptanceReady, testCasesReady,
+    updateRaci, setSelectedTc, updateTestCaseSelection, refreshAcceptance, refreshTestCases,
+    saveDraftTables, saveAndConfirmTables, loadAll,
   ]);
 
   return (

@@ -24,6 +24,7 @@ import {
   startRun,
   resumeRun,
   uploadBatch,
+  overrideOutputArtifact,
   runPatchRun,
   resetWorkspace,
   isIdleLikeSduiDoc,
@@ -66,7 +67,7 @@ function isLldDeliveryIntent(text: string): boolean {
   return (/完整/i.test(t) && /LLD/i.test(t)) || (/生成/.test(t) && /LLD/i.test(t));
 }
 
-/** LLD 融合续跑：显式 from_step 避免 hitl 快照丢失时 route_to 未命中 */
+/** LLD 融合续跑：显式 from_step 避免 hitl 快照丢失时 route_to 未命中（仅 system_design 交付台） */
 function resolveDeliveryResumeFromStep(text: string): string | undefined {
   const t = text.trim();
   if (isLldDeliveryIntent(text)) return 'plane_planning';
@@ -78,6 +79,25 @@ function resolveDeliveryResumeFromStep(text: string): string | undefined {
     return 'publish_confirm';
   }
   return undefined;
+}
+
+/**
+ * ChoiceCard / IoConfirm 提交时的 from_step。
+ * - system_design：优先 SDUI stepId；无 stepId 时走 NL 专用映射（LLD / publish_confirm 等）。
+ * - guihua / zhgk / device_install / software_deployment：仅传 stepId，否则省略 from_step 由后端读 hitl.step。
+ *   禁止把通用 value「confirm」映射成 publish_confirm，否则会破坏 guihua 等确认门。
+ */
+function resolveChoiceResumeFromStep(
+  skillId: string,
+  value: string,
+  stepId?: string,
+): string | undefined {
+  const sid = stepId?.trim();
+  if (skillId === 'system_design') {
+    if (sid) return sid;
+    return resolveDeliveryResumeFromStep(value);
+  }
+  return sid || undefined;
 }
 
 /** MacroStepRail「发布完成」(bp_publish) 是否已 done */
@@ -422,6 +442,94 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
     if (!found && (n as { id?: string }).id === id) found = n;
   });
   return found;
+}
+
+/** need_edit 在线编辑 HITL 的 step key（如 tasks_generate / task_dispatch）。*/
+function findEditableHitlStepKey(doc: SduiDocument | null): string | null {
+  if (!doc) return null;
+  let key: string | null = null;
+  walkSduiNodes(doc.root, (node) => {
+    if (key) return;
+    if (node.type !== 'DataTable' || !(node as { editable?: boolean }).editable) return;
+    const stepId = (node as { stepId?: string }).stepId;
+    if (stepId) {
+      key = stepId;
+      return;
+    }
+    const id = (node as { id?: string }).id ?? '';
+    if (id.startsWith('edit-')) key = id.slice(5);
+  });
+  return key;
+}
+
+/** Stepper 已完成步数（设备安装主建设流水线推进检测）。*/
+function stepperDoneCount(doc: SduiDocument | null): number {
+  if (!doc) return 0;
+  let best = 0;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'Stepper' && Array.isArray(node.steps)) {
+      const n = node.steps.filter(s => s.status === 'done').length;
+      if (n > best) best = n;
+    }
+  });
+  return best;
+}
+
+/** 从 Stepper 提取步骤 id 顺序（与后端 DI_STEP_ORDER 一致）。*/
+function getStepperStepIds(doc: SduiDocument | null): string[] {
+  if (!doc) return [];
+  let ids: string[] = [];
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'Stepper' && Array.isArray(node.steps) && node.steps.length > ids.length) {
+      ids = node.steps.map(s => s.id);
+    }
+  });
+  return ids;
+}
+
+function stepOrderIndex(order: string[], key: string | null): number {
+  if (!key) return -1;
+  return order.indexOf(key);
+}
+
+/** 设备安装完工态（ESN 提交后任务进展 / 完成横幅）。*/
+function hasDiCompletionSurface(doc: SduiDocument): boolean {
+  let found = false;
+  walkSduiNodes(doc.root, (node) => {
+    const id = (node as { id?: string }).id ?? '';
+    if (id === 'di-completion-alert' || id === 'task-table-dt') found = true;
+  });
+  return found;
+}
+
+/** 冻结基准 vs 最新快照：仅前向推进才解冻（拒绝 full_restart 重放中间态）。*/
+function hasWorkbenchAdvanced(frozen: SduiDocument, live: SduiDocument): boolean {
+  if (isIdleLikeSduiDoc(live)) return false;
+
+  const frozenDone = stepperDoneCount(frozen);
+  const liveDone = stepperDoneCount(live);
+  // full_restart 重放时步骤条 done 数会短暂回落，不算推进
+  if (liveDone < frozenDone) return false;
+
+  const order = getStepperStepIds(frozen).length ? getStepperStepIds(frozen) : getStepperStepIds(live);
+  const frozenEdit = findEditableHitlStepKey(frozen);
+  const liveEdit = findEditableHitlStepKey(live);
+
+  // 在线编辑完成：编辑区消失 + 步骤条未回退（或出现完工视图）
+  if (frozenEdit && !liveEdit) {
+    return liveDone > frozenDone || hasDiCompletionSurface(live);
+  }
+
+  // 在线编辑步切换：仅接受流水线前向（如 tasks_generate → task_dispatch）
+  if (frozenEdit && liveEdit && liveEdit !== frozenEdit) {
+    const fi = stepOrderIndex(order, frozenEdit);
+    const li = stepOrderIndex(order, liveEdit);
+    return fi >= 0 && li > fi;
+  }
+
+  if (liveDone > frozenDone) return true;
+  if (hasDiCompletionSurface(live) && frozenEdit) return true;
+  return false;
 }
 
 /** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
@@ -797,21 +905,23 @@ export default function SkillAgentScreen({
   const clawTask = useClawTaskSdui(useClawMode ? taskId : null, session?.accessToken ?? '');
   const directDoc = useSduiStream(skillId, useClawMode ? null : runId, streamEpoch);
   const sduiDoc = useClawMode ? clawTask.doc : directDoc;
+  // 重连间隙后端可能短暂投影 idle 空树；显示层忽略，继续用 bootDoc 兜底
+  const liveSduiDoc = sduiDoc && !isIdleLikeSduiDoc(sduiDoc) ? sduiDoc : null;
 
   useEffect(() => {
-    if (sduiDoc) {
+    if (liveSduiDoc) {
       setBootDoc(null);
       setLoadError(null);
     }
-  }, [sduiDoc]);
+  }, [liveSduiDoc]);
 
   useEffect(() => {
-    if (!runId || sduiDoc || bootDoc || starting) return;
+    if (!runId || liveSduiDoc || bootDoc || starting) return;
     const timer = window.setTimeout(() => {
       setLoadError('工作台加载超时，请重新启动或刷新页面。');
     }, 12000);
     return () => window.clearTimeout(timer);
-  }, [runId, sduiDoc, bootDoc, starting]);
+  }, [runId, liveSduiDoc, bootDoc, starting]);
   // 容器模式：用容器内 aida/agent 的 run_id 做文件上传（clawTask.runId 由 payload 携带）
   const activeRunId = useClawMode ? (clawTask.runId ?? null) : runId;
 
@@ -855,10 +965,14 @@ export default function SkillAgentScreen({
       setFrozenDoc(null);
       return;
     }
-    // 无进度指标的 skill（guihua，frozenTarget===0）：
-    // 仅当新状态携带 hitl-card 或 completion-card 时才解冻；
-    // 运行态（只有 TabGroup，无交互卡）继续保持冻结，避免左侧 HITL 内容消失。
+    // 无进度指标的 skill（guihua / device_install 在线编辑表，frozenTarget===0）：
+    // 仅前向推进才解冻（拒绝 full_restart 重放中间态导致步骤条回退）。
     if (frozenTarget === 0) {
+      if (frozenDocSnap && hasWorkbenchAdvanced(frozenDocSnap, sduiDoc)) {
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        return;
+      }
       let hasInteraction = false;
       walkSduiNodes(sduiDoc.root, (node) => {
         const id = (node as { id?: string }).id ?? '';
@@ -876,8 +990,8 @@ export default function SkillAgentScreen({
   // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
   // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
   const displayDoc = usesDeliveryWorkbench
-    ? (frozenDoc ?? sduiDoc ?? bootDoc)
-    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? sduiDoc ?? bootDoc);
+    ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
+    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
@@ -1061,6 +1175,23 @@ export default function SkillAgentScreen({
     await resumeRun(skillId, rid, payload, fromStep);
     // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
     setStreamEpoch(e => e + 1);
+    // device_install：full_restart 耗时较长，SSE 可能晚于冻结层；轮询 /ui 推进界面
+    if (skillId === 'device_install' && curDoc) {
+      const baseline = curDoc;
+      void (async () => {
+        for (let i = 0; i < 24; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const snap = await fetchUiSnapshot(skillId, rid);
+          if (!snap || isIdleLikeSduiDoc(snap)) continue;
+          if (!hasWorkbenchAdvanced(baseline, snap)) continue;
+          frozenSnapshotRef.current = null;
+          setFrozenDoc(null);
+          setBootDoc(snap);
+          setStreamEpoch(e => e + 1);
+          return;
+        }
+      })();
+    }
   }, [useClawMode, session, taskId, activeRunId, skillId, storeRun]);
 
   const resolveCommissionScope = useCallback((explicit?: string): string => {
@@ -1396,12 +1527,43 @@ export default function SkillAgentScreen({
 
   const handleUpload = useCallback(async (
     files: FileList,
-    _purpose?: string,
+    purpose?: string,
     _stepId?: string,
     slotTag?: string,
     slotLabel?: string,
   ) => {
     const arr = Array.from(files);
+    // system_design 输出件覆盖：写入 output/ 原 path · 不 resume · 不走 upload/batch
+    if (skillId === 'system_design' && purpose?.startsWith('override:')) {
+      const targetPath = purpose.slice('override:'.length);
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      if (!rid) {
+        throw new Error('尚未启动作业 run，请先从左侧启动系统设计后再上传');
+      }
+      if (!arr.length) {
+        throw new Error('未选择文件');
+      }
+      try {
+        const result = await overrideOutputArtifact(skillId, arr[0], targetPath, rid);
+        if (result.ok === false) {
+          throw new Error(String(result.error || '覆盖上传失败'));
+        }
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        const snap = await fetchUiSnapshot(skillId, rid);
+        if (snap) {
+          postUploadEpochRef.current = Date.now();
+          setPostUploadDoc(snap);
+        }
+        setError(null);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '覆盖上传失败，请检查文件格式或网络连接';
+        console.error('[SDUI] override upload error:', e);
+        setError(msg);
+        throw e instanceof Error ? e : new Error(msg);
+      }
+      return;
+    }
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
       try {
@@ -1477,9 +1639,12 @@ export default function SkillAgentScreen({
     }
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
-  const handleChoiceSubmit = useCallback(async (value: string) => {
-    await doResume({ choice: value }, resolveDeliveryResumeFromStep(value));
-  }, [doResume]);
+  const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    await doResume(
+      { choice: value },
+      resolveChoiceResumeFromStep(skillId, value, stepId),
+    );
+  }, [doResume, skillId]);
 
   // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
   const handleActionRef = useRef(handleAction);
@@ -1498,7 +1663,9 @@ export default function SkillAgentScreen({
       slotTag?: string,
       slotLabel?: string,
     ) => handleUploadRef.current(files, purpose, stepId, slotTag, slotLabel),
-    onChoiceSubmit: (value: string) => { void handleChoiceSubmitRef.current(value); },
+    onChoiceSubmit: (value: string, stepId?: string) => {
+      void handleChoiceSubmitRef.current(value, stepId);
+    },
   }).current;
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────

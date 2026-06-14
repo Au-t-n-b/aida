@@ -45,6 +45,7 @@ type ProjectRoleChip = { role: 'PD' | 'TD' | 'PCM' | 'TL' | 'OCC'; name: string 
 type ProjectMini = {
   id: string;
   name: string;
+  code?: string;
   roles: ProjectRoleChip[];
 };
 const PROJECT_LIST_MINI: ProjectMini[] = [
@@ -104,7 +105,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
     ?? PROJECT_LIST_MINI[0]!.name;
 
   const switchProject = (p: (typeof PROJECT_LIST_MINI)[number]) => {
-    selectProject({ id: p.id, name: p.name });
+    selectProject({ id: p.id, name: p.name, code: p.code ?? p.id });
     setProjOpen(false);
     navigate('/cockpit');
   };

@@ -32,38 +32,50 @@ def _skip_input_xlsx(name: str) -> bool:
     return n.startswith("~$") or n.startswith(".~")
 
 
-def _input_search_dir(ctx: SkillContext) -> Path:
-    """输入 xlsx 搜索目录：服务器为上游输出结果目录，本地为 ProjectData/Input/。"""
-    return get_upstream_input_dir(ctx.project)
+def _input_search_dirs(ctx: SkillContext) -> list[Path]:
+    """输入 xlsx 搜索目录：上游 SSOT 目录 + HITL 上传的 ProjectData/Input/（去重）。"""
+    seen: set[Path] = set()
+    dirs: list[Path] = []
+    for d in (get_upstream_input_dir(ctx.project), ctx.input_dir):
+        resolved = d.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        dirs.append(resolved)
+    return dirs
 
 
 def find_input(ctx: SkillContext, *keywords: str, exclude: tuple[str, ...] = ()) -> str | None:
     """在上游输入目录找文件名含任一 keyword、且不含任一 exclude 的首个 .xlsx。"""
-    search_dir = _input_search_dir(ctx)
-    if not search_dir.exists():
-        return None
-    for p in sorted(search_dir.glob("*.xlsx")):
-        name = p.name
-        if _skip_input_xlsx(name):
+    for search_dir in _input_search_dirs(ctx):
+        if not search_dir.exists():
             continue
-        if any(k.lower() in name.lower() for k in keywords) and not any(
-            e.lower() in name.lower() for e in exclude
-        ):
-            return str(p)
+        for p in sorted(search_dir.glob("*.xlsx")):
+            name = p.name
+            if _skip_input_xlsx(name):
+                continue
+            if any(k.lower() in name.lower() for k in keywords) and not any(
+                e.lower() in name.lower() for e in exclude
+            ):
+                return str(p)
     return None
 
 
 def find_inputs(ctx: SkillContext, *keywords: str) -> list[str]:
     """在上游输入目录找所有文件名含任一 keyword 的 .xlsx。"""
-    search_dir = _input_search_dir(ctx)
-    if not search_dir.exists():
-        return []
     out: list[str] = []
-    for p in sorted(search_dir.glob("*.xlsx")):
-        if _skip_input_xlsx(p.name):
+    seen_paths: set[str] = set()
+    for search_dir in _input_search_dirs(ctx):
+        if not search_dir.exists():
             continue
-        if any(k.lower() in p.name.lower() for k in keywords):
-            out.append(str(p))
+        for p in sorted(search_dir.glob("*.xlsx")):
+            if _skip_input_xlsx(p.name):
+                continue
+            if any(k.lower() in p.name.lower() for k in keywords):
+                ps = str(p)
+                if ps not in seen_paths:
+                    seen_paths.add(ps)
+                    out.append(ps)
     return out
 
 

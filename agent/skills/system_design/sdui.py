@@ -47,7 +47,7 @@ from typing import Any
 from agent.sdui.builder import (
     SduiDocument, SduiNode, SduiStackNode, SduiCardNode, SduiRowNode,
     SduiTextNode, SduiDividerNode,
-    SduiButtonNode, SduiPostUserMessage, SduiResetSession, SduiCardHeaderAction,
+    SduiButtonNode, SduiPostUserMessage,
     SduiBadgeNode,
     SduiAlertNode,
     SduiFilePickerNode, SduiChoiceCardNode, SduiIoConfirmPanelNode,
@@ -1617,6 +1617,70 @@ def _artifact_items(
     return out
 
 
+def _apply_artifact_override_badges(doc: dict[str, Any], overrides: dict[str, bool]) -> dict[str, Any]:
+    """注入「已覆盖」角标（builder 未声明 badge 字段 · 投影后补写 JSON）。"""
+    if not overrides:
+        return doc
+    norm = {k.replace("\\", "/") for k, v in overrides.items() if v}
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "ArtifactGrid":
+                for item in node.get("artifacts") or []:
+                    if not isinstance(item, dict):
+                        continue
+                    path = str(item.get("path") or "").replace("\\", "/")
+                    if path in norm:
+                        item["badge"] = "已覆盖"
+            for v in node.values():
+                walk(v)
+        elif isinstance(node, list):
+            for x in node:
+                walk(x)
+
+    walk(doc.get("root"))
+    return doc
+
+
+def _attach_sd_header_toolbar_json(doc: dict[str, Any]) -> dict[str, Any]:
+    """重置会话与 CTA 同排（JSON 后处理 · Button 契约不含 reset_session）。"""
+    root = doc.get("root") or {}
+    header = next(
+        (c for c in (root.get("children") or []) if isinstance(c, dict) and c.get("id") == "header"),
+        None,
+    )
+    if not isinstance(header, dict):
+        return doc
+    header.pop("headerAction", None)
+    row = next(
+        (c for c in (header.get("children") or []) if isinstance(c, dict) and c.get("type") == "Row"),
+        None,
+    )
+    if not isinstance(row, dict):
+        return doc
+
+    reset_btn = {
+        "type": "Button",
+        "id": "reset-session-btn",
+        "label": "重置会话",
+        "variant": "secondary",
+        "action": {"kind": "reset_session"},
+    }
+    children = list(row.get("children") or [])
+    cta_btn = next((c for c in children if isinstance(c, dict) and c.get("id") == "cta-btn"), None)
+    leading = [c for c in children if not (isinstance(c, dict) and c.get("id") == "cta-btn")]
+    if cta_btn is not None:
+        row["children"] = leading + [{
+            "type": "Row",
+            "id": "header-actions",
+            "gap": "sm",
+            "children": [reset_btn, cta_btn],
+        }]
+    else:
+        row["children"] = children + [reset_btn]
+    return doc
+
+
 def _resolve_highlight_artifact_ids(state: dict[str, Any]) -> set[str]:
     """对齐设计稿 highlightArtifacts · test_check 时高亮 art-testcase。"""
     project = state.get("project") or {}
@@ -1857,12 +1921,6 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     header = build_header(
         state, default_name="系统设计 · 交付作业", cta_map=SD_CTA, step_order=SD_STEP_ORDER,
     )
-    # 一键「重置会话」：挂在右栏顶部标题卡头部（运行全程可见 · 对齐 device_install 范式）。
-    # 走 reset_session → 前端 handleResetSession → POST /agent/system_design/reset-workspace
-    # 清空产物+运行态（保留 Input），并清掉前端持久化 run_id 回到启动页。
-    header.headerAction = SduiCardHeaderAction(
-        label="重置会话", variant="secondary", action=SduiResetSession(),
-    )
     nodes: list[SduiNode] = [header]
 
     # 对话流（左侧 ClawRail 同步渲染 sd-conversation / hitl-card）
@@ -1913,4 +1971,6 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         root=SduiStackNode(id="system-design-root", gap="sm", children=nodes),
         meta=meta,
     )
-    return dump_sdui_json(doc)
+    doc_dict = dump_sdui_json(doc)
+    doc_dict = _attach_sd_header_toolbar_json(doc_dict)
+    return _apply_artifact_override_badges(doc_dict, state.get("artifact_overrides") or {})

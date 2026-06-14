@@ -6,10 +6,10 @@ source_files · 上游实施计划文件目录（直接路径读取）。
 
 优先级：
   1. 环境变量 DEVICE_INSTALL_SOURCE_ROOT
-  2. 数据中心路径：{AIDA_BUSINESS_ROOT}/projects/{id}/项目管理/计划/输出结果
-     （id 来自 run project 或 AIDA_DEFAULT_PROJECT_ID）
-  3. 扫描 business/projects/*/…/输出结果 找首个含实施计划的目录（单项目服务器零配置）
-  4. 默认：<work_root>/ProjectData/Input/
+  2. path_config SERVER_UPSTREAM_INPUT_DIR（Linux 服务器 business 根存在时）
+  3. 数据中心路径：{AIDA_BUSINESS_ROOT}/projects/{id}/ + _REL_PLAN_UPSTREAM
+  4. 扫描 business/projects/*/… 找首个含实施计划的目录（单项目服务器零配置）
+  5. 默认：<work_root>/ProjectData/Input/
 """
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from ..data_center_paths import get_dc_source_dir, iter_project_dirs
+from ..path_config import SERVER_BUSINESS_ROOT, SERVER_UPSTREAM_INPUT_DIR, _REL_PLAN_UPSTREAM
+from ..data_center_paths import get_dc_upstream_input_dir, iter_project_dirs
 from .dispatch_plan_parser import DISPATCH_PLAN_FILENAME, resolve_dispatch_plan_path
 
 _DISPATCH_LABEL = "设备安装实施计划（上游交付）"
@@ -27,7 +28,7 @@ _DISPATCH_LABEL = "设备安装实施计划（上游交付）"
 def _scan_source_dir_with_plan() -> Path | None:
     """在 business/projects 下扫描首个已含《设备安装实施计划.xlsx》的源目录。"""
     for _pid, proj_dir in iter_project_dirs():
-        candidate = proj_dir / "项目管理" / "计划" / "输出结果"
+        candidate = proj_dir / _REL_PLAN_UPSTREAM
         if resolve_dispatch_plan_path(candidate):
             return candidate.resolve()
     return None
@@ -37,12 +38,15 @@ def get_source_dir(
     work_root: Path | str | None = None,
     project: dict[str, Any] | None = None,
 ) -> Path:
-    """源文件目录。环境变量 → 数据中心推导 → 扫描 → 工作区 Input/。"""
+    """源文件目录。环境变量 → path_config 写死 server 落点 → 数据中心推导 → 扫描 → Input/。"""
     raw = os.environ.get("DEVICE_INSTALL_SOURCE_ROOT", "").strip()
     if raw:
         return Path(raw).resolve()
 
-    dc = get_dc_source_dir(project)
+    if SERVER_BUSINESS_ROOT.is_dir():
+        return SERVER_UPSTREAM_INPUT_DIR.resolve()
+
+    dc = get_dc_upstream_input_dir(project)
     if dc is not None:
         return dc.resolve()
 

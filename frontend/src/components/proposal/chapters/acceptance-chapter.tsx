@@ -7,16 +7,25 @@ import {
   ProposalDataTableBody,
   ProposalDataTableHead,
 } from '../primitives';
-import { ACCEPTANCE_ITEMS } from '../proposal-data';
+
+type AcceptanceRow = {
+  cat: string;
+  scheme: string;
+  standard: string;
+  milestone: string;
+  doc: string;
+  payment: string;
+  paymentMilestone: string;
+};
 
 interface AcceptanceChapterProps {
   initialRows?: unknown;
   onRowsChange?: (rows: Array<Record<string, unknown>>) => void;
 }
 
-function _normalizeRows(input: unknown) {
+function _normalizeRows(input: unknown): AcceptanceRow[] {
   if (!Array.isArray(input) || input.length === 0) {
-    return ACCEPTANCE_ITEMS;
+    return [];
   }
   const rows = input
     .filter((row) => typeof row === 'object' && row !== null)
@@ -32,13 +41,14 @@ function _normalizeRows(input: unknown) {
         paymentMilestone: String(item.paymentMilestone ?? ''),
       };
     });
-  return rows.length ? rows : ACCEPTANCE_ITEMS;
+  return rows.filter((r) => r.cat?.trim() || r.scheme?.trim());
 }
 
 export function AcceptanceChapter({ initialRows, onRowsChange }: AcceptanceChapterProps) {
   const rows = useMemo(() => _normalizeRows(initialRows), [initialRows]);
 
   useEffect(() => {
+    if (rows.length === 0) return;
     onRowsChange?.(rows.map((row) => ({ ...row })));
   }, [onRowsChange, rows]);
 
