@@ -43,6 +43,7 @@ from .proposal_models import (
     WarningItem,
 )
 from .proposal_store import ProposalStore
+from .proposal_request_logging import ProposalLoggingRoute
 from .services.proposal_chapter_files import (
     build_xlsx,
     extract_token,
@@ -60,7 +61,11 @@ from .services.proposal_chapter_files import (
 )
 
 LOG = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/v1/projects/{project_id}/proposal", tags=["proposal"])
+router = APIRouter(
+    prefix="/api/v1/projects/{project_id}/proposal",
+    tags=["proposal"],
+    route_class=ProposalLoggingRoute,
+)
 _store = ProposalStore()
 
 

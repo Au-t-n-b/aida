@@ -38,8 +38,13 @@ from agent.proposal.services import service_delivery_ui as svc
 from agent.proposal.services import metadata as metadata_service
 from agent.proposal.services import versions as versions_service
 from agent.proposal.draft_store import assert_draft_editable
+from agent.proposal_request_logging import ProposalLoggingRoute
 
-router = APIRouter(prefix="/api/v1/projects/{project_id}/proposal", tags=["proposal"])
+router = APIRouter(
+    prefix="/api/v1/projects/{project_id}/proposal",
+    tags=["proposal"],
+    route_class=ProposalLoggingRoute,
+)
 
 
 @router.get("/draft")
