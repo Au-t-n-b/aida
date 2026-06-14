@@ -3,15 +3,22 @@
 /* CreateProjectModal · 创建 / 编辑项目模态弹窗 (G-10 + G-11)
  *
  * 创建：校验通过后调用数据中心 POST /api/v1/projects，成功后刷新落地页列表（待审批）。
- * 编辑：打开时 GET /api/v1/projects/{uuid} 拉详情预填表单（PUT 保存待接）。
+ * 编辑：打开时 GET /api/v1/projects/{uuid} 拉详情预填；保存时 PUT 更新并刷新列表。
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { deriveProjectId, useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
-import { createProject, fetchProjectDetail } from '@/lib/claw-manager-client';
-import { dcProjectDetailToFormPreset, formToCreateProjectBody } from '@/lib/landing-projects';
+import { createProject, fetchProjectDetail, updateProject } from '@/lib/claw-manager-client';
+import {
+  type ApiErrorDetail,
+  apiErrorDiagnosticLines,
+  applyApiError,
+} from '@/lib/api-error';
+import {
+  dcProjectDetailToFormPreset,
+  formToCreateProjectBody,
+  formToUpdateProjectBody,
+} from '@/lib/landing-projects';
 import { CONTRACT_PRESALE, INITIAL_FIELDS, FieldsStep } from './screens/create';
 
 interface CreateFieldDef {
@@ -48,8 +55,8 @@ export interface CreateProjectModalProps {
   preset?: CreatePreset;
   projectId?: string | null;
   onClose?: () => void;
-  /** 创建成功后回调（用于刷新项目列表） */
-  onCreated?: () => void | Promise<void>;
+  /** 创建或编辑保存成功后回调（用于刷新项目列表） */
+  onSaved?: (kind: 'create' | 'edit') => void | Promise<void>;
 }
 
 export default function CreateProjectModal({
@@ -58,20 +65,20 @@ export default function CreateProjectModal({
   preset = null,
   projectId = null,
   onClose,
-  onCreated,
+  onSaved,
 }: CreateProjectModalProps) {
-  const navigate = useNavigate();
   const { session } = useAidaSession();
-  const { selectProject } = useCurrentProject();
   const [fields, setFields] = useState<CreateFieldDef[]>(INITIAL_FIELDS as CreateFieldDef[]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitErrorDetail, setSubmitErrorDetail] = useState<ApiErrorDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const detailReqRef = useRef(0);
 
   useEffect(() => {
     if (!open) return;
     setSubmitError(null);
+    setSubmitErrorDetail(null);
     setSubmitting(false);
 
     if (mode !== 'edit' || !projectId) {
@@ -96,9 +103,10 @@ export default function CreateProjectModal({
         const presetFromApi = dcProjectDetailToFormPreset(resp.data);
         setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], presetFromApi));
         setSubmitError(null);
+        setSubmitErrorDetail(null);
       } catch (e) {
         if (detailReqRef.current !== reqId) return;
-        setSubmitError(e instanceof Error ? e.message : '加载项目详情失败');
+        applyApiError(e, setSubmitError, setSubmitErrorDetail, '加载项目详情失败');
       } finally {
         if (detailReqRef.current === reqId) setDetailLoading(false);
       }
@@ -123,35 +131,50 @@ export default function CreateProjectModal({
       }
       setSubmitting(true);
       setSubmitError(null);
+      setSubmitErrorDetail(null);
       try {
         const body = formToCreateProjectBody(obj);
         await createProject(session.accessToken, body);
-        await onCreated?.();
+        await onSaved?.('create');
         onClose?.();
       } catch (e) {
-        setSubmitError(e instanceof Error ? e.message : '创建项目失败');
+        applyApiError(e, setSubmitError, setSubmitErrorDetail, '创建项目失败');
       } finally {
         setSubmitting(false);
       }
       return;
     }
 
-    // 编辑模式：暂保留原行为（后续对接 PUT）
-    const payload = { mode, fields: obj, ts: Date.now() };
-    try { sessionStorage.setItem('aida:just-created', JSON.stringify(payload)); } catch {}
-    const id = projectId ?? deriveProjectId(obj.code, obj.proposal);
-    selectProject({
-      id,
-      name: obj.name || '未命名项目',
-      code: obj.code || obj.proposal || undefined,
-    });
-    onClose?.();
-    navigate('/cockpit');
+    if (!projectId) {
+      setSubmitError('缺少项目 ID，无法保存');
+      return;
+    }
+    if (!session?.accessToken) {
+      setSubmitError('登录已失效，请重新登录');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    setSubmitErrorDetail(null);
+    try {
+      const body = formToUpdateProjectBody(obj);
+      if (Object.keys(body).length === 0) {
+        setSubmitError('没有可保存的变更');
+        return;
+      }
+      await updateProject(session.accessToken, projectId, body);
+      await onSaved?.('edit');
+      onClose?.();
+    } catch (e) {
+      applyApiError(e, setSubmitError, setSubmitErrorDetail, '保存项目失败');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const title = mode === 'edit' ? '编辑项目空间' : '新建项目空间';
   const ctaLabel = mode === 'edit'
-    ? (detailLoading ? '加载中…' : '保存')
+    ? (detailLoading ? '加载中…' : (submitting ? '保存中…' : '保存'))
     : (submitting ? '提交中…' : '提交创建');
 
   return (
@@ -173,7 +196,17 @@ export default function CreateProjectModal({
               className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
               role="alert"
             >
-              {submitError}
+              <div className="font-medium">{submitError}</div>
+              {submitErrorDetail && apiErrorDiagnosticLines(submitErrorDetail).length > 0 && (
+                <dl className="mt-2 space-y-1.5 border-t border-red-200/80 pt-2 text-xs font-normal text-red-800/90">
+                  {apiErrorDiagnosticLines(submitErrorDetail).map((row) => (
+                    <div key={row.label}>
+                      <dt className="font-semibold text-red-900/80">{row.label}</dt>
+                      <dd className="mt-0.5 whitespace-pre-wrap break-all font-mono">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
           )}
           <FieldsStep

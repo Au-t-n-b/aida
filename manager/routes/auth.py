@@ -14,6 +14,7 @@ from manager.datacenter_client import (
     login as dc_login,
     register_user,
 )
+from manager.http_errors import dc_http_exception
 from manager.sessions import create_session, delete_session, get_by_token, get_session
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -152,7 +153,7 @@ async def auth_login(body: LoginRequest) -> LoginResponse:
             e.code,
             e,
         )
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+        raise dc_http_exception(e) from e
 
     user_id = int(profile.get("userId") or 0)
     role = _primary_role(profile)
@@ -200,7 +201,7 @@ async def auth_register(body: RegisterRequest) -> RegisterResponse:
             e.code,
             e,
         )
-        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+        raise dc_http_exception(e) from e
 
     user_id = int(data.get("userId") or data.get("user_id") or 0)
     registered_name = str(data.get("username") or username)
@@ -243,7 +244,7 @@ async def auth_me(authorization: str | None = Header(default=None)) -> MeRespons
         try:
             profile = await get_me(token)
         except DataCenterError as e:
-            raise HTTPException(status_code=e.status_code, detail=str(e)) from e
+            raise dc_http_exception(e) from e
         project_code = ""
         role = _primary_role(profile)
         user_id = int(profile.get("userId") or 0)

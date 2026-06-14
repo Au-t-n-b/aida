@@ -189,9 +189,9 @@ export default function LandingScreen() {
     void reloadProjects();
   }, [reloadProjects]);
 
-  const handleProjectCreated = useCallback(async () => {
+  const handleProjectSaved = useCallback(async (kind: 'create' | 'edit') => {
     await reloadProjects({ silent: true });
-    setFlash('项目已提交创建，状态为待审批');
+    setFlash(kind === 'edit' ? '项目信息已更新' : '项目已提交创建，状态为待审批');
     window.setTimeout(() => setFlash(null), 5000);
   }, [reloadProjects]);
 
@@ -294,7 +294,7 @@ export default function LandingScreen() {
         preset={modal.preset}
         projectId={modal.projectId}
         onClose={closeModal}
-        onCreated={handleProjectCreated}
+        onSaved={handleProjectSaved}
       />
     </div>
   );

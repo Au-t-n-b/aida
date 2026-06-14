@@ -109,6 +109,25 @@ export function visibleLandingProjects(items: LandingProjectCard[]): LandingProj
   );
 }
 
+/** 从「姓名 / 用户名」文本解析账号用户名（PUT /projects 用） */
+function parsePersonUsername(raw: string | undefined): string | undefined {
+  const s = (raw || '').trim();
+  if (!s) return undefined;
+  const slash = s.lastIndexOf('/');
+  if (slash >= 0) {
+    const tail = s.slice(slash + 1).trim();
+    return tail || undefined;
+  }
+  return s;
+}
+
+function sceneCsvToDeliveryTraits(scene: string | undefined): string[] {
+  return (scene || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
 /** 从「姓名 / 工号」文本解析可选用户 ID（数据中心 tdUserId 等） */
 function parseOptionalUserId(raw: string | undefined): number | undefined {
   const s = (raw || '').trim();
@@ -130,6 +149,7 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
   tdUserId?: number;
   pdUserId?: number;
   pcmUserId?: number;
+  deliveryTraits?: string[];
 } {
   const projectName = (fields.name || '').trim();
   const code = (fields.code || '').trim();
@@ -141,6 +161,7 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
     tdUserId?: number;
     pdUserId?: number;
     pcmUserId?: number;
+    deliveryTraits?: string[];
   } = { projectName };
   if (fields.contractType === CONTRACT_STANDARD) {
     if (proposal) body.bidCode = proposal;
@@ -153,6 +174,36 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
   if (pdUserId) body.pdUserId = pdUserId;
   if (tdUserId) body.tdUserId = tdUserId;
   if (pcmUserId) body.pcmUserId = pcmUserId;
+  const traits = sceneCsvToDeliveryTraits(fields.scene);
+  if (traits.length) body.deliveryTraits = traits;
+  return body;
+}
+
+/** 编辑项目表单 → 数据中心 PUT /projects/{uuid} body */
+export function formToUpdateProjectBody(fields: Record<string, string>): {
+  projectName?: string;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
+  deliveryTraits?: string[];
+} {
+  const body: {
+    projectName?: string;
+    tdUsername?: string;
+    pdUsername?: string;
+    pcmUsername?: string;
+    deliveryTraits?: string[];
+  } = {};
+  const projectName = (fields.name || '').trim();
+  if (projectName) body.projectName = projectName;
+  const pdUsername = parsePersonUsername(fields.pd);
+  const tdUsername = parsePersonUsername(fields.td);
+  const pcmUsername = parsePersonUsername(fields.pcm);
+  if (pdUsername) body.pdUsername = pdUsername;
+  if (tdUsername) body.tdUsername = tdUsername;
+  if (pcmUsername) body.pcmUsername = pcmUsername;
+  const traits = sceneCsvToDeliveryTraits(fields.scene);
+  if (traits.length) body.deliveryTraits = traits;
   return body;
 }
 
