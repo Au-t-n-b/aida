@@ -1,13 +1,40 @@
 // @ts-nocheck
 /* 从 DS-1 / twin-world-export 整体移植，与项目里既有 screens/*.tsx 同等做法 — 保留 @ts-nocheck */
 import React from 'react';
-import { PhysicalTwin3D } from './room3d';
 import { DigitalTwinOntology } from './digital-ontology';
 import { useContingencyOntology } from '@/lib/use-contingency-ontology';
 /* AIDA · 算力底座孪生模块 — 构建动效 v2 */
 import { useState as useStateTW, useEffect as useEffectTW, useRef as useRefTW } from 'react';
 
-const TW_ANIM_MS = 5600;
+const TW_ANIM_MS = 7200;
+
+/* 物理孪生改为 iframe 内嵌 /twin/physical-twin.html（与数字孪生侧对称），room3d 不再引用 */
+const PHYS_TWIN_URL = '/twin/physical-twin.html';
+/* 单文件发布版（与数字侧 __DIGITAL_TWIN_B64 同机制）：构建时注入 __PHYSICAL_TWIN_B64 →
+   解码为整页 HTML 走 srcDoc；URL 参数经 window.__TWIN_QS 注入页内（srcDoc 无 query string） */
+const TW_PHYSICAL_SRC = (function () {
+  try {
+    var b64 = (window as any).__PHYSICAL_TWIN_B64;
+    if (!b64) return null;
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch (e) { return null; }
+})();
+function PhysicalTwinFrame({ compact, building  }: any) {
+  const qs = compact ? (building ? '?compact=1&build=1' : '?compact=1&instant=1') : '';
+  /* src 挂载时冻结：building→built 仅 props 变化不重载页面（动画播完自然停在成品态），key 变化重挂载才换 src */
+  const [src] = useStateTW<any>(PHYS_TWIN_URL + qs);
+  const [doc] = useStateTW<any>(TW_PHYSICAL_SRC
+    ? TW_PHYSICAL_SRC.replace('<div id="app">', '<script>window.__TWIN_QS=' + JSON.stringify(qs) + '</' + 'script><div id="app">')
+    : null);
+  /* compact 态页内交互已禁用，指针穿透到父格子以响应"进入详情"点击 */
+  const frameStyle = compact ? { pointerEvents: 'none' } : undefined;
+  return doc
+    ? <iframe className="tw-digi-frame" srcDoc={doc} title="物理孪生 · 机房三维视图" style={frameStyle} />
+    : <iframe className="tw-digi-frame" src={src} title="物理孪生 · 机房三维视图" style={frameStyle} />;
+}
 
 (function injectTwinStyles() {
   if (document.getElementById('tw-styles')) return;
@@ -215,6 +242,7 @@ const TW_ANIM_MS = 5600;
     .tw-twinlink-line{width:16px;height:1px;background:linear-gradient(90deg,transparent,var(--c-border-strong))}
     .tw-twinlink-line.r{background:linear-gradient(90deg,var(--c-border-strong),transparent)}
     .tw-twinlink-node{width:32px;height:32px;border-radius:50%;background:var(--c-surface);border:1px solid var(--c-border-strong);box-shadow:var(--shadow-md);display:grid;place-items:center;color:var(--c-brand)}
+    .tw-digi-frame{width:100%;height:100%;border:0;display:block;background:transparent}
 
     /* ── 3-way view switcher (页眉内) ── */
     .tw-seg{position:relative;display:flex;flex-shrink:0;padding:3px;border-radius:999px;background:var(--c-surface-2,#eef1f6);border:1px solid var(--c-border);font-family:var(--font-sans)}
@@ -629,10 +657,10 @@ function TwinShellBar({ onRefresh, onClear, isRefreshing, visible, phase, setPha
   const isOverview = phase === 'built';
   const segPos = phase === 'physical' ? 'physical' : phase === 'digital' ? 'digital' : 'overview';
   const sub = phase === 'physical'
-    ? 'D01 一层机房 · 物理孪生 · 工勘问题标注'
+    ? '2#楼四五层智算机房 · 物理孪生 · 工勘问题标注'
     : phase === 'digital'
-      ? 'D01 一层机房 · 数字孪生 · 配置决策分析'
-      : 'D01 一层机房 · 物理 ⇄ 数字双向映射';
+      ? '2#楼四五层智算机房 · 数字孪生 · 配置决策分析'
+      : '2#楼四五层智算机房 · 物理 ⇄ 数字双向映射';
   return (
     <div className="tw-shell-bar">
       <div className="tw-ovbar">
@@ -732,6 +760,9 @@ function TwinWorld({ phase, onPhase  }: any) {
   const [isRefreshing, setIsRefreshing] = useStateTW<any>(false);
   const [introExiting, setIntroExiting] = useStateTW<any>(false);
   const [splitOrigin, setSplitOrigin] = useStateTW<any>(null);
+  const [physStats, setPhysStats] = useStateTW<any>(null);
+  const [physFrameFailed, setPhysFrameFailed] = useStateTW<any>(false);
+  const [buildSeq, setBuildSeq] = useStateTW<any>(0);
   const rootRef = useRefTW<any>(null);
   const buildTimer = useRefTW<any>(null);
   const exitTimer = useRefTW<any>(null);
@@ -757,6 +788,30 @@ function TwinWorld({ phase, onPhase  }: any) {
 
   useEffectTW(() => () => { if (exitTimer.current) clearTimeout(exitTimer.current); }, []);
 
+  /* physical-twin iframe 消息：stats 更新计数；built 提前结束构建阶段（TW_ANIM_MS 定时器保留兜底） */
+  useEffectTW(() => {
+    const onMsg = (e: any) => {
+      /* 同源校验；file:// 单文件发布时 srcdoc 子页 origin 为 "null"，放行该形态 */
+      if (e.origin !== window.location.origin && !(window.location.protocol === 'file:' && e.origin === 'null')) return;
+      const d = e && e.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'twin:stats') { setPhysStats(d); setPhysFrameFailed(false); }
+      else if (d.type === 'twin:built' && phase === 'building') {
+        if (buildTimer.current) clearTimeout(buildTimer.current);
+        setPlaying(false); setIsRefreshing(false); setPhase('built');
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [phase]);
+
+  /* iframe 挂载后 8s 未收到 stats → 判定加载失败，回退 SVG 占位（1.2MB 页 + Three.js 解析需留裕量） */
+  useEffectTW(() => {
+    if (phase === 'init' || physStats || physFrameFailed) return;
+    const t = setTimeout(() => setPhysFrameFailed(true), 8000);
+    return () => clearTimeout(t);
+  }, [phase, physStats, physFrameFailed]);
+
   const handleBuild = () => {
     // 捕获中央呼吸方块(emblem)的位置, 供两个矩形从它身上裂开
     try {
@@ -777,9 +832,10 @@ function TwinWorld({ phase, onPhase  }: any) {
   const handleClear = () => { setPlaying(false); setPhase('init'); };
   // “更新”: 采集最新数据 → 重新跑一遍左右两侧的构建过程；数字侧同步重新派生（reload），
   // building 期间 compact 脚本的完成判定读鲜值，新派生结果落地后即生效
-  const handleRefresh = () => { setIsRefreshing(true); setPhase('building'); reload(); };
+  const handleRefresh = () => { setBuildSeq((s: number) => s + 1); setIsRefreshing(true); setPhase('building'); reload(); };
 
-  const physBadge = interactive ? '5 现场异常' : playing ? '扫描中' : '5 现场异常';
+  const physIssueTotal = (physStats && physStats.issues && physStats.issues.total) || 14;
+  const physBadge = playing ? '扫描中' : `${physIssueTotal} 项工勘问题`;
   const digiCountLive = view ? view.summary.riskCount : null;
   const digiBadge = playing ? '生成中' : (digiCountLive != null ? digiCountLive + ' 项风险' : (loading ? '生成中' : '—'));
 
@@ -796,7 +852,7 @@ function TwinWorld({ phase, onPhase  }: any) {
             onRefresh={handleRefresh}
             onClear={handleClear}
             isRefreshing={isRefreshing}
-            physCount={5}
+            physCount={physIssueTotal}
             digiCount={digiCountLive}
           />
           <div className="tw-shell-body">
@@ -814,9 +870,9 @@ function TwinWorld({ phase, onPhase  }: any) {
                 </div>
               )}
               <div className="tw-half-viz" style={phase === 'physical' ? { padding: 0 } : undefined}>
-                {PhysicalTwin3D
-                  ? <PhysicalTwin3D key={phase === 'physical' ? 'phys-detail' : 'phys-compact'} compact={phase !== 'physical'} instant={phase !== 'building'} />
-                  : <PhysicalViz playing={playing} />}
+                {physFrameFailed
+                  ? <PhysicalViz playing={playing} />
+                  : <PhysicalTwinFrame key={phase === 'physical' ? 'phys-detail' : `phys-compact-${buildSeq}`} compact={phase !== 'physical'} building={phase === 'building'} />}
               </div>
               {phase !== 'physical' && (
                 <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入机房孪生视图 <i>→</i></span> : '正在构建物理映射…'}</div>
