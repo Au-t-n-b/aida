@@ -11,6 +11,12 @@
       { "label": "📚 全部文档（图书馆）", "href": "index.html" },
       { "label": "开发者地图", "path": "docs/00_开发者地图.md" },
       { "label": "提交红线 AGENTS.md", "path": "AGENTS.md" }
+    ],
+    "usage": [
+      "这是一页交互式离线页：克隆仓库后双击 docs/site/portal.html 在浏览器打开（在 GitHub/Gitea 仓库里直接点开看到的是源码、不是活页面）。",
+      "每步勾「完成」会记在本地浏览器，下次打开自动续上；换机器或清缓存会重置。",
+      "「读什么」里的文档链接指向团队内网 Gitea，需在公司网络打开。",
+      "提示词整段可「复制」喂给 AI；命令支持逐行复制——长驻服务（uvicorn/npm dev）请各自单开一个终端。"
     ]
   },
   "glossary": [
@@ -19,7 +25,8 @@
     { "term": "HITL（人在环中）", "plain": "流程跑到一半需要你补文件或点确认时会「软中断」停下等你，补完自动接着跑。" },
     { "term": "SDUI（服务端驱动界面）", "plain": "后端吐一棵「界面树」、前端照着渲染；新模块不写前端就自动有作业界面。" },
     { "term": "守门（lint）", "plain": "一组提交前必跑的检查脚本，自动拦住违反规范的代码——没有守门的规范会退化成 PPT。" },
-    { "term": "Claw · 四层", "plain": "模块跑在「前端 / Manager / 数据中心 / Claw 执行引擎」四层里；Claw 是真正执行你 Skill 的那一层。" }
+    { "term": "Claw · 四层", "plain": "模块跑在「前端 / Manager / 数据中心 / Claw 执行引擎」四层里；Claw 是真正执行你 Skill 的那一层。" },
+    { "term": "@ 引用 / 提示词", "plain": "每步「给 AI 的提示词」用 @文件 语法把仓库文件喂给 AI——前提是先把仓库克隆到本地、并用 Cursor 或 Claude Code 这类认 @ 引用的工具打开；没有这类工具就把对应文件内容手动贴给 AI。" }
   ],
   "doors": [
     {
@@ -66,6 +73,7 @@
           "title": "把它跑起来",
           "goal": "本地起后端 + 前端，curl 看到 skills 列表，浏览器打开作业界面。",
           "read": [
+            { "label": "SETUP（环境前置 · 建 venv / 装依赖，先做这个）", "path": "docs/10_快速开始/SETUP.md" },
             { "label": "AGENT_QUICKSTART §0（环境就绪）", "path": "docs/10_快速开始/AGENT_QUICKSTART.md" }
           ],
           "prompt": [
@@ -74,11 +82,15 @@
             "特别提醒我那个坑：没在 agent/.venv 下跑时，契约类 lint 会显示 SKIP 而不是真校验，别把 SKIP 误判成「绿了」。"
           ],
           "commands": [
+            "# 终端 1（长驻·不会返回）：起后端",
             "uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload",
+            "# 终端 2（另开一个）：起前端",
             "cd frontend && npm run dev   # http://localhost:5173",
+            "# 终端 3：验证后端已注册 skill",
             "curl http://127.0.0.1:7401/agent/skills   # 看到 zhgk/guihua/xtsj = 成功"
           ],
-          "done": "前端能打开、curl 能列出已注册的 skill。"
+          "done": "前端能打开、curl 能列出已注册的 skill。",
+          "note": "🔴 先按 SETUP 建好 agent/.venv 并装依赖再跑——没 venv 直接 uvicorn 会 ModuleNotFound；且契约类 lint 不在 venv 下会显 SKIP（别把 SKIP 当「绿了」）。"
         },
         {
           "title": "你的第一课：读懂样板 zhgk",
@@ -407,6 +419,7 @@
         {
           "title": "③ 解冲突 · 把提示词丢给 Cursor",
           "goal": "rebase 出冲突时，别整块选一边（= 删同事代码）。复制下面整段提示词，在 Cursor 开新会话粘贴并说「开始」，它会带你逐处解、两边意图都保留、推送前停下等你确认。",
+          "prompt_summary": "把这段整段复制到 Cursor 新会话、粘贴后说「开始」即可。它会：体检分支与工作区 → fetch + rebase 到最新 feature_new → 逐处解冲突（两边意图都保留、拿不准就停下问你）→ 跑全套守门 → 停在「是否推送」等你确认。全程不强推、不碰框架共享文件、不擅自提交。",
           "prompt": [
             "你现在的唯一任务是：把我当前的个人 feature 分支，安全地同步到最新 gitea/feature_new",
             "并完成本地验证，为合入主仓做准备。这是一个多人 vibecoding 协作仓（主集成分支 feature_new），",

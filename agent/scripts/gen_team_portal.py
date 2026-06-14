@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import html
 import json
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -35,10 +37,15 @@ SRC = REPO / "docs" / "onboarding" / "portal.json"
 OUT = REPO / "docs" / "site" / "portal.html"
 ASSETS = Path(__file__).resolve().parent / "portal_assets"
 
-# read/link 的 path 条目 → 指向 Gitea 仓渲染页（跨机/托管均可点开，且总是该分支最新内容）。
-# 形如 {GITEA_BASE}/src/branch/{GITEA_BRANCH}/<repo-relative-path>。改仓库地址/分支只改这两行。
-GITEA_BASE = "http://10.143.2.109:3010/jintao/aida"
-GITEA_BRANCH = "feature_new"
+# read/link 的 path 条目 → 渲染成可点开的文档 URL。默认指向团队内网 Gitea 仓渲染页
+# （团队读文档的权威面，且总是该分支最新内容）。整条 URL 形态用一个模板表达：{path} 处填仓库相对路径。
+# 换托管/分支（如发布公网镜像、或让 GitHub 访客也能点开）只需用环境变量覆盖，无需改代码、产物仍确定：
+#   GitHub:  AIDA_PORTAL_DOC_URL="https://github.com/Au-t-n-b/aida/blob/feature_new/{path}"
+#   Gitea :  AIDA_PORTAL_DOC_URL="http://10.143.2.109:3010/jintao/aida/src/branch/<分支>/{path}"
+DOC_URL_TEMPLATE = os.environ.get(
+    "AIDA_PORTAL_DOC_URL",
+    "http://10.143.2.109:3010/jintao/aida/src/branch/feature_new/{path}",
+)
 
 # emoji → SVG symbol id（仅用于非可复制 chrome）。含 VS16（FE0F）变体写法。
 _EMOJI_ICON = {
@@ -94,13 +101,25 @@ def _icon_for_emoji(emoji: str) -> str | None:
     return _EMOJI_ICON.get(emoji.rstrip("️"))
 
 
+def _require_door_icon(emoji: str) -> str:
+    """门图标必须在 _EMOJI_ICON 注册（并在 icons.svg 有同名 symbol）。
+    缺映射时显式报错而非静默回退成 i-developer——避免「新门图标变成机器人」无人察觉。"""
+    sid = _icon_for_emoji(emoji)
+    if not sid:
+        raise SystemExit(
+            f"[gen-team-portal] 未知门图标 {emoji!r}：先在 gen_team_portal.py 的 _EMOJI_ICON "
+            f"注册映射，并在 portal_assets/icons.svg 加同名 <symbol>。"
+        )
+    return sid
+
+
 def _href_of(entry: dict) -> str:
     """read / link 条目 → href。'href' 字面照用（docs/site 同级，如 index.html）；
     'path' 视为仓库相对路径 → 指向 Gitea 渲染页（跨机可点开、内容随分支最新）。
     path 可带 '#锚点'（深链到小节，如 docs/x.md#sec）；直接拼到 URL 末尾即合法 fragment。"""
     if entry.get("href"):
         return _esc(entry["href"])
-    return _esc(f"{GITEA_BASE}/src/branch/{GITEA_BRANCH}/{entry['path']}")
+    return _esc(DOC_URL_TEMPLATE.format(path=entry["path"]))
 
 
 def _link_chip(entry: dict) -> str:
@@ -125,6 +144,28 @@ def _note_html(text: str) -> str:
     for emo, span in _SDOT.items():
         out = out.replace(emo, span)
     return out
+
+
+def _note_variant(text: str) -> tuple[str, str]:
+    """据 note 首个状态点决定配色与图标：🟢→ok（绿/check）、🔴→danger（红/warn）、其余→warn（琥珀，默认）。
+    解决「安全提示也被装进黄色警告框」的语义错配。"""
+    head = text.strip()
+    if head.startswith("🟢"):
+        return " note--ok", "i-check"
+    if head.startswith("🔴"):
+        return " note--danger", "i-warn"
+    return "", "i-warn"
+
+
+# 提示词/命令里的占位符 <名> / <stepkey> 等 → 高亮（提醒"先替换再用"）。
+# 匹配单层 <无空格 token>；内部禁含空白/尖括号/& 实体边界；并用前后界守住，避免误伤 git 冲突标记
+# <<<我方 与 >>>对方（不让把 <我方 与 > 当成占位符）。
+_PLACEHOLDER_RE = re.compile(r"(?<!&lt;)&lt;([^&<>\s]{1,30})&gt;(?!&gt;)")
+
+
+def _mark_placeholders(escaped: str) -> str:
+    """在"已转义"文本上包占位符 span。span 仅作视觉提示——pre/code 的 textContent 仍返回字面 <名>，复制不受污染。"""
+    return _PLACEHOLDER_RE.sub(r'<span class="ph">&lt;\1&gt;</span>', escaped)
 
 
 def build_step(step: dict, num: int, first: bool, door_id: str) -> str:
@@ -157,12 +198,25 @@ def build_step(step: dict, num: int, first: bool, door_id: str) -> str:
     prompt_lines = step.get("prompt") or []
     if prompt_lines:
         prompt_text = "\n".join(prompt_lines)
+        n_lines = len(prompt_lines)
+        pre_html = f'<pre class="prompt">{_mark_placeholders(_esc(prompt_text))}</pre>'
         parts.append('<div class="block">')
         parts.append(
             f'<div class="block-label">{_icon("i-prompt")} 给 AI 的提示词'
             '<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div>'
         )
-        parts.append(f'<pre class="prompt">{_esc(prompt_text)}</pre>')
+        # 人话摘要（这段提示词会做什么）——尤其给那些"整段喂 AI"的长提示词降低却步感
+        if step.get("prompt_summary"):
+            parts.append(f'<div class="prompt-summary">{_esc(step["prompt_summary"])}</div>')
+        # 超长提示词（≥20 行）默认折叠：避免一面"黑墙"压垮可读性。「复制」无需展开仍可用（textContent 穿透 details）。
+        if n_lines >= 20:
+            parts.append(
+                '<details class="prompt-fold"><summary>'
+                f'{_icon("i-chevron")}展开完整提示词（{n_lines} 行）·「复制」无需展开即可用'
+                f'</summary>{pre_html}</details>'
+            )
+        else:
+            parts.append(pre_html)
         parts.append("</div>")
 
     cmds = step.get("commands") or []
@@ -170,9 +224,26 @@ def build_step(step: dict, num: int, first: bool, door_id: str) -> str:
         parts.append('<div class="block">')
         parts.append(
             f'<div class="block-label">{_icon("i-cmd")} 命令'
-            '<button class="copy" type="button" onclick="copyBlock(this)">复制</button></div>'
+            '<button class="copy" type="button" onclick="copyBlock(this)">复制全部</button></div>'
         )
-        parts.append(f'<pre class="cmd">{_esc(chr(10).join(cmds))}</pre>')
+        # 结构化逐行：可单独复制每条命令；纯注释行作小节标题（不可复制），空行作间隔。
+        # 解决"整段复制把长驻服务命令(uvicorn)和后续命令混在一起、一粘就卡住"的踩坑。
+        parts.append('<div class="cmd">')
+        for raw in cmds:
+            line = raw.rstrip("\n")
+            stripped = line.strip()
+            if not stripped:
+                parts.append('<div class="cmd-gap"></div>')
+            elif stripped.startswith("#"):
+                parts.append(f'<div class="cmd-anno">{_esc(line)}</div>')
+            else:
+                parts.append(
+                    '<div class="cmd-row">'
+                    f'<code class="cmd-line">{_mark_placeholders(_esc(line))}</code>'
+                    '<button class="cmd-copy" type="button" onclick="copyLine(this)" aria-label="复制此行">复制</button>'
+                    '</div>'
+                )
+        parts.append("</div>")
         parts.append("</div>")
 
     if step.get("done"):
@@ -184,7 +255,8 @@ def build_step(step: dict, num: int, first: bool, door_id: str) -> str:
         )
 
     if step.get("note"):
-        parts.append(f'<div class="note">{_icon("i-warn")} {_note_html(step["note"])}</div>')
+        nvar, nicon = _note_variant(step["note"])
+        parts.append(f'<div class="note{nvar}">{_icon(nicon)} {_note_html(step["note"])}</div>')
 
     if step.get("next"):
         parts.append(f'<div class="next">{_icon("i-arrow")} {_esc(step["next"])}</div>')
@@ -199,7 +271,7 @@ def build_door(door: dict) -> str:
     steps = door.get("steps", [])
     n = len(steps)
     idx = door.get("_index", 0) + 1
-    sid = _icon_for_emoji(door.get("icon", "")) or "i-developer"
+    sid = _require_door_icon(door.get("icon", ""))
     title = str(door.get("title", ""))
     role = title[2:] if title.startswith("我是") else title  # 「我是新人」→「新人」
 
@@ -250,6 +322,21 @@ def build_door(door: dict) -> str:
     parts.append('<div class="door-foot"></div>')
     parts.append("</section>")
     return "".join(parts)
+
+
+def build_usage_note(data: dict) -> str:
+    """首页「怎么用这一页」提示条：解释这是离线交互页、如何打开、进度存哪、链接指向内网。
+    解决"还没克隆仓库的新人不知道怎么到达/使用本页"的访问悖论。"""
+    usage = (data.get("project") or {}).get("usage") or []
+    if not usage:
+        return ""
+    items = "".join(f"<li>{_esc(u)}</li>" for u in usage)
+    return (
+        '<div class="usage reveal">'
+        f'<div class="usage-ic">{_icon("i-read")}</div>'
+        f'<div class="usage-body"><strong>怎么用这一页</strong><ul>{items}</ul></div>'
+        "</div>"
+    )
 
 
 def build_glossary(data: dict) -> str:
@@ -313,7 +400,7 @@ def build_hero(data: dict) -> str:
                  '</div>')
     parts.append('<div class="role-grid" data-stagger>')
     for i, d in enumerate(doors):
-        sid = _icon_for_emoji(d.get("icon", "")) or "i-developer"
+        sid = _require_door_icon(d.get("icon", ""))
         n = len(d.get("steps", []))
         parts.append(
             f'<a class="role-card reveal" href="#{_esc(d["id"])}">'
@@ -326,6 +413,7 @@ def build_hero(data: dict) -> str:
             f"</a>"
         )
     parts.append("</div>")  # /role-grid
+    parts.append(build_usage_note(data))
     parts.append("</div></section>")
 
     parts.append(build_glossary(data))
@@ -352,7 +440,7 @@ def build_nav(data: dict) -> str:
 
     role_tabs = "".join(
         f'<a class="nav-role" href="#{_esc(d["id"])}" data-role="{_esc(d["id"])}">'
-        f'{_icon(_icon_for_emoji(d.get("icon", "")) or "i-developer")} {_esc(d["title"])}</a>'
+        f'{_icon(_require_door_icon(d.get("icon", "")))} {_esc(d["title"])}</a>'
         for d in data["doors"]
     )
     return (
@@ -381,7 +469,10 @@ def build_html(data: dict) -> str:
         '<html lang="zh-CN"><head><meta charset="UTF-8">',
         '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
         f"<title>{_esc(proj['name'])} · 团队协作门户</title>",
-        f"<style>{css}</style></head><body>",
+        f"<style>{css}</style>",
+        # 在首帧前置 .js：JS 就绪走「单门路由」；JS 缺失/失败则不加 .js，CSS 兜底把所有门展开成长文。
+        '<script>try{document.documentElement.classList.add("js")}catch(e){}</script>',
+        "</head><body>",
         "<!-- 派生制品 · 自动生成 gen_team_portal.py · 改 docs/onboarding/portal.json 或 portal_assets/ 后重生成 · lint_team_portal.py 守门 · 勿手改 -->",
         svg_defs,
         '<div class="scrollbar"></div>',
