@@ -4,6 +4,7 @@
  */
 import { useMemo } from 'react';
 import { useAidaSession } from '@/lib/aida-session';
+import { agentBase } from '@/lib/runtimeBase';
 
 const DEFAULT_PROJECT_ID = '56A0TXN';
 const CURRENT_PROJECT_STORAGE_KEY = 'aida:current-project';
@@ -11,7 +12,7 @@ const CURRENT_PROJECT_STORAGE_KEY = 'aida:current-project';
 const PROPOSAL_API_BASE =
   (
     (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)
-    || (import.meta.env.VITE_AGENT_BASE as string | undefined)
+    || agentBase()
   )?.replace(/\/$/, '') ?? '';
 
 export type DeliveryChannel = '华为' | '客户';

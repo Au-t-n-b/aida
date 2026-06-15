@@ -1,7 +1,8 @@
 function cleanBase(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined;
   const trimmed = value.trim();
-  if (!trimmed || trimmed === '/') return '';
+  if (!trimmed) return undefined;
+  if (trimmed === '/') return '';
   return trimmed.replace(/\/$/, '');
 }
 
