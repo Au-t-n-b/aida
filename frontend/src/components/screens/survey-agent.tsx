@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SkillAgentScreen · 通用作业界面（SDUI 驱动）— 双模式
  * ─────────────────────────────────────────────────────────
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
@@ -1000,15 +1000,6 @@ export default function SkillAgentScreen({
   }, [liveSduiDoc]);
 
   useEffect(() => {
-    if (useClawMode || !isRunUnavailableDoc(sduiDoc)) return;
-    clearPersistedSkillRun(skillId);
-    clearSkillRun(skillId);
-    clearSkillHitl(skillId);
-    clearSkillConversation(skillId);
-    setSavedRunStale(true);
-  }, [sduiDoc, useClawMode, skillId, runId]);
-
-  useEffect(() => {
     if (!runId || liveSduiDoc || bootDoc || starting) return;
     const timer = window.setTimeout(() => {
       setLoadError('工作台加载超时，请重新启动或刷新页面。');
@@ -1034,6 +1025,19 @@ export default function SkillAgentScreen({
     progressFloorRef.current = 0;
     frozenProgressRef.current = 0;
   }, [runId, taskId]);
+
+  // run 真失效（Agent 重启 → /ui 持续 404）才清会话/HITL/run，让 auto-start 重评估。
+  // resume 冻结窗口（上传→resume 期间后端短暂重建 run 会瞬时 404）内不清——否则会误删
+  // 正在进行的对话弹框与步骤条进度。瞬时 404 已由 useSduiStream 防抖（连续 ≥ 阈值才上抛）。
+  useEffect(() => {
+    if (useClawMode || !isRunUnavailableDoc(sduiDoc)) return;
+    if (frozenDoc || frozenSnapshotRef.current) return;
+    clearPersistedSkillRun(skillId);
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    clearSkillConversation(skillId);
+    setSavedRunStale(true);
+  }, [sduiDoc, useClawMode, skillId, runId, frozenDoc]);
   useEffect(() => {
     if (!frozenDoc && !frozenSnapshotRef.current) return;
     if (!sduiDoc) return;

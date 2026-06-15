@@ -310,7 +310,7 @@ async def create_project(token: str, body: dict[str, Any]) -> dict[str, Any]:
         "Manager DC create_project → POST %s/api/v1/projects token=%s body=%s",
         datacenter_base(),
         mask_token(token),
-        {k: body.get(k) for k in ("name", "code", "status") if k in body},
+        {k: body.get(k) for k in ("projectName", "contractType", "projectCode", "bidCode", "tdUsername", "pdUsername", "pcmUsername") if k in body},
     )
     async with _client() as client:
         resp = await client.post(

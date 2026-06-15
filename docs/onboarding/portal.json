@@ -4,8 +4,7 @@
     "schema": "project{name,tagline,elevator,links[]} + glossary[]{term,plain} + doors[]{id,icon,title,subtitle,intro,accent,steps[]{title,goal,read[]{label,path|href},prompt[],commands[],done,note,next}}"
   },
   "project": {
-    "name": "AIDA 交付作业平台",
-    "tagline": "数据中心交付作业的 AI 编排平台",
+    "name": "AIDA团队AI开发规范",
     "elevator": "让交付，自己跑起来。",
     "links": [
       { "label": "📚 全部文档（图书馆）", "href": "index.html" },
