@@ -546,59 +546,54 @@ function convHasDangerBubble(node: import('@/lib/sdui').SduiNode | undefined): b
   return found;
 }
 
-/** 节点日志气泡：每个 step 一组，逐行随 SSE 到达渲染（与右侧步进条同步） */
+/** 节点日志：每个 step 独立一张 AIDA 对话卡片（与设计稿一致） */
 function RunLogFeed({ runId }: { runId: string }) {
   const groups = useRunLogStore(runId);
   if (!groups.length) return null;
   return (
-    <div style={{ margin: '2px 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <>
       {groups.map((g) => {
-        const icon = g.status === 'done' ? '✓' : g.status === 'failed' ? '✗' : '⟳';
-        const iconColor =
-          g.status === 'done' ? 'var(--green-600, #16a34a)'
-          : g.status === 'failed' ? 'var(--red-600, #dc2626)'
-          : '#1b84ff';
+        const statusLabel =
+          g.status === 'done' ? '已完成 √'
+          : g.status === 'failed' ? '失败 ✗'
+          : '执行中…';
+        const statusClass =
+          g.status === 'done' ? 'done'
+          : g.status === 'failed' ? 'failed'
+          : 'running';
         return (
-          <div key={g.step} style={{
-            border: '1px solid var(--c-border, rgba(0,0,0,.08))',
-            borderRadius: 6,
-            overflow: 'hidden',
-            background: 'var(--c-bg-soft, rgba(0,0,0,.02))',
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 9px',
-              fontSize: 12, fontWeight: 600,
-              color: 'var(--c-text, #18181b)',
-            }}>
-              <span style={{
-                color: iconColor,
-                display: 'inline-block',
-                animation: g.status === 'running' ? 'spin 1s linear infinite' : undefined,
-              }}>{icon}</span>
-              <span>{g.name}</span>
-            </div>
-            {g.lines.length > 0 && (
-              <div style={{
-                padding: '0 9px 7px 22px',
-                fontFamily: 'var(--font-mono, ui-monospace, monospace)',
-                fontSize: 11.5,
-                lineHeight: 1.7,
-                color: 'var(--c-text-muted, #71717a)',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}>
-                {g.lines.map((ln, i) => (
-                  <div key={i} style={{ opacity: i === g.lines.length - 1 && g.status === 'running' ? 1 : 0.78 }}>
-                    {ln}
-                  </div>
-                ))}
+          <div
+            key={g.step}
+            className="cv-msg ai run-log-msg"
+            style={{ animation: 'cvMsgIn .42s cubic-bezier(.22,.7,.2,1) both' }}
+          >
+            <span className="cv-ai-av" aria-hidden><span className="cv-ai-dot" /></span>
+            <div className="cv-bubble" style={{ flex: 1, minWidth: 0 }}>
+              <div className="meta" style={{ marginBottom: 6 }}>AIDA · {g.ts ?? nowTs()}</div>
+              <div className="run-log-step-card">
+              <div className="run-log-step-head">
+                <span className="run-log-step-title">{g.name}</span>
+                <span className={`run-log-step-badge ${statusClass}`}>{statusLabel}</span>
               </div>
-            )}
+              {g.lines.length > 0 && (
+                <div className="run-log-step-body">
+                  {g.lines.map((ln, i) => (
+                    <div
+                      key={i}
+                      className="run-log-step-line"
+                      style={{ opacity: i === g.lines.length - 1 && g.status === 'running' ? 1 : 0.88 }}
+                    >
+                      {ln}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            </div>
           </div>
         );
       })}
-    </div>
+    </>
   );
 }
 
@@ -712,8 +707,6 @@ function SkillRunBanner({
             )}
           </div>
         )}
-
-        {!usesDeliveryWorkbench && myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
 
         {!usesDeliveryWorkbench && phase === 'hitl' && !myHitl && (
           <div style={{
@@ -1549,10 +1542,17 @@ export default function ClawRail({
 
         {/* 运行进度卡 + 技能会话流：固定渲染在对话流底部 */}
         {uiSkillRun && (
-          <div className="cmsg ai">
-            <div className="meta">AIDA · {nowTs()}</div>
-            <SkillRunBanner skillId={uiSkillRun.skillId} autoStart={false} />
-          </div>
+          <>
+            <div className="cmsg ai">
+              <div className="meta">AIDA · {nowTs()}</div>
+              <SkillRunBanner skillId={uiSkillRun.skillId} autoStart={false} />
+            </div>
+            {!DELIVERY_WORKBENCH_SKILLS.has(uiSkillRun.skillId)
+              && uiSkillRun.runId
+              && uiSkillRun.runId !== '__starting__' && (
+              <RunLogFeed runId={uiSkillRun.runId} />
+            )}
+          </>
         )}
       </div>
 

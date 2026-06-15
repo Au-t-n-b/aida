@@ -1,12 +1,12 @@
 """
-supplement_run · 补充勘测处理
+supplement_run · 补充入口准备
 
 意图: supplement 专属
 
-向已有的全量勘测结果表追加数据类条目：
+基于已有的全量勘测结果表进入补充闭环：
   1. 检查已有勘测结果表
-  2. HITL ChoiceCard：追加全部数据条目 / 跳过
-  3. 执行 append_data_items() 追加
+  2. HITL ChoiceCard：是否先追加底表中的数据类条目
+  3. 完成后进入 assess → issue_list → resurvey_gate → report_gen_run
 """
 from __future__ import annotations
 
@@ -20,18 +20,18 @@ _SUPPLEMENT_OPTIONS = [
     {
         "label": "追加全部数据条目",
         "value": "append_all",
-        "description": "将底表中所有数据类条目追加到已有勘测表",
+        "description": "将底表中所有数据类条目追加到已有勘测表，再进入评估闭环",
     },
     {
         "label": "跳过，不追加",
         "value": "skip",
-        "description": "保持当前勘测表内容不变",
+        "description": "保持当前勘测表内容不变，直接进入重新评估",
     },
 ]
 
 _HITL_INPUT = {
     "id": "supplement_choice",
-    "label": "是否向勘测表追加数据类条目？",
+    "label": "是否先补充数据类条目？",
     "options": _SUPPLEMENT_OPTIONS,
 }
 
@@ -64,7 +64,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
 
 class SupplementRunStep(BaseStep):
     key = "supplement_run"
-    name = "补充勘测处理"
+    name = "补充入口准备"
     artifacts_pattern = ["ProjectData/Output/*全量勘测结果表*.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
@@ -80,7 +80,7 @@ class SupplementRunStep(BaseStep):
             return {
                 "ok": False,
                 "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"],
-                "note": "补充勘测需要已有全量勘测结果表（先完成 survey_work 生成表格）",
+                "note": "补充闭环需要已有全量勘测结果表（可先完成全流程工勘，或上传已有结果表）",
             }
 
         # 触发追加选择 HITL
@@ -98,7 +98,7 @@ class SupplementRunStep(BaseStep):
         survey_table_path = _get_survey_table(ctx)
 
         if choice == "skip":
-            emit("[supplement_run] 跳过数据条目追加")
+            emit("[supplement_run] 跳过数据条目追加，直接进入重新评估")
             return {"metrics": {"supplement_skipped": True, "supplement_count": 0}}
 
         if not survey_table_path:

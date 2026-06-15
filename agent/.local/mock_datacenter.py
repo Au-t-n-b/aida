@@ -231,13 +231,20 @@ async def projects_create(
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _bearer(authorization)
+    project_name = (body.get("projectName") or "").strip()
+    contract_type = (body.get("contractType") or "").strip()
+    if not project_name:
+        raise HTTPException(status_code=400, detail="projectName 必填")
+    if contract_type not in ("预销售合同", "标准合同"):
+        raise HTTPException(status_code=400, detail="contractType 必填，且须为预销售合同或标准合同")
     pid = uuid.uuid4().hex
     item = {
         "id": len(_MOCK_PROJECTS) + 1,
         "projectId": pid,
-        "projectName": body.get("projectName") or "新项目",
+        "projectName": project_name,
         "projectCode": body.get("projectCode"),
         "bidCode": body.get("bidCode"),
+        "contractType": contract_type,
         "status": "PENDING_APPROVAL",
         "progress": 0,
         "risk": "low",

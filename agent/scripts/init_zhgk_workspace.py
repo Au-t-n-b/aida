@@ -118,8 +118,9 @@ def main() -> int:
         src_tpl = src / "ProjectData" / "Template"
         if not src_tpl.is_dir():
             print(f"[init] 源 Template 不存在: {src_tpl}")
-            print("       请先确认 ZHGK_ROOT 中有 v4 Template/ 目录，或手动放入三个底表文件：")
-            print("         入场评估标准表.xlsx / 工勘常见高风险库.xlsx / 新版项目工勘报告模板.docx")
+            print("       请先确认 ZHGK_ROOT 中有 v4 Template/ 目录，或手动放入底表文件：")
+            print("         入场评估标准表.xlsx / 工勘常见高风险库.xlsx")
+            print("       新版项目工勘报告模板.docx 可选，缺失时走内置演示模板/本地样例报告。")
             return 1
         for f in src_tpl.iterdir():
             if f.is_file():
@@ -139,7 +140,7 @@ def main() -> int:
     elif args.copy_template and not args.copy_all:
         print("       （已复制 Template，Input 无 BOQ → 适合测「缺 BOQ」HITL）")
     print()
-    print("必须手动放置的三个模板文件（若未使用 --copy-template）：")
+    print("必须手动放置的底表文件（若未使用 --copy-template）：")
     print("  Template/入场评估标准表.xlsx")
     print("  Template/工勘常见高风险库.xlsx")
     print("  Template/新版项目工勘报告模板.docx（可选）")

@@ -52,7 +52,7 @@ def manager_host() -> str:
 
 
 def manager_port() -> int:
-    return int(os.environ.get("MANAGER_PORT", "8001"))
+    return int(os.environ.get("MANAGER_PORT", "8081"))
 
 
 def business_root() -> Path:

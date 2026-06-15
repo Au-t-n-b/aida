@@ -1,5 +1,5 @@
 # ============================================================
-# AIDA 本地/生产编排
+# AIDA 演示服务器编排
 # ============================================================
 # 启动：docker compose up -d --build
 # 停止：docker compose down
@@ -9,14 +9,30 @@
 services:
   # ── Agent 后端（镜像由 Jenkins 构建推送 Harbor，231 仅 pull）──
   agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/backend:latest
     container_name: aida-agent
     restart: unless-stopped
     # 7401 仅容器内网；对外经 frontend:5401 反代 /agent、/api/v1
     env_file:
-      - .env
+      - agent/.env.example
+      - path: agent/.env
+        required: false
+    environment:
+      AIDA_BUSINESS_ROOT: /app/.data/business
+      AIDA_CHECKPOINT_DB: /app/.data/runtime/checkpoints.db
+      AIDA_MAIL_BACKEND: mailgw
+      AIDA_SOG_DATA_ROOT: /app/.data/sog-assets
+      AIDA_SOG_PROBE_EVENTS: /app/.data/sog-probe-events.json
+      AIDA_SOG_SCENES_PATH: /app/.data/sog-scenes.json
+      MAILGW_BASE: http://mailgw:8025
+      ZHGK_ROOT: /app/.data/zhgk
     volumes:
       - aida-data:/app/.data
+      - ./data/sog-assets:/app/.data/sog-assets
+      - ./data/sog-scenes.json:/app/.data/sog-scenes.json
     networks:
       - aida-net
     healthcheck:
@@ -26,19 +42,54 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── Manager（鉴权 / 项目列表，frontend nginx 反代 manager:8000）──
+  # ── Manager（鉴权 / 项目列表，frontend nginx 反代 manager:8081）──
   manager:
+    build:
+      context: .
+      dockerfile: manager/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/manager:latest
     container_name: aida-manager
     restart: unless-stopped
     env_file:
-      - .env
+      - agent/.env.example
+      - path: agent/.env
+        required: false
     environment:
       AIDA_AGENT_BASE_URL: http://agent:7401
     networks:
       - aida-net
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/healthz"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8081/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ── GKCLAW 邮件网关（演示链路必需：下发 + 回传通知）──
+  mailgw:
+    build:
+      context: .
+      dockerfile: mailgw/Dockerfile
+    image: harbor.aie.rnd.huawei.com/aida/mailgw:latest
+    container_name: aida-mailgw
+    restart: unless-stopped
+    env_file:
+      - mailgw/.env.example
+      - path: mailgw/.env
+        required: false
+    environment:
+      AGENT_NOTIFY_BASE: http://agent:7401
+      MAILGW_DATA_DIR: /app/.data/mailgw
+    volumes:
+      - aida-data:/app/.data
+      - ${MAILGW_CONFIG_FILE:-./mailgw/config.yaml.example}:/app/mailgw/config.yaml:ro
+    networks:
+      - aida-net
+    depends_on:
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -u admin:$$MAILGW_ADMIN_PASSWORD http://127.0.0.1:8025/admin >/dev/null"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -46,6 +97,9 @@ services:
 
   # ── 前端（Nginx + API 反代）──
   frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/frontend:latest
     container_name: aida-frontend
     restart: unless-stopped
@@ -55,6 +109,8 @@ services:
       agent:
         condition: service_healthy
       manager:
+        condition: service_healthy
+      mailgw:
         condition: service_healthy
     networks:
       - aida-net

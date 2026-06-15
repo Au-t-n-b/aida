@@ -570,10 +570,64 @@
 
         <!-- Application Script -->
         <script type="module">
-            import { main } from './index.js';
-
             const { config, settings } = window.sse;
             const { poster } = config;
+            const viewerUrl = new URL(location.href);
+            const moduleVersion = viewerUrl.searchParams.get('v') || String(Date.now());
+            const probeUrl = (() => {
+                try {
+                    return new URL('/api/sog/probe-events', config.contentUrl || location.href).href;
+                } catch {
+                    return null;
+                }
+            })();
+            const htmlProbe = (event, payload = {}) => {
+                const body = {
+                    event,
+                    payload: {
+                        ...payload,
+                        href: window.location.href,
+                        contentUrl: config.contentUrl,
+                        renderer: config.renderer,
+                        ts: new Date().toISOString(),
+                    },
+                };
+                window.parent?.postMessage?.({ type: 'sog-viewer-probe', ...body }, '*');
+                if (probeUrl) {
+                    fetch(probeUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body),
+                    }).catch(() => {});
+                }
+            };
+            window.addEventListener('error', (event) => {
+                htmlProbe('html.window.error', {
+                    message: event.message,
+                    filename: event.filename,
+                    lineno: event.lineno,
+                    colno: event.colno,
+                });
+            });
+            window.addEventListener('unhandledrejection', (event) => {
+                htmlProbe('html.unhandledrejection', {
+                    reason: event.reason instanceof Error ? event.reason.message : String(event.reason),
+                    stack: event.reason instanceof Error ? event.reason.stack : undefined,
+                });
+            });
+            htmlProbe('html.script.start', { moduleVersion });
+            let main;
+            try {
+                htmlProbe('html.module.import.start', { moduleVersion });
+                ({ main } = await import(`./index.js?v=${encodeURIComponent(moduleVersion)}`));
+                htmlProbe('html.module.import.ok');
+            } catch (error) {
+                htmlProbe('html.module.import.error', {
+                    message: error instanceof Error ? error.message : String(error),
+                    stack: error instanceof Error ? error.stack : undefined,
+                });
+                throw error;
+            }
 
             // Show the poster image
             if (poster) {
@@ -586,13 +640,32 @@
                 document.documentElement.style.setProperty('--canvas-opacity', '0');
             }
 
-            document.addEventListener('DOMContentLoaded', async () => {
-                const canvas = document.getElementById('application-canvas');
-                const settingsJson = await settings;
-                const viewer = await main(canvas, settingsJson, config);
-                window.sse.viewer = viewer;
-                window.parent.postMessage({ type: 'sog-viewer-ready' }, '*');
-            });
+            const start = async () => {
+                try {
+                    htmlProbe('html.start.begin', { readyState: document.readyState });
+                    const canvas = document.getElementById('application-canvas');
+                    htmlProbe('html.canvas.resolved', { hasCanvas: !!canvas });
+                    const settingsJson = await settings;
+                    htmlProbe('html.settings.resolved', {
+                        hasSettings: !!settingsJson,
+                        annotationCount: Array.isArray(settingsJson?.annotations) ? settingsJson.annotations.length : null,
+                    });
+                    const viewer = await main(canvas, settingsJson, config);
+                    window.sse.viewer = viewer;
+                    htmlProbe('html.main.returned');
+                } catch (error) {
+                    htmlProbe('html.start.error', {
+                        message: error instanceof Error ? error.message : String(error),
+                        stack: error instanceof Error ? error.stack : undefined,
+                    });
+                    throw error;
+                }
+            };
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', () => void start(), { once: true });
+            } else {
+                void start();
+            }
         </script>
     </body>
 </html>

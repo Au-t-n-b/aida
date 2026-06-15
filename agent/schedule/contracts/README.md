@@ -18,6 +18,7 @@
 | [`inputs.py`](inputs.py) | 输入侧：项目 / 机房 / PoD / 到货 / 队伍 / 活动模板 / 依赖 / 批次 / 锚点 / 诉求 / 返工 / 意外事件 / 规则配置 |
 | [`outputs.py`](outputs.py) | 输出侧：排期后的活动实例 / 计划版本 / 就位建议 / A·B·C 方案卡 / 风险 / 不可满足 / 调整说明 |
 | [`api.py`](api.py) | API 契约：`/api/v1/schedule/generate`（初排）、`/adjust`（沙箱推演出方案）、`/commit`（确认写回出版本）+ 错误格式 |
+| [`report_summary.py`](report_summary.py) | 风险报告 AI 总结：报告抬头、统计、四清单条目快照 → 解释层总结文本 |
 
 ## 关键导入规则（名字 → id、撞号根治）
 

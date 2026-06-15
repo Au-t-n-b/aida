@@ -2,6 +2,8 @@
 
 > 每次动 `/contracts` 在此记一行：日期 + 性质（新增/破坏性升版本）+ 内容 + 影响面。
 
+- **2026-06-14 · 纯新增（指挥人预批）**：新增 `GapSummary`，`AdjustResponse.gap` 带出未压缩基线预计完成日、主目标日与基线缺口；`PlanKpis.gap_days` 带出每个方案预计完成日相对目标日的缺口。影响面：前端 TS 类型新增可选字段，既有响应字段保持不变。
+- **2026-06-13 · 纯新增（预批轻流程）**：`REPORT_SUMMARY_PATH`（`POST /api/v1/schedule/report-summary`）+ `ReportSummaryRequest/Response`——风险报告页手动生成 AI 总结；请求只包含确定性报告抬头、统计与四清单条目快照，响应只返回解释层文本和 `is_ai_generated` 标识，不参与排期计算。影响面：前端 TS 类型新增路径常量与报告总结模型。
 - **2026-06-13 · 纯新增（预批轻流程）**：`EXPORT_PLAN_PATH`（`GET /api/v1/schedule/export-plan`）——正式计划版本导出为 `交付计划表.xlsx` 文件流；只新增路径常量，不新增模型形状。
 - **2026-06-11 · 纯新增（预批轻流程）**：`PARSE_CHANGES_PATH`（`POST /api/v1/schedule/parse-changes`）+ `ParseChangesResponse(changes: ChangeSet, warnings: list[str])`——固定模板变更表上传后确定性解析为 `ChangeSet`，非致命问题逐条 warnings 返回；影响面：前端 TS 类型新增路径常量与响应类型，既有 `generate / adjust / commit` 不变。
 - **2026-06-12 · 纯新增（预批轻流程）**：`PROJECT_DATA_PATH`（`GET /api/v1/schedule/project-data`）——服务端经导入器读取 `02_项目数据` 并返回既有 `InputBundle`；只新增路径常量，不新增模型形状。

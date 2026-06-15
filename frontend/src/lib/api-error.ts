@@ -78,6 +78,12 @@ export function applyApiError(
     setDetail(parsed);
     return;
   }
-  setMessage(err instanceof Error ? err.message : fallback);
+  if (err instanceof TypeError && err.message === 'Failed to fetch') {
+    setMessage('无法连接登录服务，请确认 Manager 已启动（:8081）且网络可达');
+  } else if (err instanceof Error) {
+    setMessage(err.message);
+  } else {
+    setMessage(fallback);
+  }
   setDetail(null);
 }

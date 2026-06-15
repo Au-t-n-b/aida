@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SkillAgentScreen · 通用作业界面（SDUI 驱动）— 双模式
  * ─────────────────────────────────────────────────────────
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
@@ -28,6 +28,7 @@ import {
   runPatchRun,
   resetWorkspace,
   isIdleLikeSduiDoc,
+  isRunUnavailableDoc,
   fetchUiSnapshot,
   fetchRunStatus,
   runStepOutcome,
@@ -588,6 +589,33 @@ function hasWorkbenchAdvanced(frozen: SduiDocument, live: SduiDocument): boolean
   return false;
 }
 
+/** 设备安装 · HITL 提交后的过渡视图（仅 device_install）。
+ *  提交「保存并继续 / 确认并生成」后、后端 full_restart 重放尚未推进到下一步时，
+ *  剥离编辑表 / HITL 卡，保留步骤条并把当前 HITL 步置为 running（黄色转圈），
+ *  避免界面与步骤条停留在「待填表」假象（看起来像卡死）。
+ *  meta.phase=running 让 extractProgressFromSdui 直接判定为运行态。 */
+function buildDiSubmittingDoc(frozen: SduiDocument, stepKey: string | null): SduiDocument {
+  const transform = (node: SduiNode): SduiNode | null => {
+    const id = (node as { id?: string }).id ?? '';
+    if (id === 'hitl-card' || id.startsWith('edit-card-')) return null;
+    let next = node;
+    if (node.type === 'Stepper' && Array.isArray((node as { steps?: unknown[] }).steps)) {
+      const steps = (node as unknown as { steps: { id: string; status: string }[] }).steps.map((s) =>
+        stepKey && s.id === stepKey && s.status !== 'done' ? { ...s, status: 'running' } : s,
+      );
+      next = { ...next, steps } as SduiNode;
+    }
+    const children = (next as { children?: SduiNode[] }).children;
+    if (Array.isArray(children)) {
+      const mapped = children.map(transform).filter((c): c is SduiNode => c != null);
+      next = { ...next, children: mapped } as SduiNode;
+    }
+    return next;
+  };
+  const root = transform(frozen.root) ?? frozen.root;
+  return { ...frozen, root, meta: { ...(frozen.meta ?? {}), phase: 'running' } };
+}
+
 /** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
 const HITL_POINTER: SduiNode = {
   type: 'Alert', id: 'hitl-pointer', tone: 'warning',
@@ -964,9 +992,10 @@ export default function SkillAgentScreen({
   // 重连间隙后端可能短暂投影 idle 空树；显示层忽略，继续用 bootDoc 兜底
   const liveSduiDoc = sduiDoc && !isIdleLikeSduiDoc(sduiDoc) ? sduiDoc : null;
 
+  // 保留最近一次有效 SDUI 作兜底：重连 / 节点切换间隙后端可能短暂投影 idle 空树
   useEffect(() => {
     if (liveSduiDoc) {
-      setBootDoc(null);
+      setBootDoc(liveSduiDoc);
       setLoadError(null);
     }
   }, [liveSduiDoc]);
@@ -988,12 +1017,30 @@ export default function SkillAgentScreen({
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
   const frozenProgressRef = useRef(0);
   const progressFloorRef = useRef(0);
+  // 设备安装 · HITL 提交后的过渡文档（剥离编辑表 + 当前步 running）；仅 frozenDoc 存在期间生效。
+  const diSubmitDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => {
     frozenSnapshotRef.current = null;
     setFrozenDoc(null);
+    diSubmitDocRef.current = null;
     progressFloorRef.current = 0;
     frozenProgressRef.current = 0;
+    setBootDoc(null);
+    setLoadError(null);
   }, [runId, taskId]);
+
+  // run 真失效（Agent 重启 → /ui 持续 404）才清会话/HITL/run，让 auto-start 重评估。
+  // resume 冻结窗口（上传→resume 期间后端短暂重建 run 会瞬时 404）内不清——否则会误删
+  // 正在进行的对话弹框与步骤条进度。瞬时 404 已由 useSduiStream 防抖（连续 ≥ 阈值才上抛）。
+  useEffect(() => {
+    if (useClawMode || !isRunUnavailableDoc(sduiDoc)) return;
+    if (frozenDoc || frozenSnapshotRef.current) return;
+    clearPersistedSkillRun(skillId);
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    clearSkillConversation(skillId);
+    setSavedRunStale(true);
+  }, [sduiDoc, useClawMode, skillId, runId, frozenDoc]);
   useEffect(() => {
     if (!frozenDoc && !frozenSnapshotRef.current) return;
     if (!sduiDoc) return;
@@ -1050,9 +1097,14 @@ export default function SkillAgentScreen({
   // 上传 / 完成后不会及时清空，会把已更新的实时 sduiDoc 永久挡住，导致「输出件不刷新、
   // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
   // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
+  // 设备安装 · 提交 HITL 后：过渡文档优先（步骤条当前步 running），盖住冻结的编辑表快照。
+  const diSubmitOverride =
+    !usesDeliveryWorkbench && skillId === 'device_install' && frozenDoc
+      ? diSubmitDocRef.current
+      : null;
   const displayDoc = usesDeliveryWorkbench
     ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
-    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
+    : (diSubmitOverride ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
@@ -1227,9 +1279,16 @@ export default function SkillAgentScreen({
       progressFloorRef.current = frozenProgressRef.current;
       frozenSnapshotRef.current = curDoc;
       setFrozenDoc(curDoc);
-      // 有进度指标（zhgk / system_design）：立即切 running 隐藏 HITL 卡；
-      // frozenProgress===0（guihua 无进度指标）：不改 phase，保持 'hitl' 让 completion-card / hitl-card 继续显示。
-      if (frozenProgressRef.current > 0) {
+      // 设备安装：提交后后端 full_restart 重放期间，过渡文档（剥离编辑表 + 当前步 running）顶上，
+      // 让步骤条当前节点保持黄色转圈，而不是停留在「待填表」编辑界面假象（看起来卡死）。
+      if (skillId === 'device_install') {
+        const submittingStep = findEditableHitlStepKey(curDoc);
+        const transitional = buildDiSubmittingDoc(curDoc, submittingStep);
+        diSubmitDocRef.current = transitional;
+        updateSkillRun({ ...extractProgressFromSdui(transitional), phase: 'running', hitlType: null });
+      } else if (frozenProgressRef.current > 0) {
+        // 有进度指标（zhgk / system_design）：立即切 running 隐藏 HITL 卡；
+        // frozenProgress===0（guihua 无进度指标）：不改 phase，保持 'hitl' 让 completion-card / hitl-card 继续显示。
         updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
       }
     }
@@ -1605,7 +1664,7 @@ export default function SkillAgentScreen({
         throw new Error('未选择文件');
       }
       try {
-        const result = await overrideOutputArtifact(skillId, arr[0], targetPath, rid);
+        const result = await overrideOutputArtifact(skillId, arr[0]!, targetPath, rid);
         if (result.ok === false) {
           throw new Error(String(result.error || '覆盖上传失败'));
         }

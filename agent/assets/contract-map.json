@@ -1,4 +1,24 @@
 {
+  "PRO20250108100603": [
+    {
+      "contract_no": "1Y01012602830P",
+      "contract_name": "京东26年昇腾液冷超节点框架-宝德",
+      "order_version": "V1.0",
+      "order_status": "已发布",
+      "created_date": "2026-02-07",
+      "published_date": "2026-02-08",
+      "revenue_trigger_ratio": 105
+    },
+    {
+      "contract_no": "1Y01052511770A",
+      "contract_name": "京东科技网络设备",
+      "order_version": "V1.0",
+      "order_status": "已发布",
+      "created_date": "2026-05-23",
+      "published_date": "2026-05-23",
+      "revenue_trigger_ratio": 40
+    }
+  ],
   "PROP-2026-K1903": [
     {
       "contract_no": "1Y01012602830P",

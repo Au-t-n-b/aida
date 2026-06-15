@@ -5,7 +5,7 @@ AIDA + nanobot 融合启动器。
 1. bootstrap nanobot workspace / config.json
 2. 启动 nanobot serve (:8900) — 自由聊天引擎
 3. 启动 AIDA FastAPI (:7401) — LangGraph + SDUI，聊天代理到 nanobot
-4. 启动 Manager (:8000) — UX 鉴权，代理数据中心
+4. 启动 Manager (:8081) — UX 鉴权，代理数据中心
 5. 启动 mailgw 团队邮箱 (:8025) — GKCLAW 邮件网关（需 mailgw/config.yaml）
 6. 启动 ontology backend_app (:8011) — 数据中心 / 本体 API
 7. 启动前端静态服务 (:8080)
@@ -155,7 +155,7 @@ def start_mailgw() -> subprocess.Popen | None:
 
 
 def _manager_port() -> str:
-    return os.environ.get("MANAGER_PORT", "8001")
+    return os.environ.get("MANAGER_PORT", "8081")
 
 
 def start_manager() -> subprocess.Popen:
@@ -237,7 +237,8 @@ def start_frontend() -> subprocess.Popen | None:
         print("[frontend] dist/ not found, skip")
         return None
     py = _venv_python()
-    cmd = [py, "-m", "http.server", "8080", "--bind", "0.0.0.0", "--directory", str(dist)]
+    spa = ROOT / "scripts" / "spa_static_server.py"
+    cmd = [py, str(spa), "--host", "0.0.0.0", "--port", "8080", "--directory", str(dist)]
     return _popen(cmd, log_name="aida-liwen-frontend.log")
 
 
@@ -254,6 +255,7 @@ def verify(*, mailgw_started: bool = False) -> bool:
         ("backend", "http://127.0.0.1:7401/healthz"),
         ("ontology", f"http://127.0.0.1:{_backend_app_port()}/api/v2/ontologies"),
         ("frontend", "http://127.0.0.1:8080/"),
+        ("frontend-spa", "http://127.0.0.1:8080/proposal"),
     ]
     if mailgw_started:
         checks.insert(3, ("mailgw", f"http://127.0.0.1:{_mailgw_port()}/admin"))
@@ -269,11 +271,11 @@ def verify(*, mailgw_started: bool = False) -> bool:
                 print(f"[verify] {name}: HTTP {e.code} (auth required, ok)")
             else:
                 print(f"[verify] {name} FAIL: HTTP {e.code}")
-                if name not in ("frontend",):
+                if name not in ("frontend", "frontend-spa"):
                     ok = False
         except Exception as e:
             print(f"[verify] {name} FAIL: {e}")
-            if name not in ("frontend", "ontology"):
+            if name not in ("frontend", "frontend-spa", "ontology"):
                 ok = False
     return ok
 
@@ -283,6 +285,7 @@ def stop_old() -> None:
         "uvicorn manager.main",
         "uvicorn agent.main",
         "uvicorn backend_app",
+        "spa_static_server.py",
         "http.server 8080",
         "nanobot serve",
         "nanobot.cli.commands serve",
@@ -290,7 +293,7 @@ def stop_old() -> None:
     ]
     for p in patterns:
         subprocess.run(["pkill", "-9", "-f", p], check=False)
-    for port in (8001, 8011, 8900, 7401, 8080, int(_mailgw_port())):
+    for port in (8001, 8081, 8011, 8900, 7401, 8080, int(_mailgw_port())):
         subprocess.run(
             ["bash", "-c", f"ss -lptn 'sport = :{port}' | grep -oP 'pid=\\K[0-9]+' | xargs -r kill -9"],
             check=False,

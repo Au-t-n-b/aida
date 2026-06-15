@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { useAidaSession } from '@/lib/aida-session';
+import { useAidaSession, type AidaSessionState } from '@/lib/aida-session';
 import { createProject, fetchProjectDetail, updateProject } from '@/lib/claw-manager-client';
 import {
   type ApiErrorDetail,
@@ -19,7 +19,7 @@ import {
   formToCreateProjectBody,
   formToUpdateProjectBody,
 } from '@/lib/landing-projects';
-import { CONTRACT_PRESALE, INITIAL_FIELDS, FieldsStep } from './screens/create';
+import { INITIAL_FIELDS, FieldsStep } from './screens/create';
 
 interface CreateFieldDef {
   key: string;
@@ -29,16 +29,25 @@ interface CreateFieldDef {
 
 type CreatePreset = Record<string, string> | null;
 
+/** 与规范 §4.6 示例请求字段一致 */
 const SAMPLE: Record<string, string> = {
-  name: '京东三期',
-  contractType: CONTRACT_PRESALE,
-  code: 'PROP-2026-K1903',
-  proposal: '',
-  scene: '新建,训推一体',
-  pd: '李伟 / 01234568',
-  td: '何博 / 01234567',
-  pcm: '王婷 / 01234569',
+  name: '深圳数据中心一期',
+  contractType: '标准合同',
+  code: '',
+  proposal: 'BID-2026-001',
+  scene: '新建,液冷',
+  pd: 'lisi',
+  td: 'zhangsan',
+  pcm: '',
 };
+
+function sessionPersonLabel(session: AidaSessionState | null): string {
+  const u = session?.user?.username?.trim();
+  if (!u) return '';
+  const d = (session?.user?.display_name || '').trim();
+  if (d && d !== u) return `${d} / ${u}`;
+  return u;
+}
 
 function fieldsToObj(fields: CreateFieldDef[]): Record<string, string> {
   return Object.fromEntries(fields.map((f) => [f.key, f.value]));
@@ -74,21 +83,34 @@ export default function CreateProjectModal({
   const [submitErrorDetail, setSubmitErrorDetail] = useState<ApiErrorDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const detailReqRef = useRef(0);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      wasOpenRef.current = false;
+      return;
+    }
+    const justOpened = !wasOpenRef.current;
+    wasOpenRef.current = true;
+
     setSubmitError(null);
     setSubmitErrorDetail(null);
     setSubmitting(false);
 
     if (mode !== 'edit' || !projectId) {
       setDetailLoading(false);
-      setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], preset));
+      if (justOpened) {
+        const presetObj: CreatePreset = preset ? { ...preset } : {};
+        const tdDefault = sessionPersonLabel(session);
+        if (!presetObj.td && tdDefault) presetObj.td = tdDefault;
+        setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], presetObj));
+      }
       return;
     }
 
-    // 编辑：先用列表占位，再拉详情覆盖
-    setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], preset));
+    if (justOpened) {
+      setFields(prefill(INITIAL_FIELDS as CreateFieldDef[], preset));
+    }
     if (!session?.accessToken) {
       setSubmitError('登录已失效，请重新登录');
       return;
@@ -113,6 +135,12 @@ export default function CreateProjectModal({
     })();
   }, [open, preset, mode, projectId, session?.accessToken]);
 
+  const handleBackdropClose = (e: React.MouseEvent<HTMLDivElement>) => {
+    // 用 mousedown 且仅点在遮罩本身，避免「点新建」的 click 穿透到刚挂载的 mask 上立刻关窗
+    if (e.target !== e.currentTarget) return;
+    onClose?.();
+  };
+
   if (!open) return null;
 
   const setField = (k: string, v: string) =>
@@ -133,7 +161,8 @@ export default function CreateProjectModal({
       setSubmitError(null);
       setSubmitErrorDetail(null);
       try {
-        const body = formToCreateProjectBody(obj);
+        const sessionUsername = session.user?.username?.trim() || undefined;
+        const body = formToCreateProjectBody(obj, { sessionUsername });
         await createProject(session.accessToken, body);
         await onSaved?.('create');
         onClose?.();
@@ -145,6 +174,19 @@ export default function CreateProjectModal({
       return;
     }
 
+    // 编辑模式：暂保留原行为（后续对接 PUT）
+    const payload = { mode, fields: obj, ts: Date.now() };
+    try { sessionStorage.setItem('aida:just-created', JSON.stringify(payload)); } catch {}
+    const id = projectId ?? deriveProjectId(obj.code, obj.proposal);
+    selectProject({
+      id,
+      name: obj.name || '未命名项目',
+      code: obj.code || obj.proposal || undefined,
+      projectCode: obj.code || undefined,
+      proposalId: obj.proposal || undefined,
+    });
+    onClose?.();
+    navigate('/cockpit');
     if (!projectId) {
       setSubmitError('缺少项目 ID，无法保存');
       return;
@@ -178,8 +220,13 @@ export default function CreateProjectModal({
     : (submitting ? '提交中…' : '提交创建');
 
   return (
-    <div className="cm-mask" onClick={onClose} role="dialog" aria-modal="true">
-      <div className="cm-wrap" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="cm-mask"
+      onMouseDown={handleBackdropClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="cm-wrap" onMouseDown={(e) => e.stopPropagation()}>
         <div className="cm-head">
           <div className="cm-title">{title}</div>
           <button className="cm-close" onClick={onClose} title="关闭" type="button">✕</button>

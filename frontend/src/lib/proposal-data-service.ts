@@ -320,13 +320,13 @@ function parseTcSelected(v: unknown): boolean {
 function buildSelectedKeys(raw: SavedTestCaseRow[], cases: AcceptanceTestCase[]): Set<string> {
   const rawById = new Map<string, SavedTestCaseRow>();
   for (const r of raw) {
-    const id = String((r as Record<string, unknown>).id ?? '').trim();
+    const id = String((r as unknown as Record<string, unknown>).id ?? '').trim();
     if (id) rawById.set(id, r);
   }
   const selectedKeys = new Set<string>();
   cases.forEach((c, i) => {
     const src = rawById.get(c.id);
-    const sel = src ? (src as Record<string, unknown>).selected : undefined;
+    const sel = src ? (src as unknown as Record<string, unknown>).selected : undefined;
     if (parseTcSelected(sel)) selectedKeys.add(testCaseKey(c, i));
   });
   return selectedKeys;

@@ -604,3 +604,23 @@ Step 4 文档
 
 *本文档由 Claude Sonnet 4.6 生成，2026-06-07*  
 *更新责任人：完成每个 Step 后，在对应小节补充实际情况和遗留问题*
+---
+
+## 2026-06-15 · aida-delivery 94f8c77 增量合入收口记录
+
+- [x] 小步1：项目数据与导入器落到 `agent/schedule/project-data` 与 `agent/schedule/importer`，导入器测试通过。
+- [x] 小步2：schedule 契约扩展与 `features/schedule` TS 生成物同步，`generate_ts --check` 通过。
+- [x] 小步3：排期引擎修复落到 `agent/schedule/engine`，engine 测试通过。
+- [x] 小步4：`/adjust` 缺口摘要、版本存储与影子推荐日志落地，API 测试通过。
+- [x] 小步5：风险报告 AI 总结与 LLM 底座落地，LLM/API 测试与代码级路由检查通过。
+- [x] 小步6：前端 schedule 服务层完成 `features/schedule` 数据流适配，typecheck 通过。
+- [x] 小步7：排期看板 UI 完成 GapSummary、风险收敛、详情甘特与拖拽约束适配，typecheck/build 通过。
+- [x] 小步8：风险报告页接入 AI 总结入口，typecheck/build 通过。
+- [x] 小步9：最终快检完成：`generate_ts --check`、`pytest agent/schedule/tests`、前端 `typecheck`、前端 `build` 均通过；仓外验收记录保存到 `D:\SourceCode\DeliveryCorps\merge-acceptance\aida-delivery-94f8c77\`。
+
+下一版本开发需求与技术债：
+
+- 清理本地开发机多 uvicorn/reload 残留监听，避免 OpenAPI 误读旧进程路由表。
+- 明确风险报告 AI 总结运行环境配置，包括 `BAILIAN_API_KEY`、模型名、超时与无 key 时 503 提示。
+- 排期完成态按钮文案仍可能显示“解析中...”，需要收口为明确完成态。
+- 风险报告页与排期页的“确认&下发”闭环入口需要进一步打通，确保 UI 可稳定读取下发快照。

@@ -31,6 +31,8 @@ export default function TwinPage() {
 
   useEffect(() => {
     const expected = PHASE_TO_VIEW[phase];
+    // 外部带 ?view=digital 进入时，先由 viewParam effect 改 phase，勿把 URL 改回 build。
+    if (viewParam && VIEW_TO_PHASE[viewParam] && VIEW_TO_PHASE[viewParam] !== phase) return;
     if (viewParam !== expected) {
       const next = new URLSearchParams(params);
       next.set('view', expected);

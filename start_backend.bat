@@ -1,5 +1,5 @@
 @echo off
-REM Local dev needs mock DC (:9000) + manager (:8000) + agent (:7401).
+REM Local dev needs mock DC (:9000) + manager (:8081) + agent (:7401).
 REM Use start_local.bat for the full stack; this file only starts the agent.
 title AIDA Agent :7401
 cd /d "%~dp0"

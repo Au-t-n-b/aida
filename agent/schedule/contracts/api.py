@@ -23,6 +23,7 @@ from agent.schedule.contracts.inputs import (
 )
 from agent.schedule.contracts.outputs import (
     Explanation,
+    GapSummary,
     PlanResult,
     ReadinessSuggestion,
     RiskItem,
@@ -38,6 +39,7 @@ COMMIT_PATH = f"{API_PREFIX}/commit"       # POST 确认下发（写回出新版
 PARSE_CHANGES_PATH = f"{API_PREFIX}/parse-changes"  # POST 固定模板变更表（multipart 上传）
 PROJECT_DATA_PATH = f"{API_PREFIX}/project-data"    # GET 真实项目盘子（02_项目数据 → InputBundle）
 EXPORT_PLAN_PATH = f"{API_PREFIX}/export-plan"      # GET 正式计划版本导出为交付计划表 xlsx
+REPORT_SUMMARY_PATH = f"{API_PREFIX}/report-summary"  # POST 风险报告 AI 总结（解释层，不碰排期数字）
 
 
 # ── POST /api/v1/schedule/generate ──────────────────────────────────
@@ -91,6 +93,7 @@ class AdjustRequest(ContractModel):
 class AdjustResponse(ContractModel):
     options: list[StrategyPlan] = Field(description="A 均匀 / B 集中 / C 站货提拉（时间富余时含 buffer延长）；每卡含 KPI+完整排期+风险+一句建议")
     unmet: list[UnmetItem] = Field(default_factory=list, description="所有策略都到顶仍做不到的诉求")
+    gap: GapSummary | None = Field(default=None, description="未压缩基线与当前主目标的缺口摘要；无目标时 target_date=None 且 gap_days=0")
     explanation: Explanation
 
 

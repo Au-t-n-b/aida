@@ -1,4 +1,5 @@
 import { ApiRequestError, isApiErrorDetail, type ApiErrorDetail } from '@/lib/api-error';
+import { managerBaseUrl } from '@/lib/runtimeBase';
 
 export type { ApiErrorDetail };
 export { ApiRequestError };
@@ -41,18 +42,22 @@ export type MyProjectsQuery = {
 
 export type CreateProjectBody = {
   projectName: string;
+  /** 必填：预销售合同 | 标准合同 */
+  contractType: string;
+  /** 客户名称；数据中心要求字段存在，无值时传空字符串 */
+  customerName: string;
   projectCode?: string;
   bidCode?: string;
-  customerName?: string;
-  tdUserId?: number;
-  pdUserId?: number;
-  pcmUserId?: number;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
   deliveryTraits?: unknown[];
 };
 
 /** PUT /api/v1/projects/{uuid} — 更新项目可变字段 */
 export type UpdateProjectBody = {
   projectName?: string;
+  contractType?: string;
   tdUsername?: string;
   pdUsername?: string;
   pcmUsername?: string;
@@ -87,6 +92,7 @@ export type DcProjectDetail = {
   bidCode?: string | null;
   customerName?: string | null;
   status?: string;
+  contractType?: string | null;
   stage?: string | null;
   progress?: number;
   risk?: string;
@@ -113,11 +119,16 @@ export type DcMyProjectsData = {
     projectName: string;
     projectCode?: string | null;
     bidCode?: string | null;
+    customerName?: string | null;
     status: string;
     stage?: string | null;
     progress: number;
     risk: string;
+    description?: string | null;
     updatedAt?: string | null;
+    pdName?: string | null;
+    tdName?: string | null;
+    pcmName?: string | null;
     myRoles: { roleCode: string; roleName?: string }[];
     canEnter: boolean;
     disabledReason?: string | null;
@@ -172,13 +183,8 @@ export type ArchiveResponse = {
   detail?: string | null;
 };
 
-const DEFAULT_MANAGER_BASE = 'http://127.0.0.1:8000';
-
 export function managerBase(): string {
-  const configured = import.meta.env.VITE_CLAWMANAGER_BASE as string | undefined;
-  // 开发态留空 → 同源请求走 Vite proxy 到 Manager，避免跨域 Failed to fetch
-  if (configured === '' || configured === '/') return '';
-  return (configured || DEFAULT_MANAGER_BASE).replace(/\/$/, '');
+  return managerBaseUrl();
 }
 
 export async function loginToClawManager(input: {

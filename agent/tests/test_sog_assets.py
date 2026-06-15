@@ -1,4 +1,4 @@
-"""工勘孪生 · SOG 资产存储单元测试。"""
+"""实景孪生 · SOG 资产存储单元测试。"""
 from __future__ import annotations
 
 import json
@@ -18,7 +18,7 @@ class SogAssetsTest(unittest.TestCase):
             ]
         )
         self.assertEqual(len(hotspots), 2)
-        self.assertEqual(hotspots[1]["title"], "未命名热点")
+        self.assertEqual(hotspots[1]["title"], "未命名标签")
         self.assertEqual(hotspots[1]["text"], "")
         self.assertEqual(hotspots[1]["mode"], "normal")
         self.assertEqual(hotspots[1]["statusLabel"], "正常")
@@ -43,6 +43,25 @@ class SogAssetsTest(unittest.TestCase):
         self.assertEqual(
             settings["annotations"][0]["extras"],
             {"id": "hotspot-1", "mode": "abnormal", "statusLabel": "故障"},
+        )
+
+    def test_create_default_settings_uses_configured_camera(self) -> None:
+        camera = {
+            "position": [2, 1.6, -8],
+            "target": [0, 1, 0],
+            "fov": 55,
+        }
+
+        settings = create_default_settings([], camera=camera)
+
+        self.assertEqual(settings["cameras"][0]["initial"], camera)
+
+    def test_create_default_settings_falls_back_for_invalid_camera(self) -> None:
+        settings = create_default_settings([], camera={"position": [1, 2], "target": [0, 0, 0], "fov": 60})
+
+        self.assertEqual(
+            settings["cameras"][0]["initial"],
+            {"position": [0, 1, -7], "target": [0, 0, 0], "fov": 60},
         )
 
     def test_read_hotspots_strips_bom(self) -> None:

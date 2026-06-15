@@ -68,7 +68,7 @@ def infer_upload_kind(filename: str) -> str:
         return "gkclaw_assignees"
     if re.search(r"远近|人员信息|人员表|personnel", name, re.I):
         return "personnel"
-    if "入场评估标准表" in name:
+    if "入场评估标准" in name:
         return "template"
     if "工勘常见高风险库" in name or "风险库" in name:
         return "template"
@@ -208,9 +208,11 @@ async def save_upload(root: Path, kind: str, file: UploadFile) -> dict[str, Any]
         if "BOQ" not in fname:
             fname = f"BOQ-{fname}"
     elif kind == "template":
-        # 底表 / 模板文件统一存到 Template/，保持原始文件名
+        # 底表 / 模板文件统一存到 Template/；固定底表名归一化，供 step 精确检查。
         dest_dir = root / "ProjectData" / "Template"
         fname = file.filename or "uploaded_template.xlsx"
+        if "入场评估标准" in fname:
+            fname = "入场评估标准表.xlsx"
     elif kind == "image":
         dest_dir = root / "ProjectData" / "Images"
         fname = file.filename or f"img-{uuid.uuid4().hex[:8]}.jpg"

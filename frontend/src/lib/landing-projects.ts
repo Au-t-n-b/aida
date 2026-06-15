@@ -1,6 +1,6 @@
 /** 数据中心 projects/my → 落地页卡片模型映射 */
 
-import type { DcProjectDetail } from '@/lib/claw-manager-client';
+import type { CreateProjectBody, DcProjectDetail } from '@/lib/claw-manager-client';
 
 export const CONTRACT_PRESALE = '预销售合同';
 export const CONTRACT_STANDARD = '标准合同';
@@ -16,6 +16,7 @@ export type LandingProjectCard = {
   dbId?: number;
   name: string;
   code: string;
+  projectCode?: string;
   roles: string[];
   stage4: 'survey' | 'modeling' | 'install' | 'deploy';
   todoCount: number;
@@ -50,6 +51,7 @@ export type DcMyProject = {
   bidCode?: string | null;
   customerName?: string | null;
   status: string;
+  contractType?: string | null;
   stage?: string | null;
   progress: number;
   risk: string;
@@ -109,15 +111,29 @@ export function visibleLandingProjects(items: LandingProjectCard[]): LandingProj
   );
 }
 
-/** 从「姓名 / 用户名」文本解析账号用户名（PUT /projects 用） */
-function parsePersonUsername(raw: string | undefined): string | undefined {
+export type CreateProjectFormOptions = {
+  /** 当前登录用户的系统 username（规范 4.6 tdUsername 示例 zhangsan） */
+  sessionUsername?: string;
+};
+
+/**
+ * 从「姓名 / 登录用户名」解析系统 username。
+ * 尾段为纯数字时视为工号而非登录名，回退 sessionUsername。
+ */
+export function parsePersonUsername(
+  raw: string | undefined,
+  fallback?: string,
+): string | undefined {
+  const fb = (fallback || '').trim() || undefined;
   const s = (raw || '').trim();
-  if (!s) return undefined;
+  if (!s) return fb;
   const slash = s.lastIndexOf('/');
   if (slash >= 0) {
     const tail = s.slice(slash + 1).trim();
-    return tail || undefined;
+    if (tail && !/^\d+$/.test(tail)) return tail;
+    return fb;
   }
+  if (/^\d+$/.test(s)) return fb;
   return s;
 }
 
@@ -128,60 +144,56 @@ function sceneCsvToDeliveryTraits(scene: string | undefined): string[] {
     .filter(Boolean);
 }
 
-/** 从「姓名 / 工号」文本解析可选用户 ID（数据中心 tdUserId 等） */
-function parseOptionalUserId(raw: string | undefined): number | undefined {
-  const s = (raw || '').trim();
-  if (!s) return undefined;
-  const tail = s.match(/(\d{5,})\s*$/);
-  if (tail) {
-    const n = Number(tail[1]);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  if (/^\d+$/.test(s)) return Number(s);
-  return undefined;
-}
-
-/** 创建项目表单 → 数据中心 POST /projects body */
-export function formToCreateProjectBody(fields: Record<string, string>): {
-  projectName: string;
-  projectCode?: string;
-  bidCode?: string;
-  tdUserId?: number;
-  pdUserId?: number;
-  pcmUserId?: number;
-  deliveryTraits?: string[];
-} {
+/**
+ * 创建项目表单 → POST /api/v1/projects body（对齐规范 §4.6 / §5.2）
+ * 必填：projectName、contractType；示例亦含 tdUsername、deliveryTraits。
+ */
+export function formToCreateProjectBody(
+  fields: Record<string, string>,
+  opts: CreateProjectFormOptions = {},
+): CreateProjectBody {
   const projectName = (fields.name || '').trim();
+  const contractType = (fields.contractType || '').trim();
+  if (!projectName) {
+    throw new Error('缺少必填参数 projectName（项目名称）');
+  }
+  if (contractType !== CONTRACT_PRESALE && contractType !== CONTRACT_STANDARD) {
+    throw new Error('缺少必填参数 contractType（合同类型：预销售合同 / 标准合同）');
+  }
+
   const code = (fields.code || '').trim();
   const proposal = (fields.proposal || '').trim();
-  const body: {
-    projectName: string;
-    projectCode?: string;
-    bidCode?: string;
-    tdUserId?: number;
-    pdUserId?: number;
-    pcmUserId?: number;
-    deliveryTraits?: string[];
-  } = { projectName };
-  if (fields.contractType === CONTRACT_STANDARD) {
-    if (proposal) body.bidCode = proposal;
-  } else {
-    if (code) body.projectCode = code;
-  }
-  const pdUserId = parseOptionalUserId(fields.pd);
-  const tdUserId = parseOptionalUserId(fields.td);
-  const pcmUserId = parseOptionalUserId(fields.pcm);
-  if (pdUserId) body.pdUserId = pdUserId;
-  if (tdUserId) body.tdUserId = tdUserId;
-  if (pcmUserId) body.pcmUserId = pcmUserId;
+  const sessionUser = (opts.sessionUsername || '').trim();
   const traits = sceneCsvToDeliveryTraits(fields.scene);
+
+  const body: CreateProjectBody = {
+    projectName,
+    contractType,
+    customerName: (fields.customerName || '').trim(),
+  };
+
+  if (contractType === CONTRACT_STANDARD) {
+    if (proposal) body.bidCode = proposal;
+  } else if (code) {
+    body.projectCode = code;
+  }
+
+  const pdUsername = parsePersonUsername(fields.pd);
+  const tdUsername = parsePersonUsername(fields.td, sessionUser) || sessionUser || undefined;
+  const pcmUsername = parsePersonUsername(fields.pcm);
+  if (pdUsername) body.pdUsername = pdUsername;
+  if (tdUsername) body.tdUsername = tdUsername;
+  if (pcmUsername) body.pcmUsername = pcmUsername;
+
   if (traits.length) body.deliveryTraits = traits;
+
   return body;
 }
 
 /** 编辑项目表单 → 数据中心 PUT /projects/{uuid} body */
 export function formToUpdateProjectBody(fields: Record<string, string>): {
   projectName?: string;
+  contractType?: string;
   tdUsername?: string;
   pdUsername?: string;
   pcmUsername?: string;
@@ -189,6 +201,7 @@ export function formToUpdateProjectBody(fields: Record<string, string>): {
 } {
   const body: {
     projectName?: string;
+    contractType?: string;
     tdUsername?: string;
     pdUsername?: string;
     pcmUsername?: string;
@@ -196,6 +209,8 @@ export function formToUpdateProjectBody(fields: Record<string, string>): {
   } = {};
   const projectName = (fields.name || '').trim();
   if (projectName) body.projectName = projectName;
+  const contractType = (fields.contractType || '').trim();
+  if (contractType) body.contractType = contractType;
   const pdUsername = parsePersonUsername(fields.pd);
   const tdUsername = parsePersonUsername(fields.td);
   const pcmUsername = parsePersonUsername(fields.pcm);
@@ -222,6 +237,7 @@ export function projectToFormPreset(p: LandingProjectCard): Record<string, strin
 
 function contractFieldsToFormPreset(input: {
   name: string;
+  contractType?: string | null;
   projectCode?: string | null;
   bidCode?: string | null;
   pdName?: string | null;
@@ -232,9 +248,10 @@ function contractFieldsToFormPreset(input: {
   const code = (input.projectCode || '').trim();
   const bid = (input.bidCode || '').trim();
   const proposal = bid && bid !== code ? bid : '';
-  const contractType = code && !proposal
-    ? CONTRACT_PRESALE
-    : (proposal && !code ? CONTRACT_STANDARD : CONTRACT_PRESALE);
+  const contractType = (input.contractType || '').trim()
+    || (code && !proposal
+      ? CONTRACT_PRESALE
+      : (proposal && !code ? CONTRACT_STANDARD : CONTRACT_PRESALE));
   return {
     name: input.name || '',
     contractType,
@@ -262,6 +279,7 @@ export function dcProjectDetailToFormPreset(d: DcProjectDetail): Record<string, 
   };
   return contractFieldsToFormPreset({
     name: d.projectName || '',
+    contractType: d.contractType,
     projectCode: d.projectCode,
     bidCode: d.bidCode,
     pdName: fmtMember(byRole('PD'), d.pdName),
@@ -296,6 +314,7 @@ export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {
     dbId: item.id,
     name: item.projectName,
     code: item.projectCode || item.bidCode || item.projectId,
+    projectCode: item.projectCode || undefined,
     roles,
     stage4,
     todoCount: item.progress > 0 ? Math.max(1, Math.round(item.progress / 25)) : 0,

@@ -7,12 +7,18 @@ from agent.gkclaw_inbound import (
     pipeline_stalled,
     plan_inbound_action,
     should_chain_after_wait_survey,
+    should_defer_inbound_retry,
 )
 
 
 def test_parse_task_id_from_subject():
     subj = "[gkclaw] task.result task-20260612-K1903-000002"
     assert parse_task_id_from_subject(subj) == "task-20260612-K1903-000002"
+
+
+def test_parse_timestamp_task_id_from_subject():
+    subj = "[gkclaw] task.result task-20260614191328096-K1903"
+    assert parse_task_id_from_subject(subj) == "task-20260614191328096-K1903"
 
 
 def test_pipeline_stalled_wait_survey():
@@ -33,6 +39,7 @@ def test_pipeline_stalled_not_when_step_completed():
         "hitl": {},
         "steps": [
             {"key": "wait_survey", "status": "completed"},
+            {"key": "assess", "status": "completed"},
         ],
     }
     assert pipeline_stalled(state, ["wait_survey", "assess"]) is None
@@ -84,3 +91,51 @@ def test_should_chain_wait_survey_to_assess():
         state=state,
         step_retry_keys=["wait_survey", "assess"],
     ) == "assess"
+
+
+def test_should_chain_assess_to_issue_list_after_inbound():
+    state = {
+        "current_step": "issue_list",
+        "hitl": {},
+        "error": None,
+    }
+    assert should_chain_after_wait_survey(
+        prev_step="assess",
+        state=state,
+        step_retry_keys=["wait_survey", "assess", "issue_list", "resurvey_gate"],
+    ) == "issue_list"
+
+
+def test_should_chain_issue_list_to_resurvey_gate_after_inbound():
+    state = {
+        "current_step": "resurvey_gate",
+        "hitl": {},
+        "error": None,
+    }
+    assert should_chain_after_wait_survey(
+        prev_step="issue_list",
+        state=state,
+        step_retry_keys=["wait_survey", "assess", "issue_list", "resurvey_gate"],
+    ) == "resurvey_gate"
+
+
+def test_inbound_run_busy_is_deferred_for_later_retry():
+    plan = {
+        "run_id": "run-x",
+        "step": "wait_survey",
+        "trigger": False,
+        "reason": "run_busy",
+    }
+
+    assert should_defer_inbound_retry(plan, subject="[gkclaw] task.result task-20260612-K1903-000002")
+
+
+def test_inbound_import_ack_is_not_deferred():
+    plan = {
+        "run_id": "run-x",
+        "step": "wait_survey",
+        "trigger": False,
+        "reason": "run_busy",
+    }
+
+    assert not should_defer_inbound_retry(plan, subject="[gkclaw] task.import_ack task-20260612-K1903-000002")

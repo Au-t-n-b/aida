@@ -18,6 +18,7 @@ from agent.schedule.engine import (
     build_adjustment_options,
     generate_plan,
     recalculate_plan_with_duration_overrides,
+    select_shadow_recommendation,
 )
 from agent.schedule.importer import DataImportError, load_input_bundle
 from agent.schedule.store import AdjustOptionNotFound, PlanVersionNotFound, PlanVersionStore
@@ -44,13 +45,7 @@ T = TypeVar("T")
 def get_store(request: Request) -> PlanVersionStore:
     store = getattr(request.app.state, "schedule_plan_store", None)
     if store is None:
-        store_path = getattr(request.app.state, "schedule_plan_store_path", None)
-        if store_path is None:
-            from agent.schedule.app_main import _default_db_path
-
-            store_path = _default_db_path()
-            request.app.state.schedule_plan_store_path = store_path
-        store = PlanVersionStore(store_path)
+        store = PlanVersionStore(request.app.state.schedule_plan_store_path)
         request.app.state.schedule_plan_store = store
     return store
 
@@ -178,6 +173,7 @@ def adjust_schedule(payload: AdjustRequest, store: PlanVersionStore = Depends(ge
     return AdjustResponse(
         options=adjustment.options,
         unmet=adjustment.unmet,
+        gap=adjustment.gap,
         explanation=_adjust_explanation(base.plan, result.plan, payload.changes),
     )
 
@@ -212,6 +208,16 @@ def commit_schedule(payload: CommitRequest, store: PlanVersionStore = Depends(ge
             return _error_response(422, exc.to_response())
     committed_plan = committed_plan.model_copy(update={"version": new_version, "base_version": payload.base_version})
     store.save_plan_version(committed_plan, stored_option.inputs)
+    adjust_options = store.list_adjust_options(payload.plan_id, payload.base_version)
+    shadow_option = select_shadow_recommendation([stored.option for stored in adjust_options])
+    store.save_shadow_recommendation_log(
+        plan_id=payload.plan_id,
+        base_version=payload.base_version,
+        new_version=new_version,
+        shadow_option=shadow_option,
+        selected_option=stored_option.option,
+        duration_overrides_applied=bool(payload.duration_overrides),
+    )
     return CommitResponse(
         plan_id=payload.plan_id,
         new_version=new_version,

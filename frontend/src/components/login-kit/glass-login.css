@@ -127,6 +127,8 @@
   position: relative;
   display: flex; flex-direction: column; justify-content: center;
   padding: 44px 48px;
+  min-height: 0;
+  overflow-y: auto;
   background: linear-gradient(160deg, rgba(15, 21, 33, 0.64), rgba(9, 13, 21, 0.74));
   backdrop-filter: blur(22px) saturate(1.25);
   -webkit-backdrop-filter: blur(22px) saturate(1.25);
@@ -199,6 +201,9 @@
   color: #ffd4d0;
   background: oklch(0.35 0.12 25 / 0.35);
   border: 1px solid oklch(0.55 0.18 25 / 0.45);
+  max-height: 72px;
+  overflow-y: auto;
+  word-break: break-word;
 }
 .lg-error-title {
   font-weight: 600;

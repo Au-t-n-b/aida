@@ -120,7 +120,7 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
       if (!drawerOpen) {
         return {
           drawerOpen, drawerW, areaW: W,
-          scale: resolved ? Math.max(0.88, Math.min(1.3, band.h / 560)) : 1,
+          scale: resolved ? Math.max(0.88, Math.min(0.96, band.h / 560)) : 1,
           spread: resolved ? 0.90 : 1,
         };
       }
@@ -131,7 +131,7 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
       const spread = resolved ? DETAIL_DRAWER_SPREAD_RESOLVED : DETAIL_DRAWER_SPREAD;
       return {
         drawerOpen, drawerW, areaW,
-        scale: Math.max(0.54, Math.min(resolved ? 1.0 : 1.1, scaleByWidth, scaleByHeight)),
+        scale: Math.max(0.54, Math.min(resolved ? 0.74 : 0.80, scaleByWidth, scaleByHeight)),
         spread,
       };
     };
@@ -147,7 +147,7 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
         if (!fit.drawerOpen) {
           const yBase = Math.min(band.h * (resolved ? 0.23 : 0.25), resolved ? 168 : 182);
           return {
-            x: Math.min(W * (resolved ? 0.42 : 0.44), resolved ? 640 : 700),
+            x: Math.min(W * (resolved ? 0.36 : 0.38), resolved ? 440 : 480),
             y: yBase + yExtraClosed,
           };
         }

@@ -87,6 +87,17 @@ function PhysicalTwinFrame({ compact, building  }: any) {
     .tw-half-digi .tw-half-badge{background:var(--c-brand-soft);color:var(--c-brand-text);border:1px solid rgba(53,81,216,.15)}
     .tw-half-badge.idle{background:rgba(15,157,88,.12)!important;color:#86efac!important;border-color:rgba(15,157,88,.25)!important}
 
+    /* ── 物理孪生概览：机房概况 + 问题数 ── */
+    .tw-phys-head{align-items:flex-start!important;gap:10px;container-type:inline-size}
+    .tw-phys-head-l{display:flex;flex-direction:column;gap:3px;min-width:0;flex-shrink:0}
+    .tw-phys-room{font-size:10.5px;color:rgba(148,163,184,.7);font-family:var(--font-mono);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+    .tw-phys-stats{display:flex;flex-wrap:wrap;align-items:center;gap:3px 9px;margin-left:auto;justify-content:flex-end}
+    .tw-phys-stats .st{font-size:10.5px;color:rgba(148,163,184,.7);font-family:var(--font-mono);white-space:nowrap}
+    .tw-phys-stats .st b{color:#cbd5e1;font-weight:700;margin-left:3px;font-variant-numeric:tabular-nums}
+    .tw-phys-stats .st-warn b{color:#fca5a5}
+    .tw-phys-stats .st-warn i{color:rgba(148,163,184,.6);font-style:normal;margin-left:1px}
+    @container (max-width:340px){.tw-phys-room{display:none}}
+
     .tw-half-viz{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px 16px 12px;position:relative}
     .tw-shell--physical .tw-half-viz,.tw-shell--digital .tw-half-viz{padding:16px 24px 24px}
 
@@ -876,6 +887,9 @@ function TwinWorld({ phase, onPhase  }: any) {
 
   const physIssueTotal = (physStats && physStats.issues && physStats.issues.total) || 14;
   const physBadge = playing ? '扫描中' : `${physIssueTotal} 项工勘问题`;
+  const physIss = (physStats && physStats.issues) || null;                       // 机房概况 + 问题分级（来自 twin:stats）
+  const physBreak = physIss ? `（高危 ${physIss.danger || 0} · 中 ${physIss.warn || 0}）` : '';
+  const physNum = (k: any) => (physStats && physStats[k] != null ? physStats[k] : '—');
   const digiCountLive = view ? view.summary.riskCount : null;
   const digiBadge = playing ? '生成中' : (digiCountLive != null ? digiCountLive + ' 项风险' : (loading ? '生成中' : '—'));
 
@@ -904,9 +918,17 @@ function TwinWorld({ phase, onPhase  }: any) {
               onKeyDown={interactive ? (e: any) => { if (e.key === 'Enter') enterDetail('physical'); } : undefined}
             >
               {phase !== 'physical' && (
-                <div className="tw-half-head">
-                  <span className="tw-half-label">物理孪生</span>
-                  <span className="tw-half-badge">{physBadge}</span>
+                <div className="tw-half-head tw-phys-head">
+                  <div className="tw-phys-head-l">
+                    <span className="tw-half-label">物理孪生</span>
+                    <span className="tw-phys-room">2#楼四五层智算机房</span>
+                  </div>
+                  <div className="tw-phys-stats">
+                    <span className="st">机柜<b>{physNum('cabinets')}</b></span>
+                    <span className="st">液冷<b>{physNum('cooling')}</b></span>
+                    <span className="st">桥架<b>{physNum('trays')}</b></span>
+                    <span className="st st-warn">问题<b>{physIssueTotal}</b><i>{physBreak}</i></span>
+                  </div>
                 </div>
               )}
               <div className="tw-half-viz" style={phase === 'physical' ? { padding: 0 } : undefined}>

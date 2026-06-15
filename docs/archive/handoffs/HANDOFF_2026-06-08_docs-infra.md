@@ -23,8 +23,8 @@
 
 | Commit | 内容 |
 |--------|------|
-| `e6d6e03` | feat(sdui)：`gen_sdui_gallery.py` 内省 builder.py → 派生 `agent/docs/sdui-gallery.html`（26 节点契约目录）+ `lint_sdui_gallery.py` 新鲜度守门 + `.gitattributes` 锁 LF；SDUI.md 删手抄节点表→指向画廊 |
-| `1168c8a` | feat(docs)：`gen_docs_site.py` 扫 docs/+agent/docs/ MD → 派生**单文件文档站** `docs/site/index.html`（markdown-it+mermaid，双击即开）+ `lint_docs_site.py`；mermaid.min.js(3.3MB) gitignore |
+| `e6d6e03` | feat(sdui)：`gen_sdui_gallery.py` 内省 builder.py → 派生 `docs/site/sdui-gallery.html`（26 节点契约目录）+ `lint_sdui_gallery.py` 新鲜度守门 + `.gitattributes` 锁 LF；SDUI.md 删手抄节点表→指向画廊 |
+| `1168c8a` | feat(docs)：`gen_docs_site.py` 扫 docs/ MD → 派生**单文件文档站** `docs/site/index.html`（markdown-it+mermaid，双击即开）+ `lint_docs_site.py`；mermaid.min.js(3.3MB) gitignore |
 | `562385f` | docs：补 `agent/docs/接入/` 两份接入规范 + `docs/数据中心对外接口设计.md`；**两份接入规范对齐当前实现**（见 §5） |
 | `660a6ed` | docs：`AGENT_QUICKSTART §6` 去陈旧 lint 表→指向 AGENTS.md；新增 `docs/architecture/03_doc_health_diagnosis.md`（文档健康诊断） |
 | `3f36e6c` | docs：P0① 收尾——README/诊断的「6/8 个 lint」去数字化 |
@@ -38,7 +38,7 @@
 ```bash
 # 改了 builder.py（SDUI 契约）→ 必须重生成画廊，否则 lint_sdui_gallery 红
 agent/.venv/Scripts/python.exe agent/scripts/gen_sdui_gallery.py
-# 改了任何 docs/ 或 agent/docs/ 的 .md（含新增文档）→ 必须重生成文档站，否则 lint_docs_site 红
+# 改了任何 docs/ 的 .md（含新增文档）→ 必须重生成文档站，否则 lint_docs_site 红
 agent/.venv/Scripts/python.exe agent/scripts/gen_docs_site.py
 # 提交前守门（完整清单见 AGENTS.md，须在 venv 下跑否则契约 lint 显 SKIP）
 agent/.venv/Scripts/python.exe agent/scripts/lint_sdui_gallery.py

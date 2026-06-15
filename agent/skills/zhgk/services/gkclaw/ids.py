@@ -1,7 +1,8 @@
 """
 gkclaw ids · 标识符生成与校验（契约 §6）
 
-task_id:    task-{YYYYMMDD}-{净化 project_code}-{6位序列}，registry 目录下 seq.txt 持久化
+task_id:    task-{YYYYMMDDHHMMSSmmm}-{净化 project_code}，同毫秒冲突时追加 -001
+            registry 目录下 task_id_clock.txt 持久化最近时间戳/冲突序号
             （单写者假设：uvicorn workers=1，见部署手册）
 package_id: pkg-{YYYYMMDD}-{uuid4 前 12 位 hex}
 路径安全:    ZIP 内仅允许相对路径、正斜杠、无 ..（契约 §6 path / §22 安全基线）
@@ -28,22 +29,38 @@ def _today() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d")
 
 
+def _timestamp_ms() -> str:
+    now = datetime.now().astimezone()
+    return f"{now:%Y%m%d%H%M%S}{now.microsecond // 1000:03d}"
+
+
 def new_task_id(project_code: str, registry_root: Path | str) -> str:
-    """生成全局唯一 task_id。registry_root 下 seq.txt 持久化序列（单写者）。"""
+    """生成全局唯一 task_id。ID 与生成时间绑定，精确到毫秒。"""
     root = Path(registry_root)
     root.mkdir(parents=True, exist_ok=True)
-    seq_file = root / "seq.txt"
-    seq = 0
-    if seq_file.exists():
+    clock_file = root / "task_id_clock.txt"
+    stamp = _timestamp_ms()
+    last_stamp = ""
+    last_seq = -1
+    if clock_file.exists():
         try:
-            seq = int(seq_file.read_text(encoding="utf-8").strip() or "0")
-        except ValueError:
-            seq = 0
-    seq += 1
-    seq_file.write_text(str(seq), encoding="utf-8")
-    tid = f"task-{_today()}-{sanitize_code(project_code)}-{seq:06d}"
+            parts = clock_file.read_text(encoding="utf-8").strip().split(" ", 1)
+            last_stamp = parts[0]
+            last_seq = int(parts[1]) if len(parts) > 1 else 0
+        except (IndexError, ValueError):
+            last_stamp = ""
+            last_seq = -1
+
+    seq = 0
+    if stamp <= last_stamp:
+        stamp = last_stamp
+        seq = last_seq + 1
+    clock_file.write_text(f"{stamp} {seq}", encoding="utf-8")
+
+    suffix = "" if seq == 0 else f"-{seq:03d}"
+    tid = f"task-{stamp}-{sanitize_code(project_code)}{suffix}"
     if not TASK_ID_RE.match(tid):  # project_code 极端超长时兜底
-        tid = f"task-{_today()}-ZHGK-{seq:06d}"
+        tid = f"task-{stamp}-ZHGK{suffix}"
     return tid
 
 

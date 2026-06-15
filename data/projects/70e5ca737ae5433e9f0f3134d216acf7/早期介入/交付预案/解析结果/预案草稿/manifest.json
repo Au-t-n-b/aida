@@ -1,16 +1,16 @@
 {
   "projectId": "56A0TXN",
-  "baseProposalVersion": "V2.1_20260613211416_DRB",
+  "baseProposalVersion": "V2.3_20260614220356_DRB",
   "workingVersionLabel": "草稿",
   "status": "draft",
   "createdBy": "何博",
   "createdAt": "2026-06-13T08:27:16.364558+00:00",
   "updatedBy": "何博",
-  "updatedAt": "2026-06-14T13:03:57.693296+00:00",
+  "updatedAt": "2026-06-15T07:06:16.868634+00:00",
   "dirty": false,
   "changeDescription": "",
   "changeRecords": [],
-  "latestReleaseVersion": "V2.1_20260613211416_DRB",
+  "latestReleaseVersion": "V2.3_20260614220356_DRB",
   "publishedVersions": [
     "V1.0_20260613162723_DRB",
     "V1.1_20260613162743_DRB",
@@ -23,7 +23,9 @@
     "V1.8_20260613173932_DRB",
     "V1.9_20260613202048_DRB",
     "V2.0_20260613205222_DRB",
-    "V2.1_20260613211416_DRB"
+    "V2.1_20260613211416_DRB",
+    "V2.2_20260614213043_DRB",
+    "V2.3_20260614220356_DRB"
   ],
-  "etag": "W/\"2d202c3d650c\""
+  "etag": "W/\"edc60fc0570c\""
 }

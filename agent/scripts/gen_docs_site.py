@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""gen_docs_site · 把 docs/ + agent/docs/ 的 Markdown 派生成单文件自包含文档站（派生制品，勿手改）
+"""gen_docs_site · 把 docs/ 的 Markdown 派生成单文件自包含文档站（派生制品，勿手改）
 
 真相源：仓库里的 .md 本身。本脚本把每篇 MD 的**原始文本**内嵌进一个 HTML，浏览器端用
 vendored markdown-it 渲染、mermaid 画图（都在 docs/site/assets/，零运行时 CDN）。改 MD →
@@ -330,7 +330,7 @@ def build_html(docs: list[dict]) -> str:
         "<title>AIDA 开发者文档站</title>",
         f"<style>{_CSS}</style></head><body>",
         '<header><h1>AIDA 开发者文档站</h1>',
-        f'<span class="meta">{len(docs)} 篇 · 派生自 docs/ + agent/docs/</span>',
+        f'<span class="meta">{len(docs)} 篇 · 派生自 docs/</span>',
         '<span class="banner">⚠ 自动生成（gen_docs_site.py）· 改 MD 后重生成 · lint_docs_site.py 守门</span>',
         "</header>",
         '<div class="wrap">',

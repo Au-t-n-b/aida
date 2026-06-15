@@ -37,6 +37,7 @@ from agent.schedule.contracts.inputs import (  # noqa: F401
 )
 from agent.schedule.contracts.outputs import (  # noqa: F401
     Explanation,
+    GapSummary,
     MovedActivity,
     PlanKpis,
     PlanResult,
@@ -53,6 +54,7 @@ from agent.schedule.contracts.api import (  # noqa: F401
     COMMIT_PATH,
     GENERATE_PATH,
     PARSE_CHANGES_PATH,
+    REPORT_SUMMARY_PATH,
     AdjustRequest,
     AdjustResponse,
     ChangeSet,
@@ -63,4 +65,11 @@ from agent.schedule.contracts.api import (  # noqa: F401
     GenerateRequest,
     GenerateResponse,
     ParseChangesResponse,
+)
+from agent.schedule.contracts.report_summary import (  # noqa: F401
+    ReportSummaryCategory,
+    ReportSummaryRequest,
+    ReportSummaryResponse,
+    ReportSummarySection,
+    ReportSummaryTodoItem,
 )

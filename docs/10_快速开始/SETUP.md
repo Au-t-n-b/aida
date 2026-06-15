@@ -1,7 +1,7 @@
 # AIDA · 同事上手指南（SKILL 测试）
 
 > 前提：Python 3.10+，Node.js 18+，已拿到 zhgk 底表数据压缩包（单独发送）。
-> 如需体验工勘孪生（SOG 通道），还需向工勘孪生同事索取 `通道1.sog` 文件（大文件，不入库）。
+> 如需体验实景孪生 3D 场景，还需准备 `通道1.sog` 文件（大文件，不入库）。
 
 ---
 
@@ -23,7 +23,7 @@ agent\.venv\Scripts\activate
 # macOS / Linux
 source agent/.venv/bin/activate
 
-pip install -r agent/requirements.txt
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r agent/requirements.txt
 ```
 
 ---
@@ -119,11 +119,11 @@ curl http://127.0.0.1:7401/healthz
 
 ```bash
 cd frontend
-npm install
+npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```
 
-访问 `http://localhost:5173`。前端已硬编码对接 `127.0.0.1:7401`，无需额外配置。
+访问 `http://localhost:8080`。默认前端走同源代理：本地 Vite dev server 代理到 `127.0.0.1:7401`，演示服务器由 nginx 反代到容器内 Agent。只有在需要绕过代理直连某台后端时，才在 `frontend/.env` 中填写 `VITE_AGENT_BASE`。
 
 ---
 
@@ -158,17 +158,17 @@ curl http://127.0.0.1:7401/agent/zhgk/stream/<run_id>
 | `/healthz` 返回 `"configured": false` | `agent/.env` 里 `ZHIPU_API_KEY` 未填或填错 |
 | 工勘卡在 0%，状态显示 `hitl` | `Template/` 目录里缺底表文件（入场评估标准表.xlsx / 工勘常见高风险库.xlsx）。上传后点「继续」 |
 | 工勘卡在 20%，`Input/` 文件检查失败 | 缺 BOQ.xlsx，放入 `Input/`（文件名须含 BOQ）后 resume |
-| 前端白屏 / 请求 7401 失败 | 后端没起或端口被占。检查 uvicorn 日志，确认 7401 可访问 |
+| 前端白屏 / 请求后端失败 | 后端没起、端口被占，或 `VITE_AGENT_BASE` 配错。默认可不填 `VITE_AGENT_BASE`，让前端走同源代理 |
 
 ---
 
-## 第七步：工勘孪生 SOG 通道（可选）
+## 第七步：实景孪生 3D 场景（可选）
 
-> 如果你需要使用 `孪生世界 → 工勘孪生` 页面，需要额外部署 SOG 模型文件。
+> 如果你需要使用 `孪生世界 → 实景孪生` 页面，需要额外部署 3D 场景文件。
 
 ### 7a. 获取通道文件
 
-向工勘孪生同事索取 `.sog` 文件（高斯拓建建模结果，大文件不入库）。
+准备 `.sog` 文件（3DGS/高斯建模结果，大文件不入库）。当前本地演示默认使用通道1历史场景。
 
 ### 7b. 部署到本地（Windows PowerShell）
 
@@ -182,17 +182,31 @@ powershell -File agent/scripts/init_sog_channel1.ps1 -Source "D:\你的路径\�
 
 脚本会把 `scene.sog` 复制到 `data/sog-assets/channel1/`，并生成 `meta.json` 和空 `hotspots.json`。
 
+场景列表由 `data/sog-scenes.json` 管理；默认历史场景指向 `channel1`。页面支持修改场景名、查看上传时间。新上传视频当前登记为“训练中”，训练/转码服务接入前先按本地 mock 状态展示。
+
+初始视角也配置在 `data/sog-scenes.json` 的场景 `camera` 字段中：
+
+```json
+"camera": {
+  "position": [0, 1.6, -8],
+  "target": [0, 1, 0],
+  "fov": 60
+}
+```
+
+如果进入后视角仍不合适，优先调整 `position`：第三个值更负通常表示向后退，第二个值表示高度；`target` 表示看向的中心点。
+
 ### 7c. 验证
 
-后端启动后访问：`http://127.0.0.1:7401/api/sog/assets/channel1`
+后端启动后访问：`http://127.0.0.1:7401/api/sog/scenes`
 
 应返回：
 
 ```json
-{ "id": "channel1", "sceneExists": true, ... }
+[{ "id": "channel1", "status": "ready", "sceneExists": true, ... }]
 ```
 
-前端访问 `http://localhost:5173/twin/survey` 即可看到 SOG 三维查看器。
+前端访问 `http://localhost:8080/twin/survey` 即可看到实景孪生 3D 场景。
 
 ---
 

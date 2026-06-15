@@ -33,6 +33,7 @@ from agent.sdui.builder import (
     SduiMacroStepRailNode, SduiMacroStep,
     SduiRiskListNode, SduiRiskItem,
     SduiDataTableNode,
+    SduiZhgkGoldenMetricsNode,
 
     SduiMachineRoom3DNode, SduiMachineRoom, SduiRoom3DItemStats, SduiRoom3DEntry,
     SduiPostUserMessage,
@@ -40,13 +41,15 @@ from agent.sdui.builder import (
     SduiDrawerNode, SduiTextNode, SduiBadgeNode,
     SduiChecklistNode, SduiChecklistItem,
     SduiButtonNode,
+    SduiZhgkAssessmentAlert,
+    SduiZhgkAssessmentCategory,
+    SduiZhgkAssessmentPanelNode,
     dump_sdui_json,
 )
 from agent.sdui.projector_base import (
     collect_metrics, overall_status,
-    build_header, build_stepper, build_stepper_for_intent, build_progress_donut,
+    build_header, build_stepper, build_stepper_for_intent,
     build_artifacts, build_summary_card, build_hitl,
-    build_assessment_panel,
 )
 
 # ── 步骤元数据（顺序即展示顺序）──
@@ -55,6 +58,7 @@ ZHGK_STEP_NAMES: dict[str, str] = {
     "intent_select":     "意图选择",
     "scene_suggest_run": "场景建议",
     "determine_gen":     "代际制冷识别",
+    "supplement_run":    "补充入口准备",
     "filter_build":      "底表过滤建表",
     "method_split":      "勘测方法分流",
     "data_append":       "数据条目追加",
@@ -64,7 +68,6 @@ ZHGK_STEP_NAMES: dict[str, str] = {
     "assess":            "AI 五值评估",
     "issue_list":        "问题清单生成",
     "resurvey_gate":     "复勘检查门控",
-    "supplement_run":    "补充勘测处理",
     "report_gen_run":    "报告生成",
     "report_distribute": "审批与分发",
 }
@@ -84,14 +87,15 @@ _RISK_LEVEL_LABEL  = {"high": "高", "medium": "中", "low": "低"}
 # metrics 的 level 词表 → RiskList 节点 level（注意 RiskList 用 "mid" 非 "medium"）
 _RISK_LEVEL_TO_NODE = {"high": "high", "medium": "mid", "low": "low"}
 
-# 宏观阶段：把 15 个 micro step 折叠成 4 个用户可感知的大阶段（顶部 MacroStepRail）
-# 阶段名取「跨意图通用」口径：survey_work 走 4 阶段完整版（报告阶段为空时自动隐藏，
-# 因 survey_work 止于问题清单）；report_gen 4 阶段全亮；scene_suggest/supplement 仅前两段。
+# 顶部流程条：把 micro step 压成中粒度阶段，避免 3 个过粗、12+ 个过密。
 ZHGK_MACRO_PHASES: list[tuple[str, str, str, list[str]]] = [
-    ("prep",   "环境准备", "预检 · 选意图",         ["preflight", "intent_select"]),
-    ("plan",   "方案识别", "代际制冷 · 建勘测表",   ["scene_suggest_run", "determine_gen", "filter_build", "method_split"]),
-    ("survey", "勘测评估", "数据汇总 · AI 评估 · 复勘", ["data_append", "confirm_table", "task_dispatch", "wait_survey", "assess", "issue_list", "resurvey_gate", "supplement_run"]),
-    ("report", "报告分发", "出报告 · 审批分发",     ["report_gen_run", "report_distribute"]),
+    ("prep",     "环境准备", "预检 · 选意图",       ["preflight", "intent_select"]),
+    ("identify", "方案识别", "代际制冷 · 补充准备", ["scene_suggest_run", "determine_gen", "supplement_run"]),
+    ("table",    "建表确认", "过滤 · 分流 · 确认",  ["filter_build", "method_split", "data_append", "confirm_table"]),
+    ("field",    "现场勘测", "下发 · 上传",         ["task_dispatch", "wait_survey"]),
+    ("assess",   "AI 评估",  "评估 · 问题",         ["assess", "issue_list"]),
+    ("resurvey", "复勘闭环", "复勘 · 闭环",         ["resurvey_gate"]),
+    ("report",   "报告分发", "报告 · 审批",         ["report_gen_run", "report_distribute"]),
 ]
 
 
@@ -155,14 +159,14 @@ def _build_idle_intro() -> SduiCardNode:
         title="智慧工勘 v4 · 任务说明",
         children=[SduiMarkdownNode(content=(
             "**支持 4 种工作流（启动后选择意图）：**\n\n"
-            "1. **全流程工勘** — BOQ → 代际制冷识别 → 建勘测表 → 现场勘测 → AI 评估 → 问题清单 → 复勘\n"
+            "1. **全流程工勘** — BOQ → 代际制冷识别 → 建勘测表 → 现场勘测 → AI 评估 → 复勘闭环 → 报告分发\n"
             "2. **生成工勘报告** — 基于已完成的勘测结果表，生成三件套 + 工勘报告.docx\n"
             "3. **场景建议** — 快速给出当前项目的勘测场景推荐\n"
-            "4. **补充勘测** — 向已有勘测结果表追加数据类条目\n\n"
+            "4. **补充勘测** — 基于已有勘测结果表进入补充闭环，并重新评估出报告\n\n"
             "**所需输入件：**\n"
             "· `Input/BOQ.xlsx` — 用于识别代际（A2/A3/A5）和制冷方式（液冷/风冷）\n"
             "· `Template/入场评估标准表.xlsx` — 勘测条目底表\n"
-            "· `Template/新版项目工勘报告模板.docx` — 报告生成模板（仅 report_gen 需要）\n\n"
+            "· `Template/新版项目工勘报告模板.docx` — 报告生成模板（全流程/报告生成阶段需要）\n\n"
             "请点击「启动工勘」按钮开始任务。"
         ))],
     )
@@ -369,7 +373,7 @@ def _build_summary(state: dict[str, Any]) -> SduiCardNode | None:
 
 
 def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
-    """黄金指标卡（zhgk 定制版）：左 进度环（DonutChart）+ 右 KPI 行（StatisticRow）。
+    """黄金指标卡（zhgk 定制版）：专用 ZhgkGoldenMetrics 节点。
 
     职责单一：只做「全局进度 + 文字指标摘要」；评估分布图归 AI 五值评估面板独占，
     不再在此重复 BarChart（曾与评估面板的同源数据重复两次）。
@@ -378,7 +382,6 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
     if not steps:
         return None
 
-    donut = build_progress_donut(state, step_order=ZHGK_STEP_ORDER)
     kpi_items = _kpi_items(state)
 
     if not kpi_items:
@@ -386,47 +389,83 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
         done  = sum(1 for s in steps if s.get("status") == "completed")
         kpi_items = [SduiStatisticRowItem(title="已完成步骤", value=f"{done}/{total}")]
 
-    right_col = SduiStackNode(
-        id="metrics-right", gap="sm", flex=2,
-        children=[SduiStatisticRowNode(id="kpi-row", items=kpi_items)],
+    done = sum(1 for s in steps if s.get("status") == "completed")
+    pct = state.get("overall_progress") or (
+        round(done / len(ZHGK_STEP_ORDER) * 100) if ZHGK_STEP_ORDER else 0
     )
 
     return SduiCardNode(
         id="golden-metrics", title="黄金指标",
-        children=[SduiRowNode(id="metrics-row", align="center", gap="lg", children=[
-            donut, right_col,
-        ])],
+        children=[SduiZhgkGoldenMetricsNode(
+            id="zhgk-golden-metrics",
+            progress=pct,
+            centerLabel="进度",
+            items=kpi_items,
+        )],
     )
 
 
 # ── zhgk 自有业务段（续）──
 
 def _build_assessment_panel(state: dict[str, Any]) -> SduiCardNode | None:
-    """AI 五值评估面板（assess step 完成后出现）——委托给 projector_base 通用版。"""
-    return build_assessment_panel(
-        state,
-        total_key="assess_total",
-        value_keys=[
-            ("满足",     "assess_满足",     "success"),
-            ("不满足",   "assess_不满足",   "error"),
-            ("不涉及",   "assess_不涉及",   "subtle"),
-            ("未勘测",   "assess_未勘测",   "warning"),
-            ("无法识别", "assess_无法识别", "warning"),
-        ],
-        node_id="assess-panel",
+    """AI 五值评估面板（zhgk 专用）：五值卡片可点击查看工勘明细。"""
+    m = collect_metrics(state)
+    total = int(m.get("assess_total", 0) or 0)
+    if not total:
+        return None
+
+    detail_groups = m.get("assess_detail_groups") or {}
+    if not isinstance(detail_groups, dict):
+        detail_groups = {}
+
+    value_defs = [
+        ("满足",     "assess_满足",     "success"),
+        ("不满足",   "assess_不满足",   "error"),
+        ("不涉及",   "assess_不涉及",   "subtle"),
+        ("未勘测",   "assess_未勘测",   "warning"),
+        ("无法识别", "assess_无法识别", "warning"),
+    ]
+    categories = [
+        SduiZhgkAssessmentCategory(
+            label=label,
+            value=int(m.get(metric_key, 0) or 0),
+            tone=tone,  # type: ignore[arg-type]
+            details=detail_groups.get(label, []),
+        )
+        for label, metric_key, tone in value_defs
+    ]
+
+    alerts: list[SduiZhgkAssessmentAlert] = []
+    alert_defs = [
+        ("assess_未勘测", "warning", "未勘测",
+         "{count} 项无检查结果、已自动判为「未勘测」——多因上传表未填或序号未对齐，"
+         "请补填「最新检查结果」列后重新上传并重跑评估。"),
+        ("assess_无法识别", "error", "无法识别",
+         "存在 {count} 项结论无法识别（数据缺失或图片不清晰），建议安排复勘后重新评估。"),
+        ("assess_不满足", "warning", "不满足",
+         "存在 {count} 项机房条件不满足评估标准，请参见问题清单，制定整改方案后再行分发。"),
+    ]
+    for metric_key, tone, label, message in alert_defs:
+        count = int(m.get(metric_key, 0) or 0)
+        if count:
+            alerts.append(SduiZhgkAssessmentAlert(
+                tone=tone,  # type: ignore[arg-type]
+                title=f"{count} 项「{label}」",
+                message=message.format(count=count),
+            ))
+
+    satisfied = int(m.get("assess_满足", 0) or 0)
+    rate = round(satisfied / total * 100) if total else 0
+    panel = SduiZhgkAssessmentPanelNode(
+        id="zhgk-assessment-panel",
         title="AI 五值评估",
-        rate_label="满足率",
-        rate_key="assess_满足",
-        alert_keys=[
-            ("assess_未勘测", "warning",
-             "{count} 项无检查结果、已自动判为「未勘测」——多因上传表未填或序号未对齐，"
-             "请补填「最新检查结果」列后重新上传并重跑评估。"),
-            ("assess_无法识别", "error",
-             "存在 {count} 项结论无法识别（数据缺失或图片不清晰），建议安排复勘后重新评估。"),
-            ("assess_不满足", "warning",
-             "存在 {count} 项机房条件不满足评估标准，请参见问题清单，制定整改方案后再行分发。"),
-        ],
+        total=total,
+        rateLabel="满足率",
+        rateValue=rate,
+        categories=categories,
+        alerts=alerts,
     )
+    return SduiCardNode(id="assess-panel", children=[panel])
 
 
 
@@ -633,6 +672,19 @@ def _build_approval_card(state: dict[str, Any]) -> SduiCardNode | None:
             ]),
             SduiAlertNode(id="approval-msg", tone="success", title="流程闭环", message=send_txt),
         ]
+    elif status == "submitted":
+        tone = "success"
+        send_txt = (
+            f"工勘报告已发送给 {recipients} 位审批人员。"
+            if email_sent
+            else f"审批邮件已准备完成（dry-run，设 AIDA_SEND_EMAIL=1 真发），收件人 {recipients} 位。"
+        )
+        children = [
+            SduiStatusBannerNode(id="approval-banner", items=[
+                SduiStatusItem(status="done", text=f"{project_name} · 审批邮件已提交"),
+            ]),
+            SduiAlertNode(id="approval-msg", tone="success", title="已提交审批", message=send_txt),
+        ]
     elif status == "rejected":
         tone = "danger"
         children = [
@@ -641,7 +693,7 @@ def _build_approval_card(state: dict[str, Any]) -> SduiCardNode | None:
             ]),
             SduiAlertNode(
                 id="approval-msg", tone="warning", title="需补充勘测",
-                message="评审驳回：请发起「补充勘测」意图，补齐缺失/不满足项的数据后重新生成报告再提交审批。",
+                message="评审驳回：请回到补充闭环，补齐缺失/不满足项后重新生成报告再提交审批。",
             ),
         ]
     else:  # held
@@ -682,18 +734,15 @@ def _build_activity_timeline(state: dict[str, Any]) -> SduiCardNode | None:
 
 
 def _build_macro_rail(state: dict[str, Any]) -> SduiMacroStepRailNode | None:
-    """顶部宏观阶段条：把 15 个 micro step 折叠成 4 个大阶段（环境准备 / 方案识别 /
-    现场勘测 / 报告分发），让用户始终知道「我在哪个大阶段」。意图感知：与当前意图
-    无关的阶段（其所有 micro step 都不属于本意图）自动隐藏。"""
+    """顶部流程条：按当前意图展示中粒度阶段。"""
     by_key = {s.get("key", ""): s for s in (state.get("steps") or [])}
     if not by_key:
         return None
+    project = state.get("project") or {}
 
     # 当前意图涉及的 micro step 集合（与 build_stepper_for_intent 同口径）。
-    # 注意：survey_work 也要过滤——scene_suggest_run 仅属 scene_suggest 意图，
-    # 若按「全量」算会让「方案识别」阶段因它永不完成而卡在进行中。
     from .steps._intent_guard import STEP_INTENTS
-    intent = (state.get("project") or {}).get("intent", "")
+    intent = project.get("intent", "")
     if intent:
         relevant: set[str] | None = {"preflight", "intent_select"} | {
             k for k, ints in STEP_INTENTS.items() if intent in ints
@@ -701,36 +750,73 @@ def _build_macro_rail(state: dict[str, Any]) -> SduiMacroStepRailNode | None:
     else:
         relevant = None  # 还没选意图 → 全量展示
 
-    macro_steps: list[SduiMacroStep] = []
+    flow_steps: list[SduiMacroStep] = []
     current_id: str | None = None
+    cur_step = str(state.get("current_step") or "")
+    cur_idx = ZHGK_STEP_ORDER.index(cur_step) if cur_step in ZHGK_STEP_ORDER else None
+    resurvey_active = (
+        project.get("resurvey_decision") == "resurvey"
+        or (state.get("hitl") or {}).get("step") == "resurvey_gate"
+    )
+    resurvey_reused_steps = {"task_dispatch", "wait_survey"}
+    current_is_resurvey_reuse = resurvey_active and cur_step in resurvey_reused_steps
+
     for pid, title, hint, micro_keys in ZHGK_MACRO_PHASES:
         keys = [k for k in micro_keys if (relevant is None or k in relevant)]
         if not keys:
-            continue  # 本意图不涉及该阶段 → 隐藏
-        statuses = [
-            (by_key.get(k) or {}).get("status", "pending") for k in keys
-        ]
-        if any(s in ("running", "hitl", "failed") for s in statuses):
-            status, is_current = "running", True
-        elif all(s == "completed" for s in statuses):
-            status, is_current = "done", False
-        elif any(s == "completed" for s in statuses):
-            status, is_current = "running", True  # 部分完成 = 进行中
+            continue
+        if current_is_resurvey_reuse and pid == "field":
+            flow_steps.append(SduiMacroStep(
+                id=pid,
+                title=title,
+                hint=hint,
+                status="done",
+            ))
+            continue
+        statuses = [(by_key.get(k) or {}).get("status", "pending") for k in keys]
+        key_indexes = [ZHGK_STEP_ORDER.index(k) for k in keys if k in ZHGK_STEP_ORDER]
+        current_is_here = bool(cur_step and cur_step in keys) or (
+            current_is_resurvey_reuse and pid == "resurvey"
+        )
+        phase_is_before_current = (
+            cur_idx is not None
+            and key_indexes
+            and max(key_indexes) < cur_idx
+        )
+        if any(s in ("failed",) for s in statuses):
+            status = "running"
+            is_current = True
+        elif phase_is_before_current:
+            status = "done"
+            is_current = False
+        elif any(s in ("running", "hitl") for s in statuses) or current_is_here:
+            status = "running"
+            is_current = True
+        elif all(s in ("completed", "skipped") for s in statuses):
+            status = "done"
+            is_current = False
+        elif any(s in ("completed", "skipped") for s in statuses):
+            status = "running"
+            is_current = True
         else:
-            status, is_current = "pending", False
+            status = "pending"
+            is_current = False
         if is_current and current_id is None:
             current_id = pid
-        macro_steps.append(SduiMacroStep(
-            id=pid, title=title, hint=hint, status=status,  # type: ignore[arg-type]
+        flow_steps.append(SduiMacroStep(
+            id=pid,
+            title=title,
+            hint=hint,
+            status=status,  # type: ignore[arg-type]
         ))
 
-    if not macro_steps:
+    if not flow_steps:
         return None
     # 无进行中阶段且全部完成 → 高亮最后一个阶段
-    if current_id is None and macro_steps and all(s.status == "done" for s in macro_steps):
-        current_id = macro_steps[-1].id
+    if current_id is None and flow_steps and all(s.status == "done" for s in flow_steps):
+        current_id = flow_steps[-1].id
 
-    return SduiMacroStepRailNode(id="macro-rail", steps=macro_steps, currentId=current_id)
+    return SduiMacroStepRailNode(id="macro-rail", steps=flow_steps, currentId=current_id)
 
 
 def _build_status_banner(state: dict[str, Any]) -> SduiStatusBannerNode | None:
@@ -929,7 +1015,7 @@ def _to_machine_room(r: dict[str, Any]) -> SduiMachineRoom:
 
 _ZHGK_INTENT_LABEL = {
     "survey_work": "勘测主线 · 全流程", "report_gen": "报告分发",
-    "supplement": "补充勘测", "scene_suggest": "场景建议",
+    "supplement": "补充闭环", "scene_suggest": "场景建议",
 }
 
 

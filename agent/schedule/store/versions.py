@@ -37,6 +37,19 @@ class StoredAdjustOption:
     inputs: InputBundle
 
 
+@dataclass(frozen=True)
+class ShadowRecommendationLog:
+    log_id: int
+    plan_id: str
+    base_version: int
+    new_version: int
+    shadow_option_id: str
+    selected_option_id: str
+    is_match: bool
+    kpi_snapshot: dict[str, Any]
+    created_at: str
+
+
 class PlanVersionStore:
     """Small SQLite store for versioned PlanResult JSON snapshots."""
 
@@ -152,6 +165,103 @@ class PlanVersionStore:
             inputs=InputBundle.model_validate(json.loads(row["input_json"])),
         )
 
+    def list_adjust_options(self, plan_id: str, base_version: int) -> list[StoredAdjustOption]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT plan_id, base_version, option_id, option_json, input_json
+                FROM adjust_options
+                WHERE plan_id = ? AND base_version = ?
+                ORDER BY option_id
+                """,
+                (plan_id, base_version),
+            ).fetchall()
+        return [
+            StoredAdjustOption(
+                plan_id=row["plan_id"],
+                base_version=row["base_version"],
+                option_id=row["option_id"],
+                option=StrategyPlan.model_validate(json.loads(row["option_json"])),
+                inputs=InputBundle.model_validate(json.loads(row["input_json"])),
+            )
+            for row in rows
+        ]
+
+    def save_shadow_recommendation_log(
+        self,
+        *,
+        plan_id: str,
+        base_version: int,
+        new_version: int,
+        shadow_option: StrategyPlan,
+        selected_option: StrategyPlan,
+        duration_overrides_applied: bool = False,
+    ) -> ShadowRecommendationLog:
+        created_at = _utc_now()
+        kpi_snapshot = {
+            "shadow": shadow_option.kpis.model_dump(mode="json"),
+            "selected": selected_option.kpis.model_dump(mode="json"),
+            "duration_overrides_applied": duration_overrides_applied,
+        }
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO shadow_recommendation_logs (
+                    plan_id, base_version, new_version, shadow_option_id, selected_option_id,
+                    is_match, kpi_snapshot_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    plan_id,
+                    base_version,
+                    new_version,
+                    shadow_option.option_id,
+                    selected_option.option_id,
+                    int(shadow_option.option_id == selected_option.option_id),
+                    json.dumps(kpi_snapshot, ensure_ascii=False, separators=(",", ":")),
+                    created_at,
+                ),
+            )
+            log_id = int(cursor.lastrowid)
+        return ShadowRecommendationLog(
+            log_id=log_id,
+            plan_id=plan_id,
+            base_version=base_version,
+            new_version=new_version,
+            shadow_option_id=shadow_option.option_id,
+            selected_option_id=selected_option.option_id,
+            is_match=shadow_option.option_id == selected_option.option_id,
+            kpi_snapshot=kpi_snapshot,
+            created_at=created_at,
+        )
+
+    def list_shadow_recommendation_logs(self, plan_id: str, base_version: int) -> list[ShadowRecommendationLog]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, plan_id, base_version, new_version, shadow_option_id, selected_option_id,
+                    is_match, kpi_snapshot_json, created_at
+                FROM shadow_recommendation_logs
+                WHERE plan_id = ? AND base_version = ?
+                ORDER BY id
+                """,
+                (plan_id, base_version),
+            ).fetchall()
+        return [
+            ShadowRecommendationLog(
+                log_id=row["id"],
+                plan_id=row["plan_id"],
+                base_version=row["base_version"],
+                new_version=row["new_version"],
+                shadow_option_id=row["shadow_option_id"],
+                selected_option_id=row["selected_option_id"],
+                is_match=bool(row["is_match"]),
+                kpi_snapshot=json.loads(row["kpi_snapshot_json"]),
+                created_at=row["created_at"],
+            )
+            for row in rows
+        ]
+
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -182,6 +292,21 @@ class PlanVersionStore:
                     input_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     PRIMARY KEY (plan_id, base_version, option_id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS shadow_recommendation_logs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    plan_id TEXT NOT NULL,
+                    base_version INTEGER NOT NULL,
+                    new_version INTEGER NOT NULL,
+                    shadow_option_id TEXT NOT NULL,
+                    selected_option_id TEXT NOT NULL,
+                    is_match INTEGER NOT NULL,
+                    kpi_snapshot_json TEXT NOT NULL,
+                    created_at TEXT NOT NULL
                 )
                 """
             )
