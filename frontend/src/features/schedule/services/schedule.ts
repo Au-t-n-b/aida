@@ -6,6 +6,7 @@ import {
   GENERATE_PATH,
   PARSE_CHANGES_PATH,
   PROJECT_DATA_PATH,
+  REPORT_SUMMARY_PATH,
   type Activity as ScheduleActivity,
   type AdjustRequest,
   type AdjustResponse,
@@ -22,13 +23,14 @@ import {
   type PlanResult,
   type Pod,
   type Project,
+  type ReportSummaryRequest,
+  type ReportSummaryResponse,
   type Room,
   type RuleConfig,
   type Team,
 } from '@/features/schedule/contracts/schedule.gen';
 import { BATCH_COLORS, type BatchRow, type RoomRow, type TeamRow } from '@/features/schedule/components/plan-board/data/plan';
 
-const DEFAULT_PROJECT_START = '2026-05-28';
 const FORCE_MOCK_FLAG = '1';
 const CHANGE_TEMPLATE_DOWNLOAD_PATH = `${API_PREFIX}/change-template`;
 const CHANGE_TEMPLATE_FILENAME = '变更表模板.xlsx';
@@ -57,6 +59,7 @@ export type ScheduleReportSnapshot = {
   plan_id: string;
   version: number;
   committed_at: string;
+  report_summary?: ReportSummaryResponse | null;
 };
 
 export type LoadProjectDataInput = {
@@ -112,6 +115,10 @@ export type ParseChangeTemplateResult =
   | { source: 'api'; response: ParseChangesResponse }
   | { source: 'error'; reason: 'unavailable' | 'http_error'; error?: unknown };
 
+export type GenerateReportSummaryResult =
+  | { source: 'api'; response: ReportSummaryResponse }
+  | { source: 'error'; reason: 'forced' | 'unavailable' | 'http_error'; error?: unknown };
+
 type BaselineSnapshot = {
   baseline: ScheduleBaseline;
   input: GenerateScheduleInput;
@@ -129,6 +136,7 @@ let latestReportSnapshot: ScheduleReportSnapshot | null = null;
 
 export async function loadProjectData(input: LoadProjectDataInput = {}): Promise<LoadProjectDataResult> {
   if (shouldForceMock()) {
+    latestProjectBundle = null;
     return { source: 'mock', reason: 'forced' };
   }
 
@@ -139,6 +147,7 @@ export async function loadProjectData(input: LoadProjectDataInput = {}): Promise
     });
 
     if (!response.ok) {
+      latestProjectBundle = null;
       return { source: 'mock', reason: 'http_error', error: await readError(response) };
     }
 
@@ -146,6 +155,7 @@ export async function loadProjectData(input: LoadProjectDataInput = {}): Promise
     latestProjectBundle = payload;
     return { source: 'api', response: payload, data: mapProjectDataToRows(payload) };
   } catch (error) {
+    latestProjectBundle = null;
     return { source: 'mock', reason: 'unavailable', error };
   }
 }
@@ -346,29 +356,98 @@ export async function downloadDeliveryPlan(input: { planId?: string; version?: n
   URL.revokeObjectURL(url);
 }
 
+export async function generateReportSummary(
+  request: ReportSummaryRequest,
+  signal?: AbortSignal,
+): Promise<GenerateReportSummaryResult> {
+  if (shouldForceMock()) {
+    return { source: 'error', reason: 'forced' };
+  }
+
+  try {
+    const response = await fetch(REPORT_SUMMARY_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal,
+    });
+    if (!response.ok) {
+      return { source: 'error', reason: 'http_error', error: await readError(response) };
+    }
+    return { source: 'api', response: (await response.json()) as ReportSummaryResponse };
+  } catch (error) {
+    return { source: 'error', reason: 'unavailable', error };
+  }
+}
+
 export function readLatestScheduleReportSnapshot(): ScheduleReportSnapshot | null {
   if (latestReportSnapshot) return latestReportSnapshot;
   latestReportSnapshot = readStoredScheduleReportSnapshot();
   return latestReportSnapshot;
 }
 
+export function writeLatestScheduleReportSummary(summary: ReportSummaryResponse): void {
+  const snapshot = latestReportSnapshot ?? readStoredScheduleReportSnapshot();
+  if (!snapshot) return;
+  writeLatestScheduleReportSnapshot({ ...snapshot, report_summary: summary });
+}
+
+export function isScheduleApiForcedMock(): boolean {
+  return shouldForceMock();
+}
+
 export function buildGenerateRequest({ rooms, batches, teams }: GenerateScheduleInput): GenerateRequest {
-  const pods = rooms.flatMap((room) => room.pods.map((pod) => toContractPod(room, pod.id)));
   const projectBundle = currentProjectBundleSource();
+  if (projectBundle) {
+    const source = indexProjectBundle(projectBundle);
+    return {
+      inputs: {
+        project: projectBundle.project,
+        rooms: rooms.map((room) => toContractRoom(room, source.rooms.get(room.code))),
+        pods: rooms.flatMap((room) => room.pods.map((pod) => toContractPod(room, pod.id, source.pods.get(pod.id)))),
+        arrivals: [...(projectBundle.arrivals ?? [])],
+        teams: teams.map((team) => toContractTeam(team, source.teams.get(team.id))),
+        activities: projectBundle.activities,
+        dependencies: projectBundle.dependencies,
+        batches: batches.map((batch) => toContractBatch(batch, source.batches.get(batch.id))),
+        anchors: [...(projectBundle.anchors ?? [])],
+        rule_config: projectBundle.rule_config,
+      },
+    };
+  }
+
+  const pods = rooms.flatMap((room) => room.pods.map((pod) => toContractPod(room, pod.id)));
+  const mockProjectStart = deriveProjectStart(rooms, batches);
   const inputs: InputBundle = {
-    project: projectBundle?.project ?? buildMockProject(pods.length),
-    rooms: rooms.map(toContractRoom),
+    project: buildMockProject(pods.length, mockProjectStart),
+    rooms: rooms.map((room) => toContractRoom(room)),
     pods,
-    arrivals: rooms.flatMap(toContractArrivals),
-    teams: teams.map(toContractTeam),
-    activities: projectBundle?.activities ?? MOCK_SCHEDULE_TEMPLATE,
-    dependencies: projectBundle?.dependencies ?? MOCK_SCHEDULE_DEPENDENCIES,
-    batches: batches.map(toContractBatch),
+    arrivals: rooms.flatMap((room) => toContractArrivals(room, mockProjectStart)),
+    teams: teams.map((team) => toContractTeam(team)),
+    activities: MOCK_SCHEDULE_TEMPLATE,
+    dependencies: MOCK_SCHEDULE_DEPENDENCIES,
+    batches: batches.map((batch) => toContractBatch(batch)),
     anchors: [],
-    rule_config: projectBundle?.rule_config ?? DEFAULT_RULE_CONFIG,
+    rule_config: DEFAULT_RULE_CONFIG,
   };
 
   return { inputs };
+}
+
+type ProjectBundleIndex = {
+  rooms: Map<string, Room>;
+  pods: Map<string, Pod>;
+  teams: Map<string, Team>;
+  batches: Map<string, Batch>;
+};
+
+function indexProjectBundle(bundle: InputBundle): ProjectBundleIndex {
+  return {
+    rooms: new Map(bundle.rooms.map((room) => [room.room_id, room])),
+    pods: new Map(bundle.pods.map((pod) => [pod.pod_id, pod])),
+    teams: new Map((bundle.teams ?? []).map((team) => [team.team_id, team])),
+    batches: new Map(bundle.batches.map((batch) => [batch.batch_id, batch])),
+  };
 }
 
 function currentProjectBundleSource(): InputBundle | null {
@@ -490,6 +569,23 @@ function maxIso(dates: Array<string | null | undefined>): string | null {
   return values.length ? values.reduce((latest, date) => (date > latest ? date : latest), values[0]!) : null;
 }
 
+function minIso(dates: Array<string | null | undefined>): string | null {
+  const values = dates.filter((date): date is string => Boolean(date));
+  return values.length ? values.reduce((earliest, date) => (date < earliest ? date : earliest), values[0]!) : null;
+}
+
+function deriveProjectStart(rooms: RoomRow[], batches: BatchRow[]): string | null {
+  return minIso([
+    ...rooms.flatMap((room) => [
+      room.cableReadyAt,
+      room.equipReadyAt,
+      room.liquidReadyAt,
+      ...room.pods.map((pod) => pod.etaDate),
+    ]),
+    ...batches.flatMap((batch) => [batch.powerOnDate, batch.goLiveDate]),
+  ]);
+}
+
 function shouldForceMock(): boolean {
   const envForced = import.meta.env.VITE_SCHEDULE_FORCE_MOCK === FORCE_MOCK_FLAG;
   const browserForced =
@@ -552,11 +648,11 @@ function normalizedDurationOverrides(overrides?: Record<string, number>): Record
   return entries.length ? Object.fromEntries(entries) : undefined;
 }
 
-function buildMockProject(podCount: number): Project {
+function buildMockProject(podCount: number, startDate: string | null): Project {
   return {
     project_id: 'aida-plan-init',
     project_name: '智算一期 2026 Q2',
-    start_date: DEFAULT_PROJECT_START,
+    start_date: startDate,
     handover_date: null,
     scene: '集群集成',
     product_form: 'A3',
@@ -579,8 +675,11 @@ function buildChangeSet(input: AdjustScheduleInput, baseline: GenerateScheduleIn
   const rooms = currentRequest.inputs.rooms.filter((room) =>
     changedRoomIds.has(room.room_id) || !hasSameById(baselineRequest.inputs.rooms, room, 'room_id'),
   );
-  const arrivals = (currentRequest.inputs.arrivals ?? []).filter((arrival) =>
-    changedPodIds.has(arrival.pod_id) || !hasSameById(baselineRequest.inputs.arrivals ?? [], arrival, 'arrival_id'),
+  const arrivals = buildArrivalChanges(
+    input.rooms,
+    changedPodIds,
+    currentRequest.inputs.arrivals ?? [],
+    baselineRequest.inputs.arrivals ?? [],
   );
   const teams = (currentRequest.inputs.teams ?? []).filter((team) =>
     changedTeamIds.has(team.team_id) || !hasSameById(baselineRequest.inputs.teams ?? [], team, 'team_id'),
@@ -613,6 +712,49 @@ function idsFromChangeKeys(changeKeys: Set<string>, prefix: string): Set<string>
 function hasSameById<T, K extends keyof T>(items: T[], item: T, idKey: K): boolean {
   const found = items.find((candidate) => candidate[idKey] === item[idKey]);
   return found ? JSON.stringify(found) === JSON.stringify(item) : false;
+}
+
+function buildArrivalChanges(
+  rooms: RoomRow[],
+  changedPodIds: Set<string>,
+  currentArrivals: ArrivalItem[],
+  baselineArrivals: ArrivalItem[],
+): ArrivalItem[] {
+  const sourceByPod = new Map<string, ArrivalItem[]>();
+  currentArrivals.forEach((arrival) => {
+    const arrivals = sourceByPod.get(arrival.pod_id) ?? [];
+    arrivals.push(arrival);
+    sourceByPod.set(arrival.pod_id, arrivals);
+  });
+
+  const changedArrivals: ArrivalItem[] = [];
+  rooms.forEach((room) => {
+    room.pods.forEach((pod) => {
+      if (!changedPodIds.has(pod.id)) return;
+      const source = sourceByPod.get(pod.id) ?? [];
+      if (source.length) {
+        changedArrivals.push(...source.map((arrival) => applyPodArrivalState(arrival, pod)));
+        return;
+      }
+      changedArrivals.push(...toContractArrivals({ ...room, pods: [pod] }, null));
+    });
+  });
+
+  const changedArrivalIds = new Set(changedArrivals.map((arrival) => arrival.arrival_id));
+  return [
+    ...changedArrivals,
+    ...currentArrivals.filter((arrival) =>
+      !changedArrivalIds.has(arrival.arrival_id) && !hasSameById(baselineArrivals, arrival, 'arrival_id'),
+    ),
+  ];
+}
+
+function applyPodArrivalState(arrival: ArrivalItem, pod: RoomRow['pods'][number]): ArrivalItem {
+  return {
+    ...arrival,
+    arrival_date: pod.etaDate ?? null,
+    arrival_status: pod.arrival === 'arrived' ? '已到货' : pod.arrival === 'eta' ? '在途' : '未明',
+  };
 }
 
 function buildBatchAnchors(batches: Batch[]): NonNullable<ChangeSet['anchors']> {
@@ -713,7 +855,17 @@ function baselineToGenerateResponse(snapshot: BaselineSnapshot): GenerateRespons
   };
 }
 
-function toContractRoom(room: RoomRow): Room {
+function toContractRoom(room: RoomRow, source?: Room): Room {
+  if (source) {
+    return {
+      ...source,
+      room_id: room.code,
+      cabling_ready_date: room.cableReadyAt ?? null,
+      install_ready_date: room.equipReadyAt ?? null,
+      liquid_ready_date: room.liquidReadyAt ?? null,
+    };
+  }
+
   return {
     room_id: room.code,
     cabling_ready_date: room.cableReadyAt ?? null,
@@ -724,7 +876,15 @@ function toContractRoom(room: RoomRow): Room {
   };
 }
 
-function toContractPod(room: RoomRow, podId: string): Pod {
+function toContractPod(room: RoomRow, podId: string, source?: Pod): Pod {
+  if (source) {
+    return {
+      ...source,
+      pod_id: podId,
+      room_id: room.code,
+    };
+  }
+
   return {
     pod_id: podId,
     room_id: room.code,
@@ -734,9 +894,9 @@ function toContractPod(room: RoomRow, podId: string): Pod {
   };
 }
 
-function toContractArrivals(room: RoomRow): ArrivalItem[] {
+function toContractArrivals(room: RoomRow, fallbackArrivalDate: string | null): ArrivalItem[] {
   return room.pods.map((pod) => {
-    const arrivalDate = pod.etaDate ?? (pod.arrival === 'arrived' ? DEFAULT_PROJECT_START : null);
+    const arrivalDate = pod.etaDate ?? (pod.arrival === 'arrived' ? fallbackArrivalDate : null);
     return {
       arrival_id: `arrival-${pod.id}`,
       pod_id: pod.id,
@@ -751,7 +911,21 @@ function toContractArrivals(room: RoomRow): ArrivalItem[] {
   });
 }
 
-function toContractTeam(team: TeamRow): Team {
+function toContractTeam(team: TeamRow, source?: Team): Team {
+  if (source) {
+    return {
+      ...source,
+      team_id: team.id,
+      size: team.n,
+      experience: team.exp === 'full'
+        ? '丰富'
+        : source.experience && source.experience !== '丰富'
+          ? source.experience
+          : '一般',
+      on_site: team.st === 'on',
+    };
+  }
+
   return {
     team_id: team.id,
     size: team.n,
@@ -761,7 +935,18 @@ function toContractTeam(team: TeamRow): Team {
   };
 }
 
-function toContractBatch(batch: BatchRow): Batch {
+function toContractBatch(batch: BatchRow, source?: Batch): Batch {
+  if (source) {
+    return {
+      ...source,
+      batch_id: batch.id,
+      batch_name: batch.name,
+      pod_ids: [...batch.podIds],
+      power_on_target_date: batch.powerOnDate || null,
+      online_target_date: batch.goLiveDate || null,
+    };
+  }
+
   return {
     batch_id: batch.id,
     batch_name: batch.name,
