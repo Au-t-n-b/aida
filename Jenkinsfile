@@ -55,7 +55,7 @@ pipeline {
                 )]) {
                     script {
                         sh """
-                            echo \$DOCKER_PASS | docker login ${DOCKER_REGISTRY} -u \$DOCKER_USER --password-stdin
+                            printf '%s' "\$DOCKER_PASS" | docker login ${DOCKER_REGISTRY} -u '${env.DOCKER_USER}' --password-stdin
                         """
 
                         sh """
@@ -110,8 +110,8 @@ pipeline {
                                     root@${DEPLOY_HOST}:${DEPLOY_DIR}/
                                 scp -o StrictHostKeyChecking=no agent.env \\
                                     root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
-                                echo "\$HARBOR_PASS" | ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
-                                    "docker login ${DOCKER_REGISTRY} -u \$HARBOR_USER --password-stdin"
+                                printf '%s' "\$HARBOR_PASS" | ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
+                                    docker login ${DOCKER_REGISTRY} -u '${env.HARBOR_USER}' --password-stdin
                                 ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} bash -s <<'EOS'
 set -euo pipefail
 cd ${DEPLOY_DIR}
