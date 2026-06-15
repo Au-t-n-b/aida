@@ -35,10 +35,12 @@ def _collect() -> tuple[dict[str, dict], dict[str, str]]:
         c.Project, c.Room, c.Pod, c.ArrivalItem, c.Team, c.WorkloadRule, c.RiskRule,
         c.Activity, c.Dependency, c.Batch, c.Anchor, c.DemandRequest, c.ReworkEvent,
         c.IncidentEvent, c.RuleConfig, c.InputBundle,
-        c.ScheduledActivity, c.PlanResult, c.ReadinessSuggestion, c.RiskItem, c.UnmetItem,
+        c.ScheduledActivity, c.PlanResult, c.GapSummary, c.ReadinessSuggestion, c.RiskItem, c.UnmetItem,
         c.MovedActivity, c.Explanation, c.PlanKpis, c.PulledInput, c.StrategyPlan,
         c.GenerateRequest, c.GenerateResponse, c.ChangeSet, c.AdjustRequest, c.AdjustResponse,
         c.ParseChangesResponse, c.CommitRequest, c.CommitResponse, c.ConflictDetail, c.ErrorResponse,
+        c.ReportSummaryTodoItem, c.ReportSummaryCategory, c.ReportSummaryRequest,
+        c.ReportSummarySection, c.ReportSummaryResponse,
     ]
     consts = {
         "API_PREFIX": api_mod.API_PREFIX,
@@ -48,6 +50,7 @@ def _collect() -> tuple[dict[str, dict], dict[str, str]]:
         "PARSE_CHANGES_PATH": api_mod.PARSE_CHANGES_PATH,
         "PROJECT_DATA_PATH": api_mod.PROJECT_DATA_PATH,
         "EXPORT_PLAN_PATH": api_mod.EXPORT_PLAN_PATH,
+        "REPORT_SUMMARY_PATH": api_mod.REPORT_SUMMARY_PATH,
     }
     defs: dict[str, dict] = {}
     for m in models:

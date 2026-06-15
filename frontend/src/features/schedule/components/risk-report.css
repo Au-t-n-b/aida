@@ -220,6 +220,108 @@
   color: var(--c-danger);
 }
 
+.risk-report-ai-slot {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border-radius: 6px;
+  background: var(--c-brand-soft);
+  border: 1px solid rgba(53, 81, 216, 0.18);
+}
+
+.risk-report-ai-slot.idle {
+  display: flex;
+  justify-content: flex-start;
+  background: var(--c-surface);
+  border-style: dashed;
+}
+
+.risk-report-ai-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(53, 81, 216, 0.24);
+  background: var(--c-brand);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.risk-report-ai-button:disabled {
+  cursor: wait;
+  opacity: 0.76;
+}
+
+.risk-report-spin {
+  animation: risk-report-spin 0.8s linear infinite;
+}
+
+.risk-report-ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.risk-report-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--c-surface);
+  color: var(--c-brand-text);
+  border: 1px solid rgba(53, 81, 216, 0.18);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.risk-report-ai-meta {
+  color: var(--c-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.risk-report-ai-summary {
+  margin: 0;
+  color: var(--c-text);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.risk-report-ai-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.risk-report-ai-action {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--c-surface);
+  border: 1px solid rgba(53, 81, 216, 0.12);
+}
+
+.risk-report-ai-action span {
+  display: block;
+  color: var(--c-brand-text);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.risk-report-ai-action p {
+  margin: 4px 0 0;
+  color: var(--c-text-2);
+  font-size: 12.5px;
+  line-height: 1.65;
+}
+
 .risk-report-section-head {
   display: flex;
   align-items: center;
@@ -429,6 +531,15 @@
   font-weight: 700;
 }
 
+@keyframes risk-report-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 900px) {
   .risk-report-inner {
     padding: 14px 12px 24px;
@@ -458,5 +569,10 @@
     display: block;
     overflow-x: auto;
     white-space: nowrap;
+  }
+
+  .risk-report-ai-head {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

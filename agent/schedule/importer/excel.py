@@ -28,6 +28,18 @@ from agent.schedule.contracts.inputs import (
 
 PLAN_SHEET = "集群集成 + A3液冷场景活动&依赖&工时(1014）"
 DEFAULT_SCALE_BUCKET = "千卡至万卡"
+SCENARIO_INFO_PATH = Path("11_项目交付场景信息") / "项目交付场景信息表.xlsx"
+SCENARIO_INFO_SHEET = "Sheet1"
+SCENARIO_PROJECT_NAME_COLUMN = "项目名称"
+SCENARIO_CARD_COUNT_COLUMN = "卡数"
+ROOM_CABINET_PATH = Path("05_机房机柜信息") / "机房机柜信息表.xlsx"
+ROOM_CABINET_SHEET = "Sheet1"
+ROOM_READY_PATH = Path("05_机房机柜信息") / "机房ready源表.xlsx"
+ROOM_READY_SHEET = "Sheet1"
+ROOM_READY_ID_COLUMN = "机房id"
+ROOM_READY_CABLING_COLUMN = "可布线"
+ROOM_READY_INSTALL_COLUMN = "可装设备"
+ROOM_READY_LIQUID_COLUMN = "可通液"
 
 
 class DataImportError(ValueError):
@@ -66,7 +78,7 @@ class WorkloadEntry:
 
 
 def load_input_bundle(project_root: str | Path | None = None, total_card_count: int | None = None) -> InputBundle:
-    """Load all T-001 source workbooks under project-data into an InputBundle."""
+    """Load all schedule project-data Excel files into an InputBundle."""
 
     root = _find_project_root(project_root)
     data_root = root / "project-data"
@@ -120,29 +132,55 @@ def _find_project_root(project_root: str | Path | None) -> Path:
         if (candidate / "project-data").exists() and (candidate / "contracts").exists():
             return candidate
     raise DataImportError("无法定位排期项目根目录：未找到 project-data 与 contracts")
-
-
 def _load_project(data_root: Path, total_card_count: int | None) -> Project:
     rows = _read_table_with_row_numbers(data_root / "02_活动依赖" / "A3-液冷-活动依赖.xlsx", "sheet0")
     if not rows:
         raise DataImportError("活动依赖表没有数据行，无法推导项目元信息")
-    excel_row, first = rows[0]
+    _, first = rows[0]
     project_id = _required(first, "PROJECT_ID", "活动依赖表")
-    table_card_count = _parse_optional_positive_int(
-        first.get("TOTAL_CARD_COUNT"),
-        f"活动依赖表第{excel_row}行《TOTAL_CARD_COUNT》",
-    )
     if total_card_count is not None and total_card_count <= 0:
         raise DataImportError(f"IMPORT_ERROR: total_card_count 必须为正整数：{total_card_count!r}")
+    scenario_row = _load_scenario_project_row(data_root)
+    scenario_project_name = _scenario_project_name(scenario_row)
+    scenario_card_count = None if total_card_count is not None else _scenario_card_count(scenario_row)
+    resolved_card_count = total_card_count if total_card_count is not None else scenario_card_count
 
     return Project(
         project_id=project_id,
-        project_name=_blank_to_none(first.get("PROJECT_NAME")) or project_id,
+        project_name=scenario_project_name or project_id,
         scene=_blank_to_none(first.get("PROJECT_SCENE")),
         product_form=_blank_to_none(first.get("PRODUCT_FORM")),
         cooling_method=_blank_to_none(first.get("COOLING_METHOD")),
         project_scale=_blank_to_none(first.get("PROJECT_SCALE")),
-        total_card_count=total_card_count if total_card_count is not None else table_card_count,
+        total_card_count=resolved_card_count,
+    )
+
+
+def _load_scenario_project_row(data_root: Path) -> tuple[int, dict[str, Any]] | None:
+    rows = _read_optional_table_with_row_numbers(data_root / SCENARIO_INFO_PATH, SCENARIO_INFO_SHEET)
+    if not rows:
+        return None
+    return rows[0]
+
+
+def _scenario_project_name(scenario_row: tuple[int, dict[str, Any]] | None) -> str | None:
+    if scenario_row is None:
+        return None
+    _, first = scenario_row
+    if SCENARIO_PROJECT_NAME_COLUMN not in first:
+        return None
+    return _blank_to_none(first.get(SCENARIO_PROJECT_NAME_COLUMN))
+
+
+def _scenario_card_count(scenario_row: tuple[int, dict[str, Any]] | None) -> int | None:
+    if scenario_row is None:
+        return None
+    excel_row, first = scenario_row
+    if SCENARIO_CARD_COUNT_COLUMN not in first:
+        return None
+    return _parse_optional_positive_int(
+        first.get(SCENARIO_CARD_COUNT_COLUMN),
+        f"项目交付场景信息表第{excel_row}行《{SCENARIO_CARD_COUNT_COLUMN}》",
     )
 
 
@@ -338,6 +376,7 @@ def _load_arrivals(data_root: Path) -> list[ArrivalItem]:
 
 
 def _load_rooms_and_pods(data_root: Path, arrivals: list[ArrivalItem]) -> tuple[list[Room], list[Pod]]:
+    room_ready_dates = _load_room_ready_dates(data_root)
     arrival_counts: dict[str, dict[str, int]] = {}
     for arrival in arrivals:
         counts = arrival_counts.setdefault(arrival.pod_id, {"compute": 0, "other": 0})
@@ -348,7 +387,7 @@ def _load_rooms_and_pods(data_root: Path, arrivals: list[ArrivalItem]) -> tuple[
             else:
                 counts["other"] += quantity
 
-    rows = _read_table(data_root / "05_机房机柜信息" / "机房机柜信息表.xlsx", "Sheet1")
+    rows = _read_table(data_root / ROOM_CABINET_PATH, ROOM_CABINET_SHEET)
     rooms_by_id: dict[str, Room] = {}
     pod_rows: dict[str, dict[str, Any]] = {}
     cabinet_counts: dict[str, dict[str, int]] = {}
@@ -356,12 +395,26 @@ def _load_rooms_and_pods(data_root: Path, arrivals: list[ArrivalItem]) -> tuple[
     for excel_row, row in enumerate(rows, start=2):
         pod_id = _required(row, "PoD名称", f"机房机柜表第{excel_row}行")
         room_id = _required(row, "机房名称", f"机房机柜表第{excel_row}行")
-        rooms_by_id.setdefault(room_id, Room(room_id=room_id))
+        if room_id not in rooms_by_id:
+            ready = room_ready_dates.get(room_id, {})
+            rooms_by_id[room_id] = Room(
+                room_id=room_id,
+                cabling_ready_date=ready.get("cabling_ready_date"),
+                install_ready_date=ready.get("install_ready_date"),
+                liquid_ready_date=ready.get("liquid_ready_date"),
+            )
         pod_rows.setdefault(pod_id, {"pod_id": pod_id, "room_id": room_id})
         counts = cabinet_counts.setdefault(pod_id, {"compute": 0, "other": 0})
         counts["compute"] += _count_cabinet_tokens(row.get("计算柜"))
         for key in ("总线柜", "参数面Leaf柜", "样本面Leaf柜", "业务面Leaf柜", "管理面柜"):
             counts["other"] += _count_cabinet_tokens(row.get(key))
+
+    unknown_ready_rooms = sorted(set(room_ready_dates) - set(rooms_by_id))
+    if unknown_ready_rooms:
+        raise DataImportError(
+            "IMPORT_ERROR: 机房ready源表《机房id》对不上 05_机房机柜信息《机房名称》："
+            + "、".join(unknown_ready_rooms)
+        )
 
     pods: list[Pod] = []
     for pod_id, pod_row in pod_rows.items():
@@ -379,6 +432,22 @@ def _load_rooms_and_pods(data_root: Path, arrivals: list[ArrivalItem]) -> tuple[
         )
 
     return list(rooms_by_id.values()), pods
+
+
+def _load_room_ready_dates(data_root: Path) -> dict[str, dict[str, date | None]]:
+    rows = _read_optional_table_with_row_numbers(data_root / ROOM_READY_PATH, ROOM_READY_SHEET)
+    ready_by_room: dict[str, dict[str, date | None]] = {}
+    for excel_row, row in rows:
+        source = f"机房ready源表第{excel_row}行"
+        room_id = _required(row, ROOM_READY_ID_COLUMN, source)
+        if room_id in ready_by_room:
+            raise DataImportError(f"IMPORT_ERROR: {source}《{ROOM_READY_ID_COLUMN}》重复：{room_id!r}")
+        ready_by_room[room_id] = {
+            "cabling_ready_date": _to_date(row.get(ROOM_READY_CABLING_COLUMN), f"{source}《{ROOM_READY_CABLING_COLUMN}》"),
+            "install_ready_date": _to_date(row.get(ROOM_READY_INSTALL_COLUMN), f"{source}《{ROOM_READY_INSTALL_COLUMN}》"),
+            "liquid_ready_date": _to_date(row.get(ROOM_READY_LIQUID_COLUMN), f"{source}《{ROOM_READY_LIQUID_COLUMN}》"),
+        }
+    return ready_by_room
 
 
 def _load_batches(data_root: Path, pods: list[Pod]) -> list[Batch]:
