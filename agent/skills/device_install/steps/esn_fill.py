@@ -214,7 +214,7 @@ class EsnFillStep(BaseStep):
                 "backLabel": "返回上一步",
                 "backStepId": "go_back",
                 "rowKey": "id",
-                "submitLabel": "提交 ESN",
+                "submitLabel": "生成完工报告",
                 "requiredKeys": ["ESN"],
                 "groupKey": "设备大类",
                 "groupAsTabs": True,
