@@ -1,0 +1,39 @@
+{
+  "rows": [
+    {
+      "rowId": "c928e447-3d99-4724-b7b2-952a3f07a313",
+      "seq": 1,
+      "productModel": "Atlas 900 A3 SuperPoD",
+      "warrantyPolicy": "按华为标准保修政策",
+      "maintenancePolicy": "3 年 服务器介质保留服务",
+      "maintYears": 3,
+      "maintTypeCode": null,
+      "maintStartDate": "2026-12-13",
+      "maintEndDate": "2029-12-12",
+      "productEosDate": null,
+      "overEos": "否",
+      "overEosApproval": "—",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "9848726d-0334-476e-ba72-18c72f5c031d",
+      "seq": 2,
+      "productModel": "Atlas 900 A3 SuperPoD",
+      "warrantyPolicy": "按华为标准保修政策",
+      "maintenancePolicy": "3 年 Hi-Care高级服务",
+      "maintYears": 3,
+      "maintTypeCode": null,
+      "maintStartDate": "2026-12-13",
+      "maintEndDate": "2029-12-12",
+      "productEosDate": null,
+      "overEos": "否",
+      "overEosApproval": "—",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    }
+  ],
+  "chapterKey": "8.3",
+  "chapterTitle": "8.3 维保策略",
+  "proposalVersion": "草稿"
+}

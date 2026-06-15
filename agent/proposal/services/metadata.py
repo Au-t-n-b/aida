@@ -53,7 +53,7 @@ CHAPTER_LOADERS: dict[str, Any] = {
 
 
 def _contract_basic_dir(project_id: str) -> Path:
-    rel = proposal_paths(project_id)["contract_project_basic_out"]
+    rel = proposal_paths("")["contract_project_basic_out"]
     return physical_project_root(project_id) / Path(rel)
 
 
@@ -91,11 +91,19 @@ def _read_xlsx_basic(path: Path) -> dict[str, str] | None:
         return None
     if len(rows) < 2:
         return None
-    headers = [str(h or "").strip() for h in rows[0]]
+    headers = [str(h or "").replace("\ufeff", "").strip() for h in rows[0]]
     values = rows[1]
     mapping = dict(zip(headers, values))
-    project_id = str(mapping.get("项目ID") or mapping.get("项目编码") or "")
-    project_name = str(mapping.get("项目名称") or "")
+
+    def _pick_value(keys: tuple[str, ...]) -> str:
+        for key in keys:
+            value = mapping.get(key)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return ""
+
+    project_id = _pick_value(("项目ID", "项目编码", "Proposal ID", "Project ID"))
+    project_name = _pick_value(("项目名称", "项目名", "Project Name"))
     if not project_id and not project_name:
         return None
     return {"projectId": project_id, "projectName": project_name}
@@ -382,6 +390,7 @@ def get_metadata(
 
 def touch_metadata_on_save(project_id: str, operator: str) -> dict[str, Any]:
     row, _ = ensure_metadata_draft(project_id, operator, touch=True)
+    sync_xlsx(project_id)
     return row
 
 
@@ -400,6 +409,7 @@ def patch_metadata_draft(
     draft_raw["updatedAt"] = _now_iso()
     draft_raw["proposalVersion"] = DRAFT_VERSION_LABEL
     save_draft_row(project_id, draft_raw)
+    sync_xlsx(project_id)
     return _serialize_row(draft_raw)
 
 

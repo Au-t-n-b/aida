@@ -18,30 +18,54 @@
 """
 from __future__ import annotations
 
+import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, Header, HTTPException, Query, Response, UploadFile
 
 from .proposal_models import (
     ApiResponse,
+    AvailableDeviceItem,
     ClusterDeviceCreateReq,
     ClusterDeviceUpdateReq,
-    DeviceRoleItem,
-    ImportResult,
     NetMgmtCreateReq,
+    NetMgmtRow,
     NetMgmtUpdateReq,
     NetPlaneCreateReq,
+    NetPlaneRow,
     NetPlaneUpdateReq,
     ReleaseReq,
     ResponseMeta,
     RoomRackCreateReq,
+    RoomRackRow,
     RoomRackUpdateReq,
     WarningItem,
 )
 from .proposal_store import ProposalStore
+from .proposal_request_logging import ProposalLoggingRoute
+from .services.proposal_chapter_files import (
+    build_xlsx,
+    extract_token,
+    load_cluster_device_rows,
+    load_net_mgmt_rows,
+    load_net_plane_rows,
+    load_pod_names,
+    load_room_rack_rows,
+    normalize_dc_project_id,
+    parse_cluster_device_output_xlsx,
+    parse_net_mgmt_output_xlsx,
+    parse_net_plane_output_xlsx,
+    parse_room_rack_output_xlsx,
+    upload_output,
+)
 
-router = APIRouter(prefix="/api/v1/projects/{project_id}/proposal", tags=["proposal"])
+LOG = logging.getLogger(__name__)
+router = APIRouter(
+    prefix="/api/v1/projects/{project_id}/proposal",
+    tags=["proposal"],
+    route_class=ProposalLoggingRoute,
+)
 _store = ProposalStore()
 
 
@@ -62,10 +86,44 @@ def _handle_store_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=400, detail=msg)
 
 
+def _dc_project_id(header_value: str | None, route_project_id: str) -> str | None:
+    return normalize_dc_project_id(header_value) or normalize_dc_project_id(route_project_id)
+
+
+async def _parse_uploaded_xlsx(
+    file: UploadFile,
+    parser: Callable[[bytes], list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="仅支持上传 .xlsx 文件")
+    try:
+        rows = parser(await file.read())
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"xlsx 解析失败：{exc}") from exc
+    if not rows:
+        raise HTTPException(status_code=422, detail="xlsx 中未解析到有效数据行")
+    return rows
+
+
 # ─── 5.1 网络平面配置 ────────────────────────────────────────────────────────
 
 @router.get("/chapters/5.1/net-plane")
-def list_net_plane(project_id: str) -> ApiResponse:
+async def list_net_plane(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    try:
+        source_rows = [
+            NetPlaneRow(**row)
+            for row in await load_net_plane_rows(
+                extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+            )
+        ]
+        if source_rows:
+            _store.net_plane_rows[project_id] = source_rows
+    except Exception:
+        LOG.warning("5.1 数据源加载失败，继续使用现有数据", exc_info=True)
     rows = _store.list_net_plane(project_id)
     return ApiResponse(
         data={"rows": [r.model_dump() for r in rows]},
@@ -84,45 +142,85 @@ def list_device_roles(project_id: str) -> ApiResponse:
 
 
 @router.get("/chapters/5.1/net-plane/available-devices")
-def list_available_devices(project_id: str) -> ApiResponse:
+async def list_available_devices(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
     """返回设备信息表可用设备（供前端选设备时自动填充厂家/型号/版本）"""
-    devices = _store.list_available_devices()
+    try:
+        source_rows = await load_net_plane_rows(
+            extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+        )
+        devices = [
+            AvailableDeviceItem(
+                vendor=row["vendor"],
+                device_model=row["model"],
+                device_version=row["ver"],
+                boq_quantity=row["qty"],
+            )
+            for row in source_rows
+        ]
+    except Exception:
+        LOG.warning("5.1 可选设备加载失败，继续使用现有数据", exc_info=True)
+        devices = _store.list_available_devices()
     return ApiResponse(
         data={"devices": [d.model_dump() for d in devices]},
         meta=_make_meta(project_id),
     )
 
 
-@router.post("/chapters/5.1/net-plane/export")
-def export_net_plane(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """将当前网络平面配置保存到项目 data/delivery/共平面类型表.xlsx。"""
-    from openpyxl import Workbook
-
-    rows = payload.get("rows") or [row.model_dump() for row in _store.list_net_plane(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "共平面类型表.xlsx"
-
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "共平面类型"
-    sheet.append(["设备角色", "设备型号", "设备厂家", "设备版本", "数量", "来源", "备注"])
-    for row in rows:
-        sheet.append([
-            row.get("type", ""),
-            row.get("model", ""),
-            row.get("vendor", ""),
-            row.get("ver", ""),
-            row.get("qty", 0),
-            row.get("source", ""),
-            row.get("note") or "",
-        ])
-    for column, width in zip("ABCDEFG", [28, 24, 16, 24, 10, 18, 32]):
-        sheet.column_dimensions[column].width = width
-    workbook.save(output_path)
-
+@router.post("/chapters/5.1/net-plane/upload")
+async def import_net_plane(project_id: str, file: UploadFile = File(...)) -> ApiResponse:
+    rows = [NetPlaneRow(**row) for row in await _parse_uploaded_xlsx(file, parse_net_plane_output_xlsx)]
+    _store.net_plane_rows[project_id] = rows
+    _store.cluster_device_rows.pop(project_id, None)
+    _store._save()
     return ApiResponse(
-        data={"saved_path": str(output_path.relative_to(Path(__file__).resolve().parent.parent))},
+        data={"rows": [row.model_dump() for row in rows]},
+        meta=_make_meta(project_id),
+    )
+
+
+@router.post("/chapters/5.1/net-plane/autosave")
+@router.post("/chapters/5.1/net-plane/export", deprecated=True)
+async def autosave_net_plane(
+    project_id: str,
+    payload: dict[str, Any],
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    rows = payload["rows"] if "rows" in payload else [row.model_dump() for row in _store.list_net_plane(project_id)]
+    content = build_xlsx(
+        "网络平面配置信息表",
+        ["设备角色", "设备型号", "设备厂家", "设备版本", "数量", "来源", "备注"],
+        ([row.get(key, "") or "" for key in ("type", "model", "vendor", "ver", "qty", "source", "note")] for row in rows),
+    )
+    data = await upload_output(
+        extract_token(authorization),
+        _dc_project_id(x_data_center_project_id, project_id),
+        "网络平面配置信息表",
+        "网络平面配置信息表.xlsx",
+        content,
+        Path("早期介入/交付预案/输出结果/网络平面配置信息表"),
+    )
+    common_types = payload.get("common_plane_types") or []
+    common_content = build_xlsx(
+        "共平面类型表",
+        ["共平面类型"],
+        ([plane_type] for plane_type in common_types),
+    )
+    data["common_plane"] = await upload_output(
+        extract_token(authorization),
+        _dc_project_id(x_data_center_project_id, project_id),
+        "共平面类型表",
+        "共平面类型表.xlsx",
+        common_content,
+        Path("早期介入/交付预案/输出结果/共平面类型表"),
+    )
+    data["rows"] = rows
+    return ApiResponse(
+        data=data,
         meta=_make_meta(project_id),
     )
 
@@ -171,7 +269,22 @@ def delete_net_plane(
 # ─── 5.2 网管服务器配置 ──────────────────────────────────────────────────────
 
 @router.get("/chapters/5.2/net-mgmt")
-def list_net_mgmt(project_id: str) -> ApiResponse:
+async def list_net_mgmt(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    current = _store.net_mgmt_rows.get(project_id, [])
+    if not current or any(not row.row_id.startswith("net-mgmt-") for row in current):
+        try:
+            _store.net_mgmt_rows[project_id] = [
+                NetMgmtRow(**row)
+                for row in await load_net_mgmt_rows(
+                    extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+                )
+            ]
+        except Exception:
+            LOG.warning("5.2 数据源加载失败，继续使用现有数据", exc_info=True)
     rows = _store.list_net_mgmt(project_id)
     return ApiResponse(
         data={"rows": [r.model_dump() for r in rows]},
@@ -180,8 +293,22 @@ def list_net_mgmt(project_id: str) -> ApiResponse:
 
 
 @router.post("/chapters/5.2/net-mgmt/initialize")
-def initialize_net_mgmt(project_id: str) -> ApiResponse:
-    rows = _store.initialize_net_mgmt(project_id)
+async def initialize_net_mgmt(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    try:
+        rows = [
+            NetMgmtRow(**row)
+            for row in await load_net_mgmt_rows(
+                extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+            )
+        ]
+        _store.net_mgmt_rows[project_id] = rows
+    except Exception:
+        LOG.warning("5.2 初始化数据源加载失败，继续使用现有数据", exc_info=True)
+        rows = _store.initialize_net_mgmt(project_id)
     return ApiResponse(
         data={"rows": [r.model_dump() for r in rows]},
         meta=_make_meta(project_id),
@@ -212,34 +339,50 @@ def update_net_mgmt(project_id: str, row_id: str, req: NetMgmtUpdateReq) -> ApiR
         raise _handle_store_error(e)
 
 
-@router.delete("/chapters/5.2/net-mgmt/{row_id}", status_code=204)
-def delete_net_mgmt(project_id: str, row_id: str) -> None:
+@router.delete("/chapters/5.2/net-mgmt/{row_id}", status_code=204, response_class=Response)
+def delete_net_mgmt(project_id: str, row_id: str):
     try:
         _store.delete_net_mgmt(project_id, row_id)
     except ValueError as e:
         raise _handle_store_error(e)
 
 
-@router.post("/chapters/5.2/net-mgmt/export")
-def export_net_mgmt(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """保存网管服务器配置表到 data/delivery。"""
-    from openpyxl import Workbook
-
-    rows = payload.get("rows") or [row.model_dump() for row in _store.list_net_mgmt(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "网管服务器配置表.xlsx"
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "网管服务器配置"
-    sheet.append(["服务器角色", "服务器型号", "数量"])
-    for row in rows:
-        sheet.append([row.get("server_role", ""), row.get("server_model", ""), row.get("quantity", 1)])
-    for column, width in zip("ABC", [20, 28, 12]):
-        sheet.column_dimensions[column].width = width
-    workbook.save(output_path)
+@router.post("/chapters/5.2/net-mgmt/upload")
+async def import_net_mgmt(project_id: str, file: UploadFile = File(...)) -> ApiResponse:
+    rows = [NetMgmtRow(**row) for row in await _parse_uploaded_xlsx(file, parse_net_mgmt_output_xlsx)]
+    _store.net_mgmt_rows[project_id] = rows
+    _store._save()
     return ApiResponse(
-        data={"saved_path": str(output_path.relative_to(Path(__file__).resolve().parent.parent))},
+        data={"rows": [row.model_dump() for row in rows]},
+        meta=_make_meta(project_id),
+    )
+
+
+@router.post("/chapters/5.2/net-mgmt/autosave")
+@router.post("/chapters/5.2/net-mgmt/export", deprecated=True)
+async def autosave_net_mgmt(
+    project_id: str,
+    payload: dict[str, Any],
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    rows = payload["rows"] if "rows" in payload else [row.model_dump() for row in _store.list_net_mgmt(project_id)]
+    content = build_xlsx(
+        "网管服务器配置",
+        ["服务器角色", "服务器型号", "数量"],
+        ([row.get("server_role", ""), row.get("server_model", ""), row.get("quantity", 1)] for row in rows),
+    )
+    data = await upload_output(
+        extract_token(authorization),
+        _dc_project_id(x_data_center_project_id, project_id),
+        "网管服务器配置表",
+        "网管服务器配置表.xlsx",
+        content,
+        Path("早期介入/交付预案/输出结果/网管服务器配置表"),
+    )
+    data["rows"] = rows
+    return ApiResponse(
+        data=data,
         meta=_make_meta(project_id),
     )
 
@@ -247,7 +390,48 @@ def export_net_mgmt(project_id: str, payload: dict[str, Any]) -> ApiResponse:
 # ─── 5.3 集群设备清单表 ──────────────────────────────────────────────────────
 
 @router.get("/chapters/5.3/cluster-device-list")
-def list_cluster_device(project_id: str) -> ApiResponse:
+async def list_cluster_device(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    from .proposal_models import ClusterDeviceRow
+
+    current = _store.cluster_device_rows.get(project_id, [])
+    if not current:
+        try:
+            local_rows = await load_cluster_device_rows(
+                extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+            )
+            if local_rows:
+                _store.cluster_device_rows[project_id] = [ClusterDeviceRow(**r) for r in local_rows]
+        except Exception:
+            LOG.warning("5.3 本地集群设备输出加载失败", exc_info=True)
+
+    if not _store.cluster_device_rows.get(project_id):
+        hydrated_net_plane = False
+        try:
+            source_rows = [
+                NetPlaneRow(**row)
+                for row in await load_net_plane_rows(
+                    extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+                )
+            ]
+            current_net_plane = _store.net_plane_rows.get(project_id, [])
+            hydrated_net_plane = [row.model_dump() for row in source_rows] != [
+                row.model_dump() for row in current_net_plane
+            ]
+            if source_rows:
+                _store.net_plane_rows[project_id] = source_rows
+        except Exception:
+            LOG.warning("5.3 网络平面数据源加载失败，继续使用现有数据", exc_info=True)
+        current = _store.cluster_device_rows.get(project_id, [])
+        if hydrated_net_plane or any(
+            row.source_net_plane_id and not row.source_net_plane_id.startswith("device-")
+            for row in current
+        ):
+            _store.cluster_device_rows.pop(project_id, None)
+
     rows = _store.list_cluster_device(project_id)
     return ApiResponse(
         data={"rows": [r.model_dump() for r in rows]},
@@ -256,8 +440,22 @@ def list_cluster_device(project_id: str) -> ApiResponse:
 
 
 @router.get("/chapters/5.3/net-plane-options")
-def list_net_plane_options(project_id: str) -> ApiResponse:
+async def list_net_plane_options(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
     """返回 5.1 网络平面行（供 5.3 选择继承来源）"""
+    if project_id not in _store.net_plane_rows:
+        try:
+            _store.net_plane_rows[project_id] = [
+                NetPlaneRow(**row)
+                for row in await load_net_plane_rows(
+                    extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+                )
+            ]
+        except Exception:
+            LOG.warning("5.3 网络平面选项加载失败，继续使用现有数据", exc_info=True)
     rows = _store.list_net_plane(project_id)
     options = [
         {
@@ -312,32 +510,52 @@ def delete_cluster_device(
         raise _handle_store_error(e)
 
 
-@router.post("/chapters/5.3/cluster-device-list/export")
-def export_cluster_device(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """保存集群设备清单表到 data/delivery。"""
-    from openpyxl import Workbook
+@router.post("/chapters/5.3/cluster-device-list/upload")
+async def import_cluster_device(project_id: str, file: UploadFile = File(...)) -> ApiResponse:
+    from .proposal_models import ClusterDeviceRow
 
-    rows = payload.get("rows") or [row.model_dump() for row in _store.list_cluster_device(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "集群设备清单表.xlsx"
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "集群设备清单"
+    rows = [
+        ClusterDeviceRow(**row)
+        for row in await _parse_uploaded_xlsx(file, parse_cluster_device_output_xlsx)
+    ]
+    _store.cluster_device_rows[project_id] = rows
+    _store._save()
+    return ApiResponse(
+        data={"rows": [row.model_dump() for row in rows]},
+        meta=_make_meta(project_id),
+    )
+
+
+@router.post("/chapters/5.3/cluster-device-list/autosave")
+@router.post("/chapters/5.3/cluster-device-list/export", deprecated=True)
+async def autosave_cluster_device(
+    project_id: str,
+    payload: dict[str, Any],
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    rows = payload["rows"] if "rows" in payload else [row.model_dump() for row in _store.list_cluster_device(project_id)]
     fields = [
         "cluster_id", "cluster_type", "super_pod_id", "storage_cluster_id", "zone_id",
         "ccae_cluster_id", "dme_cluster_id", "device_type", "vendor", "device_model",
         "device_purpose", "start_device_name", "end_device_name", "quantity",
     ]
-    sheet.append([
+    headers = [
         "集群ID", "集群类型", "超节点ID", "存储集群ID", "ZONE ID", "CCAE集群ID", "DME集群ID",
         "设备类型", "厂家", "设备型号", "设备用途", "起始设备命名", "截止设备命名", "数量",
-    ])
-    for row in rows:
-        sheet.append([row.get(field) or "" for field in fields])
-    workbook.save(output_path)
+    ]
+    content = build_xlsx("集群设备清单", headers, ([row.get(field) or "" for field in fields] for row in rows))
+    data = await upload_output(
+        extract_token(authorization),
+        _dc_project_id(x_data_center_project_id, project_id),
+        "集群设备清单表",
+        "集群设备清单表.xlsx",
+        content,
+        Path("早期介入/交付预案/输出结果/集群设备清单表"),
+    )
+    data["rows"] = rows
     return ApiResponse(
-        data={"saved_path": str(output_path.relative_to(Path(__file__).resolve().parent.parent))},
+        data=data,
         meta=_make_meta(project_id),
     )
 
@@ -356,7 +574,22 @@ def list_device_info_table(project_id: str) -> ApiResponse:
 
 
 @router.get("/chapters/7.1/room-rack")
-def list_room_rack(project_id: str) -> ApiResponse:
+async def list_room_rack(
+    project_id: str,
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    current = _store.room_rack_rows.get(project_id, [])
+    if not current or any(not row.row_id.startswith("pod-") for row in current):
+        try:
+            _store.room_rack_rows[project_id] = [
+                RoomRackRow(**row)
+                for row in await load_room_rack_rows(
+                    extract_token(authorization), project_id, _dc_project_id(x_data_center_project_id, project_id)
+                )
+            ]
+        except Exception:
+            LOG.warning("第七章 PoD 数据源加载失败，继续使用现有数据", exc_info=True)
     rows = _store.list_room_rack(project_id)
     return ApiResponse(
         data={"rows": [r.model_dump() for r in rows]},
@@ -376,28 +609,44 @@ def create_room_rack(project_id: str, req: RoomRackCreateReq, source_row_id: str
         raise _handle_store_error(e)
 
 
-@router.post("/chapters/7.1/room-rack/export")
-def export_room_rack(project_id: str, payload: dict[str, Any]) -> ApiResponse:
-    """将当前机房信息保存到项目 data/delivery/机房信息表.xlsx。"""
-    from openpyxl import Workbook
-
-    rows = payload.get("rows") or [row.model_dump() for row in _store.list_room_rack(project_id)]
-    output_dir = Path(__file__).resolve().parent.parent / "data" / "delivery"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / "机房信息表.xlsx"
-
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.title = "机房信息"
-    fields = ["pod_name", "room_name", "compute", "bus", "param_leaf", "biz_leaf", "mgmt", "sample_leaf"]
-    sheet.append(["PoD名称", "机房名称", "计算柜", "总线柜", "参数面Leaf柜", "业务面Leaf柜", "管理面柜", "样本面Leaf柜"])
-    for row in rows:
-        sheet.append([row.get(field, "") for field in fields])
-    for column, width in zip("ABCDEFGH", [18, 20, 14, 14, 18, 18, 16, 18]):
-        sheet.column_dimensions[column].width = width
-    workbook.save(output_path)
+@router.post("/chapters/7.1/room-rack/upload")
+async def import_room_rack(project_id: str, file: UploadFile = File(...)) -> ApiResponse:
+    rows = [RoomRackRow(**row) for row in await _parse_uploaded_xlsx(file, parse_room_rack_output_xlsx)]
+    _store.room_rack_rows[project_id] = rows
+    _store._save()
     return ApiResponse(
-        data={"saved_path": str(output_path.relative_to(Path(__file__).resolve().parent.parent))},
+        data={"rows": [row.model_dump() for row in rows]},
+        meta=_make_meta(project_id),
+    )
+
+
+@router.post("/chapters/7.1/room-rack/autosave")
+@router.post("/chapters/7.1/room-rack/export", deprecated=True)
+async def autosave_room_rack(
+    project_id: str,
+    payload: dict[str, Any],
+    authorization: str | None = Header(default=None),
+    x_data_center_project_id: str | None = Header(default=None),
+) -> ApiResponse:
+    rows = payload["rows"] if "rows" in payload else [row.model_dump() for row in _store.list_room_rack(project_id)]
+    fields = ["pod_name", "room_name", "compute", "bus", "param_leaf", "biz_leaf", "mgmt", "sample_leaf"]
+    content = build_xlsx(
+        "机房机柜信息表",
+        ["PoD名称", "机房名称", "计算柜", "总线柜", "参数面Leaf柜", "业务面Leaf柜", "管理面柜", "样本面Leaf柜"],
+        ([row.get(field, "") for field in fields] for row in rows),
+    )
+    data = await upload_output(
+        extract_token(authorization),
+        _dc_project_id(x_data_center_project_id, project_id),
+        "机房机柜信息表",
+        "机房机柜信息表.xlsx",
+        content,
+        Path("孪生世界/算力底座孪生/输出结果/机房机柜信息表"),
+        module_code="twin-foundation",
+    )
+    data["rows"] = rows
+    return ApiResponse(
+        data=data,
         meta=_make_meta(project_id),
     )
 
@@ -415,12 +664,12 @@ def update_room_rack(project_id: str, row_id: str, req: RoomRackUpdateReq) -> Ap
         raise _handle_store_error(e)
 
 
-@router.delete("/chapters/7.1/room-rack/{row_id}", status_code=204)
+@router.delete("/chapters/7.1/room-rack/{row_id}", status_code=204, response_class=Response)
 def delete_room_rack(
     project_id: str,
     row_id: str,
     confirm: bool = Query(default=False, description="自动解析行需要 confirm=true"),
-) -> None:
+):
     try:
         _store.delete_room_rack(project_id, row_id, confirm)
     except ValueError as e:

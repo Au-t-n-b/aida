@@ -1,6 +1,8 @@
 """Chapter 2 设备配置信息 — business logic."""
 from __future__ import annotations
 
+import json
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
@@ -26,6 +28,26 @@ from agent.proposal.draft_store import (
 )
 from agent.proposal.errors import ProposalApiError
 from agent.proposal.models import DataSource, DeviceInfoRow, PatchDeviceInfoBody
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "5609cc",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-5609cc.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
 
 
 def _row_from_dict(raw: dict[str, Any]) -> DeviceInfoRow:
@@ -184,6 +206,18 @@ def _enrich_rows(
         if catalog
     }
     offering_nos.discard("")
+    _debug_log(
+        "H3",
+        "agent/proposal/services/device_info.py:202",
+        "device enrichment catalog lookup stats",
+        {
+            "projectId": project_id,
+            "productNameCount": len(product_names),
+            "catalogHits": catalog_hits,
+            "missedNames": missed_names[:10],
+            "offeringNoCount": len(offering_nos),
+        },
+    )
     if offering_nos:
         with ThreadPoolExecutor(max_workers=min(6, len(offering_nos))) as pool:
             futures = {
@@ -236,6 +270,12 @@ def list_rows(
     else:
         payload = load_chapter_02(project_id, "draft")
         rows = list(payload.get("rows") or [])
+    _debug_log(
+        "H4",
+        "agent/proposal/services/device_info.py:264",
+        "device rows listed",
+        {"projectId": project_id, "version": version, "rowCount": len(rows)},
+    )
     return [_row_from_dict(r) for r in rows], dependencies
 
 

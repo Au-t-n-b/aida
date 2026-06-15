@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSessionUser } from '@/hooks/useSessionUser';
 
 /* 读 URL 参数 — 不用 useSearchParams 避免静态导出后 Suspense fallback=null 空白 */
 function readUrlParam(key) {
@@ -239,6 +240,7 @@ function AuditView() {
 }
 
 export default function AdminScreen() {
+  const sessionUser = useSessionUser();
   const [tab, setTab] = useState('integration');
   useEffect(() => {
     const v = readUrlParam('tab');
@@ -254,7 +256,7 @@ export default function AdminScreen() {
           </div>
           <div className="right">
             <span>当前用户</span>
-            <span className="text-mono" style={{ color: '#1b84ff' }}>何博 · 平台管理员</span>
+            <span className="text-mono" style={{ color: '#1b84ff' }}>{sessionUser.profileHeadline}</span>
           </div>
         </div>
 

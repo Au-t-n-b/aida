@@ -1,0 +1,68 @@
+{
+  "ProjectScoped": {
+    "apiName": "ProjectScoped",
+    "description": "Palantir-style local Interface Type: any object that belongs to a delivery project and carries a stable projectKey.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "项目范围实体",
+      "description": "归属于某个交付项目、带稳定 projectKey 的对象共同接口；可据此做按项目的多态遍历。"
+    },
+    "properties": {
+      "projectKey": {
+        "apiName": "projectKey",
+        "displayMetadata": {
+          "displayName": "项目主键",
+          "description": "所属 DeliveryProject.projectKey。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    }
+  },
+  "SourceTraceable": {
+    "apiName": "SourceTraceable",
+    "description": "Palantir-style local Interface Type: any object that records the source file/identifier it was ingested from.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "可溯源实体",
+      "description": "记录来源文件/来源标识的对象共同接口；用于数据血缘与多源对齐。"
+    },
+    "properties": {
+      "sourceFile": {
+        "apiName": "sourceFile",
+        "displayMetadata": {
+          "displayName": "来源文件",
+          "description": "数据来源文件名或来源标识。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": false
+      }
+    }
+  },
+  "PlanScoped": {
+    "apiName": "PlanScoped",
+    "description": "Palantir-style local Interface Type: any object that belongs to a contingency plan and carries a stable planId.",
+    "status": "ACTIVE",
+    "displayMetadata": {
+      "displayName": "预案范围实体",
+      "description": "归属于某个交付预案、带稳定 planId 的对象共同接口；可据此做按预案的多态遍历（对标计划本体 ProjectScoped）。"
+    },
+    "properties": {
+      "planId": {
+        "apiName": "planId",
+        "displayMetadata": {
+          "displayName": "预案主键",
+          "description": "所属 ContingencyPlan.planId。"
+        },
+        "dataType": {
+          "type": "string"
+        },
+        "required": true
+      }
+    }
+  }
+}

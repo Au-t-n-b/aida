@@ -1,0 +1,39 @@
+{
+  "base_url": "http://100.102.191.17:9091",
+  "leaf_diagram": "参数面",
+  "room_diagram": "机房视图",
+  "parent_diagram": "顶层",
+  "reset_leaf_view": true,
+  "auth": {
+    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJqZF9wcm9qZWN0IiwibmFtZSI6ImpkX3Byb2plY3QiLCJleHAiOjE4MTI2ODE0MjksImlhdCI6MTc4MTE0NTQyOX0.qeFt444mYHdJzc_wi-fNrU1eAtyHHRnDL6kFENPUkfah9oPUizXdXg1jg1nPrxDvpKdnNJIfnDf7MA0KGM9YYA",
+    "token_env": "SIM_API_TOKEN"
+  },
+  "server_source": "reference/DataGrid.xlsx",
+  "plane": {
+    "plane_code": "CSM",
+    "server_rail_mode": "dual",
+    "server_uplink_ports": 8,
+    "leaf_port_split_policy": "contiguous_half",
+    "leaf_panel_groups": 4,
+    "link_type": "MPO-MPO-OM4-16 水蓝",
+    "port_standard": "400GE",
+    "leaf_model": "CE9866",
+    "leaf_role": "参数面接入交换机",
+    "leaf_name_digits": 3
+  },
+  "rack": {
+    "start_u": 41,
+    "interval": 3,
+    "installation_direction": "F",
+    "allocation_direction": 1,
+    "call_mode": "per_cabinet"
+  },
+  "topo": {
+    "endpoint": "batchCreateLink",
+    "diagram": "机房视图"
+  },
+  "request": {
+    "timeout_seconds": 300,
+    "sleep_between_calls_seconds": 0.3
+  }
+}

@@ -11,7 +11,7 @@ pop3:
   ssl: true
   username: aida@corp.com
 
-  poll_interval: 0          # 秒；0 = 仅按需拉取；GKCLAW 联调建议 30~60 并开 agent_notify
+  poll_interval: 30         # 秒；演示自动回传建议 30~60；0 = 仅按需拉取
 policy:
   whitelist_domains: ["corp.com"]
   whitelist_addresses: []
@@ -21,7 +21,8 @@ policy:
   max_recipients: 20
 data_dir: ./data
 
-# mailgw 收到 GKCLAW 邮件后 POST 通知 AIDA Agent（同机 127.0.0.1）
+# mailgw 收到 GKCLAW 邮件后 POST 通知 AIDA Agent。
+# 容器演示编排中由 AGENT_NOTIFY_BASE=http://agent:7401 覆盖 base_url。
 agent_notify:
   enabled: true
   base_url: http://127.0.0.1:7401

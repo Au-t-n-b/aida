@@ -197,6 +197,13 @@ class PlanePlanningStep(BaseStep):
         return {"ok": True, "missing": [], "found": [str(f.path) for f in found.values()], "note": ""}
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
+        from ..pipelines.delivery import should_skip_step
+
+        route = str(state.get("route_to") or "")
+        if route and should_skip_step(self.key, route):
+            emit(f"[{self.key}] 交付续跑 · 跳过（→{route}）")
+            return {"logs": [f"[plane_planning] 交付续跑跳过（→{route}）"]}
+
         m = collect_metrics(state)
         intent_cmd = canonicalize_command(str(m.get("intent_command") or "生成完整LLD设计"))
         mode = resolve_execution_mode(intent_cmd)

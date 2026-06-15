@@ -20,6 +20,7 @@ from .skills.system_design.pipelines.inputs import (
     FILE_CONFIG, REQUIRED_DEFAULT, collect_inputs, label_of, missing_required,
 )
 from .skills.system_design.pipelines.path_manifest import (
+    abs_artifacts_dir,
     abs_upload_dir,
     ensure_parent_dir,
     relpath_for_artifact,
@@ -145,8 +146,12 @@ def sync_inputs_into_state(root: Path, state: dict[str, Any]) -> dict[str, Any]:
     root = Path(root).resolve()
     found = collect_inputs(root)
     files = dict(state.get("files") or {})
-    for tag, entry in found.items():
-        files[f"input_{tag}"] = relpath_for_artifact(entry.path)
+    for tag in FILE_CONFIG:
+        key = f"input_{tag}"
+        if tag in found:
+            files[key] = relpath_for_artifact(found[tag].path)
+        else:
+            files.pop(key, None)
 
     metrics_patch = {
         "input_found": len(found),
@@ -164,6 +169,9 @@ def sync_inputs_into_state(root: Path, state: dict[str, Any]) -> dict[str, Any]:
             hitl["need_files"] = [str(abs_upload_dir() / label_of(t)) for t in missing]
         else:
             hitl["need_files"] = []
+            # 必需输入件已齐备：清除 input_check HITL，避免「需要确认」弹框残留
+            state.pop("hitl", None)
+            hitl = {}
 
     # 刷新 input_check 步 metrics（若已跑过），供 SDUI 投影读取
     steps = state.get("steps") or []
@@ -186,13 +194,69 @@ def sync_inputs_into_state(root: Path, state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def sync_outputs_into_state(root: Path, state: dict[str, Any]) -> dict[str, Any]:
+    """重扫 output/ 磁盘，清除 run state 中已不存在的产物引用（不重跑 LangGraph）。"""
+    from agent.skills.system_design.pipelines.path_manifest import scan_artifacts_rel_paths
+
+    _ = root
+    disk_out = scan_artifacts_rel_paths()
+    disk_basenames = {Path(p).name for p in disk_out}
+    files = dict(state.get("files") or {})
+    for key in list(files.keys()):
+        if key.startswith("out::") or key.startswith("plane_") or key in ("lld_file", "ztp_file"):
+            files.pop(key, None)
+    for rel in disk_out:
+        files[f"out::{rel}"] = rel
+    if any("LLD" in bn.upper() for bn in disk_basenames):
+        lld_rel = next(r for r in disk_out if "LLD" in Path(r).name.upper())
+        files["lld_file"] = lld_rel
+    state["files"] = files
+
+    top = dict(state.get("metrics") or {})
+    if not disk_out:
+        for k in list(top.keys()):
+            if k.startswith("lld_") or k in ("lld_file", "ztp_file"):
+                top.pop(k, None)
+    else:
+        lld_rel = next((r for r in disk_out if "LLD" in Path(r).name.upper()), "")
+        if lld_rel:
+            top["lld_file"] = lld_rel
+            top["lld_status"] = "ok"
+        elif "lld_file" in top:
+            top.pop("lld_file", None)
+            top.pop("lld_status", None)
+    state["metrics"] = top
+
+    for step in state.get("steps") or []:
+        if step.get("key") != "plane_planning":
+            continue
+        sm = dict(step.get("metrics") or {})
+        if not disk_out:
+            sm["plan_commands"] = []
+            step["metrics"] = sm
+            if step.get("status") == "completed":
+                step["status"] = "pending"
+            break
+        step["metrics"] = sm
+        break
+
+    if not disk_out:
+        for step in state.get("steps") or []:
+            if step.get("key") == "lld_integrate" and step.get("status") == "completed":
+                step["status"] = "pending"
+                step["metrics"] = {}
+
+    return {"output_count": len(disk_out), "output_paths": disk_out}
+
+
 def merge_run_patch(root: Path, run_state: dict[str, Any], payload: dict[str, Any]) -> dict[str, Any]:
     """POST /run-patch · action=sync_inputs 时重扫输入件并刷新 SDUI。"""
     action = str(payload.get("action") or "").strip()
     if action != "sync_inputs":
         return {"ok": False, "error": f"unknown action: {action}"}
     summary = sync_inputs_into_state(Path(root), run_state)
-    return {"ok": True, **summary}
+    out_summary = sync_outputs_into_state(Path(root), run_state)
+    return {"ok": True, **summary, **out_summary}
 
 
 def _required_items(root: Path) -> tuple[list[dict[str, Any]], int]:
@@ -253,6 +317,73 @@ def check_need_files(root: Path, need_files: list[str]) -> dict[str, Any]:
 
 
 def resolve_artifact_path(work_root: Path, path: str) -> Path:
-    """系统设计输入件/产物预览路径解析（允许 input/xmfz/ht/output 布局）。"""
+    """系统设计输入件/产物预览路径解析（允许 input/jmfz/ht/output 布局）。"""
     _ = work_root
     return resolve_artifact_file(path)
+
+
+async def override_output_artifact(root: Path, target_rel_path: str, file: UploadFile) -> dict[str, Any]:
+    """覆盖写盘 output/ 下已有产物（相对 data_root 的 path · 不使用上传文件名）。"""
+    _ = root
+    rel = (target_rel_path or "").strip().replace("\\", "/")
+    if not rel or ".." in Path(rel).parts:
+        return {"ok": False, "error": "invalid path"}
+
+    out_dir = abs_artifacts_dir().resolve()
+    data_root = resolve_data_root().resolve()
+    dest = (data_root / rel).resolve()
+    try:
+        dest.relative_to(out_dir)
+    except ValueError:
+        return {"ok": False, "error": "path must be under output directory"}
+
+    content = await file.read()
+    if not content:
+        return {"ok": False, "error": "file is empty"}
+
+    ensure_parent_dir(dest)
+    dest.write_bytes(content)
+    return {"ok": True, "path": relpath_from_data_root(dest), "size": len(content)}
+
+
+def _clear_dir_files(target: Path, removed: list[str]) -> None:
+    """清空一个目录下的全部文件与空子目录（保留目录本身，跳过 ~$ 临时锁文件）。"""
+    if not target.is_dir():
+        return
+    # 自底向上删：先删文件再删空目录，保留根目录本身
+    for p in sorted(target.rglob("*"), key=lambda x: len(x.parts), reverse=True):
+        if p.name.startswith("~$"):
+            continue
+        try:
+            if p.is_file() or p.is_symlink():
+                p.unlink()
+                removed.append(relpath_from_data_root(p))
+            elif p.is_dir():
+                p.rmdir()  # 仅删空目录（文件已先行删除）
+        except OSError:
+            pass
+
+
+def reset_workspace(root: Path) -> dict[str, Any]:
+    """重置会话：清空 output/ 产物 + input/ 用户上传件。
+
+    系统设计数据布局为 project_paths.json 绝对路径（input 用户上传 / jmfz 仿真产出 /
+    ht 测试用例 / output 产物）。重置清两处：
+      - output/：本次运行生成的产物（LLD / ZTP / 平面规划表等）；
+      - input/ ：用户上传的输入件（如「项目信息收集表」），便于重新上传重测。
+    上游的 jmfz（仿真三表）/ ht（测试用例）属于建模仿真链路产出，不在此清除。
+
+    清理后由前端 handleResetSession 清掉持久化 run_id 回到启动页；下次启动得到全新
+    run（input_check 重新检查输入件，缺「项目信息收集表」会回到「输入件准备」HITL）。
+    """
+    _ = root
+    removed: list[str] = []
+    _clear_dir_files(abs_artifacts_dir(), removed)  # output/
+    _clear_dir_files(abs_upload_dir(), removed)      # input/
+
+    return {
+        "ok": True,
+        "removed_count": len(removed),
+        "removed": removed,
+        "message": "已清空产物（output/）与用户上传件（input/）。可重新启动系统设计作业并重新上传。",
+    }

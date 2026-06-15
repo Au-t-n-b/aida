@@ -16,11 +16,11 @@ from agent.config import BUSINESS_ROOT
 from agent.constants.project_paths import proposal_paths
 
 
-CHAPTER_02_FILE = "ch-02-device-info.json"
-CHAPTER_81_FILE = "ch-08-1-service-delivery-ui.json"
-CHAPTER_82_FILE = "ch-08-2-service-content.json"
-CHAPTER_83_FILE = "ch-08-3-maintenance-strategy.json"
-CHAPTER_84_FILE = "ch-08-4-maintenance-sla.json"
+CHAPTER_02_FILE = "2.设备配置信息.json"
+CHAPTER_81_FILE = "8.1服务交付界面.json"
+CHAPTER_82_FILE = "8.2服务配置.json"
+CHAPTER_83_FILE = "8.3维保策略.json"
+CHAPTER_84_FILE = "8.4维保SLA.json"
 VERSION_MANIFEST_FILE = "version-info.json"
 
 
@@ -29,7 +29,8 @@ def physical_project_root(project_id: str) -> Path:
 
 
 def logical_project_root(project_id: str) -> str:
-    return project_id
+    # Proposal payload now lives directly under projects/<project_id>/...
+    return ""
 
 
 def _paths(project_id: str) -> dict[str, str]:
@@ -42,6 +43,10 @@ def draft_dir(project_id: str) -> Path:
 
 def output_versions_dir(project_id: str) -> Path:
     return physical_project_root(project_id) / Path(_paths(project_id)["proposal_versions_out"])
+
+
+def proposal_output_dir(project_id: str) -> Path:
+    return physical_project_root(project_id) / Path(_paths(project_id)["out"])
 
 
 def output_version_dir(project_id: str, version: str) -> Path:
@@ -90,7 +95,10 @@ def chapter_84_output_path(project_id: str, version: str) -> Path:
 
 
 def service_boq_parse_dir(project_id: str) -> Path:
-    return physical_project_root(project_id) / Path(_paths(project_id)["service_boq_parse"])
+    paths = _paths(project_id)
+    return physical_project_root(project_id) / Path(
+        paths.get("contract_service_boq_parse") or paths["service_boq_parse"]
+    )
 
 
 def maint_proposal_parse_dir(project_id: str) -> Path:
@@ -99,34 +107,6 @@ def maint_proposal_parse_dir(project_id: str) -> Path:
 
 def manifest_path(project_id: str) -> Path:
     return physical_project_root(project_id) / Path(_paths(project_id)["proposal_draft_manifest"])
-
-
-def output_xlsx_path(project_id: str, version: str | None = None) -> Path:
-    paths = _paths(project_id)
-    if version:
-        return output_version_dir(project_id, version) / "服务配置.xlsx"
-    return physical_project_root(project_id) / Path(paths["service_delivery_ui_out"])
-
-
-def service_content_xlsx_path(project_id: str, version: str | None = None) -> Path:
-    paths = _paths(project_id)
-    if version:
-        return output_version_dir(project_id, version) / "服务内容.xlsx"
-    return physical_project_root(project_id) / Path(paths["service_content_out"])
-
-
-def maint_strategy_xlsx_path(project_id: str, version: str | None = None) -> Path:
-    paths = _paths(project_id)
-    if version:
-        return output_version_dir(project_id, version) / "维保策略.xlsx"
-    return physical_project_root(project_id) / Path(paths["maint_strategy_out"])
-
-
-def maint_sla_xlsx_path(project_id: str, version: str | None = None) -> Path:
-    paths = _paths(project_id)
-    if version:
-        return output_version_dir(project_id, version) / "维保SLA.xlsx"
-    return physical_project_root(project_id) / Path(paths["maint_sla_out"])
 
 
 def device_boq_parse_dir(project_id: str) -> Path:
@@ -141,7 +121,7 @@ def device_table_xlsx_path(project_id: str, version: str | None = None) -> Path:
     paths = _paths(project_id)
     if version:
         return output_version_dir(project_id, version) / "设备信息表.xlsx"
-    return physical_project_root(project_id) / Path(paths["device_table_out"]) / "设备信息表.xlsx"
+    return physical_project_root(project_id) / Path(paths["device_table_out"])
 
 
 def version_info_path(project_id: str, version: str) -> Path:
@@ -366,14 +346,6 @@ def save_chapter_84_output(project_id: str, version: str, payload: dict[str, Any
 def list_published_versions(project_id: str) -> list[str]:
     manifest = load_manifest(project_id)
     versions = list(manifest.get("publishedVersions") or [])
-    root = output_versions_dir(project_id)
-    if root.exists():
-        for child in sorted(root.iterdir()):
-            if child.is_dir() and (child / VERSION_MANIFEST_FILE).exists():
-                name = child.name
-                if name not in versions:
-                    versions.append(name)
-
     ts_pattern = re.compile(r"_(\d{14})(?:_|$)")
 
     def _sort_key(ver: str) -> tuple[str, str]:
@@ -386,6 +358,15 @@ def list_published_versions(project_id: str) -> list[str]:
 
 
 def load_version_info(project_id: str, version: str) -> dict[str, Any]:
+    try:
+        from agent.proposal.version_info_store import find_snapshot
+
+        snap = find_snapshot(project_id, version)
+        if isinstance(snap, dict) and snap:
+            return snap
+    except Exception:
+        pass
+
     info = load_json(
         version_info_path(project_id, version),
         {

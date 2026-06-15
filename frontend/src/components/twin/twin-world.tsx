@@ -1,19 +1,21 @@
 // @ts-nocheck
 /* 从 DS-1 / twin-world-export 整体移植，与项目里既有 screens/*.tsx 同等做法 — 保留 @ts-nocheck */
 import React from 'react';
-import { PhysicalTwin3D } from './room3d';
 import { DigitalTwinOntology } from './digital-ontology';
+import { SurveyTwinViewer } from './survey-twin/survey-twin-viewer';
+import { useContingencyOntology } from '@/lib/use-contingency-ontology';
 /* AIDA · 算力底座孪生模块 — 构建动效 v2 */
 import { useState as useStateTW, useEffect as useEffectTW, useRef as useRefTW } from 'react';
 
-const TW_ANIM_MS = 5600;
+const TW_ANIM_MS = 7200;
 
-/* 数字世界详情页（digital-twin.html）的来源：
-   · 多文件版：(window as any).__DIGITAL_TWIN_B64 不存在 → 返回 null → iframe 走相对路径 src="digital-twin.html"
-   · 单文件版：构建时注入了 base64 内联文档 → 解码为字符串 → iframe 用 srcDoc 内联渲染（无需外部文件） */
-const TW_DIGITAL_SRCDOC = (function () {
+/* 物理孪生改为 iframe 内嵌 /twin/physical-twin.html（与数字孪生侧对称），room3d 不再引用 */
+const PHYS_TWIN_URL = '/twin/physical-twin.html';
+/* 单文件发布版（与数字侧 __DIGITAL_TWIN_B64 同机制）：构建时注入 __PHYSICAL_TWIN_B64 →
+   解码为整页 HTML 走 srcDoc；URL 参数经 window.__TWIN_QS 注入页内（srcDoc 无 query string） */
+const TW_PHYSICAL_SRC = (function () {
   try {
-    var b64 = (window as any).__DIGITAL_TWIN_B64;
+    var b64 = (window as any).__PHYSICAL_TWIN_B64;
     if (!b64) return null;
     var bin = atob(b64);
     var bytes = new Uint8Array(bin.length);
@@ -21,6 +23,19 @@ const TW_DIGITAL_SRCDOC = (function () {
     return new TextDecoder('utf-8').decode(bytes);
   } catch (e) { return null; }
 })();
+function PhysicalTwinFrame({ compact, building  }: any) {
+  const qs = compact ? (building ? '?compact=1&build=1' : '?compact=1&instant=1') : '';
+  /* src 挂载时冻结：building→built 仅 props 变化不重载页面（动画播完自然停在成品态），key 变化重挂载才换 src */
+  const [src] = useStateTW<any>(PHYS_TWIN_URL + qs);
+  const [doc] = useStateTW<any>(TW_PHYSICAL_SRC
+    ? TW_PHYSICAL_SRC.replace('<div id="app">', '<script>window.__TWIN_QS=' + JSON.stringify(qs) + '</' + 'script><div id="app">')
+    : null);
+  /* compact 态页内交互已禁用，指针穿透到父格子以响应"进入详情"点击 */
+  const frameStyle = compact ? { pointerEvents: 'none' } : undefined;
+  return doc
+    ? <iframe className="tw-digi-frame" srcDoc={doc} title="物理孪生 · 机房三维视图" style={frameStyle} />
+    : <iframe className="tw-digi-frame" src={src} title="物理孪生 · 机房三维视图" style={frameStyle} />;
+}
 
 (function injectTwinStyles() {
   if (document.getElementById('tw-styles')) return;
@@ -71,6 +86,17 @@ const TW_DIGITAL_SRCDOC = (function () {
     .tw-half-phys .tw-half-badge{background:rgba(220,38,38,.12);color:#fca5a5;border:1px solid rgba(220,38,38,.22)}
     .tw-half-digi .tw-half-badge{background:var(--c-brand-soft);color:var(--c-brand-text);border:1px solid rgba(53,81,216,.15)}
     .tw-half-badge.idle{background:rgba(15,157,88,.12)!important;color:#86efac!important;border-color:rgba(15,157,88,.25)!important}
+
+    /* ── 物理孪生概览：机房概况 + 问题数 ── */
+    .tw-phys-head{align-items:flex-start!important;gap:10px;container-type:inline-size}
+    .tw-phys-head-l{display:flex;flex-direction:column;gap:3px;min-width:0;flex-shrink:0}
+    .tw-phys-room{font-size:10.5px;color:rgba(148,163,184,.7);font-family:var(--font-mono);letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
+    .tw-phys-stats{display:flex;flex-wrap:wrap;align-items:center;gap:3px 9px;margin-left:auto;justify-content:flex-end}
+    .tw-phys-stats .st{font-size:10.5px;color:rgba(148,163,184,.7);font-family:var(--font-mono);white-space:nowrap}
+    .tw-phys-stats .st b{color:#cbd5e1;font-weight:700;margin-left:3px;font-variant-numeric:tabular-nums}
+    .tw-phys-stats .st-warn b{color:#fca5a5}
+    .tw-phys-stats .st-warn i{color:rgba(148,163,184,.6);font-style:normal;margin-left:1px}
+    @container (max-width:340px){.tw-phys-room{display:none}}
 
     .tw-half-viz{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px 16px 12px;position:relative}
     .tw-shell--physical .tw-half-viz,.tw-shell--digital .tw-half-viz{padding:16px 24px 24px}
@@ -243,6 +269,25 @@ const TW_DIGITAL_SRCDOC = (function () {
     /* ── 左导航子页签出现 ── */
     @keyframes fdySubIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
     .fdy-sub-twin{animation:fdySubIn .3s cubic-bezier(.16,1,.3,1) both}
+
+    /* ── 数字孪生详情（真实生成） ── */
+    .tw-digi-detail{height:100%;width:100%;display:flex;flex-direction:column;min-height:0}
+    .tw-digi-detail-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+    .tw-gen-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--c-border);border-top-color:var(--c-brand);animation:twGenSpin .8s linear infinite}
+    @keyframes twGenSpin{to{transform:rotate(360deg)}}
+
+    /* ── 物理孪生详情：机房三维 / 工勘孪生 页签 + 全屏 ── */
+    .tw-phys-detail{height:100%;width:100%;display:flex;flex-direction:column;min-height:0;background:#0a0f18}
+    .tw-phys-detail:fullscreen{background:#0a0f18}
+    .tw-phys-tabbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(10,15,24,.92);border-bottom:1px solid rgba(148,163,184,.14);flex-shrink:0}
+    .tw-phys-tabs{display:flex;gap:2px;background:rgba(148,163,184,.1);border-radius:8px;padding:3px}
+    .tw-phys-tabs button{padding:5px 14px;border:none;border-radius:5px;background:transparent;color:rgba(148,163,184,.85);font-size:12px;font-weight:550;cursor:pointer;font-family:var(--font-sans);transition:background .15s,color .15s}
+    .tw-phys-tabs button.on{background:rgba(148,163,184,.16);color:#eaf1fb}
+    .tw-phys-tabs button:hover:not(.on){color:#cdd7e3}
+    .tw-phys-fs{margin-left:auto;display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid rgba(148,163,184,.24);border-radius:6px;background:rgba(148,163,184,.07);color:#aeb9c9;font-size:12px;cursor:pointer;font-family:var(--font-sans);transition:border-color .15s,background .15s,color .15s}
+    .tw-phys-fs:hover{border-color:rgba(125,211,252,.4);background:rgba(56,130,200,.18);color:#eaf1fb}
+    .tw-phys-detail-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+    .tw-phys-pane{flex:1;min-height:0;flex-direction:column}
   `;
   document.head.appendChild(s);
 })();
@@ -263,6 +308,13 @@ const IcRefreshTW = () => (
 const IcBack = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
     <path d="M8 1 L3 6 L8 11" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+const IcFullscreen = ({ exit }: any) => (
+  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+    {exit
+      ? <path d="M4.5 1.5V4.5H1.5M7.5 1.5V4.5H10.5M4.5 10.5V7.5H1.5M7.5 10.5V7.5H10.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+      : <path d="M1.5 4V1.5H4M11.5 4V1.5H8M1.5 8V10.5H4M11.5 8V10.5H8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />}
   </svg>
 );
 
@@ -411,8 +463,8 @@ function DigitalViz({ playing  }: any) {
         <g className="tw-d-center" filter="url(#twNodeShadow)">
           <rect x="88" y="66" width="64" height="32" rx="8" fill="var(--c-surface)" stroke="var(--c-brand)" strokeWidth="1.2" />
           <rect x="88" y="66" width="64" height="32" rx="8" fill="var(--c-brand-soft)" opacity=".55" />
-          <text x="120" y="80" textAnchor="middle" fill="var(--c-brand-text)" fontSize="10.5" fontWeight="650" fontFamily="var(--font-sans)">交付预案</text>
-          <text x="120" y="91" textAnchor="middle" fill="var(--c-text-muted)" fontSize="7.5" fontFamily="var(--font-mono)" letterSpacing=".4">PARSING</text>
+          <text x="120" y="80" textAnchor="middle" fill="var(--c-brand-text)" fontSize="10.5" fontWeight="650" fontFamily="var(--font-sans)">预案本体</text>
+          <text x="120" y="91" textAnchor="middle" fill="var(--c-text-muted)" fontSize="7.5" fontFamily="var(--font-mono)" letterSpacing=".4">GENERATING</text>
           <rect x="92" y="70" width="56" height="1.5" rx="1" fill="var(--c-brand)" opacity=".15" className="tw-d-scan" />
         </g>
         {DIGI_NODES.map(n => {
@@ -637,10 +689,10 @@ function TwinShellBar({ onRefresh, onClear, isRefreshing, visible, phase, setPha
   const isOverview = phase === 'built';
   const segPos = phase === 'physical' ? 'physical' : phase === 'digital' ? 'digital' : 'overview';
   const sub = phase === 'physical'
-    ? 'D01 一层机房 · 物理孪生 · 工勘问题标注'
+    ? '2#楼四五层智算机房 · 物理孪生 · 工勘问题标注'
     : phase === 'digital'
-      ? 'D01 一层机房 · 数字孪生 · 配置决策分析'
-      : 'D01 一层机房 · 物理 ⇄ 数字双向映射';
+      ? '2#楼四五层智算机房 · 数字孪生 · 配置决策分析'
+      : '2#楼四五层智算机房 · 物理 ⇄ 数字双向映射';
   return (
     <div className="tw-shell-bar">
       <div className="tw-ovbar">
@@ -654,8 +706,8 @@ function TwinShellBar({ onRefresh, onClear, isRefreshing, visible, phase, setPha
             <div className="tw-ovbar-verdict">
               <span className="tw-ov-dot" />
               <div className="tw-ov-vtext">
-                <b>交付存在风险 · 待处置</b>
-                <span>物理侧 <b>{physCount}</b> 处现场异常 · 数字侧 <b>{digiCount}</b> 项配置待修复</span>
+                <b>{digiCount == null ? '预案本体生成中…' : (digiCount > 0 ? '预案存在风险 · 待处置' : '预案本体已生成 · 无风险')}</b>
+                <span>物理侧 <b>{physCount}</b> 处现场异常 · 数字侧 <b>{digiCount == null ? '—' : digiCount}</b> 项预案风险</span>
               </div>
             </div>
             <div className="tw-ov-spring" />
@@ -681,16 +733,77 @@ function TwinShellBar({ onRefresh, onClear, isRefreshing, visible, phase, setPha
   );
 }
 
+// 已被 DigitalLiveOntology 的生成动画（pending 门控）替代，留作快速回退兜底；确认稳定后可清理。
+function OntologyLoadingPanel() {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, background: 'var(--c-surface)', color: 'var(--c-text-muted)' }}>
+      <div className="tw-gen-spinner" />
+      <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--c-text)' }}>预案本体生成中…</div>
+      <div style={{ fontSize: 12 }}>正在调用本体引擎派生预案风险（:8011 · deriveContingencyRisks）</div>
+    </div>
+  );
+}
+
+function OntologyErrorPanel({ error, onReload  }: any) {
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, textAlign: 'center', background: 'var(--c-surface)' }}>
+      <div style={{ fontSize: 28 }}>⚠️</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--c-text)' }}>预案本体生成失败</div>
+      <div style={{ fontSize: 12, color: 'var(--c-text-muted)', maxWidth: 440, lineHeight: 1.6 }}>
+        无法连接本体服务。请先在仓库根运行 <code style={{ fontFamily: 'var(--font-mono)' }}>start_ontology.bat</code> 启动本体服务（:8011），再点重试。
+      </div>
+      {error ? <div style={{ fontSize: 11, color: 'var(--c-text-faint)', maxWidth: 440, wordBreak: 'break-all' }}>{String(error)}</div> : null}
+      <button type="button" className="tw-act" onClick={onReload}>重试</button>
+    </div>
+  );
+}
+
+/* 真实生成分支：挂载定终身——挂载时已有 view 走 instant 成品；尚无 view 则整个生命周期
+ * instant=false + pending，由 DigitalTwinOntology 内部播放生成动画、data 到达后门控揭晓真实判定。
+ * instant/pending 不随 view 到达翻转，避免 [instant,compact] 脚本 effect 中途重跑打架。
+ * reload（智能组装/固定章节后重新派生）期间 view 恒非空且本组件不卸载 → stale-while-revalidate，
+ * 保持已渲染报告挂载，不丢 DigitalTwinOntology 本地 outline/裁剪态。 */
+function DigitalLiveOntology({ view, onReload }: any) {
+  const startedWithView = useRefTW<any>(view != null).current;
+  return (
+    <DigitalTwinOntology key="digi-live" compact={false}
+      instant={startedWithView} pending={!startedWithView} data={view} onReload={onReload} />
+  );
+}
+
+/* 数字孪生详情：本体引擎实时派生（预制演示见 /twin/digital-demo） */
+function DigitalDetail({ view, error, onReload }: any) {
+  return (
+    <div className="tw-digi-detail">
+      <div className="tw-digi-detail-body">
+        {error
+          ? <OntologyErrorPanel error={error} onReload={onReload} />
+          : (DigitalTwinOntology
+              ? <DigitalLiveOntology view={view} onReload={onReload} />
+              : <DigitalViz playing={false} />)}
+      </div>
+    </div>
+  );
+}
+
 function TwinWorld({ phase, onPhase  }: any) {
   const setPhase = onPhase;
   const [playing, setPlaying] = useStateTW<any>(false);
   const [isRefreshing, setIsRefreshing] = useStateTW<any>(false);
   const [introExiting, setIntroExiting] = useStateTW<any>(false);
   const [splitOrigin, setSplitOrigin] = useStateTW<any>(null);
+  const [physStats, setPhysStats] = useStateTW<any>(null);
+  const [physFrameFailed, setPhysFrameFailed] = useStateTW<any>(false);
+  const [buildSeq, setBuildSeq] = useStateTW<any>(0);
+  const [physTab, setPhysTab] = useStateTW<any>('room3d');   // 物理详情页签：room3d=机房三维 · survey=工勘孪生
+  const [surveyMounted, setSurveyMounted] = useStateTW<any>(false);  // 工勘 viewer 首次打开后保持挂载，避免来回切重载 SOG
+  const [isPhysFs, setIsPhysFs] = useStateTW<any>(false);
+  const physDetailRef = useRefTW<any>(null);
   const rootRef = useRefTW<any>(null);
   const buildTimer = useRefTW<any>(null);
   const exitTimer = useRefTW<any>(null);
 
+  const { view, loading, error, reload } = useContingencyOntology();
   const layout = phase === 'physical' ? 'physical' : phase === 'digital' ? 'digital' : 'overview';
   const interactive = phase === 'built';
   const showViz = phase !== 'init';
@@ -711,6 +824,45 @@ function TwinWorld({ phase, onPhase  }: any) {
 
   useEffectTW(() => () => { if (exitTimer.current) clearTimeout(exitTimer.current); }, []);
 
+  /* physical-twin iframe 消息：stats 更新计数；built 提前结束构建阶段（TW_ANIM_MS 定时器保留兜底） */
+  useEffectTW(() => {
+    const onMsg = (e: any) => {
+      /* 同源校验；file:// 单文件发布时 srcdoc 子页 origin 为 "null"，放行该形态 */
+      if (e.origin !== window.location.origin && !(window.location.protocol === 'file:' && e.origin === 'null')) return;
+      const d = e && e.data;
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'twin:stats') { setPhysStats(d); setPhysFrameFailed(false); }
+      else if (d.type === 'twin:built' && phase === 'building') {
+        if (buildTimer.current) clearTimeout(buildTimer.current);
+        setPlaying(false); setIsRefreshing(false); setPhase('built');
+      }
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, [phase]);
+
+  /* iframe 挂载后 8s 未收到 stats → 判定加载失败，回退 SVG 占位（1.2MB 页 + Three.js 解析需留裕量） */
+  useEffectTW(() => {
+    if (phase === 'init' || physStats || physFrameFailed) return;
+    const t = setTimeout(() => setPhysFrameFailed(true), 8000);
+    return () => clearTimeout(t);
+  }, [phase, physStats, physFrameFailed]);
+
+  /* 物理详情全屏：跟随浏览器 fullscreenchange 同步按钮态（ESC 退出也能感知） */
+  useEffectTW(() => {
+    const onFs = () => setIsPhysFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  const switchPhysTab = (t: any) => { setPhysTab(t); if (t === 'survey') setSurveyMounted(true); };
+  const togglePhysFs = () => {
+    const el = physDetailRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else el.requestFullscreen?.();
+  };
+
   const handleBuild = () => {
     // 捕获中央呼吸方块(emblem)的位置, 供两个矩形从它身上裂开
     try {
@@ -729,11 +881,17 @@ function TwinWorld({ phase, onPhase  }: any) {
 
   const enterDetail = (side: any) => setPhase(side);
   const handleClear = () => { setPlaying(false); setPhase('init'); };
-  // “更新”: 采集最新数据 → 重新跑一遍左右两侧的构建过程
-  const handleRefresh = () => { setIsRefreshing(true); setPhase('building'); };
+  // “更新”: 采集最新数据 → 重新跑一遍左右两侧的构建过程；数字侧同步重新派生（reload），
+  // building 期间 compact 脚本的完成判定读鲜值，新派生结果落地后即生效
+  const handleRefresh = () => { setBuildSeq((s: number) => s + 1); setIsRefreshing(true); setPhase('building'); reload(); };
 
-  const physBadge = interactive ? '5 现场异常' : playing ? '扫描中' : '5 现场异常';
-  const digiBadge = interactive ? '7 项待修复' : playing ? '分析中' : '7 项待修复';
+  const physIssueTotal = (physStats && physStats.issues && physStats.issues.total) || 14;
+  const physBadge = playing ? '扫描中' : `${physIssueTotal} 项工勘问题`;
+  const physIss = (physStats && physStats.issues) || null;                       // 机房概况 + 问题分级（来自 twin:stats）
+  const physBreak = physIss ? `（高危 ${physIss.danger || 0} · 中 ${physIss.warn || 0}）` : '';
+  const physNum = (k: any) => (physStats && physStats[k] != null ? physStats[k] : '—');
+  const digiCountLive = view ? view.summary.riskCount : null;
+  const digiBadge = playing ? '生成中' : (digiCountLive != null ? digiCountLive + ' 项风险' : (loading ? '生成中' : '—'));
 
   return (
     <div ref={rootRef} style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0, position: 'relative' }}>
@@ -748,8 +906,8 @@ function TwinWorld({ phase, onPhase  }: any) {
             onRefresh={handleRefresh}
             onClear={handleClear}
             isRefreshing={isRefreshing}
-            physCount={5}
-            digiCount={7}
+            physCount={physIssueTotal}
+            digiCount={digiCountLive}
           />
           <div className="tw-shell-body">
             <div
@@ -760,15 +918,49 @@ function TwinWorld({ phase, onPhase  }: any) {
               onKeyDown={interactive ? (e: any) => { if (e.key === 'Enter') enterDetail('physical'); } : undefined}
             >
               {phase !== 'physical' && (
-                <div className="tw-half-head">
-                  <span className="tw-half-label">物理孪生</span>
-                  <span className="tw-half-badge">{physBadge}</span>
+                <div className="tw-half-head tw-phys-head">
+                  <div className="tw-phys-head-l">
+                    <span className="tw-half-label">物理孪生</span>
+                    <span className="tw-phys-room">2#楼四五层智算机房</span>
+                  </div>
+                  <div className="tw-phys-stats">
+                    <span className="st">机柜<b>{physNum('cabinets')}</b></span>
+                    <span className="st">液冷<b>{physNum('cooling')}</b></span>
+                    <span className="st">桥架<b>{physNum('trays')}</b></span>
+                    <span className="st st-warn">问题<b>{physIssueTotal}</b><i>{physBreak}</i></span>
+                  </div>
                 </div>
               )}
               <div className="tw-half-viz" style={phase === 'physical' ? { padding: 0 } : undefined}>
-                {PhysicalTwin3D
-                  ? <PhysicalTwin3D key={phase === 'physical' ? 'phys-detail' : 'phys-compact'} compact={phase !== 'physical'} instant={phase !== 'building'} />
-                  : <PhysicalViz playing={playing} />}
+                {phase === 'physical' ? (
+                  <div className="tw-phys-detail" ref={physDetailRef}>
+                    <div className="tw-phys-tabbar">
+                      <div className="tw-phys-tabs">
+                        <button type="button" className={physTab === 'room3d' ? 'on' : ''} onClick={() => switchPhysTab('room3d')}>机房三维视图</button>
+                        <button type="button" className={physTab === 'survey' ? 'on' : ''} onClick={() => switchPhysTab('survey')}>工勘孪生</button>
+                      </div>
+                      <button type="button" className="tw-phys-fs" onClick={togglePhysFs} title={isPhysFs ? '退出全屏' : '全屏显示'}>
+                        <IcFullscreen exit={isPhysFs} />{isPhysFs ? '退出全屏' : '全屏'}
+                      </button>
+                    </div>
+                    <div className="tw-phys-detail-body">
+                      <div className="tw-phys-pane" style={{ display: physTab === 'room3d' ? 'flex' : 'none' }}>
+                        {physFrameFailed
+                          ? <PhysicalViz playing={false} />
+                          : <PhysicalTwinFrame key="phys-detail" compact={false} building={false} />}
+                      </div>
+                      {surveyMounted && (
+                        <div className="tw-phys-pane" style={{ display: physTab === 'survey' ? 'flex' : 'none' }}>
+                          <SurveyTwinViewer />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  physFrameFailed
+                    ? <PhysicalViz playing={playing} />
+                    : <PhysicalTwinFrame key={`phys-compact-${buildSeq}`} compact={true} building={phase === 'building'} />
+                )}
               </div>
               {phase !== 'physical' && (
                 <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入机房孪生视图 <i>→</i></span> : '正在构建物理映射…'}</div>
@@ -789,15 +981,13 @@ function TwinWorld({ phase, onPhase  }: any) {
               )}
               <div className="tw-half-viz" style={phase === 'digital' ? { padding: 0 } : undefined}>
                 {phase === 'digital'
-                  ? (TW_DIGITAL_SRCDOC
-                      ? <iframe key="digi-frame" className="tw-digi-frame" srcDoc={TW_DIGITAL_SRCDOC} title="数字孪生 · 本体决策系统" />
-                      : <iframe key="digi-frame" className="tw-digi-frame" src="/twin/digital-twin.html?instant=1&v=okl7" title="数字孪生 · 本体决策系统" />)
+                  ? <DigitalDetail view={view} loading={loading} error={error} onReload={reload} />
                   : (DigitalTwinOntology
-                    ? <DigitalTwinOntology key="digi-compact" compact={true} instant={phase !== 'building'} />
+                    ? <DigitalTwinOntology key={'digi-compact-' + (view ? 'live' : 'wait')} compact={true} instant={phase !== 'building'} data={view} />
                     : <DigitalViz playing={playing} />)}
               </div>
               {phase !== 'digital' && (
-                <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入配置分析视图 <i>→</i></span> : '正在解析交付预案…'}</div>
+                <div className="tw-half-foot">{interactive ? <span className="tw-enter">进入预案本体视图 <i>→</i></span> : '正在生成预案本体…'}</div>
               )}
             </div>
           </div>

@@ -57,7 +57,7 @@ def collect_metrics(state: dict[str, Any]) -> dict[str, Any]:
     （如 assess_total 而非 total），投影器按前缀读，互不干扰。
     读单步骤的 metrics 请用 collect_metrics_ns(state, "<step_key>")。
     """
-    out: dict[str, Any] = {}
+    out: dict[str, Any] = dict(state.get("metrics") or {})
     for step in state.get("steps") or []:
         out.update(step.get("metrics") or {})
     return out
@@ -524,6 +524,7 @@ def build_editable_table(state: dict[str, Any]) -> SduiCardNode | None:
         backStepId=spec.get("backStepId"),
         groupKey=spec.get("groupKey"),
         groupAsTabs=spec.get("groupAsTabs"),
+        filterKeys=spec.get("filterKeys"),
         pageSize=spec.get("pageSize"),
         requiredKeys=spec.get("requiredKeys"),
     )

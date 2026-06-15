@@ -4,6 +4,7 @@ import { ParticleLogin } from './ParticleLogin';
 import { GlassLogin } from './GlassLogin';
 import { StyleSwitch, type LoginStyle } from './StyleSwitch';
 import { useAidaSession } from '@/lib/aida-session';
+import { ApiRequestError } from '@/lib/api-error';
 
 /* ──────────────────────────────────────────────────────────────────────────
    LoginPage — 双风格登录页容器（由 aida-auth-kit / DS-X 迁移）
@@ -36,7 +37,8 @@ export function LoginPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : '登录失败，请重试';
       console.error('[AIDA login] 鉴权失败', { account, message, err });
-      throw new Error(message);
+      if (err instanceof ApiRequestError) throw err;
+      throw err instanceof Error ? err : new Error('登录失败，请重试');
     }
   }
 

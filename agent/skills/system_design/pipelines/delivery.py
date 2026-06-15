@@ -22,6 +22,35 @@ DELIVERY_STEP_KEYS: list[str] = [
 
 _ZTP_HINTS = ("ztp", "开局", "生成ztp", "skip_ztp", "rename_ztp")
 
+_STAGE_SELECT_REASON = (
+    "完整 LLD 设计已融合完成。请选择下一步执行计划：\n"
+    "· 设备名称替换（可选）：把规划设备名替换为现网命名，再生成 ZTP 设计文件与 ZTP 配置文件；\n"
+    "· 直接 ZTP：跳过名称替换，生成 ZTP 设计文件 + ZTP 配置文件（zip 开局包）。"
+)
+
+
+def stage_select_hitl() -> dict[str, Any]:
+    """stage_select 确认门 HITL 载荷（step / reconcile / SDUI 共用）。"""
+    return {
+        "step": "stage_select",
+        "reason": _STAGE_SELECT_REASON,
+        "need_files": [],
+        "need_inputs": [{
+            "id": "stage",
+            "label": "选择下一步执行计划",
+            "options": [
+                {
+                    "label": "设备名称替换 + 生成 ZTP（设计文件 + 配置文件）",
+                    "value": "rename_ztp",
+                },
+                {
+                    "label": "跳过名称替换，直接生成 ZTP（设计文件 + 配置文件）",
+                    "value": "skip_ztp",
+                },
+            ],
+        }],
+    }
+
 
 def step_index(key: str) -> int:
     try:
@@ -112,6 +141,30 @@ def has_mergeable_plane_artifacts(work_root: Path | str) -> bool:
     return False
 
 
+def _payload_intent_text(
+    project: dict[str, Any],
+    payload: dict[str, Any],
+) -> str:
+    return str(
+        payload.get("choice") or payload.get("value")
+        or payload.get("text") or payload.get("command")
+        or (project or {}).get("text") or ""
+    ).strip()
+
+
+def _plane_planning_done(prev_state: dict[str, Any]) -> bool:
+    for rec in reversed(prev_state.get("steps") or []):
+        if rec.get("key") != "plane_planning":
+            continue
+        if rec.get("status") not in ("completed", "hitl"):
+            return False
+        m = rec.get("metrics") or {}
+        if m.get("plan_commands") or int(m.get("plane_done") or 0) > 0:
+            return True
+        return rec.get("status") == "completed"
+    return False
+
+
 def resolve_resume_route_to(
     *,
     hitl_step: str,
@@ -121,6 +174,14 @@ def resolve_resume_route_to(
     work_root: Path,
 ) -> str | None:
     """根据 HITL 步骤与用户选择，决定 full_restart 应从哪个 step 续跑（route_to）。"""
+    text = _payload_intent_text(project, payload)
+    if is_lld_delivery_intent(text):
+        if hitl_step == "plane_planning":
+            return "lld_integrate"
+        # HITL 已清空 / 前端未带 from_step：已有平面表或刚完成规划 → 直达融合
+        if has_mergeable_plane_artifacts(work_root) or _plane_planning_done(prev_state):
+            return "lld_integrate"
+
     if hitl_step == "stage_select":
         stage = dict(project.get("stage") or {})
         if stage.get("chosen") and not stage.get("naming"):
@@ -135,19 +196,7 @@ def resolve_resume_route_to(
             return "publish"
         return "publish_confirm"
 
-    if hitl_step == "plane_planning":
-        text = str(
-            payload.get("choice") or payload.get("value")
-            or payload.get("text") or payload.get("command") or ""
-        ).strip()
-        if is_lld_delivery_intent(text):
-            return "lld_integrate"
-
     if not hitl_step and lld_artifact_exists(work_root, prev_state):
-        text = str(
-            payload.get("text") or payload.get("choice")
-            or payload.get("command") or ""
-        ).strip()
         if is_ztp_delivery_intent(text):
             stage = dict(project.get("stage") or {})
             if not stage.get("chosen"):

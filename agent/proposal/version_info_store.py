@@ -28,19 +28,20 @@ XLSX_HEADERS = [
 
 
 def _paths(project_id: str) -> dict[str, str]:
-    return proposal_paths(project_id)
+    return proposal_paths("")
 
 
 def version_info_dir(project_id: str) -> Path:
-    return physical_project_root(project_id) / Path(_paths(project_id)["version_info_out"])
+    # Deprecated: keep for compatibility, storage is flattened to 输出结果 root.
+    return physical_project_root(project_id) / Path(_paths(project_id)["out"])
 
 
 def records_path(project_id: str) -> Path:
-    return version_info_dir(project_id) / RECORDS_FILE
+    return physical_project_root(project_id) / Path(_paths(project_id)["version_info_records_out"])
 
 
 def xlsx_path(project_id: str) -> Path:
-    return version_info_dir(project_id) / XLSX_FILE
+    return physical_project_root(project_id) / Path(_paths(project_id)["version_info_xlsx_out"])
 
 
 def _empty_store() -> dict[str, Any]:

@@ -41,13 +41,27 @@ export function extractSduiProgress(doc: SduiDocument): number {
   return best;
 }
 
-/** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡）。*/
+/** 从 Stepper 提取已推进到的最远步骤序号；无 Stepper 则 -1。 */
+function extractSduiStepRank(doc: SduiDocument): number {
+  let best = -1;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'Stepper') return;
+    node.steps.forEach((step, index) => {
+      if (['done', 'completed', 'skipped', 'running', 'current', 'error'].includes(step.status)) {
+        best = Math.max(best, index);
+      }
+    });
+  });
+  return best;
+}
+
+/** 是否已有执行态 UI 面（进度环 / Stepper / HITL 卡 / 多页签工作台）。*/
 function hasExecutionSurface(doc: SduiDocument): boolean {
   let found = false;
   walkSduiNodes(doc.root, (node) => {
     if (found) return;
     const id = (node as { id?: string }).id ?? '';
-    if (id === 'hitl-card' || id === 'hitl-edit-card') { found = true; return; }
+    if (id === 'hitl-card' || id === 'hitl-edit-card' || id === 'completion-card') { found = true; return; }
     if (node.type === 'DonutChart' && node.centerValue) {
       const n = parseInt(node.centerValue, 10);
       if (!isNaN(n) && n > 0) found = true;
@@ -55,6 +69,8 @@ function hasExecutionSurface(doc: SduiDocument): boolean {
     if (node.type === 'Stepper') {
       if (node.steps.some(s => s.status === 'done' || s.status === 'running')) found = true;
     }
+    // TabGroup（如 guihua 三页签工作台）= 有实质执行内容，阻止 full_restart 期间被 idle 覆盖
+    if (node.type === 'TabGroup') { found = true; return; }
   });
   return found;
 }
@@ -74,22 +90,62 @@ export function isIdleLikeSduiDoc(doc: SduiDocument): boolean {
   return intro;
 }
 
+/** 作业区已有可见节点（含仅 Stepper 的中间态，如设备安装重连首帧）。*/
+function hasWorkbenchContent(doc: SduiDocument): boolean {
+  const ch = (doc.root as { children?: SduiNode[] }).children;
+  return Array.isArray(ch) && ch.length > 0;
+}
+
 /** full_restart 重连时拒绝比当前更低的进度快照（与后端 display_state 双保险）。*/
 function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocument {
   if (!prev) return next;
+  if (isErrorSduiDoc(next)) return next;
   const pPrev = extractSduiProgress(prev);
   const pNext = extractSduiProgress(next);
+  const rPrev = extractSduiStepRank(prev);
+  const rNext = extractSduiStepRank(next);
+  if (rPrev >= 0 && rNext >= 0 && rNext < rPrev) return prev;
   if (pPrev >= 0 && pNext >= 0 && pNext < pPrev) return prev;
-  if (hasExecutionSurface(prev) && isIdleLikeSduiDoc(next)) return prev;
+  if (isIdleLikeSduiDoc(next) && (hasExecutionSurface(prev) || hasWorkbenchContent(prev))) return prev;
   if (pPrev > 0 && pNext < 0 && !hasExecutionSurface(next)) return prev;
   return next;
 }
 
-import { ensureAgentBase } from '@/lib/agentBase';
+function isErrorSduiDoc(doc: SduiDocument): boolean {
+  return Boolean(doc.meta?.error);
+}
 
-// 后端 aida/agent 地址：默认本地直连；服务器部署经 VITE_AGENT_BASE 注入（编译期）。
+export function isRunUnavailableDoc(doc: SduiDocument | null | undefined): boolean {
+  return Boolean(doc?.meta?.run_unavailable);
+}
+
+function makeRunUnavailableDoc(skillId: string, runId: string, message: string): SduiDocument {
+  return {
+    schemaVersion: 1,
+    type: 'SduiDocument',
+    root: {
+      type: 'Stack',
+      id: 'run-unavailable-root',
+      gap: 'md',
+      children: [
+        {
+          type: 'Alert',
+          tone: 'error',
+          title: '运行已失效',
+          message,
+        },
+      ],
+    },
+    meta: { skill: skillId, run_id: runId, phase: 'error', error: message, run_unavailable: true },
+  };
+}
+
+import { ensureAgentBase } from '@/lib/agentBase';
+import { agentBase } from '@/lib/runtimeBase';
+
+// 后端 aida/agent 地址：默认同源反代；本地/演示可用 VITE_AGENT_BASE 覆盖。
 // system_design 走 ensureAgentBase（可探测 7402+）；其余 skill / 旧调用点用此常量。
-export const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+export const AGENT_BASE = agentBase();
 
 const RUN_LOG_SKILLS = new Set(['device_install']);
 
@@ -100,6 +156,14 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
   const esRef = useRef<EventSource | null>(null);
 
   const clearedRunIdRef = useRef<string | null>(null);
+
+  // 最近一次已应用的 SDUI 内容序列化（内容门控：相同则不重渲染，避免轮询/重发抖动）
+  const lastDocJsonRef = useRef<string | null>(null);
+  // close 后的轻量快照轮询定时器（替代 EventSource 自动重连，避免重连风暴打断交互）
+  const pollTimerRef = useRef<number | null>(null);
+  // 连续命中 run_unavailable（/ui 404）的次数：resume 重订阅 / 后端重建 run 的瞬时 404
+  // 不应立刻摧毁正在进行的对话与步骤条，需连续多次（≥阈值）确认是真失效才上抛。
+  const unavailableHitsRef = useRef(0);
 
   const useRunLog = RUN_LOG_SKILLS.has(skillId);
 
@@ -133,6 +197,14 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
     let es: EventSource | null = null;
 
+    // 每次重订阅（runId / epoch 变化）重置内容门控与遗留轮询
+    lastDocJsonRef.current = null;
+    unavailableHitsRef.current = 0;
+    if (pollTimerRef.current != null) {
+      window.clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+
 
 
     void (async () => {
@@ -140,6 +212,16 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       const base = await ensureAgentBase(skillId);
 
       if (cancelled) return;
+
+      // run_unavailable（/ui 404）防抖：连续 < 阈值 且当前已有有效（非 idle / 非 error）文档时
+      // 视为 resume 重订阅 / 后端重建 run 的瞬时 404，保留旧文档；连续 ≥ 阈值才上抛失效态。
+      const RUN_UNAVAILABLE_THRESHOLD = 2;
+      const applyUnavailable = (prev: SduiDocument | null, snap: SduiDocument): SduiDocument | null => {
+        unavailableHitsRef.current += 1;
+        const hasGoodPrev = !!prev && !prev.meta?.error && !isIdleLikeSduiDoc(prev);
+        if (unavailableHitsRef.current < RUN_UNAVAILABLE_THRESHOLD && hasGoodPrev) return prev;
+        return snap;
+      };
 
 
 
@@ -154,7 +236,8 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
             if (sseReceived || prev?.meta?.error) return prev;
 
-            return null;
+            // 网络/非 404 失败：保留已渲染文档（resume 重订阅间隙不清空），无则维持 null
+            return prev;
 
           });
 
@@ -168,6 +251,8 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
           if (sseReceived) return prev;
 
           if (prev?.meta?.error && !snap.meta?.error) return prev;
+
+          if (isRunUnavailableDoc(snap)) return applyUnavailable(prev, snap);
 
           return useRunLog ? snap : mergeSduiDoc(prev, snap);
 
@@ -194,6 +279,12 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
           if (result.ok) {
 
             sseReceived = true;
+            unavailableHitsRef.current = 0;
+
+            // 内容门控：与上次应用的树相同则跳过（避免重发/快照导致整树重渲染、握碎交互）
+            const json = JSON.stringify(result.doc);
+            if (json === lastDocJsonRef.current) return;
+            lastDocJsonRef.current = json;
 
             // SSE 增量经 mergeSduiDoc：与后端 display_state 双保险，防 full_restart 闪回低进度
             setDoc(prev => useRunLog ? result.doc : mergeSduiDoc(prev, result.doc));
@@ -259,12 +350,34 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
 
 
-      // 服务端在 run 结束/HITL 暂停时会发 close 事件并关闭连接。EventSource 默认会
-      // 自动重连 → 服务端再次发 close → 无限重连风暴（每次重连重发 sdui 快照，导致整棵
-      // SDUI 树高频重渲染，握碎文件选择等交互）。收到 close 主动 es.close() 终止重连；
-      // resume 时 survey-agent 会 bump streamEpoch 触发本 effect 重订阅，不影响续跑。
+      // 「内容门控的轻量快照轮询」：整段订阅期间常驻运行（不依赖 close 事件时序）。
+      // 后端 SSE 是分段的——run 跑到 HITL 暂停 / 结束就发 close 关连接，期间若错过
+      // 增量（重订阅竞态、close 时序、冻结遮罩等）会导致界面停在旧态，需手动刷新。
+      // 故每 2.5s 拉一次 /ui 快照兜底：内容变化（步骤推进 / 新 HITL 弹框）→ 自动 setDoc
+      // 刷新；内容相同 → 不 setDoc、不重渲染，既不打断交互也不空耗。投影确定性保证
+      // 同一状态序列化一致，不会误判抖动。
+      const startSnapshotPoll = () => {
+        if (pollTimerRef.current != null) return;
+        pollTimerRef.current = window.setInterval(() => {
+          if (cancelled) return;
+          fetchUiSnapshot(skillId, runId, base).then(snap => {
+            if (cancelled || !snap) return;
+            // run_unavailable 走防抖：不进内容门控（否则同一 404 序列化会被去重、计数停滞）
+            if (isRunUnavailableDoc(snap)) {
+              setDoc(prev => applyUnavailable(prev, snap));
+              return;
+            }
+            unavailableHitsRef.current = 0;
+            const json = JSON.stringify(snap);
+            if (json === lastDocJsonRef.current) return;  // 无变化：不触发重渲染
+            lastDocJsonRef.current = json;
+            setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
+          }).catch(() => { /* ignore */ });
+        }, 2500);
+      };
+      // 收到 close 主动 es.close() 终止 EventSource 自带的重连风暴（避免整树高频重渲染、
+      // 握碎文件选择）；状态刷新交给常驻的快照轮询。
       const handleClose = () => {
-        cancelled = true;
         es?.close();
         if (esRef.current === es) esRef.current = null;
       };
@@ -280,7 +393,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       // run 正常结束（done）后补拉一次快照，避免错过末尾增量（software_deployment）
       const handleDone = () => {
         fetchUiSnapshot(skillId, runId, base).then(snap => {
-          if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
+          if (!cancelled && snap) setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
         }).catch(() => { /* ignore */ });
       };
 
@@ -296,6 +409,9 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
       };
 
+      // 常驻快照轮询：保证后端状态推进时界面自动刷新，无需手动刷新页面（内容门控防抖动）。
+      startSnapshotPoll();
+
     })();
 
 
@@ -306,6 +422,11 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       es?.close();
 
       esRef.current = null;
+
+      if (pollTimerRef.current != null) {
+        window.clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
 
     };
 
@@ -425,6 +546,8 @@ export async function resumeRun(
       payload,
       ...(fromStep ? { from_step: fromStep } : {}),
     }),
+  }).then(async (res) => {
+    if (!res.ok) throw new Error(await res.text());
   });
 
 }
@@ -471,6 +594,38 @@ export async function uploadBatch(
 
 
 
+export async function overrideOutputArtifact(
+
+  skillId: string,
+
+  file: File,
+
+  targetPath: string,
+
+  runId?: string | null,
+
+): Promise<{ ok?: boolean; path?: string; size?: number; error?: string }> {
+
+  const base = await ensureAgentBase(skillId);
+
+  const form = new FormData();
+
+  form.append('file', file);
+
+  form.append('target_path', targetPath);
+
+  if (runId) form.append('run_id', runId);
+
+  const res = await fetch(`${base}/agent/${skillId}/artifact/override`, { method: 'POST', body: form });
+
+  if (!res.ok) throw new Error(await res.text());
+
+  return res.json();
+
+}
+
+
+
 export async function fetchUiSnapshot(skillId: string, runId: string, base?: string): Promise<SduiDocument | null> {
 
   const agentBase = base ?? await ensureAgentBase(skillId);
@@ -479,7 +634,16 @@ export async function fetchUiSnapshot(skillId: string, runId: string, base?: str
 
     const res = await fetch(`${agentBase}/agent/${skillId}/ui/${runId}`);
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 404) {
+        return makeRunUnavailableDoc(
+          skillId,
+          runId,
+          '当前运行已不在后端内存中，通常是本地 Agent 重启导致。请刷新页面并重新开始本次流程。',
+        );
+      }
+      return null;
+    }
 
     const raw = await res.json();
 

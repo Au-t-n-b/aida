@@ -1,0 +1,20 @@
+{
+  "leaf_diagram": "参数面",
+  "parent_diagram": "顶层",
+  "room_diagram": "机房视图",
+  "delete_http": 200,
+  "delete_ok": true,
+  "delete_response": {
+    "code": 200,
+    "message": "success",
+    "data": null
+  },
+  "create_http": 201,
+  "create_ok": true,
+  "create_response": {
+    "code": 200,
+    "message": "success",
+    "data": null
+  },
+  "action": "reset"
+}

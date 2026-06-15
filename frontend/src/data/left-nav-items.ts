@@ -16,7 +16,6 @@ export type NavLeafItem = {
 export const NAV_TWIN: NavSubItem[] = [
   { name: '算力底座孪生', href: '/twin' },
   { name: '项目孪生', href: '/cockpit' },
-  { name: '工勘孪生', href: '/twin/survey' },
 ];
 
 export const NAV_EARLY: NavSubItem[] = [
@@ -26,14 +25,8 @@ export const NAV_EARLY: NavSubItem[] = [
 
 export const NAV_PLAN: NavSubItem[] = [
   { name: '基本信息', href: '/plan?view=info' },
-  { name: '计划', href: '/plan?view=plan' },
-  { name: '任务', href: '/plan?view=task' },
-  { name: '风险', href: '/plan?view=risk' },
-  { name: '假设', href: '/plan?view=assumption' },
-  { name: '问题', href: '/plan?view=issue' },
-  { name: '变更', href: '/plan?view=change' },
-  { name: '计划排期（初始化）', href: '/plan-init' },
-  { name: '计划排期（计划调整）', href: '/plan-adjust' },
+  { name: '计划排期', href: '/plan' },
+  { name: '风险报告', href: '/plan-risk-report' },
 ];
 
 export const NAV_OPS: NavSubItem[] = [
@@ -61,6 +54,15 @@ const NAV_GROUPS: Array<{ sub: NavSubItem[]; hrefPrefix?: string }> = [
   { sub: NAV_OPS, hrefPrefix: '/module' },
   { sub: NAV_DOCS },
 ];
+
+const LEGACY_PLAN_VIEW_LABELS: Record<string, string> = {
+  plan: '计划',
+  task: '任务',
+  risk: '风险',
+  assumption: '假设',
+  issue: '问题',
+  change: '变更',
+};
 
 /** 与 left-nav-fdy isSubActive 一致 */
 export function isNavSubActive(navPath: string, s: NavSubItem, hrefPrefix?: string): boolean {
@@ -93,12 +95,16 @@ function findActiveSub(navPath: string, sub: NavSubItem[], hrefPrefix?: string):
 export function getNavLabel(navPath: string): string {
   if (!navPath) return getModuleLabel('');
 
+  if (navPath === '/plan-risk-report' || navPath.startsWith('/plan-risk-report?')) {
+    return '风险报告';
+  }
+
   if (navPath === '/plan' || navPath.startsWith('/plan?')) {
     const params = new URLSearchParams(navPath.includes('?') ? navPath.split('?')[1] : '');
     const view = params.get('view');
-    const planItem = NAV_PLAN.find((s) => s.href === `/plan?view=${view}`);
-    if (planItem) return planItem.name;
-    if (navPath === '/plan' || !view) return '计划';
+    if (view === 'info') return '基本信息';
+    if (view && LEGACY_PLAN_VIEW_LABELS[view]) return LEGACY_PLAN_VIEW_LABELS[view];
+    if (navPath === '/plan' || !view) return '计划排期';
   }
 
   for (const { sub, hrefPrefix } of NAV_GROUPS) {

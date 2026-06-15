@@ -119,8 +119,23 @@ def _pipeline_products(raw_dir: Path, args_style: str, command: str) -> list[Pat
     """从隔离工作目录收集 ZTP/灵衢 子 skill 产物（不含 LLD 融合件）。"""
     if not raw_dir.is_dir():
         return []
+    cmd = (command or "").strip()
     found: list[Path] = []
     if args_style == "ztp_scan":
+        # 生成ZTP配置文件 → zip（L1/L2 cfg + ztp.ini）；前置链式生成的 ZTP_LLD.xlsx 是中间件，不能当本命令产物。
+        if cmd == "生成ZTP配置文件":
+            zips = [
+                p.resolve()
+                for p in sorted(
+                    raw_dir.rglob("*.zip"),
+                    key=lambda x: x.stat().st_mtime if x.is_file() else 0,
+                )
+                if p.is_file()
+                and not p.name.startswith("~$")
+                and "ZTP" in p.name.upper()
+            ]
+            return zips[-1:] if zips else []
+        # 生成ZTP设计文件 → ZTP_LLD.xlsx
         for p in sorted(raw_dir.rglob("*")):
             if not p.is_file() or p.name.startswith("~$"):
                 continue
@@ -163,10 +178,10 @@ def _resolve_io_paths(work_root: Path) -> dict[str, Path | None]:
         "resource": resource.path if resource else None,
         "location_004": loc.path if loc else None,
         "out_dir": out_dir,
-        # scan_dir 必须覆盖全部输入来源：新路径把 007/001/004 放 xmfz、resource 放 input、
+        # scan_dir 必须覆盖全部输入来源：新路径把 007/001/004 放 jmfz、resource 放 input、
         # 规划产物落 output，分散在 data_root 的不同子目录。ztp_scan / lq_open_scan / input_check
-        # 子 skill 按 scan_dir 递归 rglob 查找输入件，故取 data_root（input/xmfz/output 的共同父目录）；
-        # 只扫 abs_upload_dir()（input）会漏掉 xmfz 的 004 设备位置表与 output 的规划产物 → ZTP 报缺件。
+        # 子 skill 按 scan_dir 递归 rglob 查找输入件，故取 data_root（input/jmfz/output 的共同父目录）；
+        # 只扫 abs_upload_dir()（input）会漏掉 jmfz 的 004 设备位置表与 output 的规划产物 → ZTP 报缺件。
         "scan_dir": get_a3_root(),
     }
 
@@ -346,13 +361,15 @@ def run_command(
         os.chdir(old_cwd)
         sys.argv = old_argv
         sys.path = old_path
-        if raw_work is not None:
-            shutil.rmtree(raw_work, ignore_errors=True)
 
+    # 对齐原始 runtime/l3_executor：子 pipeline 写入隔离目录 → 先拷贝声明产物到 Output，再清理
     if exit_code == 0 and raw_work is not None:
         products = _pipeline_products(raw_work, skill.args_style, cmd)
         if products:
             copied_products = _copy_products_to_output(products, out_dir)
+
+    if raw_work is not None:
+        shutil.rmtree(raw_work, ignore_errors=True)
 
     if copied_products:
         new_files = [str(p) for p in copied_products]

@@ -1,3 +1,9 @@
+import { ApiRequestError, isApiErrorDetail, type ApiErrorDetail } from '@/lib/api-error';
+import { managerBaseUrl } from '@/lib/runtimeBase';
+
+export type { ApiErrorDetail };
+export { ApiRequestError };
+
 export type ClawUserProfile = {
   user_id: string;
   username: string;
@@ -36,12 +42,29 @@ export type MyProjectsQuery = {
 
 export type CreateProjectBody = {
   projectName: string;
+  /** 必填：预销售合同 | 标准合同 */
+  contractType: string;
   projectCode?: string;
   bidCode?: string;
   customerName?: string;
-  tdUserId?: number;
-  pdUserId?: number;
-  pcmUserId?: number;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
+  deliveryTraits?: unknown[];
+};
+
+/** PUT /api/v1/projects/{uuid} — 更新项目可变字段 */
+export type UpdateProjectBody = {
+  projectName?: string;
+  contractType?: string;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
+  stage?: string;
+  progress?: number;
+  risk?: string;
+  description?: string;
+  deliveryTraits?: unknown[];
 };
 
 export type CreateProjectResult = {
@@ -49,6 +72,43 @@ export type CreateProjectResult = {
   projectId: string;
   status: string;
   rootPath?: string;
+};
+
+/** GET /api/v1/projects/{uuid} — 项目详情（含 members） */
+export type DcProjectMember = {
+  userProjectRoleId?: number;
+  userId?: number;
+  username?: string;
+  roleCode?: string;
+  roleName?: string;
+};
+
+export type DcProjectDetail = {
+  id?: number;
+  projectId: string;
+  projectName: string;
+  projectCode?: string | null;
+  bidCode?: string | null;
+  customerName?: string | null;
+  status?: string;
+  contractType?: string | null;
+  stage?: string | null;
+  progress?: number;
+  risk?: string;
+  description?: string | null;
+  deliveryTraits?: unknown[] | null;
+  creatorId?: number;
+  creatorName?: string | null;
+  tdUserId?: number | null;
+  tdName?: string | null;
+  pdUserId?: number | null;
+  pdName?: string | null;
+  pcmUserId?: number | null;
+  pcmName?: string | null;
+  rootPath?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  members?: DcProjectMember[];
 };
 
 export type DcMyProjectsData = {
@@ -122,10 +182,8 @@ export type ArchiveResponse = {
   detail?: string | null;
 };
 
-const DEFAULT_MANAGER_BASE = 'http://127.0.0.1:8000';
-
 export function managerBase(): string {
-  return (import.meta.env.VITE_CLAWMANAGER_BASE || DEFAULT_MANAGER_BASE).replace(/\/$/, '');
+  return managerBaseUrl();
 }
 
 export async function loginToClawManager(input: {
@@ -168,6 +226,33 @@ export async function fetchMyProjects(
   const qs = params.toString();
   const path = `/api/v1/projects/my${qs ? `?${qs}` : ''}`;
   return requestEnvelope(path, { accessToken });
+}
+
+/** 项目详情 GET /api/v1/projects/{uuid}（编辑弹窗预填） */
+export async function fetchProjectDetail(
+  accessToken: string,
+  projectId: string,
+): Promise<DcEnvelope<DcProjectDetail>> {
+  const id = projectId.trim();
+  if (!id) throw new Error('缺少项目 ID');
+  return requestEnvelope<DcProjectDetail>(`/api/v1/projects/${encodeURIComponent(id)}`, {
+    accessToken,
+  });
+}
+
+/** 更新项目 PUT /api/v1/projects/{uuid} */
+export async function updateProject(
+  accessToken: string,
+  projectId: string,
+  body: UpdateProjectBody,
+): Promise<DcEnvelope<DcProjectDetail>> {
+  const id = projectId.trim();
+  if (!id) throw new Error('缺少项目 ID');
+  return requestEnvelope<DcProjectDetail>(`/api/v1/projects/${encodeURIComponent(id)}`, {
+    method: 'PUT',
+    accessToken,
+    body: JSON.stringify(body),
+  });
 }
 
 export async function registerToClawManager(input: {
@@ -371,9 +456,39 @@ async function request<T>(
   }
   const resp = await fetch(`${managerBase()}${path}`, { ...init, headers });
   if (!resp.ok) {
-    throw new Error(await errorMessage(resp));
+    throw await buildRequestError(resp);
   }
   return resp.json() as Promise<T>;
+}
+
+async function buildRequestError(resp: Response): Promise<Error> {
+  try {
+    const data = await resp.json();
+    if (isApiErrorDetail(data?.detail)) {
+      return new ApiRequestError(data.detail);
+    }
+    if (typeof data?.detail === 'string') {
+      return new Error(data.detail);
+    }
+    if (Array.isArray(data?.detail)) {
+      return new Error(
+        data.detail.map((item: { msg?: string }) => item?.msg || String(item)).join('; '),
+      );
+    }
+    if (data?.message && data?.code !== undefined && data.code !== 0) {
+      return new Error(String(data.message));
+    }
+  } catch {
+    // fall through
+  }
+  if (resp.status === 401) return new Error('用户名或密码错误');
+  if (resp.status === 403) return new Error('无权访问该项目');
+  return new Error(`${resp.status} ${resp.statusText}`);
+}
+
+async function errorMessage(resp: Response): Promise<string> {
+  const err = await buildRequestError(resp);
+  return err.message;
 }
 
 async function requestEnvelope<T>(
@@ -389,25 +504,6 @@ async function requestEnvelope<T>(
     return env;
   }
   return { code: 0, message: 'success', data: payload as T };
-}
-
-async function errorMessage(resp: Response): Promise<string> {
-  try {
-    const data = await resp.json();
-    if (typeof data?.detail === 'string') return data.detail;
-    if (Array.isArray(data?.detail)) {
-      return data.detail.map((item: { msg?: string }) => item?.msg || String(item)).join('; ');
-    }
-    if (data?.message && data?.code !== undefined && data.code !== 0) {
-      return String(data.message);
-    }
-    if (resp.status === 401) return '用户名或密码错误';
-    if (resp.status === 403) return '无权访问该项目';
-    return `${resp.status} ${resp.statusText}`;
-  } catch {
-    if (resp.status === 401) return '用户名或密码错误';
-    return `${resp.status} ${resp.statusText}`;
-  }
 }
 
 function normalizeEndpoint(endpoint: string): string {

@@ -31,6 +31,19 @@ from typing import Any, Callable, ClassVar, Iterable, Literal, TypedDict, Annota
 from operator import add
 
 
+def _merge_files(left: dict | None, right: dict | None) -> dict:
+    """state.files 的累加 reducer：跨 step（同一 run 内）合并而非整体覆盖。
+
+    无此 reducer 时，LangGraph 对普通 dict 通道做「整体替换」——后一个 step 返回的
+    files 会覆盖前一个（如 lld_integrate 的 {lld_file} 覆盖 plane_planning 的各平面文件），
+    导致前端只看得到最近一步产物。合并后所有产物键累积保留（同键以新值为准）。"""
+    if not right:
+        return dict(left or {})
+    out = dict(left or {})
+    out.update(right)
+    return out
+
+
 # ─── 线程安全的 run-level 推送注册表 ────────────────────────────────────────────
 # main.py 在 run 启动时注册一个 thread-safe push 回调；
 # BaseSkill.make_node 在线程池中执行 _node(state) 时按 run_id 取出回调，
@@ -154,9 +167,11 @@ class SkillState(TypedDict, total=False):
     current_step: str
     overall_progress: int
 
-    files: dict[str, Any]
+    # files 用合并 reducer 累加（跨 step 不互相覆盖；见 _merge_files）
+    files: Annotated[dict[str, Any], _merge_files]
     hitl: HitlRequest
     hitl_resume: dict
+    route_to: str  # step/续跑声明的跳转目标（菜单式直执即止；空=正常线性流转）
 
     metrics: dict[str, Any]
     error: str
@@ -435,6 +450,19 @@ class BaseSkill(abc.ABC):
         见 GuihuaSkill。"""
         return project
 
+    def build_resume_init_state(
+        self,
+        prev: dict[str, Any],
+        project: dict[str, Any],
+        hitl_step: str,
+        payload: dict[str, Any],
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        """full_restart 续跑前构造 init_state 增量（默认仅透传 project）。
+
+        子类可覆写：设置 route_to 跳过已完成阶段、保留 files 等。
+        返回 (init_extras, project)。"""
+        return {}, project
+
     def __init__(self, work_root: Path, llm_factory: Callable[[], Any] | None = None):
         self.work_root = Path(work_root)
         self.llm_factory = llm_factory
@@ -527,6 +555,7 @@ class BaseSkill(abc.ABC):
                 "current_step": step.key,
                 "logs": logs + [f"[{step.key}] ❌ 异常 {e}"],
                 "error": str(e),
+                "hitl": {},
             }
 
         # 合并 step 自己返回的 diff
@@ -560,11 +589,16 @@ class BaseSkill(abc.ABC):
             )
             result["steps"] = [rec]
 
-        # 默认推进 current_step + overall_progress
-        result.setdefault("current_step", self._next_step_key(step.key))
-        result.setdefault("overall_progress", self._step_progress_pct(step.key))
         result["logs"] = all_logs
-        result["hitl"] = {}  # 清空
+        # 失败时停在当前步、清空 HITL，避免「router 已 END 但 SDUI 仍显示下一交互门」
+        # 或进度/当前步错误地推进到下一步（导致前端状态刷新错乱）。
+        if result.get("error"):
+            result["current_step"] = step.key
+            result["hitl"] = {}
+        else:
+            result.setdefault("current_step", self._next_step_key(step.key))
+            result.setdefault("overall_progress", self._step_progress_pct(step.key))
+            result["hitl"] = {}  # 清空
         return result
 
     def prepare_work_root(self) -> None:
@@ -659,12 +693,19 @@ class BaseSkill(abc.ABC):
         return g.compile(checkpointer=checkpointer)
 
     def _make_router(self, this_key: str, next_key: str | None):
-        """生成 step 出口路由"""
+        """生成 step 出口路由。
+
+        支持 state['route_to']：step / 续跑可声明「直接跳到某节点」（如交付续跑
+        从 input_check 后直达 ztp/publish，跳过 plane_planning / lld_integrate）。
+        到达目标节点后正常线性流转（route_to 残留无害，目标多为终态发布节点）。"""
         def _route(state: SkillState) -> str:
             if state.get("error"):
                 return "__end__"
             if state.get("hitl") and state["hitl"].get("step"):
                 return "__end__"
+            route_to = str(state.get("route_to") or "")
+            if route_to and route_to != this_key:
+                return route_to
             return next_key or "__end__"
         return _route
 
@@ -684,6 +725,9 @@ class BaseSkill(abc.ABC):
         m = {"__end__": END}
         if next_key:
             m[next_key] = next_key
+        # 支持 route_to 跳转到任意 step（线性 DAG 内菜单式直达）
+        for s in self.steps:
+            m[s.key] = s.key
         return m
 
     # ── 工具 ──

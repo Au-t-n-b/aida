@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "packages": [
+    {
+      "package_id": "2#楼四五层生产网桥架平面图-8c72eb88",
+      "site": null,
+      "building": null,
+      "floor": null,
+      "rooms": [
+        "F1-R1",
+        "F1-R2",
+        "F1-R3"
+      ],
+      "imported_at": "2026-06-12T08:45:50+00:00"
+    }
+  ]
+}

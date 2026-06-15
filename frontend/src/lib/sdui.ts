@@ -21,8 +21,10 @@ export type SduiAction =
 export interface SduiDataTableColumn {
   key: string;
   label: string;
-  type?: 'text' | 'status' | 'progress';
+  type?: 'text' | 'status' | 'progress' | 'date';
   width?: number;
+  paddingLeft?: number;
+  nowrap?: boolean;
   editable?: boolean;
   placeholder?: string;
 }
@@ -98,6 +100,43 @@ export type SduiBarChartNode = OptId & { type: 'BarChart'; data?: SduiBarDatum[]
 
 export type SduiGoldenMetricItem = { id?: string; label?: string; value?: number | string; color?: string };
 export type SduiGoldenMetricsNode = OptId & { type: 'GoldenMetrics'; metrics?: SduiGoldenMetricItem[] };
+export type SduiZhgkGoldenMetricsNode = OptId & {
+  type: 'ZhgkGoldenMetrics';
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+};
+
+export type SduiZhgkAssessmentDetail = {
+  item?: string;
+  result?: string;
+  source?: string;
+  time?: string;
+  risk?: string;
+};
+
+export type SduiZhgkAssessmentCategory = {
+  label: string;
+  value: number;
+  tone?: SduiSemanticColor;
+  details?: SduiZhgkAssessmentDetail[];
+};
+
+export type SduiZhgkAssessmentAlert = {
+  tone?: 'info' | 'success' | 'warning' | 'error';
+  title?: string;
+  message: string;
+};
+
+export type SduiZhgkAssessmentPanelNode = OptId & {
+  type: 'ZhgkAssessmentPanel';
+  title?: string;
+  total: number;
+  rateLabel?: string;
+  rateValue: number;
+  categories: SduiZhgkAssessmentCategory[];
+  alerts?: SduiZhgkAssessmentAlert[];
+};
 
 export type SduiArtifactGridNode = OptId & { type: 'ArtifactGrid'; artifacts: SduiArtifactItem[]; mode?: 'input' | 'output'; title?: string };
 
@@ -239,6 +278,7 @@ export type SduiDataTableNode = OptId & {
   backStepId?: string;
   groupKey?: string;
   groupAsTabs?: boolean;
+  filterKeys?: string[];
   pageSize?: number;
   requiredKeys?: string[];
   /** Tier B 展示/编辑双模式（组件库 DataTable · 编辑/保存/取消） */
@@ -323,6 +363,10 @@ export type SduiTabGroupNode = OptId & {
   focusToken?: number;
   /** default=卡片页签；subnav=交付台居中底划线导航 */
   variant?: 'default' | 'subnav';
+  /** keepAlive=true 时所有页签内容同时挂载（隐藏态 display:none），切换不卸载（保留 iframe 状态）。*/
+  keepAlive?: boolean;
+  /** fill=true 时页签容器撑满父高度（配合 EmbeddedWeb 大 iframe）。*/
+  fill?: boolean;
 };
 
 export type SduiContextBarGroup = { label: string; value: string; badge?: string };
@@ -358,14 +402,25 @@ export type SduiInputSlotListNode = OptId & { type: 'InputSlotList'; slots: Sdui
 /** TaskTimelineStrip — 任务时间规划条/迷你甘特：计划 vs 实际双轨 + 剩余天数 + 进度填充（remainingDays 逾期为负，progressPct 0–100）。*/
 export type SduiTaskTimelineStripNode = OptId & { type: 'TaskTimelineStrip'; plannedStart: string; plannedEnd: string; actualStart?: string; actualEnd?: string; remainingDays?: number; progressPct?: number };
 
+/** GanttChart 的一行任务条。*/
+export type SduiGanttRow = { id: string; label: string; group?: string; start: string; end: string; status?: string };
+/** GanttChart — 多行甘特图（只读）；rows 按 group 分组展示计划条，status 可选着色。*/
+export type SduiGanttChartNode = OptId & { type: 'GanttChart'; rows: SduiGanttRow[]; title?: string };
+
 /** MacroStepRail 的一个宏观阶段：id + 标题 + 可选 hint + optional 标记 + 状态。*/
 export type SduiMacroStep = { id: string; title: string; hint?: string; optional?: boolean; status?: 'done' | 'running' | 'pending' };
 /** MacroStepRail — 宏观交付蓝图条（如六步 s1–s6），区别于 micro 的 Stepper：optional 阶段灰显，hint 给副提示，currentId 高亮当前。*/
 export type SduiMacroStepRailNode = OptId & { type: 'MacroStepRail'; steps: SduiMacroStep[]; currentId?: string };
 
 /** EmbeddedWeb — 内嵌网页（iframe 承载外部 Web UI，如 nVisual 仿真软件访问页）。
- *  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认 520）；openInNewTab 给「新页打开」兜底链接。*/
-export type SduiEmbeddedWebNode = OptId & { type: 'EmbeddedWeb'; url: string; title?: string; note?: string; height?: number; openInNewTab?: boolean; offline?: boolean };
+ *  url 必填；title 作页眉、note 作离线/加载提示；height 像素高（默认 520）；openInNewTab 给「新页打开」兜底链接。
+ *  reloadToken：后端递增时前端自动 postMessage pageRefresh 刷新 iframe（创建超节点成功后用）。*/
+export type SduiEmbeddedWebNode = OptId & { type: 'EmbeddedWeb'; url: string; title?: string; note?: string; height?: number; openInNewTab?: boolean; offline?: boolean; reloadToken?: number };
+
+/** OutputDocsGrid — 分类输出文件网格（比扁平 ArtifactGrid 多分类 + 标签 chip + 锁定态）。unlocked=false 时整体半透占位。*/
+export type SduiOutputDocItem = { no: string; name: string; fullName?: string; category: string; tag?: string; desc?: string; path?: string };
+export type SduiOutputDocCategory = { key: string; label: string };
+export type SduiOutputDocsGridNode = OptId & { type: 'OutputDocsGrid'; docs: SduiOutputDocItem[]; categories?: SduiOutputDocCategory[]; unlocked?: boolean; title?: string };
 
 // ── HITL nodes ────────────────────────────────────────────────────────────────
 
@@ -391,6 +446,8 @@ export type SduiChoiceCardNode = OptId & {
   multiple?: boolean;
   maxSelections?: number;
   submitLabel?: string;
+  /** 可重复触发的动作型选择，例如“刷新检查回传”；后端未命中时仍留在本节点。 */
+  repeatable?: boolean;
 };
 
 export type SduiIoConfirmPanelNode = OptId & {
@@ -467,7 +524,7 @@ export type SduiNode =
   | SduiBadgeNode | SduiStatisticNode | SduiStatisticRowNode
   | SduiKeyValueListNode | SduiTableNode
   | SduiButtonNode | SduiLinkNode
-  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode
+  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode | SduiZhgkGoldenMetricsNode | SduiZhgkAssessmentPanelNode
   | SduiArtifactGridNode
   // v1.1 display nodes
   | SduiAlertNode | SduiTimelineNode | SduiNumberCardNode | SduiPlaneMatrixNode
@@ -483,8 +540,8 @@ export type SduiNode =
   | SduiRecipientListNode | SduiDiffViewNode | SduiInlinePreviewNode | SduiImageGridNode | SduiToastNode | SduiSparklineNode
   | SduiDashboardLayoutNode | SduiDrawerNode
   // tier D (v5 业务扩展)
-  | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiMacroStepRailNode
-  | SduiContextBarNode | SduiFlowStepsNode | SduiEmbeddedWebNode
+  | SduiTabGroupNode | SduiInputSlotListNode | SduiTaskTimelineStripNode | SduiGanttChartNode | SduiMacroStepRailNode
+  | SduiContextBarNode | SduiFlowStepsNode | SduiEmbeddedWebNode | SduiOutputDocsGridNode
   | SduiFilePickerNode | SduiChoiceCardNode | SduiIoConfirmPanelNode | SduiHitlTextInputNode | SduiHitlFormNode;
 
 // ── Tree walk / lookup（TabGroup 等嵌套容器需下钻 tabs，不能只走 children）────────

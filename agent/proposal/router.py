@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Header, Query
 from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
 
 from agent.proposal.auth import (
     ProposalSession,
@@ -37,18 +38,24 @@ from agent.proposal.services import service_delivery_ui as svc
 from agent.proposal.services import metadata as metadata_service
 from agent.proposal.services import versions as versions_service
 from agent.proposal.draft_store import assert_draft_editable
+from agent.proposal_request_logging import ProposalLoggingRoute
 
-router = APIRouter(prefix="/api/v1/projects/{project_id}/proposal", tags=["proposal"])
+router = APIRouter(
+    prefix="/api/v1/projects/{project_id}/proposal",
+    tags=["proposal"],
+    route_class=ProposalLoggingRoute,
+)
 
 
 @router.get("/draft")
-def get_draft(
+async def get_draft(
     project_id: str,
     _session: ProposalSession = Depends(require_proposal_read),
 ):
     from agent.proposal.auth import proposal_operator_display_name
 
-    data = draft_service.get_draft(
+    data = await run_in_threadpool(
+        draft_service.get_draft,
         project_id,
         operator=proposal_operator_display_name(_session),
         session=_session,

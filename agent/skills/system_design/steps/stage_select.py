@@ -13,12 +13,14 @@ step · 输入执行计划（确认型 HITL 门 · 对齐设计稿 next_stage）
 from __future__ import annotations
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit
+from ..pipelines.delivery import stage_select_hitl
 from agent.sdui.projector_base import collect_metrics
 
 
 class StageSelectStep(BaseStep):
     key = "stage_select"
     name = "输入执行计划"
+    internal = True  # HITL 选择门，基础设施步骤，豁免 SKILL.md 后端节点声明
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         from ..pipelines.delivery import should_skip_step
@@ -60,21 +62,5 @@ class StageSelectStep(BaseStep):
             )],
             "logs": ["[stage_select] 等待选择下一步执行计划"],
             "metrics": {"stage_chosen": False},
-            "hitl": {
-                "step": self.key,
-                "reason": (
-                    "完整 LLD 设计已融合完成。请选择下一步执行计划：\n"
-                    "· 设备名称替换（可选）：把规划设备名替换为现网命名，再生成 ZTP；\n"
-                    "· 直接 ZTP：跳过名称替换，保留规划设备名直接生成开局文件。"
-                ),
-                "need_files": [],
-                "need_inputs": [{
-                    "id": "stage",
-                    "label": "选择下一步执行计划",
-                    "options": [
-                        {"label": "设备名称替换 + 生成 ZTP 开局文件", "value": "rename_ztp"},
-                        {"label": "跳过名称替换，直接生成 ZTP", "value": "skip_ztp"},
-                    ],
-                }],
-            },
+            "hitl": stage_select_hitl(),
         }

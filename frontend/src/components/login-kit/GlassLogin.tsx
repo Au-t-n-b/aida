@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { initDecisionGraph } from './anim/decisionGraph.ts';
 import { initGlassIntro } from './anim/glassIntro.ts';
 import { RegisterModal } from './RegisterModal';
+import { applyApiError } from '@/lib/api-error';
 import './glass-login.css';
 
 interface GlassLoginProps {
@@ -77,8 +78,7 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
       await onSubmit(account, password);
       setDone(true);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '登录失败，请重试';
-      setError(message);
+      applyApiError(err, setError, () => {}, '登录失败，请重试');
       setDone(false);
     } finally {
       setLoading(false);
@@ -159,7 +159,7 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
               </div>
 
               {error ? (
-                <div className="lg-error" role="alert">
+                <div className="lg-error" role="alert" title={error}>
                   {error}
                 </div>
               ) : null}

@@ -48,8 +48,11 @@ def parse_raci_xlsx(path: Path) -> list[dict[str, str]]:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     if not headers:
         return []
@@ -98,8 +101,11 @@ def parse_plan_xlsx(path: Path) -> list[dict[str, Any]]:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     if not headers:
         return []
@@ -159,20 +165,15 @@ def parse_plan_xlsx(path: Path) -> list[dict[str, Any]]:
 
 
 def parse_testcases_xlsx(path: Path) -> list[dict[str, Any]]:
-    try:
-        from .officecli_parse import parse_testcases_via_officecli
-
-        rows = parse_testcases_via_officecli(path)
-        if rows:
-            return rows
-    except Exception:
-        pass
-
+    """xlsx 测试用例表：openpyxl 直读（避免 officecli 慢/超时）。"""
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    all_rows = list(ws.iter_rows(values_only=True))
+    try:
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+    finally:
+        wb.close()
     headers, data_start = _resolve_xlsx_data_start(all_rows)
     if not headers:
         return []
@@ -220,7 +221,7 @@ def parse_testcases_xlsx(path: Path) -> list[dict[str, Any]]:
             "expects": [s.strip() for s in expects_raw.split("\n") if s.strip()] if expects_raw else [],
             "result": get("result"),
             "remark": get("remark"),
-            "selected": get("selected") == "是",
+            "selected": get("selected") in ("是", "true", "True", "1", "yes", "Yes"),
         })
     return out
 
@@ -349,8 +350,11 @@ def read_saved_version(path: Path) -> int:
     import openpyxl
 
     wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-    ws = wb.active
-    rows = list(ws.iter_rows(max_row=3, values_only=True))
+    try:
+        ws = wb.active
+        rows = list(ws.iter_rows(max_row=3, values_only=True))
+    finally:
+        wb.close()
     if not rows:
         return 0
     headers = [str(h or "").strip() for h in rows[0]]

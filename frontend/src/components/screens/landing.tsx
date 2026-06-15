@@ -10,12 +10,15 @@ import { useNavigate } from 'react-router-dom';
 import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { fetchMyProjects } from '@/lib/claw-manager-client';
 import {
   mapDcProjectToCard,
   projectToFormPreset,
   visibleLandingProjects,
   STAGE_KEYS,
+  landingStatusKey,
+  LANDING_STATUS_LABEL,
   type LandingProjectCard,
 } from '@/lib/landing-projects';
 import { LANDING_CREATE_HINT, STAGE4_LABELS } from '../../data/landing-data';
@@ -38,8 +41,8 @@ function ProjectCard({ p, onClick, onEdit }) {
   const overdue = p.overdueCount > 0;
   const stageIndex = STAGE_KEYS.indexOf(p.stage4);
   const disabled = !p.canEnter;
-  const approved = p.status === 'APPROVED';
-  const pending = p.status === 'PENDING_APPROVAL';
+  const statusKey = landingStatusKey(p);
+  const statusLabel = LANDING_STATUS_LABEL[statusKey];
 
   return (
     <div
@@ -53,31 +56,34 @@ function ProjectCard({ p, onClick, onEdit }) {
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
       >
-        <div className="flex w-full flex-wrap items-center gap-2">
-          <span className="lp-card-name text-sm font-bold text-slate-900">{p.name}</span>
-          {approved && (
-            <span className="rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-              已审批
-            </span>
-          )}
-          {pending && (
-            <span className="rounded bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
-              待审批
-            </span>
-          )}
+        <div
+          className="lp-card-name w-full pr-[4.5rem] text-left text-sm font-bold leading-snug text-slate-900 line-clamp-2"
+          title={p.name}
+        >
+          {p.name}
         </div>
-        <div className="lp-card-head mt-1.5 flex w-full flex-wrap items-center gap-1.5">
-          {p.roles?.map((r) => (
-            <span
-              key={r}
-              className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600"
-              data-role={r}
-            >
-              {r}
-            </span>
-          ))}
+        <div className="lp-card-head mt-2 flex w-full items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {p.roles?.map((r) => (
+              <span
+                key={r}
+                className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-600"
+                data-role={r}
+              >
+                {r}
+              </span>
+            ))}
+          </div>
+          <span
+            className={`ml-auto shrink-0 rounded px-2 py-0.5 text-xs font-medium ${
+              statusKey === 'approved'
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-amber-50 text-amber-700'
+            }`}
+          >
+            {statusLabel}
+          </span>
         </div>
-        <div className="lp-card-code mt-1 text-left text-xs text-slate-400">{p.code}</div>
 
         <div className="lp-stage-track">
           {STAGE_KEYS.map((key, i) => {
@@ -103,57 +109,43 @@ function ProjectCard({ p, onClick, onEdit }) {
         </div>
 
         <div className="lp-card-foot mt-auto flex flex-wrap items-center gap-2 border-0 border-t-0 pt-3">
-          {typeof p.progress === 'number' && p.progress > 0 ? (
-            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-slate-600">
-              进度 {p.progress}%
-            </span>
-          ) : p.todoCount > 0 ? (
-            <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-amber-600">
-              待办 {p.todoCount}
-            </span>
-          ) : null}
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-amber-600">
+            待办 {p.todoCount}
+          </span>
           {p.overdueCount > 0 && (
             <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-normal text-red-600">
-              高风险
+              超期 {p.overdueCount}
             </span>
           )}
-          <span className="ml-auto text-xs text-slate-400">
-            上次操作 {p.updated}
-          </span>
         </div>
       </button>
 
       {p.canEdit && (
-        <button
-          type="button"
-          className="absolute right-2 top-2 z-[2] inline-flex h-6 items-center gap-1 rounded border-0 bg-transparent px-2 text-[11px] text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-          onClick={(e) => {
-            e.stopPropagation();
-            onEdit?.(p.id);
-          }}
-          title="编辑项目（PD / PCM 可见）"
-        >
-          <IcEdit />
-          <span>编辑</span>
-        </button>
+        <div className="absolute right-2 top-2 z-[2] flex items-center gap-0.5">
+          <button
+            type="button"
+            className="inline-flex h-6 items-center gap-1 rounded border-0 bg-transparent px-2 text-[11px] text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit?.(p.id);
+            }}
+            title="编辑项目"
+          >
+            <IcEdit />
+            <span>编辑</span>
+          </button>
+        </div>
       )}
     </div>
   );
-}
-
-function userAvatar(name: string): string {
-  const s = (name || '').trim();
-  if (!s) return 'U';
-  if (/[\u4e00-\u9fff]/.test(s)) return s.slice(0, 2);
-  return s.slice(0, 2).toUpperCase();
 }
 
 export default function LandingScreen() {
   const navigate = useNavigate();
   const doLogout = useLogout();
   const { session } = useAidaSession();
+  const sessionUser = useSessionUser();
   const { selectProject } = useCurrentProject();
-  const [tab, setTab] = useState('active');
   const [projects, setProjects] = useState<LandingProjectCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +155,7 @@ export default function LandingScreen() {
   const openCreate = () => setModal({ open: true, mode: 'create', preset: null, projectId: null });
   const openEdit = (id: string) => {
     const p = projects.find((x) => x.id === id);
+    // 列表卡片作占位预填，弹窗内 fetchProjectDetail 拉全量详情覆盖
     const preset = p ? projectToFormPreset(p) : null;
     setModal({ open: true, mode: 'edit', preset, projectId: id });
   };
@@ -191,9 +184,9 @@ export default function LandingScreen() {
     void reloadProjects();
   }, [reloadProjects]);
 
-  const handleProjectCreated = useCallback(async () => {
+  const handleProjectSaved = useCallback(async (kind: 'create' | 'edit') => {
     await reloadProjects({ silent: true });
-    setFlash('项目已提交创建，状态为待审批');
+    setFlash(kind === 'edit' ? '项目信息已更新' : '项目已提交创建，状态为待审批');
     window.setTimeout(() => setFlash(null), 5000);
   }, [reloadProjects]);
 
@@ -210,10 +203,9 @@ export default function LandingScreen() {
     navigate('/cockpit');
   };
 
-  const displayName = session?.user?.display_name || session?.user?.username || '用户';
-  const roleLabel = session?.user?.global_roles?.[0]?.roleName
-    || session?.role
-    || '交付成员';
+  const displayName = sessionUser.displayName;
+  const roleLabel = sessionUser.roleLabel;
+  const userId = sessionUser.userId;
 
   const visibleProjects = visibleLandingProjects(projects);
 
@@ -240,9 +232,9 @@ export default function LandingScreen() {
         <div className="lp-top-user">
           <div className="lp-top-user-meta">
             <div className="lp-top-user-name">{displayName}</div>
-            <div className="lp-top-user-title">{roleLabel}</div>
+            <div className="lp-top-user-title">{roleLabel}{userId ? ` · ${userId}` : ''}</div>
           </div>
-          <div className="lp-top-user-av">{userAvatar(displayName)}</div>
+          <div className="lp-top-user-av">{sessionUser.avatarInitials}</div>
           <button type="button" className="lp-top-logout" onClick={() => void doLogout()}>
             退出
           </button>
@@ -259,26 +251,10 @@ export default function LandingScreen() {
         </section>
 
         <div className="lp-toolbar mb-4">
-          <div className="lp-tabs border-0 bg-transparent p-0">
-            <button
-              type="button"
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold shadow-sm transition-colors ${
-                tab === 'active'
-                  ? 'bg-slate-800 text-white'
-                  : 'bg-transparent text-slate-500 hover:text-slate-700'
-              }`}
-              onClick={() => setTab('active')}
-            >
-              我的项目
-              <span
-                className={`rounded px-1.5 py-0.5 font-mono text-xs ${
-                  tab === 'active' ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {loading ? '…' : visibleProjects.length}
-              </span>
-            </button>
-          </div>
+          <h2 className="lp-section-title">
+            我的项目
+            <span className="lp-section-count">{loading ? '…' : visibleProjects.length}</span>
+          </h2>
           <div className="lp-toolbar-spacer" />
         </div>
 
@@ -296,9 +272,7 @@ export default function LandingScreen() {
 
         <div className="lp-grid-scroll">
           <div className="lp-grid">
-            {tab === 'active' && (
-              <>
-                {loading && (
+            {loading && (
                   <div className="col-span-full py-12 text-center text-sm text-slate-500">
                     正在加载项目列表…
                   </div>
@@ -310,8 +284,6 @@ export default function LandingScreen() {
                 )}
                 {!loading && visibleProjects.map(renderCard)}
                 {!loading && <CreateCard onClick={openCreate} />}
-              </>
-            )}
           </div>
         </div>
       </main>
@@ -322,7 +294,7 @@ export default function LandingScreen() {
         preset={modal.preset}
         projectId={modal.projectId}
         onClose={closeModal}
-        onCreated={handleProjectCreated}
+        onSaved={handleProjectSaved}
       />
     </div>
   );

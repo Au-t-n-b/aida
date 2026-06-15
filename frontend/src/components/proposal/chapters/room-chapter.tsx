@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ProposalChapterCard } from '../primitives';
-import { roomRackApi, type RoomRackRow } from '@/lib/proposal-api';
+import {
+  chapterUploadMessage,
+  roomRackApi,
+  type ChapterUploadResult,
+  type RoomRackRow,
+} from '@/lib/proposal-api';
 
 const INPUT_CLS =
   'w-full rounded border border-transparent bg-transparent px-2 py-1 text-sm text-slate-700 transition-colors hover:border-slate-200 focus:border-blue-400 focus:bg-white focus:outline-none';
@@ -33,12 +38,49 @@ const EMPTY_ROW = {
   sample_leaf: '',
 };
 
+function useRoomAutosave(
+  save: () => Promise<ChapterUploadResult<RoomRackRow>>,
+  onWarning: (message: string) => void,
+  onError: (message: string) => void,
+) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveRef = useRef(save);
+  const warningRef = useRef(onWarning);
+  const errorRef = useRef(onError);
+  saveRef.current = save;
+  warningRef.current = onWarning;
+  errorRef.current = onError;
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  }, []);
+
+  return useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      timerRef.current = null;
+      try {
+        const result = await saveRef.current();
+        if (!result.uploaded) warningRef.current(chapterUploadMessage(result));
+      } catch (error) {
+        errorRef.current(error instanceof Error ? error.message : '自动保存失败');
+      }
+    }, 1000);
+  }, []);
+}
+
 export function RoomChapter() {
   const [rows, setRows] = useState<RoomRackRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const scheduleAutosave = useRoomAutosave(
+    () => roomRackApi.autosave(rows),
+    (message) => setToast({ type: 'warning', message }),
+    (message) => setToast({ type: 'error', message }),
+  );
 
   const load = useCallback(async () => {
     try {
@@ -63,6 +105,7 @@ export function RoomChapter() {
       debounceTimers.current.delete(rowId);
       try {
         await roomRackApi.update(rowId, { [field]: value });
+        scheduleAutosave();
       } catch (e) {
         setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
         load();
@@ -78,6 +121,7 @@ export function RoomChapter() {
         if (index < 0) return [...current, row];
         return [...current.slice(0, index + 1), row, ...current.slice(index + 1)];
       });
+      scheduleAutosave();
     } catch (e) {
       setToast({ type: 'error', message: e instanceof Error ? e.message : '新增失败' });
     }
@@ -88,20 +132,22 @@ export function RoomChapter() {
     setRows((current) => current.filter((row) => row.row_id !== rowId));
     try {
       await roomRackApi.delete(rowId);
+      scheduleAutosave();
     } catch (e) {
       setRows(previous);
       setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
     }
   };
 
-  const handleExport = async () => {
-    if (exporting || rows.length === 0) return;
+  const handleUpload = async (file: File) => {
+    if (exporting) return;
     setExporting(true);
     try {
-      const data = await roomRackApi.export(rows);
-      setToast({ type: 'success', message: `已保存到 ${data.saved_path}` });
+      const data = await roomRackApi.import(file);
+      setRows(data.rows);
+      scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '导出失败' });
+      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
     } finally {
       setExporting(false);
     }
@@ -111,9 +157,9 @@ export function RoomChapter() {
     <ProposalChapterCard id="panel-rooms" title="7. 机房信息">
       {toast && (
         <div className={`mb-3 rounded border px-3 py-2 text-sm ${
-          toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-green-200 bg-green-50 text-green-700'
+          toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'
         }`}>
-          {toast.message}
+          <span className="whitespace-pre-wrap">{toast.message}</span>
         </div>
       )}
       <div className="overflow-x-auto rounded-md border border-slate-100">
@@ -160,17 +206,28 @@ export function RoomChapter() {
       </div>
       <div className="mt-3 flex items-center justify-between">
         <div className="text-xs text-slate-500">{loading ? '加载中…' : `共 ${rows.length} 个 PoD`}</div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void handleUpload(file);
+          }}
+        />
         <button
           type="button"
-          onClick={handleExport}
-          disabled={loading || exporting || rows.length === 0}
+          onClick={() => fileInputRef.current?.click()}
+          disabled={loading || exporting}
           className={`rounded-md border px-3 py-1.5 text-xs font-normal transition-colors ${
-            loading || exporting || rows.length === 0
+            loading || exporting
               ? 'cursor-not-allowed border-slate-200 text-slate-300'
               : 'border-green-300 text-green-600 hover:border-green-400 hover:bg-green-50'
           }`}
         >
-          {exporting ? '保存中…' : '导出 Excel'}
+          {exporting ? '上传中…' : '上传'}
         </button>
       </div>
     </ProposalChapterCard>

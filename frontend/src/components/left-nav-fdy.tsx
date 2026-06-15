@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useLayoutEffect, useEffect, type ComponentType, type RefObject } from 'react';
-import { motion, LayoutGroup } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Network,
   ClipboardList,
@@ -15,10 +15,10 @@ import {
   Sun,
   Moon,
 } from 'lucide-react';
-import Link from '@/compat/link';
+import { WorkspaceNavLink } from '@/lib/workspace-nav-link';
 import { useNavPath } from '@/compat/navigation';
 import { MODULE_STATUS } from '../data/journey-data';
-import { getLeftNavScrollTop, setLeftNavScrollTop, restoreLeftNavScroll } from '@/lib/left-nav-scroll';
+import { getLeftNavScrollTop, setLeftNavScrollTop } from '@/lib/left-nav-scroll';
 import {
   type NavExpandedState,
   applyRouteRequiredExpand,
@@ -112,8 +112,6 @@ function isSubActive(navPath: string, s: FdySubItem, hrefPrefix?: string): boole
   return !!s.active;
 }
 
-const FDY_SUB_ACTIVE_LAYOUT_ID = 'fdyActiveSubIndicator';
-
 function FdySubMenu({
   sub,
   hrefPrefix,
@@ -147,11 +145,9 @@ function FdySubMenu({
                 onClick={(e) => disabled && e.preventDefault()}
               >
                 {active && (
-                  <motion.span
-                    layoutId={FDY_SUB_ACTIVE_LAYOUT_ID}
+                  <span
                     className="fdy-sub-active-dot"
                     aria-hidden
-                    onLayoutAnimationComplete={() => restoreLeftNavScroll(scrollRef.current)}
                   />
                 )}
                 <span className="n">{s.name}</span>
@@ -163,14 +159,13 @@ function FdySubMenu({
               return <div key={i}>{row}</div>;
             }
             return (
-              <Link
+              <WorkspaceNavLink
                 key={i}
                 href={href}
                 style={{ textDecoration: 'none' }}
-                onClick={(e) => e.stopPropagation()}
               >
                 {row}
-              </Link>
+              </WorkspaceNavLink>
             );
           })}
         </div>
@@ -274,7 +269,7 @@ function FdyNavLeaf({
   return (
     <div className="fdy-menu-group">
       {active && <div className="fdy-active-indicator" aria-hidden />}
-      <Link href={href} style={{ display: 'block', textDecoration: 'none' }}>
+      <WorkspaceNavLink href={href} style={{ display: 'block', textDecoration: 'none' }}>
         <motion.div
           layout={false}
           className={`fdy-app fdy-app-v2${active ? ' active' : ''}${collapsed ? ' is-collapsed' : ''}`}
@@ -296,7 +291,7 @@ function FdyNavLeaf({
             {!collapsed && <span className="fdy-label">{label}</span>}
           </div>
         </motion.div>
-      </Link>
+      </WorkspaceNavLink>
     </div>
   );
 }
@@ -374,14 +369,16 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const isEarly = pathname.startsWith('/preview') || pathname.startsWith('/proposal');
   const isDesign = pathname.startsWith('/design');
   const isPlan =
-    pathname.startsWith('/plan') || pathname.startsWith('/plan-init') || pathname.startsWith('/plan-adjust');
+    pathname.startsWith('/plan') ||
+    pathname.startsWith('/plan-init') ||
+    pathname.startsWith('/plan-adjust') ||
+    pathname.startsWith('/plan-risk-report');
   const isModulePath = pathname.startsWith('/module/') || pathname.startsWith('/commissioning');
   const isEvals = pathname.startsWith('/evals');
 
   const navTwin: FdySubItem[] = [
     { name: '算力底座孪生', href: '/twin', status: 'live', statusLabel: '物理 ⇄ 数字' },
     { name: '项目孪生', href: '/cockpit', status: MODULE_STATUS.cockpit?.state, statusLabel: '看板' },
-    { name: '工勘孪生', href: '/twin/survey', status: 'live', statusLabel: 'SOG 通道' },
   ];
   const navEarly: FdySubItem[] = [
     { name: '合同', href: '/preview', status: 'ok', statusLabel: '在线' },
@@ -389,14 +386,8 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   ];
   const navPlan: FdySubItem[] = [
     { name: '基本信息', href: '/plan?view=info', status: 'ok' },
-    { name: '计划', href: '/plan?view=plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
-    { name: '任务', href: '/plan?view=task', status: 'ok' },
-    { name: '风险', href: '/plan?view=risk', status: 'alert', statusLabel: '3 红' },
-    { name: '假设', href: '/plan?view=assumption', status: 'warn', statusLabel: '3 项' },
-    { name: '问题', href: '/plan?view=issue', status: 'warn', statusLabel: '2 项' },
-    { name: '变更', href: '/plan?view=change', status: 'ok' },
-    { name: '计划排期（初始化）', href: '/plan-init', status: 'ok' },
-    { name: '计划排期（计划调整）', href: '/plan-adjust', status: 'ok' },
+    { name: '计划排期', href: '/plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
+    { name: '风险报告', href: '/plan-risk-report', status: 'alert', statusLabel: '待办' },
   ];
   const navOps: FdySubItem[] = [
     { name: '智慧工勘', key: 'survey', status: MODULE_STATUS.survey?.state, statusLabel: MODULE_STATUS.survey?.label },
@@ -476,7 +467,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
       className={`left-nav-fdy left-nav-fdy-v2 fdy-theme-${navTheme}${collapsed ? ' nav-collapsed' : ''}`}
     >
       <div className="fdy-brand fdy-brand-v2">
-        <Link href="/cockpit" className="fdy-brand-link">
+        <WorkspaceNavLink href="/cockpit" className="fdy-brand-link">
           <div className="fdy-brand-mark" title="返回驾驶舱">
             <BrandLogo size={22} light={isNavLight} />
           </div>
@@ -487,7 +478,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
               </div>
             </div>
           )}
-        </Link>
+        </WorkspaceNavLink>
         <button
           type="button"
           className="fdy-collapse-btn fdy-collapse-btn-v2"
@@ -499,7 +490,6 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
       </div>
 
       <div ref={scrollRef} className="fdy-scroll-v2">
-        <LayoutGroup id="fdy-nav-sub-active">
         <div className="fdy-nav-list">
           {groups.slice(0, 2).map(({ key, config }) => (
             <FdyNavGroup
@@ -543,7 +533,6 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
             collapsed={collapsed}
           />
         </div>
-        </LayoutGroup>
       </div>
 
       <div className="fdy-nav-theme-foot">

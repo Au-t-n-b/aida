@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 from typing import Any, Callable
 
-GKCLAW_TASK_ID_RE = re.compile(r"task-\d{8}-[A-Z0-9]+-\d+", re.I)
+GKCLAW_TASK_ID_RE = re.compile(r"task-\d{8,20}-[A-Z0-9]+(?:-\d+)?", re.I)
 GKCLAW_MAIL_HINT_RE = re.compile(
     r"task\.(import_ack|result|error)|\[gkclaw\]", re.I
 )
@@ -23,6 +23,19 @@ def parse_task_id_from_subject(subject: str) -> str | None:
 
 def is_gkclaw_mail_subject(subject: str) -> bool:
     return bool(GKCLAW_MAIL_HINT_RE.search(subject or ""))
+
+
+def should_defer_inbound_retry(plan: dict[str, Any], *, subject: str) -> bool:
+    """Result/error 已入站但当前 run 暂不可触发时，允许稍后补触发。"""
+    if plan.get("trigger"):
+        return False
+    if not re.search(r"task\.(result|error)", subject or "", re.I):
+        return False
+    return str(plan.get("reason") or "") in {
+        "no_active_run",
+        "run_not_at_wait_survey",
+        "run_busy",
+    }
 
 
 def step_has_terminal_record(state: dict[str, Any], step_key: str) -> bool:
@@ -143,12 +156,18 @@ def plan_inbound_action(
 def should_chain_after_wait_survey(
     *, prev_step: str, state: dict[str, Any], step_retry_keys: list[str]
 ) -> str | None:
-    """wait_survey 合并完成后自动链接 assess（均在 step_retry 白名单内）。"""
-    if prev_step != "wait_survey":
-        return None
+    """GKCLAW 回传后自动推进到下一个非人工等待节点，直到遇到 HITL。"""
     if (state.get("hitl") or {}).get("step") or state.get("error"):
         return None
     nxt = str(state.get("current_step") or "")
-    if nxt == "assess" and "assess" in step_retry_keys:
-        return "assess"
+    expected = {
+        "task_dispatch": "wait_survey",
+        "wait_survey": "assess",
+        "assess": "issue_list",
+        "issue_list": "resurvey_gate",
+        "resurvey_gate": "report_gen_run",
+        "report_gen_run": "report_distribute",
+    }.get(prev_step)
+    if nxt == expected and expected in step_retry_keys:
+        return expected
     return None

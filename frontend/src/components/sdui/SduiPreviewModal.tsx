@@ -10,12 +10,31 @@
  * 设计沿用 aida 浅色 token，不照搬 nanobot 深色主题。
  */
 import { useEffect, useState } from 'react';
-import { ensureAgentBase } from '@/lib/agentBase';
+import { ensureAgentBase, artifactUrl } from '@/lib/agentBase';
 
 // 仅声明本组件实际调用的 API，避免依赖 xlsx/mammoth 自带类型（库未安装时也能编译）。
 interface XlsxLike {
-  read(data: ArrayBuffer, opts: { type: 'array' }): { SheetNames: string[]; Sheets: Record<string, unknown> };
+  read(data: ArrayBuffer, opts: { type: 'array' }): { SheetNames: string[]; Sheets: Record<string, Record<string, unknown> | undefined> };
   utils: { sheet_to_html(ws: unknown): string };
+}
+
+/** 跳过无单元格范围（如图表页/占位 sheet），避免 sheet_to_html 抛 indexOf 异常。 */
+function xlsxSheetsToHtml(
+  XLSX: XlsxLike,
+  wb: { SheetNames: string[]; Sheets: Record<string, Record<string, unknown> | undefined> },
+): Array<{ name: string; html: string }> {
+  const out: Array<{ name: string; html: string }> = [];
+  for (const name of wb.SheetNames) {
+    const ws = wb.Sheets[name];
+    if (!ws || !ws['!ref']) continue;
+    try {
+      out.push({ name, html: XLSX.utils.sheet_to_html(ws) });
+    } catch {
+      // 个别 sheet 结构异常时跳过，不影响其余 sheet 预览
+    }
+  }
+  if (!out.length) throw new Error('该 Excel 没有可预览的数据表');
+  return out;
 }
 interface MammothLike {
   convertToHtml(input: { arrayBuffer: ArrayBuffer }): Promise<{ value: string }>;
@@ -29,10 +48,6 @@ type Props = {
 };
 
 type Status = 'loading' | 'ready' | 'error' | 'unsupported';
-
-function artifactUrl(base: string, skillId: string, path: string): string {
-  return `${base}/agent/${skillId}/artifact?path=${encodeURIComponent(path)}`;
-}
 
 export function SduiPreviewModal({ skillId, path, onClose }: Props) {
   const [status, setStatus] = useState<Status>('loading');
@@ -61,19 +76,18 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
 
     void (async () => {
       try {
-        const base = await ensureAgentBase(skillId);
-        if (!cancelled) setAgentBase(base);
-        const res = await fetch(artifactUrl(base, skillId, path));
+        const fetchBase = import.meta.env.DEV ? '' : await ensureAgentBase(skillId);
+        const dlBase = fetchBase || await ensureAgentBase(skillId);
+        if (!cancelled) setAgentBase(dlBase);
+        const res = await fetch(artifactUrl(fetchBase, skillId, path));
         if (!res.ok) throw new Error(`加载失败 (${res.status})`);
 
-        if (ext === 'xlsx' || ext === 'xls') {
+        if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
           const buf = await res.arrayBuffer();
-          const XLSX = (await import('xlsx')) as unknown as XlsxLike;
+          const mod = await import('xlsx');
+          const XLSX = ((mod as { default?: XlsxLike }).default ?? mod) as XlsxLike;
           const wb = XLSX.read(buf, { type: 'array' });
-          const out = wb.SheetNames.map((name: string) => ({
-            name,
-            html: XLSX.utils.sheet_to_html(wb.Sheets[name]),
-          }));
+          const out = xlsxSheetsToHtml(XLSX, wb);
           if (!cancelled) { setSheets(out); setStatus('ready'); }
         } else if (ext === 'docx') {
           const buf = await res.arrayBuffer();

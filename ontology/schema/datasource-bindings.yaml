@@ -1,0 +1,485 @@
+version: 1
+
+datasources:
+  - id: delivery-plan-zjyd
+    type: csv
+    path: "ZJYD 测试项目汪伟_交付计划_20260415171001.csv"
+    projectId: "浙江移动"
+    projectKey: "浙江移动"
+  - id: delivery-plan-jd
+    type: csv
+    path: "JD_A3_delivery_plan_20260610.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: milestone-main
+    type: csv
+    path: "Milestone.csv"
+  - id: plan-equipment-rooms-jd
+    type: csv
+    path: "data/plan/equipment_rooms_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: plan-equipment-arrival-items-jd
+    type: csv
+    path: "data/plan/equipment_arrival_items_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: plan-delivery-batches-jd
+    type: csv
+    path: "data/plan/delivery_batches_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: plan-project-participants-jd
+    type: csv
+    path: "data/plan/project_participants_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: plan-resource-teams-jd
+    type: csv
+    path: "data/plan/resource_teams_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: plan-activity-templates-jd
+    type: csv
+    path: "data/plan/activity_templates_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: plan-schedule-risks-jd
+    type: csv
+    path: "data/plan/schedule_risks_jd.csv"
+    projectId: "京东"
+    projectKey: "京东"
+  - id: hld-parsed-json
+    type: json
+    path: "parsed/HLD解析结果.json"
+    projectId: "京东"
+    projectKey: "京东"
+    docType: "hld"
+    phase: "交付预案"
+  - id: contingency-chapters-json
+    type: json
+    path: "data/contingency/contingency_chapters.json"
+
+objectTypes:
+  DeliveryProject:
+    reader: derived_project
+    derived: true
+    writable: false
+    sources:
+      - delivery-plan-zjyd
+      - delivery-plan-jd
+  DeliveryPod:
+    reader: derived_pod
+    derived: true
+    writable: false
+    sources:
+      - delivery-plan-zjyd
+      - delivery-plan-jd
+  DeliveryPlanRow:
+    reader: csv_plan_rows
+    derived: false
+    writable: true
+    sources:
+      - delivery-plan-zjyd
+      - delivery-plan-jd
+  Milestone:
+    reader: csv_table
+    derived: false
+    writable: true
+    sources:
+      - milestone-main
+  ParsedDocumentSection:
+    reader: json_sections
+    derived: false
+    writable: false
+    sources:
+      - hld-parsed-json
+  SupplierCompany:
+    # Dolt-backed master object: no CSV source, edits go to the Dolt store via the
+    # generic Action writeback (apply_object_update). Reads via get_object_data stay
+    # empty (metadata_only) until a list endpoint is wired; the write/validate path
+    # reads current state directly from Dolt.
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  ChangeOrder:
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+
+  # ===== 排期域纸面类型入册（对齐 aida-delivery/01_业务语义 2026-06 口径）=====
+  # 说明 · 与预案域同款分两类：①可写 run-record / 改信息目标（站/货/批 + 沙箱/方案/风险 + 返工/诉求/版本）
+  # writable: true —— 写走 run-record overlay 或 generic Action writeback，无种子表时 metadata_only 返 []，
+  # 写回后可查；②只读主数据（人/工期/日历：队伍、模板、SLA 推导、日历）writable: false —— 待装载器或
+  # 写回 Action 落地后按既有范式翻 reader: dolt_rows / writable: true，无需改码。——
+  EquipmentRoom:
+    # 站：机房三段 ready + 入场/断电/施工窗口。modifyEquipmentRoomCustomerEntryDate（PLANNED）写本类型。
+    reader: csv_table
+    derived: false
+    writable: true
+    sources:
+      - plan-equipment-rooms-jd
+  EquipmentArrivalItem:
+    # 货：到货明细。modifyEquipmentArrivalItemModifiedArrivalDate（PLANNED）只写 modifiedArrivalDate，
+    # 不覆盖原始 arrivalDate；到货三态/齐套按日期派生不落库（见 object-types localGeneration）。
+    reader: csv_table
+    derived: false
+    writable: true
+    sources:
+      - plan-equipment-arrival-items-jd
+  DeliveryBatch:
+    # 批：上线批次（podKeys + 上电/上线目标 + 倒排建议值 suggested*）。modifyDeliveryBatchTargetGoLiveDate
+    # （PLANNED）与倒排引擎写本类型。
+    reader: csv_table
+    derived: false
+    writable: true
+    sources:
+      - plan-delivery-batches-jd
+  DeliveryScenario:
+    # 可写 run-record：沙箱推演场景，由 simulate/accept/discardDeliveryScenario（PLANNED）创建与流转，
+    # 对齐 ScenarioLifecycleManager 的 Dolt 沙盘分支。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  SchedulePlanOption:
+    # 可写 run-record：A/B/C 比选方案，沙箱推演产物。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  ScheduleRisk:
+    # 可写 run-record：排期风险（不可满足/可满足但有风险），推演产物；modifyScheduleRiskStatus（PLANNED）流转状态。
+    reader: csv_table
+    derived: false
+    writable: true
+    sources:
+      - plan-schedule-risks-jd
+  ReworkEvent:
+    # 可写 run-record：返工事件输入（攒变更 → 确认 → 推演 → 落地插入 REWORK 活动行）。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  AdjustmentRequest:
+    # 可写 run-record：调整诉求（按实体去重累计；区别于 ChangeOrder 供应商审批工单）。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  SchedulePlanVersion:
+    # 可写 run-record：排期写回版本台账（与预案域 PlanVersionLog 分开）。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  ProjectParticipant:
+    # 只读主数据，暂无数据源 → metadata_only 返 []。
+    reader: csv_table
+    derived: false
+    writable: false
+    sources:
+      - plan-project-participants-jd
+  ResourceTeam:
+    # 人：施工队伍主数据（人数/经验档/可用窗口），暂无数据源（排班表装载器待建）。
+    reader: csv_table
+    derived: false
+    writable: false
+    sources:
+      - plan-resource-teams-jd
+  TeamCapabilityProfile:
+    # 人：队伍能力画像（efficiency 产能系数），暂无数据源。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  ActivityResourceAssignment:
+    # 人：活动队伍分配，暂无数据源。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  ActivityTemplate:
+    # 工期：组织级活动标准模板（标准/极限 SLA + 作用域 + 刚弹分类），暂无数据源。
+    reader: csv_table
+    derived: false
+    writable: false
+    sources:
+      - plan-activity-templates-jd
+  ActivitySlaEstimate:
+    # 工期：SLA 推导结果（公式版本/影响因素/是否采纳），暂无数据源；采纳写回 Action 落地后翻 writable。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  WorkCalendar:
+    # 日历：项目工作日历（跳周末等），暂无数据源。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  CalendarException:
+    # 日历：意外事件 = 时间窗口产能系数（效率打折/假期停工），暂无数据源；意外事件录入 Action 落地后翻 writable。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+
+  # ===== merged from delivery-contingency-plan ontology (was contingency-schema/) =====
+  # 说明 · 暂无 Dolt 数据的类型保留 metadata_only：①可写 run-record（ContingencyPlan/DeliverabilityAssessment/
+  # GapItem/RemediationTask/ConfigurationFile）由运行时写回 Action 落 overlay，无种子表，metadata_only 即服务该
+  # overlay（空表时返 []，写回后可查）；②只读但暂无数据源（PlanUseCase/EvidenceSource/PlanScheduleSnapshot/
+  # MachineRoomConfig）返 []。一旦其 Dolt 表灌入数据，按本文件既有范式翻成 reader: dolt_rows 即可。
+  ContingencyPlan:
+    # 可写 run-record：预案实例由运行时创建写回 overlay。暂无种子数据 → metadata_only。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  ChapterNarrative:
+    # 可写 run-record：章节正文由 contingency_narrative LangGraph 生成 + 人工编辑，写回 overlay
+    # (schema/runtime/ChapterNarrative.json)。无种子表 → metadata_only；按 (projectKey, chapterId) 定位。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  ContingencyOutline:
+    # 可写 run-record：预案章节裁剪决策由 contingency_assembly LangGraph 生成 + 人工 pin，写回 overlay
+    # (schema/runtime/ContingencyOutline.json)。无种子表 → metadata_only；每 projectKey 一行。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  PlanUseCase:
+    # 只读，暂无数据源（预案用例库未加载）→ metadata_only 返 []。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  DecisionPoint:
+    # Dolt is the single source of truth for the 预案 decision model (1 核心 方案可交付性 + 4 子决策点).
+    # reader: dolt_rows reads straight from the Dolt `decision_point` table — global template
+    # reference data with no projectKey, like RiskRule. Degrades to [] when Dolt is offline.
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  DecisionRecord:
+    # 可写 run-record：预案决策固化记录（RecordContingencyDecision 写回）。决策点模板在 Dolt（DecisionPoint，
+    # 只读），人工确认/覆盖的结论落 overlay 留痕；后续决策记录单独入库时按既有范式翻 reader 即可。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  EvidenceSource:
+    # 只读，暂无数据源（证据源未加载）→ metadata_only 返 []。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  DeliverabilityAssessment:
+    # 可写 run-record：可交付性评估由运行时写回 overlay。暂无种子数据 → metadata_only。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  GapItem:
+    # 可写 run-record：缺口项由 deriveContingencyRisks 派生后人工写回 overlay。暂无数据 → metadata_only。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  RemediationTask:
+    # 可写 run-record：整改任务由运行时写回 overlay。暂无数据 → metadata_only。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  RiskItem:
+    # Dolt-backed seed (21_风险列表.xlsx → risk_item, 4 rows). Still a writable run-record type:
+    # reader: dolt_rows reads Dolt seed ∪ run-record overlay (adopted risks), writes still go to the
+    # overlay via the writeback:run_record Action engine (reader-agnostic). writable stays true.
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  AssumptionItem:
+    # Dolt-backed seed (22_假设表.xlsx → assumption_item, 4 rows). Writable run-record like RiskItem:
+    # reader: dolt_rows = Dolt seed ∪ overlay; writes go to the overlay. writable stays true.
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  ProjectRequirement:
+    # Dolt-backed (03_项目背景信息表.xlsx → project_requirement, 1 row). dolt_rows so get_object_data
+    # returns the row (not chapter-bound, but the read path is now truthful).
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  EquipmentConfig:
+    # Dolt is the single source of truth for equipment lifecycle facts (GA/TR5/EOM/EOS/ESS dates).
+    # reader: dolt_rows reads straight from the Dolt `equipment_config` table (loaded from
+    # 04_设备信息表.xlsx by load_contingency_excel_to_dolt.py) — no committed CSV/JSON in the read path.
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  ComponentConfig:
+    # Dolt is the single source of truth for component lifecycle facts (synced from
+    # 05_智算部件配置信息表.xlsx). reader: dolt_rows reads straight from the Dolt `component_config`
+    # table — no committed JSON in the read path; degrades to [] when Dolt is offline. projectKey
+    # scopes rows by project (currently all 京东 / JD 三期).
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  SoftwareConfig:
+    # Dolt-backed (06_软件配置信息表.xlsx → software_config, 7 rows). reader: dolt_rows surfaces the
+    # rows to 预案 chapter 4; metadata_only returned [] so the chapter rendered as an empty skeleton
+    # despite the data being loaded. Global asset (no projectKey) → not project-filtered.
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  NetworkConfig:
+    # Dolt-backed (07_网络平面配置表 + 08_共平面类型表 + 09_网管服务器配置表 → network_config, 17 rows).
+    # reader: dolt_rows surfaces the rows to 预案 chapter 5 (was metadata_only → empty chapter).
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  MachineRoomConfig:
+    # Dolt-backed (12_机房机柜信息表.xlsx → machine_room_config，按 PoD × 机柜类型展开). reader: dolt_rows
+    # 让预案「机房信息」章（已绑回本类型）显示真实机柜清单。装载器 load_machine_room_config_to_dolt.py。
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  ServiceConfig:
+    # Dolt-backed (13_服务配置表 + 14_服务内容表 → service_config, 32 rows). dolt_rows surfaces them.
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  MaintenancePolicy:
+    # Dolt is the single source of truth for maintenance-policy facts (EOS dates / isOverEos).
+    # reader: dolt_rows reads straight from the Dolt `maintenance_policy` table — no committed
+    # CSV/JSON in the read path; degrades to [] when Dolt is offline. projectKey scopes rows by
+    # project (currently all 京东 / JD 三期).
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  SlaRequirement:
+    # Dolt-backed (维保SLA.xlsx → sla_requirement, non-draft rows). dolt_rows surfaces them.
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  AcceptanceStrategy:
+    # Dolt-backed (18_验收策略表.xlsx → acceptance_strategy, 7 rows). Already shown in ch11 via the
+    # derive prefetch special-case; dolt_rows makes the generic get_object_data path consistent too.
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  PlanScheduleSnapshot:
+    # No Dolt data (plan_schedule_snapshot = 0 rows) — 计划排期快照为运行时产物，暂无加载。metadata_only。
+    reader: metadata_only
+    derived: false
+    writable: false
+    sources: []
+  IntegrationVerificationRequirement:
+    # Dolt-backed (11_预集成预验证需求信息表.xlsx → integration_verification_requirement, 3 rows).
+    # reader: dolt_rows surfaces the rows to 预案 chapter 10 (was metadata_only → empty chapter).
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  ResponsibilityMatrixItem:
+    # Dolt-backed (17_责任矩阵表.xlsx → responsibility_matrix_item, 10 rows). reader: dolt_rows surfaces
+    # the rows to 预案 chapter 8 责任矩阵; metadata_only returned [] so the chapter rendered empty even
+    # though the Excel had been loaded into Dolt. Global asset (no projectKey) → not project-filtered.
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  ConfigurationFile:
+    # 可写 run-record：配置文件登记由运行时写回 overlay。暂无种子数据 → metadata_only。
+    reader: metadata_only
+    derived: false
+    writable: true
+    sources: []
+  # —— 由「预案 excel数据」18+ 输出表扩展出的资产对象（数据 Dolt-backed，Excel→Dolt 加载后经本映射读取）。
+  #    凡 Dolt 表已有数据者一律 reader: dolt_rows（get_object_data 直读真实 Dolt 行，不再返回 []）；是否在 12 章
+  #    预案脑图投影由 contingency_chapters.json 的 objectType 决定，与本 reader 正交。下列三张有数据→dolt_rows。——
+  ClusterDeviceInventory:
+    # Dolt-backed (10_集群设备清单表.xlsx → cluster_device_inventory, 4 rows).
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  TestCase:
+    # Dolt-backed (19_测试用例表.xlsx → test_case, 29 rows).
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  ContractInfo:
+    # Dolt-backed (20_合同信息表.xlsx → contract_info, 2 rows).
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  ProjectBasicInfo:
+    # Dolt-backed (01_项目基础信息表.xlsx → project_basic_info, 1 row). reader: dolt_rows surfaces the
+    # row to 预案 chapter 1 项目信息 (was metadata_only → empty chapter).
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  PlanVersionLog:
+    # Dolt-backed (02_预案版本信息表.xlsx → plan_version_log, 4 rows). Now a writable run-record like
+    # RiskItem/AssumptionItem: reader: dolt_rows reads Dolt seed ∪ overlay (saveContingencyPlanVersion
+    # 写的整案版本里程碑落 schema/runtime/PlanVersionLog.json), writes go to the overlay. writable=true.
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []
+  PodCabinetLayout:
+    # Dolt-backed (pod_cabinet_layout, 9 rows). 由 load_pod_cabinet_layout_to_dolt.py 从真实项目文件
+    # （aida-delivery/…/机房机柜信息表.xlsx）按 PoD 聚合装载；预案「机房信息」章绑的是 MachineRoomConfig
+    # （按 PoD × 机柜类型展开的 12_ 占位数据），二者并存、用途不同。
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  # —— 售前风险识别规则库（EODS 决策代码前移）。全局规则库（不分项目），Dolt 为单一事实源：
+  #    reader: dolt_rows 直读 Dolt `risk_rule` 表（04 §19.3 全量 35 条：设备②/服务③/组网①/验收④ + 任务跟踪 TRK，
+  #    含已接线的 5 lanes EOM/TR5/EOS/ESS + ACC-CHK-01），供 deriveContingencyRisks 派生消费；
+  #    Dolt 为单一事实源（无种子 JSON、无装载器，直读 Dolt 表）；Dolt 离线时 degrade 成 [] ——
+  RiskRule:
+    reader: dolt_rows
+    derived: false
+    writable: false
+    sources: []
+  # —— 交付预案章节骨架 + 投影配置。json_rows 把 data/contingency/contingency_chapters.json 的每章作为
+  #    ObjectType 行读出（嵌套 fields[] 随行透传）；与 DecisionPoint 经 Decision_Chapters Link(FK decisionId)关联。
+  #    全局参考数据（无 projectKey）→ 不按项目过滤。未来可 flip dolt_rows 入 Dolt 版本层，无需改码。——
+  ContingencyChapter:
+    reader: json_rows
+    derived: false
+    writable: false
+    sources:
+      - contingency-chapters-json
+  # —— 章节正文已发布快照（per project × chapter）。Dolt 存里程碑冻结正文：save_contingency_plan_version
+  #    每次 = 一个 dolt_commit（tag=versionLabel），跨版本比对走 dolt_diff；live 逐次编辑/历史/融合候选仍在
+  #    run-record overlay（与 PlanVersionLog 同款混合）。writable run-record；无种子 → Dolt 离线时降级 []。——
+  ChapterNarrative:
+    reader: dolt_rows
+    derived: false
+    writable: true
+    sources: []

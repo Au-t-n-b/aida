@@ -18,6 +18,7 @@ AIDA Agent · FastAPI 入口
 from __future__ import annotations
 import asyncio
 import json
+import logging
 import os
 import re
 import shutil
@@ -40,15 +41,13 @@ from .llm import healthcheck as llm_healthcheck, get_langfuse_callbacks
 from .chat_engine import run_chat, run_chat_async, DEFAULT_SYSTEM
 from .proposal.errors import ProposalApiError
 from .proposal.router import router as proposal_router
+from .proposal_routes import router as proposal_chapters_router
 from .sog_routes import router as sog_router
 from .routers.proposal_mock import router as proposal_mock_router
 
-try:
-    from .proposal_routes import router as proposal_chapters_router
-except Exception as _e:
-    import logging as _logging
-    _logging.getLogger(__name__).warning("proposal_chapters_router 未加载: %s", _e)
-    proposal_chapters_router = None
+from .routers.datacenter_files import router as datacenter_files_router
+from .routers.proposal_files import router as proposal_files_router
+from .schedule.router import configure_schedule, router as schedule_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
@@ -69,6 +68,23 @@ def _sdui_json_safe(doc: dict) -> dict:
     return json.loads(json.dumps(doc, ensure_ascii=False, default=str))
 
 
+def _list_has_prefix(items: list[Any], prefix: list[Any]) -> bool:
+    return len(items) >= len(prefix) and items[: len(prefix)] == prefix
+
+
+def _merge_langgraph_diff_into_state(state: dict[str, Any], diff: dict[str, Any]) -> None:
+    """Merge LangGraph streamed diffs without double-appending reducer lists."""
+    for k, v in diff.items():
+        if k in ("logs", "steps") and isinstance(v, list):
+            existing = state.get(k)
+            if isinstance(existing, list) and _list_has_prefix(v, existing):
+                state[k] = list(v)
+            else:
+                state.setdefault(k, []).extend(v)
+        else:
+            state[k] = v
+
+
 def _get_skill_or_404(skill_id: str):
     """按 skill_id 取 skill 实例；未注册 → 404。"""
     from .skills import registry
@@ -78,19 +94,64 @@ def _get_skill_or_404(skill_id: str):
         raise HTTPException(status_code=404, detail=f"skill '{skill_id}' 未注册")
 
 
+def _resolve_skill_artifact_file(skill_obj: Any, path: str) -> Path:
+    """安全解析 skill 产物路径：优先 file_handler.resolve_artifact_path（system_design 等），
+    否则回退 work_root 子树；zhgk/guihua 再限 ProjectData/。"""
+    raw = (path or "").strip()
+    if not raw:
+        raise HTTPException(404, "not found")
+    handler = getattr(skill_obj, "file_handler", None)
+    if handler is not None and hasattr(handler, "resolve_artifact_path"):
+        try:
+            full = handler.resolve_artifact_path(skill_obj.work_root, raw)
+            if full.is_file():
+                return full.resolve()
+        except (ValueError, FileNotFoundError, OSError):
+            pass
+    # system_design：input/jmfz/ht/output 相对 data_root（work_root）· 勿误拦为 ProjectData 外
+    root = Path(skill_obj.work_root).resolve()
+    full = (root / raw.replace("\\", "/")).resolve()
+    if full.is_file():
+        try:
+            full.relative_to(root)
+            return full
+        except ValueError:
+            pass
+    pd_root = (root / "ProjectData").resolve()
+    try:
+        full.relative_to(pd_root)
+    except ValueError:
+        raise HTTPException(403, "path outside ProjectData")
+    if not full.is_file():
+        raise HTTPException(404, "not found")
+    return full
+
+
 # ─── 全局 ───
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logging.getLogger("aida.datacenter").setLevel(logging.INFO)
+logging.getLogger("aida.proposal.files").setLevel(logging.INFO)
 
 app = FastAPI(title="AIDA Agent · zhgk pilot", version="0.1.0")
 app.include_router(sog_router)
 app.include_router(proposal_router)
-if proposal_chapters_router is not None:
-    app.include_router(proposal_chapters_router)
+app.include_router(proposal_chapters_router)
+app.include_router(proposal_files_router)
 app.include_router(proposal_mock_router)
+app.include_router(datacenter_files_router)
+configure_schedule(app)
+app.include_router(schedule_router)
 
 # 允许前端 (Next.js dev server) 跨域
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "*",  # 演示期放开，生产期改具体源
@@ -101,6 +162,7 @@ app.add_middleware(
 
 # 内存中的 run registry：run_id → {"queue": asyncio.Queue, "state": AgentState, "task": asyncio.Task}
 RUNS: dict[str, dict] = {}
+_PENDING_GKCLAW_INBOUND_RETRIES: set[str] = set()
 
 # 工具审批挂起池：approval_id → asyncio.Future[bool]（等待前端 /approve-tool 解锁）
 _PENDING_APPROVALS: dict[str, "asyncio.Future[bool]"] = {}
@@ -179,7 +241,10 @@ def _resolve_hitl_step(state: dict, explicit: str | None, skill_obj) -> str:
 
 
 def _linear_step_keys(skill) -> tuple[str, ...]:
-    return tuple(getattr(skill, "LINEAR_STEP_KEYS", ()) or ())
+    keys = getattr(skill, "LINEAR_STEP_KEYS", ()) or ()
+    if keys:
+        return tuple(keys)
+    return tuple(s.key for s in skill.steps)
 
 
 def _next_linear_step(skill, step_key: str) -> str | None:
@@ -200,6 +265,67 @@ def _kick_step_retry(run_id: str, step_key: str) -> None:
     RUNS[run_id]["queue"] = asyncio.Queue()
     RUNS[run_id]["attempt"] = RUNS[run_id].get("attempt", 0) + 1
     RUNS[run_id]["task"] = asyncio.create_task(_run_single_step_streaming(run_id, step_key))
+
+
+def _step_retry_followup(
+    *,
+    prev_step: str,
+    diff: dict,
+    state: dict,
+    step_retry_keys: list[str],
+) -> str | None:
+    """单步 retry 完成后的下一跳。"""
+    if (state.get("hitl") or {}).get("step") or state.get("error"):
+        return None
+    retry_set = set(step_retry_keys or [])
+    route_to = str(diff.get("route_to") or state.get("route_to") or "").strip()
+    if route_to and route_to != prev_step and route_to in retry_set:
+        return route_to
+
+    from .gkclaw_inbound import should_chain_after_wait_survey
+
+    return should_chain_after_wait_survey(
+        prev_step=prev_step,
+        state=state,
+        step_retry_keys=list(retry_set),
+    )
+
+
+async def _retry_gkclaw_inbound_later(
+    *,
+    skill_id: str,
+    task_id: str,
+    subject: str,
+    delay_sec: float = 5.0,
+) -> None:
+    key = f"{skill_id}:{task_id or subject}"
+    if key in _PENDING_GKCLAW_INBOUND_RETRIES:
+        return
+    _PENDING_GKCLAW_INBOUND_RETRIES.add(key)
+    try:
+        await asyncio.sleep(delay_sec)
+        skill_obj = _get_skill_or_404(skill_id)
+        from .gkclaw_inbound import (
+            parse_task_id_from_subject,
+            plan_inbound_action,
+            poll_gkclaw_inbox,
+        )
+
+        resolved_task_id = (task_id or "").strip() or parse_task_id_from_subject(subject) or ""
+        try:
+            poll_gkclaw_inbox(work_root=skill_obj.work_root)
+        except Exception:
+            pass
+        plan = plan_inbound_action(
+            runs=RUNS,
+            skill_step_keys=[s.key for s in skill_obj.steps],
+            step_retry_keys=skill_obj.step_retry_keys,
+            task_id=resolved_task_id or None,
+        )
+        if plan.get("trigger") and plan.get("run_id") and plan.get("step"):
+            _kick_step_retry(str(plan["run_id"]), str(plan["step"]))
+    finally:
+        _PENDING_GKCLAW_INBOUND_RETRIES.discard(key)
 
 
 # ─── 启动钩子 ───
@@ -383,11 +509,53 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 })
                 # 把 diff 合到 cached state
                 cur = RUNS[run_id]["state"]
-                for k, v in diff.items():
-                    if k in ("logs", "steps") and isinstance(v, list):
-                        cur.setdefault(k, []).extend(v)
-                    else:
-                        cur[k] = v
+                _merge_langgraph_diff_into_state(cur, diff)
+                # system_design：新 HITL 门出现 → 归档弹框内容到 conv_log（对话区累积展示）
+                if skill_id == "system_design":
+                    new_hitl = diff.get("hitl") if isinstance(diff.get("hitl"), dict) else {}
+                    if new_hitl.get("step"):
+                        try:
+                            skill_sd = _get_skill_or_404(skill_id)
+                            archive_fn = getattr(skill_sd, "archive_hitl_prompt", None)
+                            if callable(archive_fn):
+                                proj = dict(cur.get("project") or {})
+                                cur["project"] = archive_fn(proj, new_hitl)
+                        except Exception:
+                            pass
+                    for srec in (diff.get("steps") or []):
+                        if not isinstance(srec, dict):
+                            continue
+                        if srec.get("key") == "publish" and srec.get("status") == "completed":
+                            try:
+                                skill_sd = _get_skill_or_404(skill_id)
+                                append_fn = getattr(skill_sd, "_conv_append", None)
+                                if callable(append_fn):
+                                    proj = dict(cur.get("project") or {})
+                                    logged = proj.get("conv_log") or []
+                                    if not any(
+                                        isinstance(e, dict) and e.get("kind") == "assistant"
+                                        and "发布完成" in str(e.get("title") or "")
+                                        for e in logged
+                                    ):
+                                        m = srec.get("metrics") or {}
+                                        n = m.get("publish_artifact_count") or "若干"
+                                        proj["request_progress_view"] = int(
+                                            proj.get("request_progress_view") or 0
+                                        ) + 1
+                                        cur["project"] = append_fn(proj, {
+                                            "kind": "assistant",
+                                            "title": "发布完成",
+                                            "body": (
+                                                f"已发布 {n} 个产物并写回项目活动进度，"
+                                                "本次系统设计任务完成。"
+                                            ),
+                                            "tone": "success",
+                                        })
+                            except Exception:
+                                pass
+                            hitl_after = (cur.get("hitl") or {}).get("step")
+                            if hitl_after != "publish_confirm":
+                                cur["overall_progress"] = 100
                 # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）
                 try:
                     _proj = _get_sdui_projector(skill_id)
@@ -652,10 +820,15 @@ async def approve_tool(req: ApproveToolReq):
 
 # ─── HITL 续跑 ───
 
-async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool = True) -> None:
-    """仅重试单个 step（用于 report_distribute / wait_survey 等：前置产物已在磁盘）。"""
+async def _run_single_step_streaming(
+    run_id: str,
+    step_key: str,
+    *,
+    _chain: bool = True,
+    chain_linear: bool = False,
+) -> None:
+    """仅重试单个 step（用于 report_distribute / wait_survey / publish_confirm 等）。"""
     from .skills.base import SkillContext
-    from .gkclaw_inbound import should_chain_after_wait_survey
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
     skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
@@ -704,11 +877,7 @@ async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool
         diff = skill.execute_step(step, state, ctx)
         RUNS[run_id]["_running_step"] = None  # 执行完毕，清除 running 标记
         cur = RUNS[run_id]["state"]
-        for k, v in diff.items():
-            if k in ("logs", "steps") and isinstance(v, list):
-                cur.setdefault(k, []).extend(v)
-            else:
-                cur[k] = v
+        _merge_langgraph_diff_into_state(cur, diff)
         await queue.put({
             "event": "node_update",
             "data": {"node": step_key, "diff": diff},
@@ -721,18 +890,70 @@ async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool
                 await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
         except Exception:
             pass
+        if skill_id == "system_design":
+            for srec in (diff.get("steps") or []):
+                if not isinstance(srec, dict):
+                    continue
+                if srec.get("key") != "publish" or srec.get("status") != "completed":
+                    continue
+                try:
+                    cur = RUNS[run_id]["state"]
+                    skill_sd = _get_skill_or_404(skill_id)
+                    append_fn = getattr(skill_sd, "_conv_append", None)
+                    if callable(append_fn):
+                        proj = dict(cur.get("project") or {})
+                        logged = proj.get("conv_log") or []
+                        if not any(
+                            isinstance(e, dict) and e.get("kind") == "assistant"
+                            and "发布完成" in str(e.get("title") or "")
+                            for e in logged
+                        ):
+                            m = srec.get("metrics") or {}
+                            n = m.get("publish_artifact_count") or "若干"
+                            proj["request_progress_view"] = int(
+                                proj.get("request_progress_view") or 0
+                            ) + 1
+                            cur["project"] = append_fn(proj, {
+                                "kind": "assistant",
+                                "title": "发布完成",
+                                "body": (
+                                    f"已发布 {n} 个产物并写回项目活动进度，"
+                                    "本次系统设计任务完成。"
+                                ),
+                                "tone": "success",
+                            })
+                    hitl_after = (cur.get("hitl") or {}).get("step")
+                    if hitl_after != "publish_confirm":
+                        cur["overall_progress"] = 100
+                except Exception:
+                    pass
+                try:
+                    _proj = _get_sdui_projector(skill_id)
+                    if _proj is not None:
+                        await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
+                except Exception:
+                    pass
+                break
         hitl = (diff.get("hitl") or {}) if isinstance(diff.get("hitl"), dict) else {}
-        chain_to = (
-            should_chain_after_wait_survey(
-                prev_step=step_key,
-                state=RUNS[run_id]["state"],
-                step_retry_keys=skill.step_retry_keys,
-            )
-            if _chain and not hitl.get("step") and not diff.get("error")
-            else None
-        )
+        if chain_linear and not hitl.get("step") and not diff.get("error"):
+            linear = _linear_step_keys(skill)
+            try:
+                idx = linear.index(step_key)
+            except ValueError:
+                idx = -1
+            if idx >= 0 and idx + 1 < len(linear):
+                await _run_single_step_streaming(
+                    run_id, linear[idx + 1], _chain=False, chain_linear=True,
+                )
+                return
+        chain_to = _step_retry_followup(
+            prev_step=step_key,
+            diff=diff,
+            state=RUNS[run_id]["state"],
+            step_retry_keys=skill.step_retry_keys,
+        ) if _chain and not hitl.get("step") and not diff.get("error") else None
         if chain_to:
-            await _run_single_step_streaming(run_id, chain_to, _chain=False)
+            await _run_single_step_streaming(run_id, chain_to, _chain=True)
             return
         # system_design：publish_confirm 确认发布后链式执行 publish（step_retry 不重跑前置 LLD/ZTP）
         if (
@@ -741,7 +962,7 @@ async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool
             and not diff.get("error")
             and (RUNS[run_id]["state"].get("project") or {}).get("confirmations", {}).get("publish")
         ):
-            await _run_single_step_streaming(run_id, "publish")
+            await _run_single_step_streaming(run_id, "publish", _chain=False)
             return
         if not hitl.get("step") and not diff.get("error"):
             asyncio.create_task(_trigger_eval_background(run_id=run_id, skill_id=skill_id))
@@ -751,64 +972,6 @@ async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool
         await queue.put({"event": "error", "data": {"error": str(e)}})
     finally:
         await queue.put(None)
-
-
-@app.post("/agent/{skill}/resume")
-async def resume_run(skill: str, req: ResumeReq):
-    if req.run_id not in RUNS:
-        raise HTTPException(404, "run_id not found")
-    prev = RUNS[req.run_id]["state"]
-    skill_id = prev.get("skill_id", skill)
-    skill_obj = _get_skill_or_404(skill_id)
-    hitl_step = _resolve_hitl_step(prev, req.from_step, skill_obj)
-
-    old_task = RUNS[req.run_id].get("task")
-    if old_task and not old_task.done():
-        old_task.cancel()
-    RUNS[req.run_id]["queue"] = asyncio.Queue()
-
-    # 确认型 HITL 先把用户选择写入 project（step_retry 与 full_restart 均需）
-    project = skill_obj.apply_resume_payload(
-        prev.get("project", {}) or {}, req.payload or {}, hitl_step
-    )
-    RUNS[req.run_id]["state"] = {**prev, "project": project}
-
-    # 该 step 声明支持 step_retry：仅重试本步，避免重跑前序 LLM（如 zhgk report_distribute）
-    if hitl_step and hitl_step in skill_obj.step_retry_keys:
-        RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
-        task = asyncio.create_task(_run_single_step_streaming(req.run_id, hitl_step))
-        RUNS[req.run_id]["task"] = task
-        return {
-            "run_id": req.run_id,
-            "status": "resumed",
-            "mode": "step_retry",
-            "from_step": hitl_step,
-            "message": f"仅重试「{hitl_step}」，不会重跑前序步骤。",
-        }
-
-    # 其余 HITL：全量从预检重跑（缺失文件已补齐后一路跑通）
-    RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
-    attempt = RUNS[req.run_id]["attempt"]
-    init_state: AgentState = {
-        "run_id": req.run_id,
-        "skill_id": prev.get("skill_id", "zhgk"),
-        "project": project,
-        "steps": [],
-        "logs": [f"[resume] 补齐文件后全量重跑（attempt {attempt}）"],
-        "overall_progress": 0,
-    }
-    RUNS[req.run_id]["state"] = init_state
-    new_tid = f"{req.run_id}-r{attempt}"
-    task = asyncio.create_task(_run_graph_streaming(req.run_id, init_state, thread_id=new_tid))
-    RUNS[req.run_id]["task"] = task
-    return {
-        "run_id": req.run_id,
-        "status": "resumed",
-        "thread_id": new_tid,
-        "mode": "full_restart",
-        "from_step": None,
-        "message": "将从环境预检重新执行全流程（含场景筛选、勘测汇总、评估报告等）。",
-    }
 
 
 @app.post("/agent/{skill}/gkclaw/inbound")
@@ -826,6 +989,7 @@ async def gkclaw_inbound(
         parse_task_id_from_subject,
         plan_inbound_action,
         poll_gkclaw_inbox,
+        should_defer_inbound_retry,
     )
 
     skill_obj = _get_skill_or_404(skill)
@@ -845,6 +1009,7 @@ async def gkclaw_inbound(
     )
 
     triggered = False
+    deferred = False
     if plan.get("trigger") and plan.get("run_id") and plan.get("step"):
         _kick_step_retry(str(plan["run_id"]), str(plan["step"]))
         triggered = True
@@ -860,9 +1025,19 @@ async def gkclaw_inbound(
                 })
         except Exception:
             pass
+    if not triggered and should_defer_inbound_retry(plan, subject=req.subject):
+        deferred = True
+        asyncio.create_task(_retry_gkclaw_inbound_later(
+            skill_id=skill,
+            task_id=task_id,
+            subject=req.subject,
+        ))
 
     return {
         "ok": True,
+        "accepted": bool(triggered or deferred),
+        "deferred": deferred,
+        "retry_after_sec": 5 if deferred else None,
         "task_id": task_id or None,
         "mail_id": req.mail_id,
         "ingest": ingest_summary,
@@ -939,6 +1114,64 @@ def _get_file_handler_or_501(skill_id: str):
     return skill, fh
 
 
+async def _upload_batch_impl(
+    skill: str,
+    files: list[UploadFile],
+    need: list[str],
+    kinds: list[str],
+    slot_labels: list[str],
+    run_id: str | None,
+) -> dict[str, Any]:
+    """批量上传；system_design 支持 kinds/slot_labels/run_id 并在落盘后 sync_inputs + 推 SDUI。"""
+    import inspect
+
+    skill_obj, fh = _get_file_handler_or_501(skill)
+    if not files:
+        raise HTTPException(400, "未选择文件")
+    root = skill_obj.work_root
+    skill_id = getattr(skill_obj, "name", None) or skill
+    save_sig = inspect.signature(fh.save_upload)
+    accepts_label = "label_hint" in save_sig.parameters
+
+    results: list[dict] = []
+    for i, f in enumerate(files):
+        kind = (kinds[i] if i < len(kinds) else "").strip()
+        if not kind:
+            kind = fh.infer_upload_kind(f.filename or "")
+        label_hint = slot_labels[i] if i < len(slot_labels) else ""
+        try:
+            if accepts_label:
+                results.append(await fh.save_upload(root, kind, f, label_hint=label_hint))
+            else:
+                results.append(await fh.save_upload(root, kind, f))
+        except Exception as e:  # noqa: BLE001
+            results.append({"ok": False, "filename": f.filename, "error": str(e)})
+
+    check = fh.check_need_files(root, need) if need else fh.check_project_files(root)
+    payload: dict[str, Any] = {"uploaded": results, "check": check}
+
+    if skill_id == "system_design":
+        from agent.skills.system_design.pipelines.path_manifest import abs_upload_dir, resolve_data_root
+
+        payload["upload_dir"] = str(abs_upload_dir())
+        payload["data_root"] = str(resolve_data_root())
+        payload["system_design_root"] = payload["data_root"]
+
+    rid = (run_id or "").strip()
+    if rid and rid in RUNS and skill_id == "system_design":
+        from agent.system_design_files import sync_inputs_into_state
+
+        sync_inputs_into_state(root, RUNS[rid]["state"])
+        try:
+            proj = _get_sdui_projector(skill_id)
+            if proj is not None:
+                RUNS[rid]["queue"].put_nowait({"event": "sdui", "data": proj(RUNS[rid]["state"])})
+        except Exception:
+            pass
+
+    return payload
+
+
 @app.get("/agent/{skill}/files/check")
 def files_check(skill: str, need: list[str] = Query(default=[])):
     """扫描文件齐备情况。传 need= 多次为当前 HITL 缺失项；否则查该 skill 的默认前置集。"""
@@ -965,21 +1198,45 @@ async def upload_batch(
     skill: str,
     files: list[UploadFile] = File(..., description="多文件，按文件名自动路由目录"),
     need: list[str] = Form(default=[], description="当前 HITL need_files，用于返回对齐的齐备检查"),
+    kinds: list[str] = Form(default=[], description="每文件对应 FILE_CONFIG tag（system_design 槽位上传）"),
+    slot_labels: list[str] = Form(default=[], description="每文件槽位展示名（辅助识别 tag）"),
+    run_id: str | None = Form(default=None, description="关联 run_id · 落盘后 sync_inputs 并推 SDUI"),
 ):
     """批量上传；不自动续跑。传 need 时 check 按 HITL 缺失项，否则查该 skill 默认前置集。"""
-    skill_obj, fh = _get_file_handler_or_501(skill)
-    if not files:
-        raise HTTPException(400, "未选择文件")
-    root = skill_obj.work_root
-    results: list[dict] = []
-    for f in files:
-        kind = fh.infer_upload_kind(f.filename or "")
+    return await _upload_batch_impl(skill, files, need, kinds, slot_labels, run_id)
+
+
+@app.post("/agent/{skill}/artifact/override")
+async def artifact_override(
+    skill: str,
+    file: UploadFile = File(...),
+    target_path: str = Form(..., description="相对 data_root 的产物 path（与 SDUI artifact.path 一致）"),
+    run_id: str | None = Form(default=None, description="关联 run_id · 落盘后 sync_outputs 并推 SDUI"),
+):
+    """system_design 专用：上传覆盖 output/ 产物（不 sync_inputs · 不 resume）。"""
+    if skill != "system_design":
+        raise HTTPException(status_code=501, detail=f"skill '{skill}' 不支持产物覆盖上传")
+    from agent.system_design_files import override_output_artifact, sync_outputs_into_state
+
+    skill_obj = _get_skill_or_404(skill)
+    result = await override_output_artifact(skill_obj.work_root, target_path, file)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=str(result.get("error") or "override failed"))
+
+    rid = (run_id or "").strip()
+    if rid and rid in RUNS:
+        state = RUNS[rid]["state"]
+        sync_outputs_into_state(skill_obj.work_root, state)
+        rel_path = str(result.get("path") or target_path).replace("\\", "/")
+        state.setdefault("artifact_overrides", {})[rel_path] = True
         try:
-            results.append(await fh.save_upload(root, kind, f))
-        except Exception as e:  # noqa: BLE001
-            results.append({"ok": False, "filename": f.filename, "error": str(e)})
-    check = fh.check_need_files(root, need) if need else fh.check_project_files(root)
-    return {"uploaded": results, "check": check}
+            proj = _get_sdui_projector(skill)
+            if proj is not None:
+                RUNS[rid]["queue"].put_nowait({"event": "sdui", "data": proj(state)})
+        except Exception:
+            pass
+
+    return result
 
 
 # ─── 状态快照 ───
@@ -995,16 +1252,9 @@ def status(skill: str, run_id: str):
 
 @app.get("/agent/{skill}/artifact")
 def artifact(skill: str, path: str = Query(..., description="相对 skill 工作区根目录的产物路径")):
-    """安全下载产物 · 只允许 ProjectData/ 子树下"""
+    """安全下载/预览产物 · zhgk/guihua 限 ProjectData/；system_design 走 file_handler 白名单根。"""
     skill_obj = _get_skill_or_404(skill)
-    root = skill_obj.work_root
-    full = (root / path).resolve()
-    try:
-        full.relative_to((root / "ProjectData").resolve())
-    except ValueError:
-        raise HTTPException(403, "path outside ProjectData")
-    if not full.exists() or not full.is_file():
-        raise HTTPException(404, "not found")
+    full = _resolve_skill_artifact_file(skill_obj, path)
     return FileResponse(str(full), filename=full.name)
 
 
@@ -1306,9 +1556,11 @@ def get_skill(skill_name: str):
 
 # ─── 工作流启动 ───
 
-async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None):
+async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: str | None = None,
+                               suppress_replay: bool = False):
     """后台跑 LangGraph，所有 update 推到 run_id 对应 queue。
-    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。"""
+    thread_id 默认 = run_id；resume 重跑时传新 thread_id，避免命中已 END 的旧 checkpoint。
+    suppress_replay=True：full_restart 重放时跳过已展示过的 run_log（设备安装左栏日志）。"""
     from .skills.base import register_run_push, unregister_run_push
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
@@ -1338,6 +1590,24 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
     loop = asyncio.get_running_loop()
     RUNS[run_id]["_running_step"] = None   # {key, name, log_tail} | None
     _emit_cnt: dict[str, int] = {}         # step_key → emit 累计次数（节流用）
+    _PACE_VISIBLE_ON_REPLAY = frozenset({"sn_generate"})
+    _runlog_logged: set[str] = RUNS[run_id].setdefault("_runlog_logged", set())
+    _runlog_shown_pass: set[str] = set()
+    _BUILD_AUX_LOG_STEPS = frozenset({
+        "progress_query", "plan_query", "device_overview", "plan_adjust",
+    })
+
+    def _suppress_aux_run_log(step_key: str) -> bool:
+        if step_key not in _BUILD_AUX_LOG_STEPS:
+            return False
+        if skill_id != "device_install":
+            return False
+        project = (RUNS[run_id].get("state") or {}).get("project") or {}
+        try:
+            from agent.skills.device_install.steps._command_guard import should_skip
+            return should_skip(step_key, project)
+        except Exception:
+            return False
 
     def _patched_state_with_running() -> dict:
         """构造带 running 记录的临时 state（不修改原 state）。"""
@@ -1358,8 +1628,16 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             }],
         }
 
+    def _push_run_log(payload: dict) -> None:
+        """向中间对话框推一条逐行运行日志事件（线程安全 · 不节流）。"""
+        loop.call_soon_threadsafe(queue.put_nowait, {"event": "run_log", "data": payload})
+
     def _push_sdui_overlay() -> None:
         """用带 running 记录的 patched state 生成 SDUI 并推入队列（线程安全）。"""
+        if suppress_replay:
+            running = RUNS[run_id].get("_running_step") or {}
+            if running.get("key") not in _PACE_VISIBLE_ON_REPLAY:
+                return
         try:
             _proj = _get_sdui_projector(skill_id)
             if _proj is None:
@@ -1383,6 +1661,13 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
+            # 中间对话框：开一个该节点的日志气泡
+            if not _suppress_aux_run_log(d["step"]) and (
+                (not suppress_replay) or (d["step"] not in _runlog_logged)
+            ):
+                _runlog_shown_pass.add(d["step"])
+                _runlog_logged.add(d["step"])
+                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
 
         elif ev == "step_log":
             d = item["data"]
@@ -1393,10 +1678,18 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 tail.append(d["msg"])
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
+            # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
+            if step_key in _runlog_shown_pass:
+                _push_run_log({
+                    "step": step_key,
+                    "name": (running or {}).get("name", ""),
+                    "msg": d["msg"],
+                    "phase": "log",
+                })
             # 节流：每 5 条 emit 推一次 SDUI（避免高频 LLM step 频繁序列化）
             cnt = _emit_cnt.get(step_key, 0) + 1
             _emit_cnt[step_key] = cnt
-            if cnt % 5 == 0:
+            if (suppress_replay and step_key in _PACE_VISIBLE_ON_REPLAY) or cnt % 5 == 0:
                 _push_sdui_overlay()
 
     register_run_push(run_id, _thread_push)
@@ -1414,19 +1707,81 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 })
                 # 把 diff 合到 cached state
                 cur = RUNS[run_id]["state"]
-                for k, v in diff.items():
-                    if k in ("logs", "steps") and isinstance(v, list):
-                        cur.setdefault(k, []).extend(v)
-                    else:
-                        cur[k] = v
+                _merge_langgraph_diff_into_state(cur, diff)
+                # 中间对话框：节点完成 → 收尾对应日志气泡
+                if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
+                    _last_status = ""
+                    _dsteps = diff.get("steps") if isinstance(diff, dict) else None
+                    if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
+                        _last_status = _dsteps[-1].get("status", "")
+                    if _last_status in ("completed", "failed"):
+                        await queue.put({"event": "run_log", "data": {
+                            "step": node_name,
+                            "phase": "done" if _last_status == "completed" else "failed",
+                        }})
+                # system_design：新 HITL 门出现 → 归档弹框内容到 conv_log（对话区累积展示）
+                if skill_id == "system_design":
+                    new_hitl = diff.get("hitl") if isinstance(diff.get("hitl"), dict) else {}
+                    if new_hitl.get("step"):
+                        try:
+                            skill_sd = _get_skill_or_404(skill_id)
+                            archive_fn = getattr(skill_sd, "archive_hitl_prompt", None)
+                            if callable(archive_fn):
+                                proj = dict(cur.get("project") or {})
+                                cur["project"] = archive_fn(proj, new_hitl)
+                        except Exception:
+                            pass
+                    for srec in (diff.get("steps") or []):
+                        if not isinstance(srec, dict):
+                            continue
+                        if srec.get("key") == "publish" and srec.get("status") == "completed":
+                            try:
+                                skill_sd = _get_skill_or_404(skill_id)
+                                append_fn = getattr(skill_sd, "_conv_append", None)
+                                if callable(append_fn):
+                                    proj = dict(cur.get("project") or {})
+                                    logged = proj.get("conv_log") or []
+                                    if not any(
+                                        isinstance(e, dict) and e.get("kind") == "assistant"
+                                        and "发布完成" in str(e.get("title") or "")
+                                        for e in logged
+                                    ):
+                                        m = srec.get("metrics") or {}
+                                        n = m.get("publish_artifact_count") or "若干"
+                                        proj["request_progress_view"] = int(
+                                            proj.get("request_progress_view") or 0
+                                        ) + 1
+                                        cur["project"] = append_fn(proj, {
+                                            "kind": "assistant",
+                                            "title": "发布完成",
+                                            "body": (
+                                                f"已发布 {n} 个产物并写回项目活动进度，"
+                                                "本次系统设计任务完成。"
+                                            ),
+                                            "tone": "success",
+                                        })
+                            except Exception:
+                                pass
+                            hitl_after = (cur.get("hitl") or {}).get("step")
+                            if hitl_after != "publish_confirm":
+                                cur["overall_progress"] = 100
                 # SDUI 投影：每个节点完成后更新一次 UI 树（用真实 state，无 overlay）
-                try:
-                    _proj = _get_sdui_projector(skill_id)
-                    if _proj is not None:
-                        sdui_doc = _proj(RUNS[run_id]["state"])
-                        await queue.put({"event": "sdui", "data": sdui_doc})
-                except Exception:
-                    pass
+                if not suppress_replay or node_name in _PACE_VISIBLE_ON_REPLAY:
+                    try:
+                        _proj = _get_sdui_projector(skill_id)
+                        if _proj is not None:
+                            sdui_doc = _proj(RUNS[run_id]["state"])
+                            await queue.put({"event": "sdui", "data": sdui_doc})
+                    except Exception:
+                        pass
+
+        if suppress_replay:
+            try:
+                _proj = _get_sdui_projector(skill_id)
+                if _proj is not None:
+                    await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
+            except Exception:
+                pass
 
         final_state = RUNS[run_id]["state"]
         hitl = final_state.get("hitl") or {}
@@ -1693,87 +2048,6 @@ async def approve_tool(req: ApproveToolReq):
     return {"ok": True, "approved": req.approved}
 
 
-# ─── HITL 续跑 ───
-
-async def _run_single_step_streaming(run_id: str, step_key: str, *, _chain: bool = True, chain_linear: bool = False) -> None:
-    """仅重试单个 step（用于 report_distribute 等：前置产物已在磁盘）。"""
-    from .skills.base import SkillContext
-
-    queue: asyncio.Queue = RUNS[run_id]["queue"]
-    skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
-    skill = _get_skill_or_404(skill_id)
-    step = next((s for s in skill.steps if s.key == step_key), None)
-    if step is None:
-        await queue.put({"event": "error", "data": {"error": f"unknown step: {step_key}"}})
-        await queue.put(None)
-        return
-
-    state: AgentState = dict(RUNS[run_id]["state"])
-    state["hitl"] = {}
-    state["error"] = ""
-    ctx = SkillContext(
-        skill_id=skill.name,
-        work_root=skill.work_root,
-        run_id=run_id,
-        project=state.get("project") or {},
-        llm_factory=skill.llm_factory,
-        # step_retry 路径在主线程同步执行，emit_push 无法做中途 yield；
-        # 但 step_started 信号在 execute_step 进入前手动推（见下方）。
-        emit_push=None,
-    )
-    # 在 execute_step 阻塞之前先推一次 running SDUI，让 Stepper 变蓝
-    try:
-        RUNS[run_id]["_running_step"] = {"key": step_key, "name": step.name, "log_tail": []}
-        _proj_pre = _get_sdui_projector(skill_id)
-        if _proj_pre is not None:
-            cur_pre = RUNS[run_id]["state"]
-            existing_pre = cur_pre.get("steps") or []
-            if not any(s.get("key") == step_key for s in existing_pre):
-                patched_pre = {
-                    **cur_pre,
-                    "steps": existing_pre + [{
-                        "key": step_key, "name": step.name,
-                        "status": "running", "log_tail": [],
-                    }],
-                }
-            else:
-                patched_pre = cur_pre
-            await queue.put({"event": "sdui", "data": _proj_pre(patched_pre)})
-    except Exception:
-        pass
-
-    try:
-        diff = skill.execute_step(step, state, ctx)
-        RUNS[run_id]["_running_step"] = None  # 执行完毕，清除 running 标记
-        cur = RUNS[run_id]["state"]
-        for k, v in diff.items():
-            if k in ("logs", "steps") and isinstance(v, list):
-                cur.setdefault(k, []).extend(v)
-            else:
-                cur[k] = v
-        await queue.put({
-            "event": "node_update",
-            "data": {"node": step_key, "diff": diff},
-        })
-        # SDUI 投影：step_retry 后也推一棵完整 UI 树（与 _run_graph_streaming 对齐）；
-        # 前端 useSduiStream 只订 sdui 事件，缺这步则重试成功后界面停在旧态不刷新。
-        try:
-            _proj = _get_sdui_projector(skill_id)
-            if _proj is not None:
-                await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
-        except Exception:
-            pass
-        hitl = (diff.get("hitl") or {}) if isinstance(diff.get("hitl"), dict) else {}
-        if not hitl.get("step") and not diff.get("error"):
-            asyncio.create_task(_trigger_eval_background(run_id=run_id, skill_id=skill_id))
-        await queue.put({"event": "done", "data": {"run_id": run_id}})
-    except Exception as e:
-        RUNS[run_id]["_running_step"] = None
-        await queue.put({"event": "error", "data": {"error": str(e)}})
-    finally:
-        await queue.put(None)
-
-
 @app.post("/agent/{skill}/resume")
 async def resume_run(skill: str, req: ResumeReq):
     if req.run_id not in RUNS:
@@ -1792,9 +2066,16 @@ async def resume_run(skill: str, req: ResumeReq):
     RUNS[req.run_id]["queue"] = asyncio.Queue()
 
     if target_step and target_step in retry_keys:
-        project = skill_obj.apply_resume_payload(
-            prev.get("project", {}) or {}, req.payload or {}, target_step
-        )
+        _apply = skill_obj.apply_resume_payload
+        if skill_id == "system_design":
+            project = _apply(
+                prev.get("project", {}) or {}, req.payload or {}, target_step,
+                prev_hitl=prev.get("hitl") or {},
+            )
+        else:
+            project = _apply(
+                prev.get("project", {}) or {}, req.payload or {}, target_step
+            )
         RUNS[req.run_id]["state"] = {**prev, "project": project}
         if target_step in dispatch_keys and not hitl_step:
             RUNS[req.run_id]["state"]["hitl"] = {}
@@ -1802,10 +2083,15 @@ async def resume_run(skill: str, req: ResumeReq):
         RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
         payload = req.payload or {}
         linear_keys = _linear_step_keys(skill_obj)
+        confirm_choices = {"confirm", "确认发布", "确认", "确认执行", "确认执行计划"}
+        choice = str(payload.get("choice") or "").strip()
+        # publish_confirm 确认后只需链式 publish（见 _run_single_step_streaming 专用分支）；
+        # 不走 chain_linear，避免与线性续跑提前 return 竞态导致 publish 未执行。
         chain_linear = (
             target_step in linear_keys
             and target_step not in dispatch_keys
-            and payload.get("choice") == "confirm"
+            and target_step != "publish_confirm"
+            and choice in confirm_choices
             and not payload.get("rerun")
         )
         task = asyncio.create_task(
@@ -1825,9 +2111,16 @@ async def resume_run(skill: str, req: ResumeReq):
             "message": msg,
         }
 
-    project = skill_obj.apply_resume_payload(
-        prev.get("project", {}) or {}, req.payload or {}, hitl_step
-    )
+    _apply = skill_obj.apply_resume_payload
+    if skill_id == "system_design":
+        project = _apply(
+            prev.get("project", {}) or {}, req.payload or {}, hitl_step,
+            prev_hitl=prev.get("hitl") or {},
+        )
+    else:
+        project = _apply(
+            prev.get("project", {}) or {}, req.payload or {}, hitl_step
+        )
     RUNS[req.run_id]["state"] = {**prev, "project": project}
     RUNS[req.run_id]["attempt"] = RUNS[req.run_id].get("attempt", 0) + 1
     attempt = RUNS[req.run_id]["attempt"]
@@ -1837,19 +2130,47 @@ async def resume_run(skill: str, req: ResumeReq):
         "project": project,
         "steps": [],
         "logs": [f"[resume] 补齐文件后全量重跑（attempt {attempt}）"],
-        "overall_progress": 0,
+        "overall_progress": int(prev.get("overall_progress") or 0),
+        "hitl": {},
+        "error": "",
     }
+    build_resume = getattr(skill_obj, "build_resume_init_state", None)
+    if callable(build_resume):
+        extras, project = build_resume(prev, project, hitl_step, req.payload or {})
+        init_state["project"] = project
+        for k, v in extras.items():
+            if k == "logs" and isinstance(v, list):
+                init_state["logs"] = v
+            elif k == "steps" and isinstance(v, list) and v:
+                # 保留历史 step 记录 + 注入续跑 seed（plane_planning 账本 / sd_mode）
+                seeded_keys = {s.get("key") for s in v if s.get("key")}
+                hist = [
+                    s for s in (prev.get("steps") or [])
+                    if s.get("key") not in seeded_keys
+                ]
+                init_state["steps"] = hist + list(v)
+            else:
+                init_state[k] = v
     RUNS[req.run_id]["state"] = init_state
     new_tid = f"{req.run_id}-r{attempt}"
-    task = asyncio.create_task(_run_graph_streaming(req.run_id, init_state, thread_id=new_tid))
+    task = asyncio.create_task(
+        _run_graph_streaming(req.run_id, init_state, thread_id=new_tid, suppress_replay=True)
+    )
     RUNS[req.run_id]["task"] = task
+    route_to = str(init_state.get("route_to") or "")
+    msg = (
+        f"交付续跑：跳过前置步骤，从「{route_to}」继续。"
+        if route_to
+        else "将从环境预检重新执行全流程（含场景筛选、勘测汇总、评估报告等）。"
+    )
     return {
         "run_id": req.run_id,
         "status": "resumed",
         "thread_id": new_tid,
         "mode": "full_restart",
-        "from_step": None,
-        "message": "将从环境预检重新执行全流程（含场景筛选、勘测汇总、评估报告等）。",
+        "from_step": route_to or None,
+        "route_to": route_to or None,
+        "message": msg,
     }
 
 
@@ -1890,21 +2211,12 @@ async def upload_batch(
     skill: str,
     files: list[UploadFile] = File(..., description="多文件，按文件名自动路由目录"),
     need: list[str] = Form(default=[], description="当前 HITL need_files，用于返回对齐的齐备检查"),
+    kinds: list[str] = Form(default=[], description="每文件对应 FILE_CONFIG tag（system_design 槽位上传）"),
+    slot_labels: list[str] = Form(default=[], description="每文件槽位展示名（辅助识别 tag）"),
+    run_id: str | None = Form(default=None, description="关联 run_id · 落盘后 sync_inputs 并推 SDUI"),
 ):
     """批量上传；不自动续跑。传 need 时 check 按 HITL 缺失项，否则查该 skill 默认前置集。"""
-    skill_obj, fh = _get_file_handler_or_501(skill)
-    if not files:
-        raise HTTPException(400, "未选择文件")
-    root = skill_obj.work_root
-    results: list[dict] = []
-    for f in files:
-        kind = fh.infer_upload_kind(f.filename or "")
-        try:
-            results.append(await fh.save_upload(root, kind, f))
-        except Exception as e:  # noqa: BLE001
-            results.append({"ok": False, "filename": f.filename, "error": str(e)})
-    check = fh.check_need_files(root, need) if need else fh.check_project_files(root)
-    return {"uploaded": results, "check": check}
+    return await _upload_batch_impl(skill, files, need, kinds, slot_labels, run_id)
 
 
 # ─── Preview 页面 · BOQ 上传 ───
@@ -2086,16 +2398,9 @@ def status(skill: str, run_id: str):
 
 @app.get("/agent/{skill}/artifact")
 def artifact(skill: str, path: str = Query(..., description="相对 skill 工作区根目录的产物路径")):
-    """安全下载产物 · 只允许 ProjectData/ 子树下"""
+    """安全下载/预览产物 · zhgk/guihua 限 ProjectData/；system_design 走 file_handler 白名单根。"""
     skill_obj = _get_skill_or_404(skill)
-    root = skill_obj.work_root
-    full = (root / path).resolve()
-    try:
-        full.relative_to((root / "ProjectData").resolve())
-    except ValueError:
-        raise HTTPException(403, "path outside ProjectData")
-    if not full.exists() or not full.is_file():
-        raise HTTPException(404, "not found")
+    full = _resolve_skill_artifact_file(skill_obj, path)
     return FileResponse(str(full), filename=full.name)
 
 
@@ -2499,11 +2804,8 @@ def get_ui_snapshot(skill: str, run_id: str):
     if run_id not in RUNS:
         raise HTTPException(404, "run_id not found")
     entry = RUNS[run_id]
-    task = entry.get("task")
-    if entry.get("display_state") and task is not None and not task.done():
-        state = entry["display_state"]
-    else:
-        state = entry["state"]
+    # 始终以 canonical state 投影（project 内会 reconcile output/ 磁盘并就地更新 state）
+    state = entry["state"]
     skill_id = state.get("skill_id", skill)
     proj_fn = _get_sdui_projector(skill_id)
     if proj_fn is None:

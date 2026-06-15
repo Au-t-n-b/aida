@@ -1,0 +1,74 @@
+flowchart LR
+    %% Source: 计划基线0609.xlsx / 集群集成 + A3液冷场景活动&依赖&工时(1014）
+    %% Scope: rows 8-22. Edge labels preserve dependency type: FS / SS / FF.
+
+    classDef task fill:#F8E8C8,stroke:#A86F1A,stroke-width:1px,color:#222;
+    classDef external fill:#E8EEF7,stroke:#5E7FA8,stroke-width:1px,color:#222;
+    classDef review fill:#E6F4EA,stroke:#4D8A5F,stroke-width:1px,color:#222;
+    classDef note fill:#F7F7F7,stroke:#999,stroke-dasharray:3 3,color:#333;
+
+    subgraph survey["工程勘测"]
+        direction LR
+        onsite["3.1 现场勘测<br/>项目级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+        remote["远程视频辅助<br/>基线依赖引用，未定义活动行"]
+        report["3.3 输出工勘报告<br/>项目级｜标准: 5天｜极限: 2天｜SLA: 固定"]
+        survey_review["3.4 工程勘测报告评审<br/>项目级｜标准: 3天｜极限: 2天｜SLA: 固定"]
+        onsite -->|FS| report
+        remote -->|FS| report
+        report -->|FS| survey_review
+    end
+
+    subgraph sim["建模仿真"]
+        direction LR
+        info["4.1 信息分析与确认<br/>项目级｜标准: 1天｜极限: 1天｜SLA: 固定"]
+        sim_design["4.2 建模仿真设计<br/>项目级｜标准: 千卡以下5天/千卡至万卡11天/万卡以上18天<br/>极限: 千卡以下5天/千卡至万卡9天/万卡以上15天｜SLA: 规模分档"]
+        sim_review["4.3 建模仿真初稿评审<br/>项目级｜标准: 1天｜极限: 1天｜SLA: 固定"]
+        sim_output["4.4 建模仿真终稿输出<br/>项目级｜标准: 1天｜极限: 1天｜SLA: 固定"]
+        info -->|FS| sim_design
+        sim_design -->|FS| sim_review
+        sim_review -->|FS| sim_output
+    end
+
+    subgraph lld["低阶设计"]
+        direction TB
+        cluster_lld["5.1 集群LLD设计<br/>项目级｜标准: 5天｜极限: 1天｜SLA: 固定"]
+        compute_lld["5.2 计算子系统LLD设计<br/>项目级｜标准: 5天｜极限: 2天｜SLA: 固定"]
+        network_lld["5.3 网络子系统LLD设计<br/>项目级｜标准: 5天｜极限: 2天｜SLA: 固定"]
+        storage_lld["5.4 存储子系统LLD设计<br/>项目级｜标准: 5天｜极限: 2天｜SLA: 固定"]
+        acceptance_lld["5.6 集群验收方案设计<br/>项目级｜标准: 25天｜极限: 10天｜SLA: 固定"]
+        low_review["5.7 低阶设计评审<br/>项目级｜标准: 3天｜极限: 1天｜SLA: 固定"]
+    end
+
+    survey_review -->|FS| cluster_lld
+    sim_output -->|FS| cluster_lld
+
+    compute_lld ==>|FF| cluster_lld
+    network_lld ==>|FF| cluster_lld
+    storage_lld ==>|FF| cluster_lld
+
+    cluster_lld ==>|FF| compute_lld
+    network_lld ==>|FF| compute_lld
+    storage_lld ==>|FF| compute_lld
+
+    cluster_lld ==>|FF| network_lld
+    compute_lld ==>|FF| network_lld
+    storage_lld ==>|FF| network_lld
+
+    cluster_lld ==>|FF| storage_lld
+    compute_lld ==>|FF| storage_lld
+    network_lld ==>|FF| storage_lld
+
+    cluster_lld -.->|SS| acceptance_lld
+    compute_lld -.->|SS| acceptance_lld
+    network_lld -.->|SS| acceptance_lld
+    storage_lld -.->|SS| acceptance_lld
+
+    acceptance_lld -->|FS| low_review
+    cluster_lld -->|FS| low_review
+    compute_lld -->|FS| low_review
+    network_lld -->|FS| low_review
+    storage_lld -->|FS| low_review
+
+    class onsite,report,info,sim_design,sim_review,sim_output,cluster_lld,compute_lld,network_lld,storage_lld,acceptance_lld task;
+    class remote external;
+    class survey_review,low_review review;

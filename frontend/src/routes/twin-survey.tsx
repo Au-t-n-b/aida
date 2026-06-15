@@ -9,7 +9,7 @@ function TwinSurveyInner() {
 
   return (
     <AppShell
-      breadcrumbs={['孪生世界', '工勘孪生 · 通道1']}
+      breadcrumbs={['孪生世界', '实景孪生 · 通道1']}
       withClaw
       clawRail={
         <ClawRail

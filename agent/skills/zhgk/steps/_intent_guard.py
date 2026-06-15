@@ -6,8 +6,8 @@ state["project"]["intent"] 由 intent_select step 写入，之后保持不变。
 
 意图枚举（与 services/types.py Intent 对齐）:
     scene_suggest  — 场景建议（快速给出勘测场景推荐，不建表不评估）
-    survey_work    — 全流程工勘（建表 → 勘测 → 评估 → 问题清单 → 复勘门控）
-    supplement     — 补充勘测（用户已有结果表，追加数据或自定义条目）
+    survey_work    — 全流程工勘（建表 → 勘测 → 评估 → 复勘闭环 → 报告分发）
+    supplement     — 补充勘测（用户已有结果表，入口准备 → 评估 → 补充闭环 → 报告分发）
     report_gen     — 报告生成（基于已完成的勘测结果表生成三件套 + Word 报告）
 """
 from __future__ import annotations
@@ -28,15 +28,14 @@ STEP_INTENTS: dict[str, frozenset[str]] = {
     "method_split":      frozenset({"survey_work"}),
     "data_append":       frozenset({"survey_work"}),
     "confirm_table":     frozenset({"survey_work"}),
-    "task_dispatch":     frozenset({"survey_work"}),
-    "wait_survey":       frozenset({"survey_work"}),
-    "resurvey_gate":     frozenset({"survey_work"}),
-    # ─── survey_work + report_gen ───
-    "assess":            frozenset({"survey_work", "report_gen"}),
-    "issue_list":        frozenset({"survey_work", "report_gen"}),
-    # ─── report_gen 专属 ───
-    "report_gen_run":    frozenset({"report_gen"}),
-    "report_distribute": frozenset({"report_gen"}),
+    "task_dispatch":     frozenset({"survey_work", "supplement"}),
+    "wait_survey":       frozenset({"survey_work", "supplement"}),
+    "resurvey_gate":     frozenset({"survey_work", "supplement"}),
+    # ─── survey_work + supplement + report_gen ───
+    "assess":            frozenset({"survey_work", "supplement", "report_gen"}),
+    "issue_list":        frozenset({"survey_work", "supplement", "report_gen"}),
+    "report_gen_run":    frozenset({"survey_work", "supplement", "report_gen"}),
+    "report_distribute": frozenset({"survey_work", "supplement", "report_gen"}),
 }
 
 
@@ -53,6 +52,8 @@ def should_skip(step_key: str, project: dict) -> bool:
     intent: str = (project or {}).get("intent", "")
     if not intent:
         return False
+    if intent == "supplement" and step_key in {"task_dispatch", "wait_survey"}:
+        return (project or {}).get("resurvey_decision") != "resurvey"
     allowed = STEP_INTENTS.get(step_key)
     if allowed is None:
         return False

@@ -3690,6 +3690,110 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   padding: 16px 20px;
 }
 
+.cm-form .cm-form-row {
+  margin-bottom: 14px;
+}
+.cm-form .cm-form-label {
+  padding-top: 7px;
+}
+.cm-form .cm-contract-seg {
+  gap: 8px;
+}
+.cm-form .cm-contract-seg-item {
+  padding: 8px 12px;
+  gap: 10px;
+  border-radius: 8px;
+}
+.cm-form .cm-contract-seg-item.is-on {
+  box-shadow: 0 0 0 1px rgba(53, 81, 216, 0.1);
+}
+.cm-form .cm-scene-chips label {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.cm-form-foot {
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
+.cm-contract-seg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+.cm-contract-seg.has-error .cm-contract-seg-item:not(.is-on) {
+  border-color: #fecaca;
+}
+.cm-contract-seg-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 16px;
+  text-align: left;
+  border: 1.5px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  cursor: pointer;
+  transition: border-color .18s, background .18s, box-shadow .18s, transform .12s;
+}
+.cm-contract-seg-item:hover:not(:disabled):not(.is-on) {
+  border-color: #c7d2fe;
+  background: #fafbff;
+}
+.cm-contract-seg-item.is-on {
+  border-color: var(--c-brand);
+  background: linear-gradient(180deg, #f8faff 0%, #eef2ff 100%);
+  box-shadow: 0 0 0 1px rgba(53, 81, 216, 0.12), 0 4px 14px rgba(53, 81, 216, 0.08);
+}
+.cm-contract-seg-item:active:not(:disabled) {
+  transform: scale(0.995);
+}
+.cm-contract-seg.is-locked .cm-contract-seg-item {
+  cursor: default;
+}
+.cm-contract-seg.is-locked .cm-contract-seg-item:not(.is-on) {
+  opacity: 0.72;
+}
+.cm-contract-seg-indicator {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1.5px solid #cbd5e1;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  transition: border-color .18s, background .18s;
+}
+.cm-contract-seg-item.is-on .cm-contract-seg-indicator {
+  border-color: var(--c-brand);
+  background: var(--c-brand);
+}
+.cm-contract-seg-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity .15s, transform .15s;
+}
+.cm-contract-seg-item.is-on .cm-contract-seg-dot {
+  opacity: 1;
+  transform: scale(1);
+}
+.cm-contract-seg-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-text);
+  letter-spacing: -.01em;
+}
+.cm-contract-seg-item.is-on .cm-contract-seg-title {
+  color: var(--c-brand-text);
+}
+
 .cm-foot-note {
   padding: 10px 20px;
   font-size: 11px;
@@ -3698,36 +3802,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--c-bg-soft);
 }
 
-/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ 鍏ㄥ眬婕旂ず姘村嵃 (5.27 P2) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
-.aida-demo-watermark {
-  position: fixed;
-  left: 14px;
-  bottom: 10px;
-  z-index: 40;
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 9px 4px 8px;
-  background: rgba(15, 23, 42, 0.72);
-  color: #fff;
-  border-radius: 999px;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  pointer-events: auto;
-  cursor: pointer;
-  user-select: none;
-  border: none;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
-  transition: opacity .15s;
-}
-.aida-demo-watermark:hover { opacity: 0.88; }
-.aida-demo-watermark .aida-demo-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: #f59e0b;
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
-}
-.aida-demo-watermark .aida-demo-text { opacity: 0.92; }
-.aida-demo-watermark strong { font-weight: 700; color: #fbbf24; margin-right: 2px; }
-
-/* 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ 娌欑鎺ㄦ紨 路 鍐崇瓥涓夋。寰界珷 (M-119) 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€ */
 .sb-plan-tier {
   display: inline-flex; align-items: center; gap: 5px;
   font-size: 10px; font-weight: 600;
@@ -6132,7 +6206,11 @@ html { scroll-behavior: smooth; }
   padding: 10px 18px; border-radius: 8px;
   background: rgba(15,23,42,0.92); color: #fff;
   font-size: 13px; box-shadow: 0 6px 20px rgba(15,23,42,0.25);
-  animation: boq-preview-in .18s ease;
+  animation: boq-toast-in .18s ease;
+}
+@keyframes boq-toast-in {
+  from { transform: translateX(-50%) translateY(8px); opacity: 0; }
+  to   { transform: translateX(-50%) translateY(0); opacity: 1; }
 }
 
 /* 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺?
