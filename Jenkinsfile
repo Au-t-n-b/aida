@@ -14,7 +14,7 @@
 //
 // 远程部署：scp compose + agent.env，ssh 内联 bash；Harbor 凭据经 stdin 登录，无临时文件
 // 部署成功后清理 aida 悬空镜像：231（compose pull/up 遗留）+ Jenkins agent（构建遗留 tag/层）
-// Webhook 防抖：options.quietPeriod=3600（1 小时）；手动 / 定时触发不受静默期影响
+// Webhook 防抖：options.quietPeriod=1800（30 分钟）；手动 / 定时触发不受静默期影响
 // ============================================================
 
 pipeline {
@@ -33,7 +33,7 @@ pipeline {
     }
 
     options {
-        quietPeriod(3600)
+        quietPeriod(1800)
         timeout(time: 30, unit: 'MINUTES')
         timestamps()
         buildDiscarder(logRotator(numToKeepStr: '20'))
