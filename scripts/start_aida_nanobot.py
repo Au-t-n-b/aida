@@ -290,7 +290,7 @@ def stop_old() -> None:
     ]
     for p in patterns:
         subprocess.run(["pkill", "-9", "-f", p], check=False)
-    for port in (8001, 8011, 8900, 7401, 8080, int(_mailgw_port())):
+    for port in (8001, 8081, 8011, 8900, 7401, 8080, int(_mailgw_port())):
         subprocess.run(
             ["bash", "-c", f"ss -lptn 'sport = :{port}' | grep -oP 'pid=\\K[0-9]+' | xargs -r kill -9"],
             check=False,
