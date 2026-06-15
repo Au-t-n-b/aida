@@ -10,6 +10,7 @@ export const COMMIT_PATH = "/api/v1/schedule/commit" as const;
 export const PARSE_CHANGES_PATH = "/api/v1/schedule/parse-changes" as const;
 export const PROJECT_DATA_PATH = "/api/v1/schedule/project-data" as const;
 export const EXPORT_PLAN_PATH = "/api/v1/schedule/export-plan" as const;
+export const REPORT_SUMMARY_PATH = "/api/v1/schedule/report-summary" as const;
 
 /** 活动模板项（每项目一套模板；按 scope 实例化到 项目/机房/批次/PoD，01§10 §3）。 */
 export interface Activity {
@@ -56,6 +57,8 @@ export interface AdjustResponse {
   options: StrategyPlan[];
   /** 所有策略都到顶仍做不到的诉求 */
   unmet?: UnmetItem[];
+  /** 未压缩基线与当前主目标的缺口摘要；无目标时 target_date=None 且 gap_days=0 */
+  gap?: GapSummary | null;
   explanation: Explanation;
 }
 
@@ -203,6 +206,16 @@ export interface Explanation {
   notes?: string[];
 }
 
+/** 调整方案的基线缺口摘要，供方案区 banner 使用。 */
+export interface GapSummary {
+  /** 未压缩基线的整体预计完成日。来源：引擎 */
+  baseline_finish_date?: string | null;
+  /** 当前主诉求的目标日；无诉求时为 None。来源：诉求 */
+  target_date?: string | null;
+  /** 基线预计完成日相对目标日的缺口：正=超期，0=刚好，负=提前；无诉求时为 0。来源：引擎 */
+  gap_days?: number;
+}
+
 /** 初排：给全量输入，引擎按批次完备度自动分流（01§20 §1 两轴）。 */
 export interface GenerateRequest {
   inputs: InputBundle;
@@ -269,6 +282,8 @@ export interface PlanKpis {
   compressed_days?: number;
   /** 增员人数（A/B 对弹性活动生效，有 18人/队、一PoD一队 天花板，01§11 §3） */
   added_crew?: number;
+  /** 该方案预计完成日相对目标日的缺口：正=超期，0=达标，负=提前；无目标时为 0。来源：引擎 */
+  gap_days?: number;
 }
 
 /** 一版完整计划（含版本，可回滚/对照，01§13 §1）。 */
@@ -336,6 +351,63 @@ export interface ReadinessSuggestion {
   suggested_room_ready?: Record<string, string>;
   /** pod_id → 建议到货日 */
   suggested_arrival?: Record<string, string>;
+}
+
+/** 一类业务待办清单，供模型生成行动建议。 */
+export interface ReportSummaryCategory {
+  category_id: "customer" | "purchase" | "supply" | "sla";
+  title: string;
+  recognition: string;
+  description: string;
+  item_count: number;
+  items?: ReportSummaryTodoItem[];
+}
+
+/** 风险报告 AI 总结输入：报告抬头、统计与四清单条目纯数据快照。 */
+export interface ReportSummaryRequest {
+  project_name: string;
+  project_id: string;
+  project_scale: string;
+  total_card_count?: number | null;
+  scene: string;
+  product_form: string;
+  baseline_version: string;
+  report_generated_at: string;
+  committed_at: string;
+  project_finish_date?: string | null;
+  activity_count: number;
+  critical_activity_count: number;
+  todo_count: number;
+  high_count: number;
+  categories?: ReportSummaryCategory[];
+}
+
+/** 风险报告 AI 总结输出；解释层文本，不写回任何排期数字。 */
+export interface ReportSummaryResponse {
+  summary_text: string;
+  action_suggestions?: ReportSummarySection[];
+  is_ai_generated?: true;
+  model: string;
+  generated_at: string;
+}
+
+/** 某一清单的 AI 行动建议文本。 */
+export interface ReportSummarySection {
+  category_id: "customer" | "purchase" | "supply" | "sla";
+  title: string;
+  action_suggestion: string;
+}
+
+/** 四清单条目快照；数字、日期、责任方均由前端确定性派生。 */
+export interface ReportSummaryTodoItem {
+  id: string;
+  matter: string;
+  owner: string;
+  suggested_date?: string | null;
+  related_activity: string;
+  status: string;
+  severity: "高" | "中" | "低";
+  reason: string;
 }
 
 /** 返工：插入独立返工活动，不改原活动（01§13 §5）。 */

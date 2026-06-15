@@ -49,6 +49,14 @@ class PlanResult(ContractModel):
     project_finish_date: date | None = Field(default=None, description="整体交付日（末批上线/移交）")
 
 
+class GapSummary(ContractModel):
+    """调整方案的基线缺口摘要，供方案区 banner 使用。"""
+
+    baseline_finish_date: date | None = Field(default=None, description="未压缩基线的整体预计完成日。来源：引擎")
+    target_date: date | None = Field(default=None, description="当前主诉求的目标日；无诉求时为 None。来源：诉求")
+    gap_days: int = Field(default=0, description="基线预计完成日相对目标日的缺口：正=超期，0=刚好，负=提前；无诉求时为 0。来源：引擎")
+
+
 # ── 2. 就位建议（倒排产出，01§30 二.2）─────────────────────────────
 
 class ReadinessSuggestion(ContractModel):
@@ -104,6 +112,7 @@ class PlanKpis(ContractModel):
     total_duration_days: int = Field(ge=0, description="总工期")
     compressed_days: int = Field(default=0, ge=0, description="压缩天数")
     added_crew: int = Field(default=0, ge=0, description="增员人数（A/B 对弹性活动生效，有 18人/队、一PoD一队 天花板，01§11 §3）")
+    gap_days: int = Field(default=0, description="该方案预计完成日相对目标日的缺口：正=超期，0=达标，负=提前；无目标时为 0。来源：引擎")
 
 
 class PulledInput(ContractModel):
