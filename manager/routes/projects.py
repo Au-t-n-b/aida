@@ -79,7 +79,7 @@ class CreateProjectBody(BaseModel):
     contractType: Literal["预销售合同", "标准合同"]
     projectCode: str | None = None
     bidCode: str | None = None
-    customerName: str | None = None
+    customerName: str = ""
     tdUsername: str | None = None
     pdUsername: str | None = None
     pcmUsername: str | None = None
@@ -107,6 +107,7 @@ async def create_project_endpoint(
     """代理数据中心新建项目 POST /api/v1/projects。"""
     token = _bearer_token(authorization)
     payload = body.model_dump(exclude_none=True)
+    payload.setdefault("customerName", body.customerName or "")
     try:
         data = await create_project(token, payload)
     except DataCenterError as e:

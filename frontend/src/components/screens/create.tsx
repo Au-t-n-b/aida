@@ -62,9 +62,9 @@ export const INITIAL_FIELDS = [
   { key: 'scene', label: '项目交付场景', value: '', required: true, multi: true,
     options: [...SCENE_OPTIONS],
     optionGroups: SCENE_OPTION_GROUPS.map((g) => [...g]) },
-  { key: 'pd',  label: '项目 PD',  value: '', placeholder: '', required: true,  fuzzy: true },
-  { key: 'td',  label: '项目 TD',  value: '', placeholder: '', required: true,  fuzzy: true },
-  { key: 'pcm', label: '项目 PCM', value: '', placeholder: '', required: false, fuzzy: true },
+  { key: 'pd',  label: '项目 PD',  value: '', placeholder: '登录用户名，或 姓名 / 登录用户名', required: true,  fuzzy: true },
+  { key: 'td',  label: '项目 TD',  value: '', placeholder: '登录用户名，或 姓名 / 登录用户名', required: true,  fuzzy: true },
+  { key: 'pcm', label: '项目 PCM', value: '', placeholder: '登录用户名，或 姓名 / 登录用户名', required: false, fuzzy: true },
 ];
 
 export function validateFields(fields, mode = 'create') {

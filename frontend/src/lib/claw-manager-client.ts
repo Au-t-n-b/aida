@@ -44,9 +44,10 @@ export type CreateProjectBody = {
   projectName: string;
   /** 必填：预销售合同 | 标准合同 */
   contractType: string;
+  /** 客户名称；数据中心要求字段存在，无值时传空字符串 */
+  customerName: string;
   projectCode?: string;
   bidCode?: string;
-  customerName?: string;
   tdUsername?: string;
   pdUsername?: string;
   pcmUsername?: string;

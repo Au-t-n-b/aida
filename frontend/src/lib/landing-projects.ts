@@ -111,15 +111,29 @@ export function visibleLandingProjects(items: LandingProjectCard[]): LandingProj
   );
 }
 
-/** 从「姓名 / 用户名」文本解析账号用户名（POST/PUT /projects 用） */
-function parsePersonUsername(raw: string | undefined): string | undefined {
+export type CreateProjectFormOptions = {
+  /** 当前登录用户的系统 username（规范 4.6 tdUsername 示例 zhangsan） */
+  sessionUsername?: string;
+};
+
+/**
+ * 从「姓名 / 登录用户名」解析系统 username。
+ * 尾段为纯数字时视为工号而非登录名，回退 sessionUsername。
+ */
+export function parsePersonUsername(
+  raw: string | undefined,
+  fallback?: string,
+): string | undefined {
+  const fb = (fallback || '').trim() || undefined;
   const s = (raw || '').trim();
-  if (!s) return undefined;
+  if (!s) return fb;
   const slash = s.lastIndexOf('/');
   if (slash >= 0) {
     const tail = s.slice(slash + 1).trim();
-    return tail || undefined;
+    if (tail && !/^\d+$/.test(tail)) return tail;
+    return fb;
   }
+  if (/^\d+$/.test(s)) return fb;
   return s;
 }
 
@@ -130,29 +144,49 @@ function sceneCsvToDeliveryTraits(scene: string | undefined): string[] {
     .filter(Boolean);
 }
 
-/** 创建项目表单 → 数据中心 POST /projects body（v3：contractType 必填，角色用 *Username） */
-export function formToCreateProjectBody(fields: Record<string, string>): CreateProjectBody {
+/**
+ * 创建项目表单 → POST /api/v1/projects body（对齐规范 §4.6 / §5.2）
+ * 必填：projectName、contractType；示例亦含 tdUsername、deliveryTraits。
+ */
+export function formToCreateProjectBody(
+  fields: Record<string, string>,
+  opts: CreateProjectFormOptions = {},
+): CreateProjectBody {
   const projectName = (fields.name || '').trim();
   const contractType = (fields.contractType || '').trim();
+  if (!projectName) {
+    throw new Error('缺少必填参数 projectName（项目名称）');
+  }
+  if (contractType !== CONTRACT_PRESALE && contractType !== CONTRACT_STANDARD) {
+    throw new Error('缺少必填参数 contractType（合同类型：预销售合同 / 标准合同）');
+  }
+
   const code = (fields.code || '').trim();
   const proposal = (fields.proposal || '').trim();
+  const sessionUser = (opts.sessionUsername || '').trim();
+  const traits = sceneCsvToDeliveryTraits(fields.scene);
+
   const body: CreateProjectBody = {
     projectName,
     contractType,
+    customerName: (fields.customerName || '').trim(),
   };
+
   if (contractType === CONTRACT_STANDARD) {
     if (proposal) body.bidCode = proposal;
   } else if (code) {
     body.projectCode = code;
   }
+
   const pdUsername = parsePersonUsername(fields.pd);
-  const tdUsername = parsePersonUsername(fields.td);
+  const tdUsername = parsePersonUsername(fields.td, sessionUser) || sessionUser || undefined;
   const pcmUsername = parsePersonUsername(fields.pcm);
   if (pdUsername) body.pdUsername = pdUsername;
   if (tdUsername) body.tdUsername = tdUsername;
   if (pcmUsername) body.pcmUsername = pcmUsername;
-  const traits = sceneCsvToDeliveryTraits(fields.scene);
+
   if (traits.length) body.deliveryTraits = traits;
+
   return body;
 }
 

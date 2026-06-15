@@ -283,7 +283,7 @@ export default function LandingScreen() {
                   </div>
                 )}
                 {!loading && visibleProjects.map(renderCard)}
-                {!loading && <CreateCard onClick={openCreate} />}
+                {!loading && <CreateCard onClick={(e) => { e.stopPropagation(); openCreate(); }} />}
           </div>
         </div>
       </main>

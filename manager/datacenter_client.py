@@ -310,7 +310,21 @@ async def create_project(token: str, body: dict[str, Any]) -> dict[str, Any]:
         "Manager DC create_project → POST %s/api/v1/projects token=%s body=%s",
         datacenter_base(),
         mask_token(token),
-        {k: body.get(k) for k in ("projectName", "contractType", "projectCode", "bidCode", "tdUsername", "pdUsername", "pcmUsername") if k in body},
+        {
+            k: body.get(k)
+            for k in (
+                "projectName",
+                "contractType",
+                "projectCode",
+                "bidCode",
+                "customerName",
+                "tdUsername",
+                "pdUsername",
+                "pcmUsername",
+                "deliveryTraits",
+            )
+            if k in body
+        },
     )
     async with _client() as client:
         resp = await client.post(
@@ -324,8 +338,22 @@ async def create_project(token: str, body: dict[str, Any]) -> dict[str, Any]:
         if resp.status_code >= 400:
             try:
                 payload = resp.json()
-                if isinstance(payload, dict) and "code" in payload:
-                    _unwrap(payload)
+                if isinstance(payload, dict):
+                    if "code" in payload:
+                        _unwrap(payload)
+                    msg = payload.get("message") or payload.get("detail")
+                    if msg is not None:
+                        code = int(payload.get("code") or resp.status_code)
+                        raise DataCenterError(
+                            code,
+                            str(msg),
+                            status_code=resp.status_code,
+                            debug={
+                                "operation": "create_project",
+                                "httpStatus": resp.status_code,
+                                "dcResponse": payload,
+                            },
+                        )
             except DataCenterError:
                 raise
             except Exception:
