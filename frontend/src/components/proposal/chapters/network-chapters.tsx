@@ -30,16 +30,10 @@ const ADD_BTN_CLS =
 
 function useChapterAutosave(
   save: () => Promise<ChapterUploadResult<unknown>>,
-  onWarning: (message: string) => void,
-  onError: (message: string) => void,
 ) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveRef = useRef(save);
-  const warningRef = useRef(onWarning);
-  const errorRef = useRef(onError);
   saveRef.current = save;
-  warningRef.current = onWarning;
-  errorRef.current = onError;
 
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -52,10 +46,10 @@ function useChapterAutosave(
       try {
         const result = await saveRef.current();
         if (!result.uploaded || (result.common_plane && !result.common_plane.uploaded)) {
-          warningRef.current(chapterUploadMessage(result));
+          console.warn('[Proposal chapters] autosave upload warning:', chapterUploadMessage(result));
         }
       } catch (error) {
-        errorRef.current(error instanceof Error ? error.message : '自动保存失败');
+        console.error('[Proposal chapters] autosave failed:', error);
       }
     }, 1000);
   }, []);
@@ -85,11 +79,9 @@ export function NetworkPlanesChapter() {
   const [availableDevices, setAvailableDevices] = useState<AvailableDeviceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [selectedPlanes, setSelectedPlanes] = useState(
     () => new Set(['outband', 'inband', 'business', 'sample']),
   );
-  const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingPatches = useRef<Map<string, Record<string, unknown>>>(new Map());
@@ -98,20 +90,11 @@ export function NetworkPlanesChapter() {
       rows,
       COMMON_PLANE_TYPES.filter((plane) => selectedPlanes.has(plane.key)).map((plane) => plane.label),
     ),
-    (message) => setToast({ type: 'warning', message }),
-    (message) => setToast({ type: 'error', message }),
   );
 
   useEffect(() => {
     return () => { debounceTimers.current.forEach((t) => clearTimeout(t)); };
   }, []);
-
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 5000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
 
   const load = useCallback(async () => {
     try {
@@ -122,9 +105,8 @@ export function NetworkPlanesChapter() {
       ]);
       setRows(data.rows);
       setAvailableDevices(devicesData.devices);
-      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      console.error('[Network planes] load failed:', e);
     } finally {
       setLoading(false);
     }
@@ -155,7 +137,7 @@ export function NetworkPlanesChapter() {
       window.dispatchEvent(new CustomEvent('net-plane-updated', { detail: { rowId: data.row.row_id } }));
       scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '新增失败' });
+      console.error('[Network planes] create failed:', e);
     }
   };
 
@@ -185,19 +167,18 @@ export function NetworkPlanesChapter() {
       debounceTimers.current.delete(rowId);
       if (!accumulated) return;
 
-      setToast(null);
       try {
         const data = await proposalApi.updateNetPlane(rowId, accumulated as Parameters<typeof proposalApi.updateNetPlane>[1]);
         setRows((rs) => rs.map((r) => (r.row_id === rowId ? data.row : r)));
         if (data.warnings.length > 0) {
-          setToast({ type: 'warning', message: data.warnings.map((w) => w.message).join('\n') });
+          console.warn('[Network planes] update warnings:', data.warnings);
         }
         if ('qty' in accumulated || 'vendor' in accumulated || 'model' in accumulated) {
           window.dispatchEvent(new CustomEvent('net-plane-updated', { detail: { rowId } }));
         }
         scheduleAutosave();
       } catch (e) {
-        setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
+        console.error('[Network planes] update failed:', e);
         load();
       }
     }, 500);
@@ -208,27 +189,25 @@ export function NetworkPlanesChapter() {
   const handleDelete = async (rowId: string) => {
     const prev = rows;
     setRows((rs) => rs.filter((r) => r.row_id !== rowId));
-    setToast(null);
     try {
       await proposalApi.deleteNetPlane(rowId);
       scheduleAutosave();
     } catch (e) {
       setRows(prev);
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
+      console.error('[Network planes] delete failed:', e);
     }
   };
 
   const handleUpload = async (file: File) => {
     if (exporting) return;
     setExporting(true);
-    setToast(null);
     try {
       const data = await proposalApi.importNetPlanes(file);
       setRows(data.rows);
       window.dispatchEvent(new CustomEvent('net-plane-updated'));
       scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
+      console.error('[Network planes] import failed:', e);
     } finally {
       setExporting(false);
     }
@@ -238,17 +217,6 @@ export function NetworkPlanesChapter() {
     return (
       <ProposalChapterCard id="sec-ch-5-1" title="5.1 网络平面配置">
         <div className="p-8 text-center text-sm text-slate-400">加载中…</div>
-      </ProposalChapterCard>
-    );
-  }
-
-  if (error) {
-    return (
-      <ProposalChapterCard id="sec-ch-5-1" title="5.1 网络平面配置">
-        <div className="p-8 text-center text-sm text-red-500">
-          加载失败：{error}
-          <button type="button" className="ml-3 text-blue-600 underline" onClick={load}>重试</button>
-        </div>
       </ProposalChapterCard>
     );
   }
@@ -269,15 +237,6 @@ export function NetworkPlanesChapter() {
           </label>
         ))}
       </div>
-      {toast && (
-        <div className={`mb-3 flex items-start gap-2 rounded border px-3 py-2 text-sm ${
-          toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'
-        }`}>
-          <span className="mt-px shrink-0">{toast.type === 'error' ? '❌' : '⚠️'}</span>
-          <span className="flex-1 whitespace-pre-wrap">{toast.message}</span>
-          <button type="button" onClick={() => setToast(null)} className="ml-2 shrink-0 text-slate-400 hover:text-slate-600">×</button>
-        </div>
-      )}
       <ProposalDataTable leftAlign className="proposal-table-ellipsis">
         <ProposalDataTableHead>
           <tr>
@@ -423,24 +382,20 @@ export function MgmtServerChapter() {
   const [rows, setRows] = useState<NetMgmtRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingPatches = useRef<Map<string, { server_model?: string; quantity?: number }>>(new Map());
   const scheduleAutosave = useChapterAutosave(
     () => proposalApi.autosaveNetMgmt(rows),
-    (message) => setToast({ type: 'warning', message }),
-    (message) => setToast({ type: 'error', message }),
   );
 
   const load = async () => {
     setLoading(true);
-    setToast(null);
     try {
       const data = await proposalApi.initializeNetMgmt();
       setRows(data.rows);
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '加载失败' });
+      console.error('[Network management servers] load failed:', e);
     } finally {
       setLoading(false);
     }
@@ -466,7 +421,7 @@ export function MgmtServerChapter() {
         setRows((current) => current.map((row) => (row.row_id === rowId ? updated : row)));
         scheduleAutosave();
       } catch (e) {
-        setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
+        console.error('[Network management servers] update failed:', e);
         load();
       }
     }, 500));
@@ -480,7 +435,7 @@ export function MgmtServerChapter() {
       scheduleAutosave();
     } catch (e) {
       setRows(previous);
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
+      console.error('[Network management servers] delete failed:', e);
     }
   };
 
@@ -492,7 +447,7 @@ export function MgmtServerChapter() {
       setRows(data.rows);
       scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
+      console.error('[Network management servers] import failed:', e);
     } finally {
       setExporting(false);
     }
@@ -500,13 +455,6 @@ export function MgmtServerChapter() {
 
   return (
     <ProposalChapterCard id="sec-ch-5-2" title="5.2 网管服务器配置">
-      {toast && (
-        <div className={`mb-3 rounded border px-3 py-2 text-sm ${
-          toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'
-        }`}>
-          <span className="whitespace-pre-wrap">{toast.message}</span>
-        </div>
-      )}
       <div className="overflow-hidden rounded-md border border-slate-100">
         <table className="w-full table-fixed border-collapse text-sm">
           <thead>
@@ -627,37 +575,25 @@ const READONLY_CELL = 'px-2 py-1 text-xs text-slate-500 truncate';
 export function ClusterDeviceChapter() {
   const [rows, setRows] = useState<import('@/lib/proposal-api').ClusterDeviceRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [toast, setToast] = useState<{ type: 'warning' | 'error'; message: string } | null>(null);
   const [exporting, setExporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const debounceTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const pendingPatches = useRef<Map<string, Record<string, unknown>>>(new Map());
   const scheduleAutosave = useChapterAutosave(
     () => proposalApi.autosaveClusterDevices(rows),
-    (message) => setToast({ type: 'warning', message }),
-    (message) => setToast({ type: 'error', message }),
   );
 
   useEffect(() => {
     return () => { debounceTimers.current.forEach((t) => clearTimeout(t)); };
   }, []);
 
-  useEffect(() => {
-    if (toast) {
-      const t = setTimeout(() => setToast(null), 5000);
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
-
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const devicesData = await proposalApi.listClusterDevices();
       setRows(devicesData.rows);
-      setError(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : '加载失败');
+      console.error('[Cluster devices] load failed:', e);
     } finally {
       setLoading(false);
     }
@@ -687,7 +623,7 @@ export function ClusterDeviceChapter() {
       });
       scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '新增失败' });
+      console.error('[Cluster devices] create failed:', e);
     }
   };
 
@@ -699,7 +635,7 @@ export function ClusterDeviceChapter() {
       setRows(data.rows);
       scheduleAutosave();
     } catch (e) {
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '上传失败' });
+      console.error('[Cluster devices] import failed:', e);
     } finally {
       setExporting(false);
     }
@@ -723,7 +659,6 @@ export function ClusterDeviceChapter() {
       debounceTimers.current.delete(rowId);
       if (!accumulated) return;
 
-      setToast(null);
       try {
         const updated = await proposalApi.updateClusterDevice(
           rowId,
@@ -732,7 +667,7 @@ export function ClusterDeviceChapter() {
         setRows((rs) => rs.map((r) => (r.row_id === rowId ? updated : r)));
         scheduleAutosave();
       } catch (e) {
-        setToast({ type: 'error', message: e instanceof Error ? e.message : '更新失败' });
+        console.error('[Cluster devices] update failed:', e);
         load();
       }
     }, 500);
@@ -743,13 +678,12 @@ export function ClusterDeviceChapter() {
   const handleDelete = async (rowId: string) => {
     const prev = rows;
     setRows((rs) => rs.filter((r) => r.row_id !== rowId));
-    setToast(null);
     try {
       await proposalApi.deleteClusterDevice(rowId);
       scheduleAutosave();
     } catch (e) {
       setRows(prev);
-      setToast({ type: 'error', message: e instanceof Error ? e.message : '删除失败' });
+      console.error('[Cluster devices] delete failed:', e);
     }
   };
 
@@ -770,28 +704,8 @@ export function ClusterDeviceChapter() {
     );
   }
 
-  if (error) {
-    return (
-      <ProposalChapterCard id="sec-ch-5-3" title="5.3 集群设备配置">
-        <div className="p-8 text-center text-sm text-red-500">
-          加载失败：{error}
-          <button type="button" className="ml-3 text-blue-600 underline" onClick={load}>重试</button>
-        </div>
-      </ProposalChapterCard>
-    );
-  }
-
   return (
     <ProposalChapterCard id="sec-ch-5-3" title="5.3 集群设备配置">
-      {toast && (
-        <div className={`mb-3 flex items-start gap-2 rounded border px-3 py-2 text-sm ${
-          toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : 'border-amber-200 bg-amber-50 text-amber-700'
-        }`}>
-          <span className="mt-px shrink-0">{toast.type === 'error' ? '❌' : '⚠️'}</span>
-          <span className="flex-1 whitespace-pre-wrap">{toast.message}</span>
-          <button type="button" onClick={() => setToast(null)} className="ml-2 shrink-0 text-slate-400 hover:text-slate-600">×</button>
-        </div>
-      )}
       <div className="overflow-x-auto rounded-md border border-slate-100">
         <table className="w-full min-w-[1560px] table-fixed border-collapse text-sm">
           <colgroup>
@@ -844,11 +758,10 @@ export function ClusterDeviceChapter() {
                 : [];
               const subTotal = subRows.reduce((s, r) => s + r.quantity, 0);
               const overAlloc = sub && subTotal > parentQty;
-              const indentCls = sub ? 'pl-6' : '';
               return (
                 <tr
                   key={row.row_id}
-                  className={`border-t align-middle ${sub ? 'border-slate-50 bg-blue-50/30' : 'border-slate-100'}`}
+                  className="border-t border-slate-100 align-middle"
                 >
                   <td className="px-1 py-1.5 text-center">
                     {!sub && (
@@ -860,15 +773,12 @@ export function ClusterDeviceChapter() {
                         className="grid h-5 w-5 place-items-center rounded text-xs text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
                       >＋</button>
                     )}
-                    {sub && (
-                      <span className="text-[10px] text-blue-400">└</span>
-                    )}
                   </td>
                   <td className="px-2 py-1.5">
                     <input
                       value={row.cluster_id ?? ''}
                       onChange={(e) => handleUpdate(row.row_id, 'cluster_id', e.target.value)}
-                      className={`${INPUT_CLS} font-mono text-xs ${indentCls}`}
+                      className={`${INPUT_CLS} font-mono text-xs`}
                       placeholder="必填"
                     />
                   </td>
@@ -884,37 +794,37 @@ export function ClusterDeviceChapter() {
                     </select>
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.super_pod_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'super_pod_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.super_pod_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'super_pod_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.storage_cluster_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'storage_cluster_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.storage_cluster_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'storage_cluster_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.zone_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'zone_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.zone_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'zone_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.ccae_cluster_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'ccae_cluster_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.ccae_cluster_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'ccae_cluster_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.dme_cluster_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'dme_cluster_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.dme_cluster_id ?? ''} onChange={(e) => handleUpdate(row.row_id, 'dme_cluster_id', e.target.value)} className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.device_type} onChange={(e) => handleUpdate(row.row_id, 'device_type', e.target.value)} className={`${INPUT_CLS} ${indentCls}`} placeholder="设备类型" />
+                    <input value={row.device_type} onChange={(e) => handleUpdate(row.row_id, 'device_type', e.target.value)} className={INPUT_CLS} placeholder="设备类型" />
                   </td>
                   <td className="px-2 py-1.5">
-                    <div className={`${READONLY_CELL} ${indentCls}`} title={row.vendor}>{row.vendor || '—'}</div>
+                    <div className={READONLY_CELL} title={row.vendor}>{row.vendor || '—'}</div>
                   </td>
                   <td className="px-2 py-1.5">
-                    <div className={`${READONLY_CELL} font-mono ${indentCls}`} title={row.device_model}>{row.device_model || '—'}</div>
+                    <div className={`${READONLY_CELL} font-mono`} title={row.device_model}>{row.device_model || '—'}</div>
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.device_purpose ?? ''} onChange={(e) => handleUpdate(row.row_id, 'device_purpose', e.target.value)} className={`${INPUT_CLS} ${indentCls}`} placeholder="TD 录入" />
+                    <input value={row.device_purpose ?? ''} onChange={(e) => handleUpdate(row.row_id, 'device_purpose', e.target.value)} className={INPUT_CLS} placeholder="TD 录入" />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.start_device_name ?? ''} onChange={(e) => handleUpdate(row.row_id, 'start_device_name', e.target.value)} placeholder="AT900A3-0001" className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.start_device_name ?? ''} onChange={(e) => handleUpdate(row.row_id, 'start_device_name', e.target.value)} placeholder="AT900A3-0001" className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
-                    <input value={row.end_device_name ?? ''} onChange={(e) => handleUpdate(row.row_id, 'end_device_name', e.target.value)} placeholder="AT900A3-0384" className={`${INPUT_CLS} font-mono text-xs ${indentCls}`} />
+                    <input value={row.end_device_name ?? ''} onChange={(e) => handleUpdate(row.row_id, 'end_device_name', e.target.value)} placeholder="AT900A3-0384" className={`${INPUT_CLS} font-mono text-xs`} />
                   </td>
                   <td className="px-2 py-1.5">
                     <input
@@ -928,16 +838,6 @@ export function ClusterDeviceChapter() {
                       }}
                       className={`${INPUT_CLS} tabular-nums ${overAlloc ? 'border-red-300 bg-red-50' : ''}`}
                     />
-                    {sub && !overAlloc && subTotal > 0 && (
-                      <div className="mt-0.5 text-[10px] text-slate-400">
-                        子行合计 {subTotal} / {parentQty}
-                      </div>
-                    )}
-                    {overAlloc && (
-                      <div className="mt-0.5 text-[10px] text-red-500">
-                        子行合计 {subTotal} &gt; {parentQty}
-                      </div>
-                    )}
                   </td>
                   <td className="px-1 py-1.5 text-center">
                     <button type="button" onClick={() => handleDelete(row.row_id)} title="删除此行" className={DEL_BTN_CLS}>✕</button>
