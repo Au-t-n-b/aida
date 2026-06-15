@@ -1,14 +1,18 @@
+import { useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
   CalendarDays,
   ClipboardList,
   FileWarning,
+  Loader2,
   ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 import Link from '@/compat/link';
 import { AppShell } from '@/components/app-shell';
 import {
+  generateScheduleRiskReportSummary,
   getScheduleRiskReportState,
   type RiskReportCategory,
   type RiskReportSeverity,
@@ -25,13 +29,18 @@ const categoryIcon: Record<RiskReportCategory['id'], typeof ClipboardList> = {
 };
 
 export default function RiskReportScreen() {
-  const state = getScheduleRiskReportState();
+  const [state, setState] = useState(getScheduleRiskReportState);
+  const refreshReport = () => setState(getScheduleRiskReportState());
 
   return (
     <AppShell breadcrumbs={['项目管理 · 风险报告']}>
       <main className="risk-report-page">
         <div className="risk-report-inner">
-          {state.status === 'empty' ? <RiskReportEmpty /> : <RiskReportReady report={state.report} />}
+          {state.status === 'empty' ? (
+            <RiskReportEmpty />
+          ) : (
+            <RiskReportReady report={state.report} onSummaryChanged={refreshReport} />
+          )}
         </div>
       </main>
     </AppShell>
@@ -56,7 +65,13 @@ function RiskReportEmpty() {
   );
 }
 
-function RiskReportReady({ report }: { report: ScheduleRiskReport }) {
+function RiskReportReady({
+  report,
+  onSummaryChanged,
+}: {
+  report: ScheduleRiskReport;
+  onSummaryChanged: () => void;
+}) {
   return (
     <>
       <div className="risk-report-head">
@@ -115,6 +130,7 @@ function RiskReportReady({ report }: { report: ScheduleRiskReport }) {
               <SummaryCell label="计划活动" value={report.activityCount} />
               <SummaryCell label="关键路径活动" value={report.criticalActivityCount} />
             </div>
+            <AiSummarySlot report={report} onGenerated={onSummaryChanged} />
           </section>
 
           <section>
@@ -135,6 +151,66 @@ function RiskReportReady({ report }: { report: ScheduleRiskReport }) {
         </article>
       </div>
     </>
+  );
+}
+
+function AiSummarySlot({
+  report,
+  onGenerated,
+}: {
+  report: ScheduleRiskReport;
+  onGenerated: () => void;
+}) {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const summary = report.aiSummary;
+
+  if (!summary && !report.canGenerateAiSummary) return null;
+
+  const handleGenerate = async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    try {
+      const generated = await generateScheduleRiskReportSummary(report);
+      if (generated) onGenerated();
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  if (!summary) {
+    return (
+      <div className="risk-report-ai-slot idle">
+        <button className="risk-report-ai-button" type="button" onClick={handleGenerate} disabled={isGenerating}>
+          {isGenerating ? <Loader2 size={14} className="risk-report-spin" aria-hidden /> : <Sparkles size={14} aria-hidden />}
+          <span>{isGenerating ? '生成中' : '生成 AI 总结'}</span>
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="risk-report-ai-slot">
+      <div className="risk-report-ai-head">
+        <span className="risk-report-ai-badge">
+          <Sparkles size={13} aria-hidden />
+          AI 生成
+        </span>
+        <span className="risk-report-ai-meta">
+          {summary.model} · {formatDateTime(summary.generated_at)}
+        </span>
+      </div>
+      <p className="risk-report-ai-summary">{summary.summary_text}</p>
+      {summary.action_suggestions?.length ? (
+        <div className="risk-report-ai-actions">
+          {summary.action_suggestions.map((section) => (
+            <div className="risk-report-ai-action" key={section.category_id}>
+              <span>{section.title}</span>
+              <p>{section.action_suggestion}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
