@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 67 个节点类型 · 42 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 68 个节点类型 · 42 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -79,6 +79,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#ChoiceCard">ChoiceCard</a>
 <a href="#HitlTextInput">HitlTextInput</a>
 <h4>Other</h4>
+<a href="#ZhgkGoldenMetrics">ZhgkGoldenMetrics</a>
 <a href="#RiskList">RiskList</a>
 <a href="#MachineRoom3D">MachineRoom3D</a>
 <a href="#EmptyState">EmptyState</a>
@@ -456,6 +457,20 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;HitlTextInput&quot;
 }</pre></section>
 <h2 class="cat">Other</h2>
+<section id="ZhgkGoldenMetrics"><h3><code>ZhgkGoldenMetrics</code> SduiZhgkGoldenMetricsNode<span class="tag">Other</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ZhgkGoldenMetrics</code></td><td class='req'>—</td><td><code>ZhgkGoldenMetrics</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>progress</b></td><td><code>int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>centerLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>StatisticRowItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ZhgkGoldenMetrics&quot;,
+  &quot;progress&quot;: 1,
+  &quot;items&quot;: [
+    {
+      &quot;title&quot;: &quot;示例&quot;,
+      &quot;value&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
 <section id="RiskList"><h3><code>RiskList</code> SduiRiskListNode<span class="tag">Other</span></h3><p class="desc">风险清单 · 按等级（高/中/低）色带展示。zhgk 风险识别、评估类 skill 通用。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: RiskList</code></td><td class='req'>—</td><td><code>RiskList</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>items</b></td><td><code>RiskItem[]</code></td><td class='req'>✓</td><td></td></tr>
