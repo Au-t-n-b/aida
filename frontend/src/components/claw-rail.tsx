@@ -564,11 +564,13 @@ function RunLogFeed({ runId }: { runId: string }) {
         return (
           <div
             key={g.step}
-            className="cmsg ai run-log-msg"
+            className="cv-msg ai run-log-msg"
             style={{ animation: 'cvMsgIn .42s cubic-bezier(.22,.7,.2,1) both' }}
           >
-            <div className="meta">AIDA · {g.ts ?? nowTs()}</div>
-            <div className="run-log-step-card">
+            <span className="cv-ai-av" aria-hidden><span className="cv-ai-dot" /></span>
+            <div className="cv-bubble" style={{ flex: 1, minWidth: 0 }}>
+              <div className="meta" style={{ marginBottom: 6 }}>AIDA · {g.ts ?? nowTs()}</div>
+              <div className="run-log-step-card">
               <div className="run-log-step-head">
                 <span className="run-log-step-title">{g.name}</span>
                 <span className={`run-log-step-badge ${statusClass}`}>{statusLabel}</span>
@@ -586,6 +588,7 @@ function RunLogFeed({ runId }: { runId: string }) {
                   ))}
                 </div>
               )}
+            </div>
             </div>
           </div>
         );
@@ -726,8 +729,6 @@ function SkillRunBanner({
           <div className="zhgk-card-err">{errorMsg}</div>
         )}
       </div>
-
-      {!usesDeliveryWorkbench && myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
 
       {showSkillConversation && myConv && (
         <div className="claw-skill-conv" style={{ marginTop: 8 }}>
@@ -1541,10 +1542,17 @@ export default function ClawRail({
 
         {/* 运行进度卡 + 技能会话流：固定渲染在对话流底部 */}
         {uiSkillRun && (
-          <div className="cmsg ai">
-            <div className="meta">AIDA · {nowTs()}</div>
-            <SkillRunBanner skillId={uiSkillRun.skillId} autoStart={false} />
-          </div>
+          <>
+            <div className="cmsg ai">
+              <div className="meta">AIDA · {nowTs()}</div>
+              <SkillRunBanner skillId={uiSkillRun.skillId} autoStart={false} />
+            </div>
+            {!DELIVERY_WORKBENCH_SKILLS.has(uiSkillRun.skillId)
+              && uiSkillRun.runId
+              && uiSkillRun.runId !== '__starting__' && (
+              <RunLogFeed runId={uiSkillRun.runId} />
+            )}
+          </>
         )}
       </div>
 

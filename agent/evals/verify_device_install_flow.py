@@ -67,6 +67,33 @@ def _fill_principal_rows(need_edit: dict) -> list[dict]:
     return filled
 
 
+def _find_nodes(doc: dict, node_type: str) -> list[dict]:
+    found: list[dict] = []
+
+    def walk(node: dict) -> None:
+        if not isinstance(node, dict):
+            return
+        if node.get("type") == node_type:
+            found.append(node)
+        for c in node.get("children") or []:
+            walk(c)
+        for t in node.get("tabs") or []:
+            if isinstance(t, dict):
+                for c in t.get("children") or []:
+                    walk(c)
+
+    walk(doc.get("root") or {})
+    return found
+
+
+def _stepper_details_empty(doc: dict) -> bool:
+    for st in _find_nodes(doc, "Stepper"):
+        for s in st.get("steps") or []:
+            if isinstance(s, dict) and s.get("detail"):
+                return False
+    return True
+
+
 def _assert(cond: bool, msg: str) -> None:
     if not cond:
         raise AssertionError(msg)
@@ -143,6 +170,7 @@ def main() -> int:
     doc_hitl = sdui_project(state)
     stepper_hitl = _stepper_map(doc_hitl)
     _assert("principal_fill" in stepper_hitl, f"stepper missing principal_fill: {stepper_hitl}")
+    _assert(_stepper_details_empty(doc_hitl), "stepper should not embed log_tail detail")
     print(f"[OK] SDUI at principal_fill HITL: {stepper_hitl}")
 
     # 模拟「保存并继续」
@@ -161,10 +189,14 @@ def main() -> int:
     stepper2 = _stepper_map(doc2)
     _assert(stepper2.get("principal_fill") == "done", stepper2)
     _assert("tasks_generate" in stepper2, stepper2)
+    need2 = hitl2.get("need_edit") or {}
+    _assert(need2.get("fillLabel") == "一键同步", need2)
+    _assert(need2.get("submitLabel") == "确认并生成", need2)
+    tabs2 = [t for t in _find_nodes(doc2, "TabGroup") if t.get("id") == "view-tabs-tasks_generate"]
+    _assert(tabs2 and tabs2[0].get("keepAlive") is True, f"tasks_generate TabGroup keepAlive: {tabs2}")
     print(f"[OK] after 保存并继续: backend={backend2}, stepper={stepper2}")
 
     # 模拟「确认并生成」
-    need2 = hitl2.get("need_edit") or {}
     rows2 = need2.get("rows") or []
     _assert(rows2, "tasks_generate rows empty")
     project2 = skill.apply_resume_payload(state2["project"], {"rows": rows2}, "tasks_generate")
@@ -179,7 +211,32 @@ def main() -> int:
     doc3 = sdui_project(state3)
     stepper3 = _stepper_map(doc3)
     _assert(stepper3.get("tasks_generate") in ("running", "done"), stepper3)
+    tabs3 = [t for t in _find_nodes(doc3, "TabGroup") if t.get("id") == "view-tabs-task_dispatch"]
+    _assert(tabs3 and tabs3[0].get("keepAlive") is True, f"task_dispatch TabGroup keepAlive: {tabs3}")
+    need3 = hitl3.get("need_edit") or {}
+    _assert(need3.get("submitLabel") == "确认下发", need3)
+    _assert(need3.get("fillLabel") == "一键全选", need3)
     print(f"[OK] after 确认并生成: backend={backend3}, stepper={stepper3}")
+
+    # 模拟「确认下发」→ sn_generate → esn_fill HITL
+    rows3 = need3.get("rows") or []
+    _assert(rows3, "task_dispatch rows empty")
+    for r in rows3:
+        if isinstance(r, dict):
+            r["selected"] = True
+    project3 = skill.apply_resume_payload(state3["project"], {"rows": rows3}, "task_dispatch")
+    state4 = graph.invoke(
+        {"project": project3, "logs": ["[resume] verify task_dispatch"]},
+        {"configurable": {"thread_id": "verify-flow-4"}},
+    )
+    hitl4 = state4.get("hitl") or {}
+    _assert(hitl4.get("step") == "esn_fill", f"expected esn_fill HITL, got {hitl4}")
+    need4 = hitl4.get("need_edit") or {}
+    _assert(need4.get("submitLabel") == "生成完工报告", need4)
+    _assert(need4.get("fillLabel") == "一键同步", need4)
+    doc4 = sdui_project(state4)
+    _assert(_stepper_details_empty(doc4), "stepper detail should stay empty at esn_fill")
+    print(f"[OK] after 确认下发 → esn_fill HITL: submitLabel={need4.get('submitLabel')}")
 
     # 步骤条 running 语义：backend running → SDUI running（琥珀转圈）
     for rec in state3.get("steps") or []:

@@ -70,9 +70,44 @@ function formatRunLogTs(): string {
 }
 
 /** 中间对话框专用：精简为业务可读短句，不展示路径与括号解释 */
-function simplifyLogLine(msg: string): string {
+function isPreflightNoise(line: string): boolean {
+  return (
+    /redacted_thinking/i.test(line)
+    || /说明提到/.test(line)
+    || /用户要求/.test(line)
+    || /不要加标号/.test(line)
+    || /已解析任务数/.test(line)
+    || /主建设流程解析/.test(line)
+    || /🤖\s*AI\s*摘要/.test(line)
+    || /整体状态为/.test(line)
+    || /建议下一步/.test(line)
+    || /预检结论/.test(line)
+    || /勾选下发/.test(line)
+  );
+}
+
+/** 环境预检：仅保留设计稿规定的 6 行日志 */
+function simplifyPreflightLogLine(raw: string): string {
+  const s = stripParens(stripStepTag(raw).trim());
+  if (!s || isPreflightNoise(s)) return '';
+  if (/正在扫描设备安装环境/.test(s)) return '正在扫描设备安装环境…';
+  if (/正在校验上游交付计划表/.test(s)) return '正在校验上游交付计划表…';
+  if (/LLM\s*摘要跳过/.test(s)) return 'LLM 摘要跳过';
+  const fileReady = s.match(/^([✓√✗])\s*(交付计划表|设备位置表|到货信息表)[:：]\s*(.+)$/);
+  if (fileReady) {
+    const mark = fileReady[1] === '✗' ? '✗' : '√';
+    const status = fileReady[3].trim().replace(/（[^）]*）/g, '').trim();
+    return `${mark} ${fileReady[2]}：${status}`;
+  }
+  return '';
+}
+
+function simplifyLogLine(msg: string, step?: string): string {
   const raw = stripStepTag(msg).trim();
   if (!raw) return '';
+
+  if (step === 'preflight') return simplifyPreflightLogLine(raw);
+  if (isPreflightNoise(raw)) return '';
 
   // 整行丢弃：路径、内部态、低价值信息
   if (/^源文件目录：/.test(raw)) return '';
@@ -106,7 +141,6 @@ function simplifyLogLine(msg: string): string {
     const m = s.match(/已解析 (\d+) 条/);
     return m ? `已解析 ${m[1]} 条实施计划` : '实施计划解析完成';
   }
-  if (s === '🤖 AI 摘要：') return '预检结论';
   if (/^✓\s*已保存责任人信息/.test(s)) {
     const m = s.match(/回填 (\d+) 条任务/);
     return m
@@ -186,7 +220,7 @@ export function pushRunLog(runId: string, ev: RunLogEvent): void {
   } else {
     // phase === 'log'：追加一行（缺 start 时容错补建气泡）
     if (!ev.msg) return;
-    const line = simplifyLogLine(ev.msg);
+    const line = simplifyLogLine(ev.msg, ev.step);
     if (!line) return;
     if (idx >= 0) {
       next = cur.map((g, i) =>

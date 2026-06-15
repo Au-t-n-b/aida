@@ -254,7 +254,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
           if (isRunUnavailableDoc(snap)) return applyUnavailable(prev, snap);
 
-          return useRunLog ? snap : mergeSduiDoc(prev, snap);
+          return mergeSduiDoc(prev, snap);
 
         });
 
@@ -287,7 +287,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
             lastDocJsonRef.current = json;
 
             // SSE 增量经 mergeSduiDoc：与后端 display_state 双保险，防 full_restart 闪回低进度
-            setDoc(prev => useRunLog ? result.doc : mergeSduiDoc(prev, result.doc));
+            setDoc(prev => mergeSduiDoc(prev, result.doc));
 
           }
 
@@ -371,7 +371,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
             const json = JSON.stringify(snap);
             if (json === lastDocJsonRef.current) return;  // 无变化：不触发重渲染
             lastDocJsonRef.current = json;
-            setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
+            setDoc(prev => mergeSduiDoc(prev, snap));
           }).catch(() => { /* ignore */ });
         }, 2500);
       };
@@ -393,7 +393,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       // run 正常结束（done）后补拉一次快照，避免错过末尾增量（software_deployment）
       const handleDone = () => {
         fetchUiSnapshot(skillId, runId, base).then(snap => {
-          if (!cancelled && snap) setDoc(prev => useRunLog ? snap : mergeSduiDoc(prev, snap));
+          if (!cancelled && snap) setDoc(prev => mergeSduiDoc(prev, snap));
         }).catch(() => { /* ignore */ });
       };
 

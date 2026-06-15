@@ -992,9 +992,10 @@ export default function SkillAgentScreen({
   // 重连间隙后端可能短暂投影 idle 空树；显示层忽略，继续用 bootDoc 兜底
   const liveSduiDoc = sduiDoc && !isIdleLikeSduiDoc(sduiDoc) ? sduiDoc : null;
 
+  // 保留最近一次有效 SDUI 作兜底：重连 / 节点切换间隙后端可能短暂投影 idle 空树
   useEffect(() => {
     if (liveSduiDoc) {
-      setBootDoc(null);
+      setBootDoc(liveSduiDoc);
       setLoadError(null);
     }
   }, [liveSduiDoc]);
@@ -1024,6 +1025,8 @@ export default function SkillAgentScreen({
     diSubmitDocRef.current = null;
     progressFloorRef.current = 0;
     frozenProgressRef.current = 0;
+    setBootDoc(null);
+    setLoadError(null);
   }, [runId, taskId]);
 
   // run 真失效（Agent 重启 → /ui 持续 404）才清会话/HITL/run，让 auto-start 重评估。
