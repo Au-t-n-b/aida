@@ -141,6 +141,7 @@ def generate_plan(
         duration_estimates,
         team_assignments,
         incident_events,
+        given_availability_dates,
     )
 
     for instance_id in order:
@@ -348,6 +349,7 @@ def _compute_readiness_suggestions(
     duration_estimates: dict[str, _DurationEstimate],
     team_assignments: dict[str, _TeamAssignment],
     incidents: Sequence[IncidentEvent],
+    given_availability_dates: Mapping[str, date],
 ) -> _ReadinessComputation:
     suggestions: list[ReadinessSuggestion] = []
     starts: dict[str, date] = {}
@@ -359,7 +361,13 @@ def _compute_readiness_suggestions(
     for batch in inputs.batches:
         missing_room_ids = _missing_room_ids(inputs, batch)
         missing_pod_ids = _missing_arrival_pod_ids(inputs, batch)
-        if not missing_room_ids and not missing_pod_ids:
+        has_given_availability = _batch_has_given_availability(
+            inputs,
+            instances,
+            batch,
+            given_availability_dates,
+        )
+        if not missing_room_ids and not missing_pod_ids and not has_given_availability:
             continue
 
         target_deadlines = _batch_target_deadlines(batch.batch_id, instances, windows)
@@ -379,19 +387,43 @@ def _compute_readiness_suggestions(
 
         suggested_room_ready = _suggested_room_ready(instances, backward.ends, missing_room_ids)
         suggested_arrival = _suggested_arrival(instances, backward.ends, missing_pod_ids)
-        if not suggested_room_ready and not suggested_arrival:
+        project_target_ancestor_ids = _project_level_target_ancestor_ids(instances, backward.ends)
+        should_preplan_given_batch = (
+            has_given_availability
+            and not missing_room_ids
+            and not missing_pod_ids
+            and bool(project_target_ancestor_ids)
+        )
+        if not suggested_room_ready and not suggested_arrival and not has_given_availability:
             continue
 
-        suggestions.append(
-            ReadinessSuggestion(
-                batch_id=batch.batch_id,
-                suggested_room_ready=suggested_room_ready,
-                suggested_arrival=suggested_arrival,
+        if suggested_room_ready or suggested_arrival:
+            suggestions.append(
+                ReadinessSuggestion(
+                    batch_id=batch.batch_id,
+                    suggested_room_ready=suggested_room_ready,
+                    suggested_arrival=suggested_arrival,
+                )
             )
-        )
 
         batch_instance_ids = _batch_related_instance_ids(inputs, instances, batch)
-        for instance_id in batch_instance_ids.intersection(backward.ends):
+        if missing_room_ids or missing_pod_ids:
+            preplanned_instance_ids = batch_instance_ids.intersection(backward.ends)
+        elif should_preplan_given_batch:
+            _raise_if_given_availability_after_batch_target(
+                batch.batch_id,
+                batch_instance_ids,
+                given_availability_dates,
+                target_deadlines,
+            )
+            preplanned_instance_ids = (
+                batch_instance_ids.union(project_target_ancestor_ids)
+                .intersection(backward.ends)
+                .difference(given_availability_dates)
+            )
+        else:
+            preplanned_instance_ids = set()
+        for instance_id in preplanned_instance_ids:
             _apply_earliest_finish(
                 instance_id,
                 backward.starts[instance_id],
@@ -551,6 +583,49 @@ def _batch_related_instance_ids(inputs: InputBundle, instances: Sequence[_Instan
         elif scope == "机房级" and ref_id in room_ids:
             related.add(instance.instance_id)
     return related
+
+
+def _batch_has_given_availability(
+    inputs: InputBundle,
+    instances: Sequence[_Instance],
+    batch: Batch,
+    given_availability_dates: Mapping[str, date],
+) -> bool:
+    return bool(_batch_related_instance_ids(inputs, instances, batch).intersection(given_availability_dates))
+
+
+def _project_level_target_ancestor_ids(
+    instances: Sequence[_Instance],
+    target_ancestor_ends: Mapping[str, date],
+) -> set[str]:
+    return {
+        instance.instance_id
+        for instance in instances
+        if instance.scope_ref.scope == "项目级" and instance.instance_id in target_ancestor_ends
+    }
+
+
+def _raise_if_given_availability_after_batch_target(
+    batch_id: str,
+    batch_instance_ids: set[str],
+    given_availability_dates: Mapping[str, date],
+    target_deadlines: Mapping[str, date],
+) -> None:
+    if not target_deadlines:
+        return
+    earliest_target = min(target_deadlines.values())
+    late_dates = [
+        (instance_id, availability_date)
+        for instance_id, availability_date in given_availability_dates.items()
+        if instance_id in batch_instance_ids and availability_date > earliest_target
+    ]
+    if not late_dates:
+        return
+    instance_id, availability_date = min(late_dates, key=lambda item: item[1])
+    _raise_infeasible(
+        "给定就位/到货晚于批次目标",
+        f"{batch_id} 的 {instance_id} 给定可用日 {availability_date.isoformat()} 晚于批次目标 {earliest_target.isoformat()}。",
+    )
 
 
 def _apply_earliest_finish(
@@ -993,9 +1068,16 @@ def _minimum_duration_days_by_instance(inputs: InputBundle) -> dict[str, int]:
     minimums: dict[str, int] = {}
     for instance in _instantiate(calculation_inputs):
         estimate = _estimate_duration(instance, calculation_inputs)
-        minimum = estimate.minimum_work_days
-        minimums[instance.instance_id] = max(1, ceil(minimum if minimum is not None else 1))
+        team = _assign_team(instance, calculation_inputs)
+        minimums[instance.instance_id] = _minimum_elapsed_days(estimate, team)
     return minimums
+
+
+def _minimum_elapsed_days(estimate: _DurationEstimate, team: _TeamAssignment) -> int:
+    if estimate.minimum_work_days is None:
+        return 1
+    minimum_work_days = estimate.minimum_work_days
+    return max(1, ceil(minimum_work_days / team.efficiency))
 
 
 def _validated_duration_override(instance_id: str, value: int, minimum_days: int | None) -> int:

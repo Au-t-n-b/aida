@@ -30,6 +30,13 @@ from agent.schedule.contracts.inputs import (  # noqa: E402
     WorkloadRule,
 )
 
+B2DH401_POD_IDS = [
+    "B2DH401-POD01",
+    "B2DH401-POD02",
+    "B2DH401-POD03",
+    "B2DH401-POD04",
+]
+
 
 def _activity(
     activity_id: str,
@@ -40,6 +47,7 @@ def _activity(
     activity_type: str = "普通",
     duration_mode: str = "固定",
     constraint_source: str | None = None,
+    minimum_days: int | None = None,
     workload_rules: list[WorkloadRule] | None = None,
     is_default_milestone: bool = False,
     risk_rule: RiskRule | None = None,
@@ -52,7 +60,7 @@ def _activity(
         constraint_source=constraint_source,
         duration_mode=duration_mode,
         standard_sla_days=days,
-        minimum_sla_days=1 if days else None,
+        minimum_sla_days=minimum_days if minimum_days is not None else (1 if days else None),
         workload_rules=workload_rules or [],
         is_default_milestone=is_default_milestone,
         risk_rule=risk_rule,
@@ -105,6 +113,36 @@ def _risk_rule(
         impact=impact,
         mitigation=mitigation,
         mitigation_owner=owner,
+    )
+
+
+def _golden_bundle() -> InputBundle:
+    fixture_path = SCHEDULE_ROOT / "tests" / "fixtures" / "input_bundle.golden.json"
+    return InputBundle.model_validate(json.loads(fixture_path.read_text(encoding="utf-8")))
+
+
+def _with_room_install_ready(bundle: InputBundle, room_id: str, ready_date: date) -> InputBundle:
+    return bundle.model_copy(
+        update={
+            "rooms": [
+                room.model_copy(update={"install_ready_date": ready_date}) if room.room_id == room_id else room
+                for room in bundle.rooms
+            ]
+        }
+    )
+
+
+def _with_arrival_date_for_pods(bundle: InputBundle, pod_ids: list[str], arrival_date: date) -> InputBundle:
+    pod_id_set = set(pod_ids)
+    return bundle.model_copy(
+        update={
+            "arrivals": [
+                arrival.model_copy(update={"arrival_date": arrival_date, "arrival_status": "已到货"})
+                if arrival.pod_id in pod_id_set
+                else arrival
+                for arrival in bundle.arrivals
+            ]
+        }
     )
 
 
@@ -354,6 +392,47 @@ def test_duration_override_below_minimum_sla_is_infeasible():
     assert exc_info.value.to_response().conflicts[0].constraint == "活动工期低于极限 SLA"
 
 
+@pytest.mark.parametrize(
+    ("experience", "too_low_days", "limit_days", "limit_end"),
+    [
+        ("一般", 6, 7, date(2026, 1, 7)),
+        ("缺乏", 7, 8, date(2026, 1, 8)),
+    ],
+)
+def test_commit_duration_override_minimum_sla_uses_experience_efficiency(
+    experience: str,
+    too_low_days: int,
+    limit_days: int,
+    limit_end: date,
+):
+    inputs = _bundle(
+        activities=[
+            _activity(
+                "install",
+                "安装 PoD",
+                "PoD级",
+                10,
+                constraint_source="人",
+                minimum_days=5,
+            )
+        ],
+        teams=[Team(team_id="T1", experience=experience)],
+    )
+    base = generate_plan(inputs)
+
+    with pytest.raises(EngineError) as exc_info:
+        recalculate_plan_with_duration_overrides(inputs, base, {"P1/install": too_low_days})
+
+    conflict = exc_info.value.to_response().conflicts[0]
+    assert conflict.constraint == "活动工期低于极限 SLA"
+    assert f"低于极限工期 {limit_days} 天" in conflict.detail
+
+    recalculated = recalculate_plan_with_duration_overrides(inputs, base, {"P1/install": limit_days})
+    scheduled = _by_id(recalculated)["P1/install"]
+    assert scheduled.actual_sla_days == limit_days
+    assert scheduled.end_date == limit_end
+
+
 def test_infeasible_when_forward_window_misses_hard_anchor():
     inputs = _bundle(
         activities=[
@@ -533,10 +612,93 @@ def test_late_given_ready_reports_infeasible_against_batch_target():
     assert "晚于目标" in conflict.detail
 
 
+def test_slack_given_room_ready_with_far_target_is_feasible():
+    """宽裕场景必可行（指挥人 2026-06-14 显式用例 / T-039 验收）：
+    机房 ready=01-10、上线目标=年底、1 个 PoD 海量 slack → 必须 200，不得假性 INFEASIBLE。
+    锁死「slack 下绝不报不可行」——只验可行性(A)，不约束填充/拉长(B，另案)。
+    收口人 2026-06-14 补：Codex 完工早于本用例入卡 3 分钟，故由收口人补成常驻回归。"""
+    inputs = _bundle(
+        start=None,
+        rooms=[Room(room_id="R1", install_ready_date=date(2026, 1, 10))],
+        pods=[Pod(pod_id="P1", room_id="R1")],
+        arrivals=[
+            ArrivalItem(
+                arrival_id="A1",
+                pod_id="P1",
+                device_type="设备",
+                quantity=1,
+                arrival_status="在途",
+                arrival_date=date(2026, 1, 10),
+            )
+        ],
+        batches=[Batch(batch_id="B1", batch_name="批次1", pod_ids=["P1"], online_target_date=date(2026, 12, 31))],
+        activities=[
+            _activity("room_ready", "机房就位", "机房级", 30, activity_type="机房准备"),
+            _activity("arrival", "设备到货", "PoD级", 10, activity_type="到货"),
+            _activity("install", "机柜上架安装", "PoD级", 5),
+            _activity("online", "批次上线", "批次级", 1, activity_type="里程碑"),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="room_ready", to_activity_id="install", dep_type="FS"),
+            Dependency(from_activity_id="arrival", to_activity_id="install", dep_type="FS"),
+            Dependency(from_activity_id="install", to_activity_id="online", dep_type="FS"),
+        ],
+    )
+
+    result = generate_plan(inputs, include_risks=True)
+
+    assert isinstance(result, ScheduleResult)
+    activities = _by_id(result.plan)
+    # 给定机房 ready 钉在人设日（不被覆盖）
+    assert activities["R1/room_ready"].start_date == date(2026, 1, 10)
+    assert activities["R1/room_ready"].end_date == date(2026, 1, 10)
+    # 上线落在目标日内（slack 充足、可行）
+    assert activities["B1/online"].end_date <= date(2026, 12, 31)
+
+
+def test_golden_fixture_given_room_ready_remains_monotonic_against_missing_ready_baseline():
+    baseline_bundle = _with_arrival_date_for_pods(_golden_bundle(), B2DH401_POD_IDS, date(2026, 1, 10))
+    baseline_result = generate_plan(baseline_bundle, include_risks=True)
+    assert isinstance(baseline_result, ScheduleResult)
+    baseline_activities = _by_id(baseline_result.plan)
+    baseline_power_on = baseline_activities["批次1/7.11"]
+
+    reasonable_ready_result = generate_plan(
+        _with_room_install_ready(baseline_bundle, "B2DH401", date(2026, 1, 10)),
+        include_risks=True,
+    )
+    early_ready_result = generate_plan(
+        _with_room_install_ready(baseline_bundle, "B2DH401", date(2025, 12, 1)),
+        include_risks=True,
+    )
+
+    assert isinstance(reasonable_ready_result, ScheduleResult)
+    assert isinstance(early_ready_result, ScheduleResult)
+    for result, ready_date in [
+        (reasonable_ready_result, date(2026, 1, 10)),
+        (early_ready_result, date(2025, 12, 1)),
+    ]:
+        activities = _by_id(result.plan)
+        assert activities["B2DH401/2.3"].start_date == ready_date
+        assert activities["B2DH401/2.3"].end_date == ready_date
+        assert activities["批次1/7.11"].start_date <= baseline_power_on.start_date
+        assert activities["批次1/7.11"].end_date <= baseline_power_on.end_date
+
+
+def test_golden_fixture_late_given_room_ready_still_reports_infeasible():
+    bundle = _with_arrival_date_for_pods(_golden_bundle(), B2DH401_POD_IDS, date(2026, 1, 10))
+
+    with pytest.raises(EngineError) as exc_info:
+        generate_plan(_with_room_install_ready(bundle, "B2DH401", date(2026, 2, 1)))
+
+    assert exc_info.value.code == "INFEASIBLE"
+    conflict = exc_info.value.to_response().conflicts[0]
+    assert conflict.constraint == "给定就位/到货晚于批次目标"
+    assert "B2DH401/2.3" in conflict.detail
+
+
 def test_golden_fixture_non_fs_dependencies_are_skipped_with_risks():
-    fixture_path = SCHEDULE_ROOT / "tests" / "fixtures" / "input_bundle.golden.json"
-    payload = json.loads(fixture_path.read_text(encoding="utf-8"))
-    bundle = InputBundle.model_validate(payload)
+    bundle = _golden_bundle()
 
     plan = generate_plan(bundle)
     result = generate_plan(bundle, include_risks=True)

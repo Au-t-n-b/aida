@@ -8,7 +8,8 @@ SCHEDULE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = SCHEDULE_ROOT.parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from agent.schedule.engine import ScheduleResult, build_adjustment_options, generate_plan  # noqa: E402
+from agent.schedule.engine import ScheduleResult, build_adjustment_options, generate_plan, select_shadow_recommendation  # noqa: E402
+from agent.schedule.engine.adjustments import _DemandTarget, _gap_summary  # noqa: E402
 from agent.schedule.contracts.api import ChangeSet  # noqa: E402
 from agent.schedule.contracts.common import DateRange, TargetRef  # noqa: E402
 from agent.schedule.contracts.inputs import (  # noqa: E402
@@ -28,53 +29,181 @@ from agent.schedule.contracts.inputs import (  # noqa: E402
     Team,
     WorkloadRule,
 )
+from agent.schedule.contracts.outputs import PlanKpis, PlanResult, StrategyPlan  # noqa: E402
+
+
+def test_shadow_recommendation_prefers_achievable_option_before_other_scores():
+    selected = select_shadow_recommendation(
+        [
+            _shadow_option("A", gap_days=1, risk_level="低"),
+            _shadow_option("B", gap_days=0, risk_level="高"),
+            _shadow_option("C", gap_days=2, risk_level="低"),
+        ]
+    )
+
+    assert selected.option_id == "B"
+
+
+def test_shadow_recommendation_ladder_orders_risk_added_crew_and_compression():
+    risk_selected = select_shadow_recommendation(
+        [
+            _shadow_option("A", gap_days=0, risk_level="中", added_crew=0),
+            _shadow_option("B", gap_days=0, risk_level="低", added_crew=8),
+        ]
+    )
+    crew_selected = select_shadow_recommendation(
+        [
+            _shadow_option("A", gap_days=0, risk_level="低", added_crew=2, compressed_days=1),
+            _shadow_option("B", gap_days=0, risk_level="低", added_crew=1, compressed_days=10),
+        ]
+    )
+    compression_selected = select_shadow_recommendation(
+        [
+            _shadow_option("A", gap_days=0, risk_level="低", added_crew=0, compressed_days=3),
+            _shadow_option("B", gap_days=0, risk_level="低", added_crew=0, compressed_days=1),
+        ]
+    )
+
+    assert risk_selected.option_id == "B"
+    assert crew_selected.option_id == "B"
+    assert compression_selected.option_id == "B"
+
+
+def test_shadow_recommendation_uses_smallest_gap_when_no_option_is_achievable():
+    selected = select_shadow_recommendation(
+        [
+            _shadow_option("A", gap_days=3, risk_level="低"),
+            _shadow_option("B", gap_days=1, risk_level="高"),
+            _shadow_option("C", gap_days=2, risk_level="低"),
+        ]
+    )
+
+    assert selected.option_id == "B"
 
 
 def test_uniform_strategy_spreads_gap_across_critical_path():
     inputs = _project_bundle(
         activities=[
-            _activity("critical_a", "关键施工 A", 4),
-            _activity("critical_b", "关键施工 B", 4),
+            _elastic_activity("critical_a", "关键施工 A", 4, minimum_days=2),
+            _elastic_activity("critical_b", "关键施工 B", 4, minimum_days=2),
             _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
         ],
         dependencies=[
             Dependency(from_activity_id="critical_a", to_activity_id="critical_b", dep_type="FS"),
             Dependency(from_activity_id="critical_b", to_activity_id="done", dep_type="FS"),
         ],
+        arrivals=[_arrival("critical_a", 48), _arrival("critical_b", 48)],
     )
     seed = _seed(inputs)
-    deadline = _activity_by_id(seed.plan)["project/done"].end_date - timedelta(days=4)
+    deadline = _activity_by_id(seed.plan)["project/done"].end_date - timedelta(days=2)
 
     adjustment = _adjust(inputs, _deadline_change("project/done", deadline), seed)
 
+    assert adjustment.gap is not None
+    assert adjustment.gap.baseline_finish_date == seed.plan.project_finish_date
+    assert adjustment.gap.target_date == deadline
+    assert adjustment.gap.gap_days == 2
     option = _option(adjustment.options, "A")
     activities = _activity_by_id(option.plan)
-    assert activities["project/critical_a"].actual_sla_days == 2
-    assert activities["project/critical_b"].actual_sla_days == 2
+    assert activities["project/critical_a"].actual_sla_days == 3
+    assert activities["project/critical_b"].actual_sla_days == 3
     assert activities["project/done"].end_date == deadline
+    assert option.kpis.added_crew == 4
+    assert option.kpis.gap_days == 0
+    assert _option(adjustment.options, "C").kpis.gap_days == 2
+
+
+def test_zero_gap_demand_returns_single_option_with_gap_summary():
+    inputs = _project_bundle(
+        activities=[
+            _activity("install", "安装", 2),
+            _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="install", to_activity_id="done", dep_type="FS"),
+        ],
+    )
+    seed = _seed(inputs)
+    deadline = _target_end(seed.plan, "project/done")
+
+    adjustment = _adjust(inputs, _deadline_change("project/done", deadline), seed)
+
+    assert adjustment.gap is not None
+    assert adjustment.gap.baseline_finish_date == seed.plan.project_finish_date
+    assert adjustment.gap.target_date == deadline
+    assert adjustment.gap.gap_days == 0
+    assert [option.option_id for option in adjustment.options] == ["A"]
+    assert adjustment.options[0].kpis.gap_days == 0
+
+
+def test_gap_summary_without_demand_keeps_baseline_only():
+    inputs = _project_bundle(
+        activities=[
+            _activity("install", "安装", 2),
+            _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="install", to_activity_id="done", dep_type="FS"),
+        ],
+    )
+    seed = _seed(inputs)
+
+    adjustment = _adjust(inputs, ChangeSet(), seed)
+
+    assert adjustment.gap is not None
+    assert adjustment.gap.baseline_finish_date == seed.plan.project_finish_date
+    assert adjustment.gap.target_date is None
+    assert adjustment.gap.gap_days == 0
+    assert [option.option_id for option in adjustment.options] == ["A"]
+    assert adjustment.options[0].kpis.gap_days == 0
+
+
+def test_gap_summary_recomputes_gap_days_from_baseline_minus_target():
+    # 回归 T-045 验收实测 bug：拖动目标后 demand.gap_days 与 desired_end desync，
+    # _gap_summary 必须按 (基线预计完成 − 目标).days 重算自洽（与各卡 kpis.gap_days 同口径），
+    # 而非透传可能陈旧的 demand.gap_days（live 真链路曾发 13，按 base−target 应为 102）。
+    base_plan = PlanResult(
+        plan_id="p1",
+        version=1,
+        activities=[],
+        project_finish_date=date(2026, 4, 21),
+    )
+    demand = _DemandTarget(
+        target=TargetRef(kind="项目移交", ref_id=None),
+        target_desc="整体移交",
+        desired_end=date(2026, 1, 9),
+        gap_days=13,  # 故意陈旧/不一致
+    )
+
+    gap = _gap_summary(base_plan, demand)
+
+    assert gap.baseline_finish_date == date(2026, 4, 21)
+    assert gap.target_date == date(2026, 1, 9)
+    assert gap.gap_days == 102  # = (2026-04-21 − 2026-01-09).days，自洽；不再是陈旧的 13
 
 
 def test_concentrated_strategy_uses_configured_top_k():
     inputs = _project_bundle(
         activities=[
-            _activity("critical_a", "关键施工 A", 4),
-            _activity("critical_b", "关键施工 B", 4),
+            _elastic_activity("critical_a", "关键施工 A", 6, minimum_days=2),
+            _elastic_activity("critical_b", "关键施工 B", 4, minimum_days=2),
             _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
         ],
         dependencies=[
             Dependency(from_activity_id="critical_a", to_activity_id="critical_b", dep_type="FS"),
             Dependency(from_activity_id="critical_b", to_activity_id="done", dep_type="FS"),
         ],
+        arrivals=[_arrival("critical_a", 72), _arrival("critical_b", 48)],
         rule_config=RuleConfig(concentrate_top_k=1),
     )
     seed = _seed(inputs)
-    deadline = _activity_by_id(seed.plan)["project/done"].end_date - timedelta(days=3)
+    deadline = _activity_by_id(seed.plan)["project/done"].end_date - timedelta(days=2)
 
     adjustment = _adjust(inputs, _deadline_change("project/done", deadline), seed)
 
     option = _option(adjustment.options, "B")
     activities = _activity_by_id(option.plan)
-    assert activities["project/critical_a"].actual_sla_days == 1
+    assert activities["project/critical_a"].actual_sla_days == 4
     assert activities["project/critical_b"].actual_sla_days == 4
     assert activities["project/done"].end_date == deadline
 
@@ -123,13 +252,14 @@ def test_pull_inputs_returns_unlocked_room_and_arrival_but_skips_locked_predeces
 def test_compression_only_touches_critical_path_and_stops_at_minimum_with_risk():
     inputs = _project_bundle(
         activities=[
-            _activity("critical", "关键施工", 5, minimum_days=2),
+            _elastic_activity("critical", "关键施工", 5, minimum_days=2),
             _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
             _activity("side", "非关键施工", 3),
         ],
         dependencies=[
             Dependency(from_activity_id="critical", to_activity_id="done", dep_type="FS"),
         ],
+        arrivals=[_arrival("critical", 60)],
     )
     seed = _seed(inputs)
 
@@ -144,6 +274,50 @@ def test_compression_only_touches_critical_path_and_stops_at_minimum_with_risk()
         for risk in option.risks
     )
     assert adjustment.unmet[0].gap_days == 2
+
+
+def test_rigid_activity_is_not_added_crew_candidate():
+    inputs = _project_bundle(
+        activities=[
+            _activity("critical", "刚性施工", 5, minimum_days=2),
+            _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="critical", to_activity_id="done", dep_type="FS"),
+        ],
+    )
+    seed = _seed(inputs)
+
+    adjustment = _adjust(inputs, _deadline_change("project/done", date(2026, 1, 1)), seed)
+
+    option = _option(adjustment.options, "A")
+    activities = _activity_by_id(option.plan)
+    assert activities["project/critical"].actual_sla_days == 5
+    assert option.kpis.added_crew == 0
+    assert adjustment.unmet[0].gap_days == 5
+
+
+def test_compression_minimum_sla_uses_experience_efficiency():
+    inputs = _project_bundle(
+        activities=[
+            _elastic_activity("critical", "关键施工", 5, minimum_days=2),
+            _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="critical", to_activity_id="done", dep_type="FS"),
+        ],
+        arrivals=[_arrival("critical", 60)],
+        teams=[Team(team_id="T1", experience="一般")],
+    )
+    seed = _seed(inputs)
+
+    adjustment = _adjust(inputs, _deadline_change("project/done", date(2026, 1, 1)), seed)
+
+    option = _option(adjustment.options, "A")
+    activities = _activity_by_id(option.plan)
+    assert activities["project/critical"].actual_sla_days == 3
+    assert activities["project/critical"].end_date == date(2026, 1, 3)
+    assert adjustment.unmet[0].gap_days == 3
 
 
 def test_elastic_added_crew_is_capped_and_unmet_reports_remaining_gap():
@@ -183,10 +357,109 @@ def test_elastic_added_crew_is_capped_and_unmet_reports_remaining_gap():
 
     option = _option(adjustment.options, "A")
     activities = _activity_by_id(option.plan)
-    assert activities["project/elastic"].actual_sla_days == 6
+    assert activities["project/elastic"].actual_sla_days == 7
     assert option.kpis.added_crew == 6
     assert option.kpis.added_crew <= 6
-    assert adjustment.unmet[0].gap_days == 6
+    assert adjustment.unmet[0].gap_days == 7
+
+
+def test_arrival_bound_compression_rolls_back_ineffective_added_crew_and_points_to_c():
+    arrival_date = date.today() + timedelta(days=60)
+    target_date = arrival_date + timedelta(days=5)
+    arrival = _arrival("install", 60).model_copy(update={"arrival_date": arrival_date})
+    inputs = _project_bundle(
+        activities=[
+            _activity("arrival", "设备到货", 1, scope="PoD级", activity_type="到货", constraint_source=None),
+            _elastic_activity("install", "弹性安装", 5, minimum_days=1),
+            _activity("online", "批次上线", 1, scope="批次级", activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="arrival", to_activity_id="install", dep_type="FS"),
+            Dependency(from_activity_id="install", to_activity_id="online", dep_type="FS"),
+        ],
+        arrivals=[arrival],
+    ).model_copy(
+        update={
+            "batches": [
+                Batch(
+                    batch_id="B1",
+                    batch_name="批次1",
+                    pod_ids=["P1"],
+                    online_target_date=target_date,
+                )
+            ]
+        }
+    )
+    seed = _seed(inputs)
+
+    adjustment = _adjust(
+        inputs,
+        _deadline_change_for_target(TargetRef(kind="批次上线", ref_id="B1"), target_date - timedelta(days=10)),
+        seed,
+    )
+
+    option = _option(adjustment.options, "A")
+    activities = _activity_by_id(option.plan)
+    assert activities["project/install"].actual_sla_days == 5
+    assert activities["B1/online"].end_date == target_date
+    assert option.kpis.added_crew == 0
+    assert any(
+        risk.risk_type == "链路聚合" and "到货约束" in risk.message and "C 站货提拉" in risk.message
+        for risk in option.risks
+    )
+    assert "到货约束" in option.advice
+    assert any("加人无效" in item.reason for item in adjustment.unmet)
+
+
+def test_room_ready_bound_compression_rolls_back_and_points_to_ready_adjustment():
+    ready_date = date.today() + timedelta(days=60)
+    target_date = ready_date + timedelta(days=5)
+    install = _elastic_activity("install", "弹性安装", 5, minimum_days=1).model_copy(
+        update={"scope": "机房级"}
+    )
+    inputs = _project_bundle(
+        activities=[
+            _activity("ready", "机房就位", 1, scope="机房级", activity_type="机房准备", constraint_source=None),
+            install,
+            _activity("online", "批次上线", 1, scope="批次级", activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="ready", to_activity_id="install", dep_type="FS"),
+            Dependency(from_activity_id="install", to_activity_id="online", dep_type="FS"),
+        ],
+        arrivals=[_arrival("install", 60)],
+    ).model_copy(
+        update={
+            "rooms": [Room(room_id="R1", install_ready_date=ready_date)],
+            "batches": [
+                Batch(
+                    batch_id="B1",
+                    batch_name="批次1",
+                    pod_ids=["P1"],
+                    online_target_date=target_date,
+                )
+            ],
+        }
+    )
+    seed = _seed(inputs)
+
+    adjustment = _adjust(
+        inputs,
+        _deadline_change_for_target(TargetRef(kind="批次上线", ref_id="B1"), target_date - timedelta(days=10)),
+        seed,
+    )
+
+    option = _option(adjustment.options, "A")
+    activities = _activity_by_id(option.plan)
+    assert activities["R1/install"].actual_sla_days == 5
+    assert activities["B1/online"].end_date == target_date
+    assert option.kpis.added_crew == 0
+    assert any(
+        risk.risk_type == "链路聚合" and "机房就位约束" in risk.message and "调整机房就位日期" in risk.message
+        for risk in option.risks
+    )
+    assert "机房就位约束" in option.advice
+    assert any("加人无效" in item.reason for item in adjustment.unmet)
 
 
 def test_buffer_extension_stops_at_target_upper_bound():
@@ -215,9 +488,47 @@ def test_buffer_extension_stops_at_target_upper_bound():
 
     adjustment = _adjust(inputs, changes, seed)
 
+    assert adjustment.gap is not None
+    assert adjustment.gap.baseline_finish_date == seed.plan.project_finish_date
+    assert adjustment.gap.target_date == desired_end
+    assert adjustment.gap.gap_days == -3
     option = _option(adjustment.options, "BUFFER")
     assert _target_end(option.plan, "project/done") == desired_end
     assert _target_end(option.plan, "project/done") <= desired_end
+    assert option.kpis.gap_days == 0
+    assert adjustment.unmet == []
+
+
+def test_buffer_extension_can_weave_slack_into_elastic_activity():
+    inputs = _project_bundle(
+        activities=[
+            _elastic_activity("install", "弹性安装", 2, minimum_days=1),
+            _activity("done", "移交", 1, activity_type="里程碑", constraint_source=None),
+        ],
+        dependencies=[
+            Dependency(from_activity_id="install", to_activity_id="done", dep_type="FS"),
+        ],
+        arrivals=[_arrival("install", 24)],
+    )
+    seed = _seed(inputs)
+    desired_end = _target_end(seed.plan, "project/done") + timedelta(days=3)
+    changes = ChangeSet(
+        demands=[
+            DemandRequest(
+                demand_id="D-buffer-elastic",
+                target=TargetRef(kind="活动实例", ref_id="project/done"),
+                direction="延后",
+                amount_days=3,
+            )
+        ]
+    )
+
+    adjustment = _adjust(inputs, changes, seed)
+
+    option = _option(adjustment.options, "BUFFER")
+    activities = _activity_by_id(option.plan)
+    assert _target_end(option.plan, "project/done") == desired_end
+    assert activities["project/install"].actual_sla_days == 5
     assert adjustment.unmet == []
 
 
@@ -326,6 +637,30 @@ def _option(options, option_id: str):
     return next(option for option in options if option.option_id == option_id)
 
 
+def _shadow_option(
+    option_id: str,
+    *,
+    gap_days: int,
+    risk_level: str,
+    added_crew: int = 0,
+    compressed_days: int = 0,
+) -> StrategyPlan:
+    return StrategyPlan(
+        option_id=option_id,
+        strategy="均匀压缩",
+        kpis=PlanKpis(
+            pod_count=1,
+            total_duration_days=1,
+            compressed_days=compressed_days,
+            added_crew=added_crew,
+            gap_days=gap_days,
+        ),
+        plan=PlanResult(plan_id=f"shadow-{option_id}", version=1, activities=[]),
+        risk_level=risk_level,
+        advice=f"方案 {option_id}",
+    )
+
+
 def _activity_by_id(plan):
     return {activity.instance_id: activity for activity in plan.activities}
 
@@ -386,19 +721,58 @@ def _activity(
     )
 
 
+def _elastic_activity(
+    activity_id: str,
+    name: str,
+    standard_days: int,
+    *,
+    minimum_days: int,
+    assumed_crew: int = 6,
+) -> Activity:
+    standard_daily_rate = 12
+    quantity = standard_days * standard_daily_rate
+    return _activity(
+        activity_id,
+        name,
+        None,
+        minimum_days=None,
+        duration_mode="弹性",
+        workload_rules=[
+            WorkloadRule(
+                workload_source=activity_id,
+                unit="柜",
+                standard_daily_rate=standard_daily_rate,
+                limit_daily_rate=quantity / minimum_days,
+                assumed_crew=assumed_crew,
+            )
+        ],
+    )
+
+
+def _arrival(workload_source: str, quantity: float) -> ArrivalItem:
+    return ArrivalItem(
+        arrival_id=f"A-{workload_source}",
+        pod_id="P1",
+        device_type=workload_source,
+        quantity=quantity,
+        arrival_status="在途",
+    )
+
+
 def _project_bundle(
     *,
     activities: list[Activity],
     dependencies: list[Dependency],
     arrivals: list[ArrivalItem] | None = None,
     rule_config: RuleConfig | None = None,
+    teams: list[Team] | None = None,
 ) -> InputBundle:
     return InputBundle(
         project=Project(project_id="adjust-demo", project_name="adjust demo", start_date=date(2026, 1, 1)),
         rooms=[Room(room_id="R1")],
         pods=[Pod(pod_id="P1", room_id="R1")],
         arrivals=arrivals or [],
-        teams=[Team(team_id="T1", size=12, experience="丰富")],
+        teams=teams or [Team(team_id="T1", size=12, experience="丰富")],
         activities=activities,
         dependencies=dependencies,
         batches=[Batch(batch_id="B1", batch_name="批次1", pod_ids=["P1"])],
