@@ -26,7 +26,7 @@ pipeline {
         MANAGER_IMAGE     = 'manager'
         FRONTEND_IMAGE    = 'frontend'
         DEPLOY_HOST       = '10.143.2.231'
-        DEPLOY_DIR        = '/home/docker_data/aida'
+        DEPLOY_DIR        = '/home/aida'
     }
 
     options {
