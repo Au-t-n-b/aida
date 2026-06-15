@@ -1,7 +1,11 @@
 """zhgk_files 齐备检查单元测试（v4 路径）。"""
 from __future__ import annotations
 
+import asyncio
+from io import BytesIO
 from pathlib import Path
+
+from fastapi import UploadFile
 
 from agent.zhgk_files import (
     GKCLAW_ASSIGNEES_REL,
@@ -9,6 +13,7 @@ from agent.zhgk_files import (
     check_need_files,
     check_project_files,
     infer_upload_kind,
+    save_upload,
 )
 
 
@@ -108,7 +113,18 @@ def test_infer_upload_kind_v4() -> None:
     assert infer_upload_kind("assignees.json") == "gkclaw_assignees"
     assert infer_upload_kind("远近人员表.xlsx") == "personnel"
     assert infer_upload_kind("入场评估标准表.xlsx") == "template"
+    assert infer_upload_kind("入场评估标准.xlsx") == "template"
     assert infer_upload_kind("工勘常见高风险库.xlsx") == "template"
     assert infer_upload_kind("新版项目工勘报告模板.docx") == "template"
     assert infer_upload_kind("勘测结果.xlsx") == "input"
     assert infer_upload_kind("photo.jpg") == "image"
+
+
+def test_save_upload_canonicalizes_base_table_name(tmp_path: Path) -> None:
+    file = UploadFile(filename="入场评估标准.xlsx", file=BytesIO(b"xlsx"))
+
+    out = asyncio.run(save_upload(tmp_path, "template", file))
+
+    assert out["path"] == "ProjectData\\Template\\入场评估标准表.xlsx"
+    assert (tmp_path / "ProjectData/Template/入场评估标准表.xlsx").is_file()
+    assert check_need_files(tmp_path, ["ProjectData/Template/入场评估标准表.xlsx"])["ok"] is True

@@ -23,12 +23,21 @@ export function SduiFilePicker({
   helpText,
   accept = '*/*',
   multiple = true,
+  hitlRequestId,
   stepId,
 }: Props) {
   const { onUpload, runId } = useSduiRuntime();
   const inputRef = useRef<HTMLInputElement>(null);
   // 跨重挂载回读上传态（冻结重放期间组件会重挂，避免闪回「未传」）
-  const key = hitlKey(runId, stepId);
+  const promptFingerprint = [
+    hitlRequestId ?? '',
+    purpose ?? '',
+    label ?? '',
+    helpText ?? '',
+    accept,
+    multiple ? 'multi' : 'single',
+  ].join('::');
+  const key = hitlKey(runId, stepId, promptFingerprint);
   const restored = getHitlOptimistic(key);
   const restoredNames = restored?.kind === 'file' ? restored.names : null;
   const [pending, setPending] = useState<File[]>([]);

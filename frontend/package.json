@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 8080",
+    "check:demo": "node scripts/check-demo-network-config.mjs",
     "typecheck": "tsc -p tsconfig.app.json --noEmit",
     "lint:no-ts-nocheck": "node scripts/check-ts-nocheck.mjs",
     "prebuild": "npm run typecheck && npm run lint:no-ts-nocheck",

@@ -167,6 +167,15 @@ class SduiStatisticRowNode(BaseModel):
     flex: float | None = None
 
 
+class SduiZhgkAssessmentDetail(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    item: str | None = None
+    result: str | None = None
+    source: str | None = None
+    time: str | None = None
+    risk: str | None = None
+
+
 class SduiKeyValueListNode(BaseModel):
     model_config = ConfigDict(extra="ignore")
     type: Literal["KeyValueList"] = "KeyValueList"
@@ -187,6 +196,42 @@ class SduiGoldenMetricsNode(BaseModel):
     type: Literal["GoldenMetrics"] = "GoldenMetrics"
     id: str | None = None
     metrics: list[dict[str, Any]] | None = None
+
+
+class SduiZhgkGoldenMetricsNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkGoldenMetrics"] = "ZhgkGoldenMetrics"
+    id: str | None = None
+    progress: int | float
+    centerLabel: str | None = None
+    items: list[SduiStatisticRowItem]
+
+
+class SduiZhgkAssessmentCategory(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    label: str
+    value: int | float
+    tone: Literal["success", "warning", "error", "accent", "subtle"] | None = None
+    details: list[SduiZhgkAssessmentDetail] = Field(default_factory=list)
+
+
+class SduiZhgkAssessmentAlert(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    tone: Literal["info", "success", "warning", "error"] | None = None
+    title: str | None = None
+    message: str
+
+
+class SduiZhgkAssessmentPanelNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkAssessmentPanel"] = "ZhgkAssessmentPanel"
+    id: str | None = None
+    title: str = "AI 五值评估"
+    total: int
+    rateLabel: str = "满足率"
+    rateValue: int | float
+    categories: list[SduiZhgkAssessmentCategory]
+    alerts: list[SduiZhgkAssessmentAlert] = Field(default_factory=list)
 
 
 # ── Chart nodes ────────────────────────────────────────────────────────────────
@@ -1000,6 +1045,10 @@ class SduiChoiceCardNode(BaseModel):
     options: list[SduiChoiceOption]
     hitlRequestId: str | None = None
     stepId: str | None = None
+    multiple: bool | None = None
+    maxSelections: int | None = None
+    submitLabel: str | None = None
+    repeatable: bool | None = None
 
 
 class SduiIoConfirmPanelNode(BaseModel):
@@ -1137,6 +1186,8 @@ SduiNode = Annotated[
         SduiDonutChartNode,
         SduiBarChartNode,
         SduiGoldenMetricsNode,
+        SduiZhgkGoldenMetricsNode,
+        SduiZhgkAssessmentPanelNode,
         SduiArtifactGridNode,
         # v1.1 display nodes
         SduiAlertNode,

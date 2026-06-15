@@ -28,6 +28,7 @@ import {
   runPatchRun,
   resetWorkspace,
   isIdleLikeSduiDoc,
+  isRunUnavailableDoc,
   fetchUiSnapshot,
   fetchRunStatus,
   runStepOutcome,
@@ -972,6 +973,15 @@ export default function SkillAgentScreen({
   }, [liveSduiDoc]);
 
   useEffect(() => {
+    if (useClawMode || !isRunUnavailableDoc(sduiDoc)) return;
+    clearPersistedSkillRun(skillId);
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    clearSkillConversation(skillId);
+    setSavedRunStale(true);
+  }, [sduiDoc, useClawMode, skillId, runId]);
+
+  useEffect(() => {
     if (!runId || liveSduiDoc || bootDoc || starting) return;
     const timer = window.setTimeout(() => {
       setLoadError('工作台加载超时，请重新启动或刷新页面。');
@@ -1605,7 +1615,7 @@ export default function SkillAgentScreen({
         throw new Error('未选择文件');
       }
       try {
-        const result = await overrideOutputArtifact(skillId, arr[0], targetPath, rid);
+        const result = await overrideOutputArtifact(skillId, arr[0]!, targetPath, rid);
         if (result.ok === false) {
           throw new Error(String(result.error || '覆盖上传失败'));
         }

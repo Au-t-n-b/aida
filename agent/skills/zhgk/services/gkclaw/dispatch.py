@@ -27,6 +27,7 @@ def dispatch_task(
     generation_cooling: str = "",
     survey_round: int = 1,
     previous_task_id: str = "",
+    item_seq_filter: set[int] | list[int] | tuple[int, ...] | None = None,
 ) -> dict[str, Any]:
     """下发一个 GKCLAW 任务。返回 {task_id, state, dry_run, zip_path, items_count, send_result}。
 
@@ -35,6 +36,9 @@ def dispatch_task(
     from ..survey_table_builder import read_survey_table
 
     rows = read_survey_table(survey_table_path)
+    if item_seq_filter is not None:
+        allowed = {int(seq) for seq in item_seq_filter}
+        rows = [row for row in rows if int(row.get("序号", 0)) in allowed]
 
     # 底表回连（背景知识 enrich）：失败不阻断，join 不到=空备注
     base_items: list[dict] = []

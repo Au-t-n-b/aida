@@ -1,8 +1,9 @@
 /* 评测中心 · 三 tab 共享层：类型 / 颜色 token / 格式化 helper / 偏离导出 */
 import type { ReactNode } from 'react';
+import { agentBase } from '@/lib/runtimeBase';
 
-// 与 useSduiStream 同源：服务器部署时通过 VITE_AGENT_BASE 注入
-export const API_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+// 与 useSduiStream 同源：默认走同源反代；需要直连时通过 VITE_AGENT_BASE 注入
+export const API_BASE = agentBase();
 // 混合模式：trace 明细深链接跳 Langfuse 原生（host 后续从后端 report 返回，这里先占位）
 export const LANGFUSE_HOST = 'https://cloud.langfuse.com';
 

@@ -33,6 +33,8 @@ export default defineConfig(({ mode }) => {
         '/api/v1/chat': { target: managerBase, changeOrigin: true },
         // Agent（skill / 交付预案 / 交付计划 / 产物预览等）— 其余 /api/v1 全走 agent
         '/agent': { target: agentBase, changeOrigin: true },
+        '/api/sog': { target: agentBase, changeOrigin: true },
+        '/data/sog-assets': { target: agentBase, changeOrigin: true },
         '/api/v1': { target: agentBase, changeOrigin: true },
       },
     },

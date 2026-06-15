@@ -1,9 +1,8 @@
 /**
  * Agent 后端地址解析。
- * 本地开发时 7401 可能被旧进程占用（仍写 ProjectData），自动探测 7402+ 上已加载 project_paths.json 的实例。
+ * 演示/生产默认走同源反代；需要直连本地 Agent 时显式配置 VITE_AGENT_BASE。
  */
 const LOCAL_PROBE_PORTS = [7402, 7403, 7404, 7401] as const;
-const SYNC_DEFAULT = 'http://127.0.0.1:7402';
 
 let _resolvedBase: string | null = null;
 let _resolvePromise: Promise<string> | null = null;
@@ -18,9 +17,9 @@ function isSystemDesignReady(workRoot: string): boolean {
   return norm.includes('file_path');
 }
 
-/** 同步回落（探测完成前）；优先 VITE_AGENT_BASE，否则 7402。 */
+/** 同步回落（探测完成前）；优先 VITE_AGENT_BASE，否则同源。 */
 export function agentBaseSync(): string {
-  return envBase() ?? _resolvedBase ?? SYNC_DEFAULT;
+  return envBase() ?? _resolvedBase ?? '';
 }
 
 /** 解析可用 Agent 基址；system_design 跳过仍使用 ProjectData 的旧实例。空串 = 同源（走 Vite /agent 代理）。 */
@@ -29,6 +28,8 @@ export async function ensureAgentBase(skillId = 'system_design'): Promise<string
   if (fromEnv) return fromEnv;
   // 开发期默认走 Vite /agent 代理（与页面同源），避免预览直连错误端口导致 403/404
   if (import.meta.env.DEV) return '';
+  // 演示服务器默认走 Nginx 同源反代；不要探测访问者浏览器本机的 127.0.0.1。
+  if (!import.meta.env.DEV) return '';
   if (_resolvedBase) return _resolvedBase;
   if (!_resolvePromise) _resolvePromise = probeLocalAgent(skillId);
   return _resolvePromise;
@@ -61,8 +62,8 @@ async function probeLocalAgent(skillId: string): Promise<string> {
       // try next port
     }
   }
-  _resolvedBase = SYNC_DEFAULT;
-  console.warn('[agent] 未找到可用的 system_design Agent，回落', SYNC_DEFAULT);
+  _resolvedBase = '';
+  console.warn('[agent] 未找到可用的 system_design Agent，回落同源 /agent 代理');
   return _resolvedBase;
 }
 
