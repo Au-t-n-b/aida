@@ -9,7 +9,7 @@ agent/docs/sdui-gallery.html 是派生制品——gen_sdui_gallery.py 从 agent/
 与 lint_sdui_contract 互补：那个守「协议三方对齐」（builder ↔ sdui.ts ↔ NodeView），
 这个守「目录 ≡ 协议」（sdui-gallery.html ≡ builder）。
 
-退出码：过期/缺失 → 1；新鲜 → 0；缺 venv 无法 import 契约 → 0 + SKIP（不阻断构建）。
+退出码：过期/缺失 → 1；新鲜 → 0；缺 venv 无法 import 契约 → SKIP 0（AIDA_GUARD_STRICT=1 则 1）。
 
 用法：
     agent/.venv/Scripts/python agent/scripts/lint_sdui_gallery.py
@@ -29,6 +29,8 @@ SCRIPTS = Path(__file__).resolve().parent
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import _guard  # 守门 strict 模式（fail-open ↔ AIDA_GUARD_STRICT）
+
 
 def _norm(s: str) -> str:
     """归一行尾。autocrlf=true 的 Windows 检出会把 LF 变 CRLF，
@@ -41,12 +43,7 @@ def main() -> int:
     try:
         import gen_sdui_gallery as G
     except ImportError as e:  # ModuleNotFoundError 是其子类
-        sys.stdout.write(
-            f"[sdui-gallery] ⚠ SKIP · 无法 import 生成器/契约（{e}）。\n"
-            f"  请在 agent venv 下运行："
-            f"agent\\.venv\\Scripts\\python agent\\scripts\\lint_sdui_gallery.py\n"
-        )
-        return 0
+        return _guard.skip_or_fail("sdui-gallery", f"无法 import 生成器/契约（{e}）")
 
     out_path: Path = G.OUT
     rel = out_path.relative_to(G.REPO)

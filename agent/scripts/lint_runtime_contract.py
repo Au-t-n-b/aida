@@ -12,7 +12,7 @@ runtime-contract · AIDA 运行时契约 ↔ 代码 一致守门（团队范式 
 
 这样契约文档不再手维护漂移；同事的工厂无论何时拉 AIDA 契约，拉到的都是 CI 校验过 ≡ 代码的版本。
 
-退出码：违规 → 1；干净 → 0；缺 venv 无法 import agent → 0 + 警告（不阻断构建）。
+退出码：违规 → 1；干净 → 0；缺 venv 无法 import agent → SKIP 0（AIDA_GUARD_STRICT=1 则 1）。
 
 用法：agent/.venv/Scripts/python agent/scripts/lint_runtime_contract.py
 """
@@ -29,6 +29,8 @@ except Exception:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]   # aida/
 sys.path.insert(0, str(PROJECT_ROOT))
+
+import _guard  # 守门 strict 模式（与本脚本同目录，运行时自动在 sys.path[0]）
 
 CONTRACT_MD = PROJECT_ROOT / "docs" / "30_skill开发" / "31_手写规范" / "AIDA-RUNTIME-CONTRACT.md"
 
@@ -74,15 +76,10 @@ def main() -> int:
     try:
         code_tools = load_code_tools()
     except ImportError as e:  # ModuleNotFoundError 是其子类
-        sys.stdout.write(
-            f"[runtime-contract] ⚠ SKIP · 无法 import agent.tools（{e}）。\n"
-            f"  请在 agent venv 下运行：agent\\.venv\\Scripts\\python agent\\scripts\\lint_runtime_contract.py\n"
-        )
-        return 0
+        return _guard.skip_or_fail("runtime-contract", f"无法 import agent.tools（{e}）")
 
     if not CONTRACT_MD.exists():
-        sys.stdout.write(f"[runtime-contract] ⚠ SKIP · 找不到契约 {CONTRACT_MD}\n")
-        return 0
+        return _guard.skip_or_fail("runtime-contract", f"找不到契约 {CONTRACT_MD}", hint="契约文件应随仓库存在")
 
     md = CONTRACT_MD.read_text(encoding="utf-8", errors="replace")
     contract_tools = parse_contract_tools(md)

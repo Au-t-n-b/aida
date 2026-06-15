@@ -12,7 +12,7 @@ sdui-contract · SDUI 协议前后端一致守门（规范 0 守门 + 规范 5 �
   1. 后端 union 节点 type 集合 == 前端 union 节点 type 集合（协议对齐）
   2. 后端 union 的每个 type 都有 SduiNodeView 的 case（渲染器全覆盖）
 
-退出码：违规 → 1；干净 → 0；缺 venv 无法 import agent.sdui → 0 + 警告（不阻断构建）。
+退出码：违规 → 1；干净 → 0；缺 venv 无法 import agent.sdui → SKIP 0（AIDA_GUARD_STRICT=1 则 1）。
 
 用法：
     agent/.venv/Scripts/python agent/scripts/lint_sdui_contract.py
@@ -30,6 +30,8 @@ except Exception:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]   # aida/
 sys.path.insert(0, str(PROJECT_ROOT))
+
+import _guard  # 守门 strict 模式（与本脚本同目录，运行时自动在 sys.path[0]）
 
 SDUI_TS = PROJECT_ROOT / "frontend" / "src" / "lib" / "sdui.ts"
 NODEVIEW_TSX = PROJECT_ROOT / "frontend" / "src" / "components" / "sdui" / "SduiNodeView.tsx"
@@ -113,15 +115,10 @@ def main() -> int:
     try:
         backend_types = load_backend_types()
     except ImportError as e:  # ModuleNotFoundError 是其子类
-        sys.stdout.write(
-            f"[sdui-contract] ⚠ SKIP · 无法 import agent.sdui.builder（{e}）。\n"
-            f"  请在 agent venv 下运行：agent\\.venv\\Scripts\\python agent\\scripts\\lint_sdui_contract.py\n"
-        )
-        return 0
+        return _guard.skip_or_fail("sdui-contract", f"无法 import agent.sdui.builder（{e}）")
 
     if not SDUI_TS.exists():
-        sys.stdout.write(f"[sdui-contract] ⚠ SKIP · 找不到前端协议 {SDUI_TS}\n")
-        return 0
+        return _guard.skip_or_fail("sdui-contract", f"找不到前端协议 {SDUI_TS}", hint="前端协议文件应随仓库存在")
 
     sdui_ts = SDUI_TS.read_text(encoding="utf-8", errors="replace")
     nodeview = NODEVIEW_TSX.read_text(encoding="utf-8", errors="replace") if NODEVIEW_TSX.exists() else ""

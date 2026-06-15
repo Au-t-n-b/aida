@@ -91,11 +91,11 @@ P0 不只是「搬位置」，还要堵 fail-open，否则服务端跑了也可�
 
 ## 8. 执行顺序（谁做）
 
-| # | 动作 | 谁 |
-|---|---|---|
-| 1 | 写 `scripts/preflight.sh`（单一入口）+ `preflight_redlines.sh` | 我（仓内） |
-| 2 | 修 fail-open（`lint_skill_contract` 加 `AIDA_GUARD_STRICT` 严格模式）+ 排查同类 | 我（仓内） |
-| 3 | Gitea Actions：`.gitea/workflows/ci.yml` + 装 act_runner + branch protection | **你（Gitea）** |
-| 4 | （可选）pre-receive 红线二道 | **你（Gitea 服务器）** |
+| # | 动作 | 谁 | 状态 |
+|---|---|---|---|
+| 1 | 写 `scripts/preflight.sh`（单一入口）+ `preflight_redlines.sh` | 我（仓内） | ✅ 完成（preflight 全跑绿，含 eval） |
+| 2 | 修 fail-open：`agent/scripts/_guard.py` + 4 个 lint（skill/runtime/sdui-contract/sdui-gallery）接入 `AIDA_GUARD_STRICT` | 我（仓内） | ✅ 完成（strict 单测：宽容=0/严格=1） |
+| 3 | Gitea Actions：`.gitea/workflows/ci.yml`（调 `preflight.sh`）+ 装 act_runner + branch protection | **你（Gitea）** | ☐ |
+| 4 | （可选）pre-receive 红线二道（调 `preflight_redlines.sh`） | **你（Gitea 服务器）** | ☐ |
 
-> 我能立刻做 1+2（纯仓内）；3+4 需你在 Gitea 操作，我给脚本/workflow 成品你贴。
+> ✅ 1+2 已落地（纯仓内）；3+4 需你在 Gitea 操作，workflow/钩子骨架已在 §4/§5。

@@ -72,7 +72,7 @@
 
 | 阶段 | 干什么 | 解什么 | owner / 依赖 | 现状 |
 |---|---|---|---|---|
-| **P0 · 止血** | 全套守门搬上 Gitea 强制层（pre-receive 或 Gitea Actions 跑 `preflight`）+ 修 fail-open + guardians 自治 → **落地清单见 [`P0_GITEA强制层落地清单.md`](P0_GITEA强制层落地清单.md)** | D2 地基 · 断层 B/元 | 仓内脚本 + Gitea 配置（自建仓·可控） | ☐ 清单就绪；待 §8.1-2 仓内动手 + 你配 Gitea |
+| **P0 · 止血** | 全套守门搬上 Gitea 强制层（pre-receive 或 Gitea Actions 跑 `preflight`）+ 修 fail-open + guardians 自治 → **落地清单见 [`P0_GITEA强制层落地清单.md`](P0_GITEA强制层落地清单.md)** | D2 地基 · 断层 B/元 | 仓内脚本 + Gitea 配置（自建仓·可控） | 🔧 **§8.1-2 仓内完成**（`preflight.sh`/`preflight_redlines.sh` + `_guard.py` 堵 4 个 fail-open，strict 已单测）；待你配 Gitea Actions（§8.3-4） |
 | **P1 · 消热点** | registry 目录自动发现（后端先）+ 前端 map 从 skill 元数据派生 + 配套守门 | D1 + D3 | 纯仓内代码 | ✅ **P1a 完成**（§7）· P1b/P1c 待做 |
 | **P2 · 补感知** | CODEOWNERS + 碰红线文件守门 + PR 模板 | D2 的 B 面（并发感知） | 仓内 + 少量 Gitea 配置 | ☐ |
 | **P3 · 交付面** | portal.json 泛化成「角色门 × 场景库」，装 P1/P2 剧本 | D4 · 需求① | 仓内，复用派生管线 | ☐ |

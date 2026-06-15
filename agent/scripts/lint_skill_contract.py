@@ -13,7 +13,7 @@ steps 实现。两者靠人工维护对应关系会漂移——工程改了 step
 
 基础设施步骤（step.internal=True，如 preflight 环境预检）豁免 2/3/4。
 
-退出码：违规 → 1；干净 → 0；缺 venv 依赖无法 import agent → 0 + 警告（不阻断构建）。
+退出码：违规 → 1；干净 → 0；缺 venv 依赖无法 import agent → SKIP 0（AIDA_GUARD_STRICT=1 则 1）。
 
 用法：
     agent/.venv/Scripts/python agent/scripts/lint_skill_contract.py
@@ -31,6 +31,8 @@ except Exception:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]   # aida/
 sys.path.insert(0, str(PROJECT_ROOT))
+
+import _guard  # 守门 strict 模式（与本脚本同目录，运行时自动在 sys.path[0]）
 
 
 # ─── 纯逻辑核心（无 IO / 无 agent import，便于单测）───
@@ -145,11 +147,7 @@ def main() -> int:
     try:
         skills = _load_skills()
     except ImportError as e:  # ModuleNotFoundError 是其子类
-        sys.stdout.write(
-            f"[skill-contract] ⚠ SKIP · 无法 import agent.skills（{e}）。\n"
-            f"  请在 agent venv 下运行：agent\\.venv\\Scripts\\python agent\\scripts\\lint_skill_contract.py\n"
-        )
-        return 0
+        return _guard.skip_or_fail("skill-contract", f"无法 import agent.skills（{e}）")
 
     violations: list[tuple[str, str]] = []
     for name, code_steps, text, load_err in skills:
