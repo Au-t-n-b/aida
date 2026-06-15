@@ -112,6 +112,7 @@ REGISTRY=${env.DOCKER_REGISTRY}
 set -euo pipefail
 DEPLOY_DIR="\${DEPLOY_DIR:-${env.DEPLOY_DIR}}"
 cd "\${DEPLOY_DIR}"
+mkdir -p logs/agent
 set -a
 source /tmp/harbor-deploy.env
 set +a
@@ -131,7 +132,7 @@ docker compose ps
                             sh """
                                 set -e
                                 chmod +x deploy-remote.sh
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}/agent'
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}/agent ${DEPLOY_DIR}/logs/agent'
                                 scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
                                 scp -o StrictHostKeyChecking=no agent.env root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
                                 scp -o StrictHostKeyChecking=no harbor-deploy.env deploy-remote.sh root@${DEPLOY_HOST}:/tmp/

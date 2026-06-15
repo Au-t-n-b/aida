@@ -12,7 +12,8 @@
 # 宿主机不映射 8080/8081/7401；可选调试 ports: "18080:8080"（+10000 偏移）。
 # 访问宿主机数据中心 API：agent/.env 设 DATA_CENTER_BASE_URL=http://host.docker.internal:8000
 #
-# 首次：mkdir -p /home/aida/agent && 配置 agent/.env（Jenkins Managed file 下发）
+# 首次：mkdir -p /home/aida/agent /home/aida/logs/agent && 配置 agent/.env
+# 日志：agent 文件日志 → ./logs/agent（proposal_requests.log）；stdout 仍用 docker compose logs
 # 启动：docker compose up -d
 # ============================================================
 
@@ -34,8 +35,10 @@ services:
       AIDA_SOG_PROBE_EVENTS: /app/.data/sog-probe-events.json
       AIDA_SOG_SCENES_PATH: /app/.data/sog-scenes.json
       ZHGK_ROOT: /app/.data/zhgk
+      AIDA_LOG_DIR: /app/logs
     volumes:
       - aida-data:/app/.data
+      - ./logs/agent:/app/logs
       - ./data/sog-assets:/app/.data/sog-assets
       - ./data/sog-scenes.json:/app/.data/sog-scenes.json
     extra_hosts:
