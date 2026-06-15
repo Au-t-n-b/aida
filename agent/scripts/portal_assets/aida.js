@@ -388,17 +388,30 @@
   function goStep(step){ if(!step) return; step.classList.add('open'); scrollToStep(step); syncAfterLayoutChange(); }
 
   /* ---------- 复制 ---------- */
-  window.copyBlock = function(btn){
-    var pre = btn.closest('.block').querySelector('pre');
-    if(!pre) return;
-    var txt = pre.textContent;
+  function doCopy(txt, btn, okLabel){
+    if(!txt) return;
+    var o = btn.textContent;
     var ok = function(){
-      var o = btn.textContent; btn.textContent = '已复制 ✓'; btn.classList.add('done-btn');
+      btn.textContent = okLabel || '已复制 ✓'; btn.classList.add('done-btn');
       setTimeout(function(){ btn.textContent = o; btn.classList.remove('done-btn'); }, 1400);
     };
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(txt).then(ok, function(){ fallback(txt); ok(); });
     } else { fallback(txt); ok(); }
+  }
+  // 复制全部：提示词读 <pre>（即便折叠在 details 里 textContent 仍可取）；命令块读所有 .cmd-line（跳过注释/空行）
+  window.copyBlock = function(btn){
+    var block = btn.closest('.block'); if(!block) return;
+    var pre = block.querySelector('pre');
+    var txt = pre ? pre.textContent :
+      Array.prototype.map.call(block.querySelectorAll('.cmd-line'), function(n){ return n.textContent; }).join('\n');
+    doCopy(txt, btn);
+  };
+  // 逐行复制：只取本行命令，避免把长驻命令和后续命令一起粘进同一终端
+  window.copyLine = function(btn){
+    var row = btn.closest('.cmd-row'); if(!row) return;
+    var line = row.querySelector('.cmd-line');
+    if(line) doCopy(line.textContent, btn, '✓');
   };
   function fallback(txt){
     var ta = document.createElement('textarea'); ta.value = txt;
@@ -428,7 +441,8 @@
   buildTimelines();
   applySaved();
   motionProbe();
-  installHomePageSnap();
+  // 首页 Hero⇄Roles 的滚轮吸附（installHomePageSnap）已停用——它 preventDefault 劫持滚轮、与触控板/外接鼠标
+  // 抢滚不跟手。Hero→Roles 的分段淡入仍由 syncHomeStageFromScroll 跟随正常滚动驱动，体验保留、不再劫持。
   showDoor((location.hash || '#home').slice(1));
   onScroll();
 })();

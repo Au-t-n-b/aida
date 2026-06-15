@@ -3,7 +3,7 @@
 
 真相源：agent/sdui/builder.py（Pydantic 判别联合，与 frontend/src/lib/sdui.ts 由
 lint_sdui_contract 焊住三方一致）。本脚本用 Pydantic 内省读出每个节点的 type / props /
-枚举 / 默认，并合成最小样例 JSON，输出单文件自包含 HTML 到 agent/docs/sdui-gallery.html。
+枚举 / 默认，并合成最小样例 JSON，输出单文件自包含 HTML 到 docs/site/sdui-gallery.html。
 
 为什么是「生成」而非「手写」：SDUI 是活的三方契约，手写一份 HTML 画廊 = 第 4 份会漂移
 的副本（正是「单一真相 + lint 守门」要消灭的）。生成 + 新鲜度 lint（lint_sdui_gallery.py）
