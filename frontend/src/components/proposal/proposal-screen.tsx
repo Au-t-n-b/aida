@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AcceptanceChapter } from './chapters/acceptance-chapter';
 import { CustomerChapterWrapper } from './chapters/customer-chapter';
 import { DeviceChapter } from './chapters/device-chapter';
@@ -50,6 +50,7 @@ import {
   type VersionInfoMetadata,
 } from '@/lib/proposal-api';
 import { navDebug } from '@/lib/nav-debug';
+import { workspaceNavigate } from '@/lib/workspace-nav-link';
 import { useCurrentProject } from '@/lib/current-project';
 import { resolveTopBarProjectDisplayName } from '@/data/topbar-projects';
 
@@ -77,6 +78,7 @@ const FALLBACK_VERSIONS: ProposalVersionItem[] = [
 
 export default function ProposalScreen() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { project } = useCurrentProject();
   const mountedRef = useRef(true);
   const headers = useProposalApiHeaders();
@@ -508,14 +510,15 @@ export default function ProposalScreen() {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
       setDirty(false);
-      window.location.assign('/twin?view=digital');
+      workspaceNavigate(navigate, '/twin?view=digital', location.pathname);
     } catch (err) {
       const msg =
         err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';
       fireDocToast(msg);
+    } finally {
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, location.pathname, manualChangeLog, navigate, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
 
   const upsertDraftChapterRows = useCallback(
     (chapterKey: string, chapterTitle: string, rows: Array<Record<string, unknown>>) => {
