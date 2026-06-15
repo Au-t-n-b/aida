@@ -768,7 +768,10 @@ function SkillRunBanner({
               onAction: (action) => { (getSkillHitl()?.onAction ?? myHitl.onAction)?.(action); },
               onUpload: (...args) => (getSkillHitl()?.onUpload ?? myHitl.onUpload)(...args),
               onChoiceSubmit: (...args) => { (getSkillHitl()?.onChoiceSubmit ?? myHitl.onChoiceSubmit)(...args); },
-              onFormSubmit: myHitl.onFormSubmit,
+              onFormSubmit: (...args) => {
+                const fn = getSkillHitl()?.onFormSubmit ?? myHitl.onFormSubmit;
+                fn?.(...args);
+              },
               // 在线编辑表默认留在右侧大盘（route_hitl_edit 契约），左栏不承接表格提交
               onRowsSubmit: () => {},
             }}

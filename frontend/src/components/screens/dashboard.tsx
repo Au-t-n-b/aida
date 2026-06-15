@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -1610,7 +1610,7 @@ export default function DashboardScreen() {
 
   const view = searchParams.get('view');
   if (view === '底座' || view === 'foundation') {
-    return <Navigate to="/twin" replace />;
+    return <Navigate to="/twin/survey" replace />;
   }
 
   const [drill, setDrill] = useState(null); // null | milestone | workorder | risk | agent | doa

@@ -320,6 +320,21 @@ class SogSceneStore:
                 return self._with_runtime_fields(scene)
         raise FileNotFoundError(scene_id)
 
+    def update_scene_camera(self, scene_id: str, camera: dict[str, Any]) -> dict[str, Any]:
+        validate_asset_id(scene_id)
+        normalized = normalize_camera(camera)
+        if not normalized:
+            raise ValueError("invalid camera")
+        scenes = self._read_raw_scenes()
+        if not scenes:
+            scenes = [self._default_scene()]
+        for scene in scenes:
+            if scene.get("id") == scene_id:
+                scene["camera"] = normalized
+                self._write_raw_scenes(scenes)
+                return self._with_runtime_fields(scene)
+        raise FileNotFoundError(scene_id)
+
     def delete_scene(self, scene_id: str) -> dict[str, Any]:
         validate_asset_id(scene_id)
         scenes = self._read_raw_scenes()

@@ -2,7 +2,6 @@
 /* 从 DS-1 / twin-world-export 整体移植，与项目里既有 screens/*.tsx 同等做法 — 保留 @ts-nocheck */
 import React from 'react';
 import { DigitalTwinOntology } from './digital-ontology';
-import { SurveyTwinViewer } from './survey-twin/survey-twin-viewer';
 import { useContingencyOntology } from '@/lib/use-contingency-ontology';
 /* AIDA · 算力底座孪生模块 — 构建动效 v2 */
 import { useState as useStateTW, useEffect as useEffectTW, useRef as useRefTW } from 'react';
@@ -23,7 +22,7 @@ const TW_PHYSICAL_SRC = (function () {
     return new TextDecoder('utf-8').decode(bytes);
   } catch (e) { return null; }
 })();
-function PhysicalTwinFrame({ compact, building  }: any) {
+export function PhysicalTwinFrame({ compact, building  }: any) {
   const qs = compact ? (building ? '?compact=1&build=1' : '?compact=1&instant=1') : '';
   /* src 挂载时冻结：building→built 仅 props 变化不重载页面（动画播完自然停在成品态），key 变化重挂载才换 src */
   const [src] = useStateTW<any>(PHYS_TWIN_URL + qs);
@@ -276,7 +275,7 @@ function PhysicalTwinFrame({ compact, building  }: any) {
     .tw-gen-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--c-border);border-top-color:var(--c-brand);animation:twGenSpin .8s linear infinite}
     @keyframes twGenSpin{to{transform:rotate(360deg)}}
 
-    /* ── 物理孪生详情：机房三维 / 工勘孪生 页签 + 全屏 ── */
+    /* ── 物理孪生详情：3D 建模全屏 ── */
     .tw-phys-detail{height:100%;width:100%;display:flex;flex-direction:column;min-height:0;background:#0a0f18}
     .tw-phys-detail:fullscreen{background:#0a0f18}
     .tw-phys-tabbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:rgba(10,15,24,.92);border-bottom:1px solid rgba(148,163,184,.14);flex-shrink:0}
@@ -356,7 +355,7 @@ function ProblemMark({ cx, cy, tone, cls  }: any) {
   );
 }
 
-function PhysicalViz({ playing  }: any) {
+export function PhysicalViz({ playing  }: any) {
   const [phase, setPhase] = useStateTW<any>(playing ? 'cad' : 'static');
   useEffectTW(() => {
     if (!playing) { setPhase('static'); return; }
@@ -795,8 +794,6 @@ function TwinWorld({ phase, onPhase  }: any) {
   const [physStats, setPhysStats] = useStateTW<any>(null);
   const [physFrameFailed, setPhysFrameFailed] = useStateTW<any>(false);
   const [buildSeq, setBuildSeq] = useStateTW<any>(0);
-  const [physTab, setPhysTab] = useStateTW<any>('room3d');   // 物理详情页签：room3d=机房三维 · survey=工勘孪生
-  const [surveyMounted, setSurveyMounted] = useStateTW<any>(false);  // 工勘 viewer 首次打开后保持挂载，避免来回切重载 SOG
   const [isPhysFs, setIsPhysFs] = useStateTW<any>(false);
   const physDetailRef = useRefTW<any>(null);
   const rootRef = useRefTW<any>(null);
@@ -855,7 +852,6 @@ function TwinWorld({ phase, onPhase  }: any) {
     return () => document.removeEventListener('fullscreenchange', onFs);
   }, []);
 
-  const switchPhysTab = (t: any) => { setPhysTab(t); if (t === 'survey') setSurveyMounted(true); };
   const togglePhysFs = () => {
     const el = physDetailRef.current;
     if (!el) return;
@@ -935,25 +931,17 @@ function TwinWorld({ phase, onPhase  }: any) {
                 {phase === 'physical' ? (
                   <div className="tw-phys-detail" ref={physDetailRef}>
                     <div className="tw-phys-tabbar">
-                      <div className="tw-phys-tabs">
-                        <button type="button" className={physTab === 'room3d' ? 'on' : ''} onClick={() => switchPhysTab('room3d')}>机房三维视图</button>
-                        <button type="button" className={physTab === 'survey' ? 'on' : ''} onClick={() => switchPhysTab('survey')}>工勘孪生</button>
-                      </div>
+                      <div className="tw-phys-tabs" />
                       <button type="button" className="tw-phys-fs" onClick={togglePhysFs} title={isPhysFs ? '退出全屏' : '全屏显示'}>
                         <IcFullscreen exit={isPhysFs} />{isPhysFs ? '退出全屏' : '全屏'}
                       </button>
                     </div>
                     <div className="tw-phys-detail-body">
-                      <div className="tw-phys-pane" style={{ display: physTab === 'room3d' ? 'flex' : 'none' }}>
+                      <div className="tw-phys-pane" style={{ display: 'flex' }}>
                         {physFrameFailed
                           ? <PhysicalViz playing={false} />
                           : <PhysicalTwinFrame key="phys-detail" compact={false} building={false} />}
                       </div>
-                      {surveyMounted && (
-                        <div className="tw-phys-pane" style={{ display: physTab === 'survey' ? 'flex' : 'none' }}>
-                          <SurveyTwinViewer />
-                        </div>
-                      )}
                     </div>
                   </div>
                 ) : (
@@ -998,3 +986,64 @@ function TwinWorld({ phase, onPhase  }: any) {
 }
 
 export { TwinWorld };
+
+export function TwinPhysicalPanel() {
+  const [physFrameFailed, setPhysFrameFailed] = useStateTW<any>(false);
+  const [isPhysFs, setIsPhysFs] = useStateTW<any>(false);
+  const physDetailRef = useRefTW<any>(null);
+
+  useEffectTW(() => {
+    const onMsg = (e: any) => {
+      if (e.origin !== window.location.origin && !(window.location.protocol === 'file:' && e.origin === 'null')) return;
+      const d = e && e.data;
+      if (d && typeof d === 'object' && d.type === 'twin:stats') setPhysFrameFailed(false);
+    };
+    window.addEventListener('message', onMsg);
+    return () => window.removeEventListener('message', onMsg);
+  }, []);
+
+  useEffectTW(() => {
+    const t = setTimeout(() => setPhysFrameFailed(true), 8000);
+    return () => clearTimeout(t);
+  }, []);
+
+  useEffectTW(() => {
+    const onFs = () => setIsPhysFs(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
+  const togglePhysFs = () => {
+    const el = physDetailRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else el.requestFullscreen?.();
+  };
+
+  return (
+    <div className="tw-phys-detail" ref={physDetailRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+      <div className="tw-phys-tabbar">
+        <div className="tw-phys-tabs" />
+        <button type="button" className="tw-phys-fs" onClick={togglePhysFs} title={isPhysFs ? '退出全屏' : '全屏显示'}>
+          <IcFullscreen exit={isPhysFs} />{isPhysFs ? '退出全屏' : '全屏'}
+        </button>
+      </div>
+      <div className="tw-phys-detail-body">
+        <div className="tw-phys-pane" style={{ display: 'flex' }}>
+          {physFrameFailed
+            ? <PhysicalViz playing={false} />
+            : <PhysicalTwinFrame key="phys-standalone" compact={false} building={false} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TwinDigitalPanel() {
+  const { view, error, reload } = useContingencyOntology();
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <DigitalDetail view={view} error={error} onReload={reload} />
+    </div>
+  );
+}

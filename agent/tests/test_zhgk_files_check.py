@@ -128,3 +128,33 @@ def test_save_upload_canonicalizes_base_table_name(tmp_path: Path) -> None:
     assert out["path"] == "ProjectData\\Template\\入场评估标准表.xlsx"
     assert (tmp_path / "ProjectData/Template/入场评估标准表.xlsx").is_file()
     assert check_need_files(tmp_path, ["ProjectData/Template/入场评估标准表.xlsx"])["ok"] is True
+
+
+def test_save_upload_canonicalizes_risk_library_name(tmp_path: Path) -> None:
+    file = UploadFile(filename="风险库.xlsx", file=BytesIO(b"xlsx"))
+
+    out = asyncio.run(save_upload(tmp_path, "template", file))
+
+    assert out["path"] == "ProjectData\\Template\\工勘常见高风险库.xlsx"
+    assert (tmp_path / "ProjectData/Template/工勘常见高风险库.xlsx").is_file()
+    assert check_need_files(tmp_path, ["ProjectData/Template/工勘常见高风险库.xlsx"])["ok"] is True
+
+
+def test_check_need_files_filter_build_templates(tmp_path: Path) -> None:
+    """filter_build HITL：两张底表须同时齐备。"""
+    need = [
+        "ProjectData/Template/入场评估标准表.xlsx",
+        "ProjectData/Template/工勘常见高风险库.xlsx",
+    ]
+    out = check_need_files(tmp_path, need)
+    assert out["ok"] is False
+    assert out["total"] == 2
+
+    for rel in need:
+        p = tmp_path / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_bytes(b"x")
+
+    out = check_need_files(tmp_path, need)
+    assert out["ok"] is True
+    assert out["found_count"] == 2

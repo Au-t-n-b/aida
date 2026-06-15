@@ -90,13 +90,31 @@ _RISK_LEVEL_TO_NODE = {"high": "high", "medium": "mid", "low": "low"}
 # 顶部流程条：把 micro step 压成中粒度阶段，避免 3 个过粗、12+ 个过密。
 ZHGK_MACRO_PHASES: list[tuple[str, str, str, list[str]]] = [
     ("prep",     "环境准备", "预检 · 选意图",       ["preflight", "intent_select"]),
-    ("identify", "方案识别", "代际制冷 · 补充准备", ["scene_suggest_run", "determine_gen", "supplement_run"]),
+    ("identify", "方案识别", "代际制冷 · 补充准备", ["determine_gen", "scene_suggest_run", "supplement_run"]),
     ("table",    "建表确认", "过滤 · 分流 · 确认",  ["filter_build", "method_split", "data_append", "confirm_table"]),
     ("field",    "现场勘测", "下发 · 上传",         ["task_dispatch", "wait_survey"]),
     ("assess",   "AI 评估",  "评估 · 问题",         ["assess", "issue_list"]),
     ("resurvey", "复勘闭环", "复勘 · 闭环",         ["resurvey_gate"]),
     ("report",   "报告分发", "报告 · 审批",         ["report_gen_run", "report_distribute"]),
 ]
+
+
+def _effective_progress_pct(state: dict[str, Any], done: int | None = None) -> int:
+    """进度环/时间线用：取 state 与已完成步数推算值的较大者。
+
+    route_to 跳步或 HITL 中断时 overall_progress 可能停在 preflight(6%)，
+    但 steps 已有多步 completed —— 避免 `or` 短路导致环图长期显示旧值。"""
+    steps = state.get("steps") or []
+    if done is None:
+        done = sum(1 for s in steps if isinstance(s, dict) and s.get("status") == "completed")
+    total = len(ZHGK_STEP_ORDER) or 1
+    calc = round(done / total * 100)
+    cur = str(state.get("current_step") or "").strip()
+    if cur in ZHGK_STEP_ORDER:
+        at_idx = ZHGK_STEP_ORDER.index(cur)
+        calc = max(calc, round((at_idx + 1) / total * 100))
+    stored = int(state.get("overall_progress") or 0)
+    return max(0, min(100, max(stored, calc)))
 
 
 def _log_level(line: str) -> str:
@@ -165,7 +183,8 @@ def _build_idle_intro() -> SduiCardNode:
             "4. **补充勘测** — 基于已有勘测结果表进入补充闭环，并重新评估出报告\n\n"
             "**所需输入件：**\n"
             "· `Input/BOQ.xlsx` — 用于识别代际（A2/A3/A5）和制冷方式（液冷/风冷）\n"
-            "· `Template/入场评估标准表.xlsx` — 勘测条目底表\n"
+            "· `Template/入场评估标准表.xlsx` + `工勘常见高风险库.xlsx` — 底表（filter_build HITL 自行上传，不随项目打包）\n"
+            "· `交付作业/智慧工勘/输入文件/本地工勘报告.pdf` — 演示工勘报告（随项目 demo 数据入库）\n"
             "· `Template/新版项目工勘报告模板.docx` — 报告生成模板（全流程/报告生成阶段需要）\n\n"
             "请点击「启动工勘」按钮开始任务。"
         ))],
@@ -390,9 +409,7 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
         kpi_items = [SduiStatisticRowItem(title="已完成步骤", value=f"{done}/{total}")]
 
     done = sum(1 for s in steps if s.get("status") == "completed")
-    pct = state.get("overall_progress") or (
-        round(done / len(ZHGK_STEP_ORDER) * 100) if ZHGK_STEP_ORDER else 0
-    )
+    pct = _effective_progress_pct(state, done)
 
     return SduiCardNode(
         id="golden-metrics", title="黄金指标",
@@ -485,7 +502,7 @@ def _build_task_timeline(state: dict[str, Any]) -> SduiTaskTimelineStripNode | N
         return None
     WINDOW_DAYS = 5
     p_end = a_start + timedelta(days=WINDOW_DAYS)
-    progress = int(state.get("overall_progress", 0) or 0)
+    progress = _effective_progress_pct(state)
     all_done = bool(steps) and all(s.get("status") in ("completed", "skipped") for s in steps)
     today = date.today()
     a_end = today if all_done else None
@@ -924,7 +941,7 @@ def _build_real_room(state: dict[str, Any], m: dict[str, Any]) -> dict[str, Any]
     return {
         "id": "real", "code": code, "label": label, "real": True,
         "status": "active",
-        "progress": int(state.get("overall_progress", 0) or 0),
+        "progress": _effective_progress_pct(state),
         "rows": rows, "cols": cols, "racks": racks, "cdu": cdu,
         "itemStats": {"surveyed": surveyed, "pending": pending,
                       "unknown": unknown, "na": na},

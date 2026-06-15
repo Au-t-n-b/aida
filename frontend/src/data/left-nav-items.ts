@@ -6,6 +6,7 @@ export type NavSubItem = {
   name: string;
   href?: string;
   key?: string;
+  children?: NavSubItem[];
 };
 
 export type NavLeafItem = {
@@ -14,7 +15,14 @@ export type NavLeafItem = {
 };
 
 export const NAV_TWIN: NavSubItem[] = [
-  { name: '算力底座孪生', href: '/twin' },
+  {
+    name: '算力底座孪生',
+    children: [
+      { name: '实景孪生', href: '/twin/survey' },
+      { name: '3D建模', href: '/twin/physical' },
+      { name: '数字孪生', href: '/twin/digital' },
+    ],
+  },
   { name: '项目孪生', href: '/cockpit' },
 ];
 
@@ -55,17 +63,10 @@ const NAV_GROUPS: Array<{ sub: NavSubItem[]; hrefPrefix?: string }> = [
   { sub: NAV_DOCS },
 ];
 
-const LEGACY_PLAN_VIEW_LABELS: Record<string, string> = {
-  plan: '计划',
-  task: '任务',
-  risk: '风险',
-  assumption: '假设',
-  issue: '问题',
-  change: '变更',
-};
-
-/** 与 left-nav-fdy isSubActive 一致 */
 export function isNavSubActive(navPath: string, s: NavSubItem, hrefPrefix?: string): boolean {
+  if (s.children?.length) {
+    return s.children.some((c) => isNavSubActive(navPath, c, hrefPrefix));
+  }
   if (s.href) {
     if (s.href === '/cockpit') return navPath === '/cockpit' || navPath.startsWith('/cockpit?');
     if (s.href.includes('?')) return navPath === s.href;
@@ -78,6 +79,15 @@ export function isNavSubActive(navPath: string, s: NavSubItem, hrefPrefix?: stri
   return false;
 }
 
+const LEGACY_PLAN_VIEW_LABELS: Record<string, string> = {
+  plan: '计划',
+  task: '任务',
+  risk: '风险',
+  assumption: '假设',
+  issue: '问题',
+  change: '变更',
+};
+
 function resolveHref(s: NavSubItem, hrefPrefix?: string): string {
   if (s.href) return s.href;
   if (hrefPrefix && s.key) return `${hrefPrefix}/${s.key}`;
@@ -85,7 +95,15 @@ function resolveHref(s: NavSubItem, hrefPrefix?: string): string {
 }
 
 function findActiveSub(navPath: string, sub: NavSubItem[], hrefPrefix?: string): NavSubItem | null {
-  const sorted = [...sub].sort(
+  const leaves: NavSubItem[] = [];
+  const walk = (items: NavSubItem[]) => {
+    for (const item of items) {
+      if (item.children?.length) walk(item.children);
+      else leaves.push(item);
+    }
+  };
+  walk(sub);
+  const sorted = [...leaves].sort(
     (a, b) => resolveHref(b, hrefPrefix).length - resolveHref(a, hrefPrefix).length,
   );
   return sorted.find((s) => isNavSubActive(navPath, s, hrefPrefix)) ?? null;

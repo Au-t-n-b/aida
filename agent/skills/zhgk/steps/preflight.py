@@ -22,6 +22,7 @@ class PreflightStep(BaseStep):
     REQUIRED: dict[str, list[str]] = {
         "filter_build": [
             "ProjectData/Template/入场评估标准表.xlsx",
+            "ProjectData/Template/工勘常见高风险库.xlsx",
         ],
         "report_gen_run": [
             "ProjectData/Input/*工勘报告*.pdf",

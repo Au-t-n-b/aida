@@ -1,5 +1,6 @@
 export type NavExpandedState = {
   twin: boolean;
+  twinBase: boolean;
   early: boolean;
   plan: boolean;
   ops: boolean;
@@ -10,6 +11,7 @@ const STORAGE_KEY = 'aida:left-nav-expanded';
 
 const DEFAULT_EXPANDED: NavExpandedState = {
   twin: true,
+  twinBase: true,
   early: true,
   plan: true,
   ops: true,
@@ -23,6 +25,7 @@ export function routeRequiredExpanded(navPath: string): NavExpandedState {
   const pathname = navPath.split('?')[0] ?? navPath;
   return {
     twin: pathname === '/cockpit' || pathname.startsWith('/twin'),
+    twinBase: pathname.startsWith('/twin'),
     early: pathname.startsWith('/preview') || pathname.startsWith('/proposal'),
     plan:
       pathname.startsWith('/plan') ||

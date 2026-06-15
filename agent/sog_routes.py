@@ -34,6 +34,12 @@ class SogSceneUpdateReq(BaseModel):
     name: str
 
 
+class SogCameraUpdateReq(BaseModel):
+    position: list[float]
+    target: list[float]
+    fov: float | None = 60
+
+
 class SogProbeEvent(BaseModel):
     event: str
     payload: dict[str, Any] = Field(default_factory=dict)
@@ -85,6 +91,19 @@ def update_sog_scene(scene_id: str, body: SogSceneUpdateReq) -> dict[str, Any]:
         message = str(exc)
         if "scene name required" in message:
             raise HTTPException(status_code=400, detail="scene name required") from exc
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.put("/api/sog/scenes/{scene_id}/camera")
+def update_sog_scene_camera(scene_id: str, body: SogCameraUpdateReq) -> dict[str, Any]:
+    try:
+        return _scene_store.update_scene_camera(scene_id, body.model_dump())
+    except ValueError as exc:
+        message = str(exc)
+        if "invalid camera" in message:
+            raise HTTPException(status_code=400, detail="invalid camera") from exc
         raise _invalid_asset_id() from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail="scene not found") from exc

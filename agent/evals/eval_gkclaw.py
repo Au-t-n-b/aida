@@ -65,6 +65,67 @@ def langgraph_accumulated_list_diff_does_not_duplicate_steps():
 
 
 @test
+def steps_merge_dedup_prevents_oscillation_explosion():
+    from agent.main import _merge_langgraph_diff_into_state
+
+    state: dict = {"steps": [{"key": "preflight", "status": "completed"}]}
+    for i in range(5000):
+        _merge_langgraph_diff_into_state(state, {
+            "steps": [
+                {"key": "intent_select", "status": "completed", "seq": i},
+                {"key": "scene_suggest_run", "status": "completed", "seq": i},
+            ],
+        })
+    assert len(state["steps"]) <= 20
+    keys = [s["key"] for s in state["steps"]]
+    assert keys.count("intent_select") == 1
+    assert keys.count("scene_suggest_run") == 1
+
+
+@test
+def test_intent_select_resume_routes_to_determine_gen_not_intent_select():
+    from agent.skills.zhgk.skill import ZhgkSkill
+
+    skill = ZhgkSkill(work_root=tmpdir())
+    prev = {
+        "current_step": "intent_select",
+        "overall_progress": 6,
+        "project": {},
+        "steps": [
+            {"key": "preflight", "status": "completed"},
+            {"key": "intent_select", "status": "hitl"},
+        ],
+        "hitl": {"step": "intent_select"},
+    }
+    project = skill.apply_resume_payload({}, {"choice": "survey_work"}, "intent_select")
+    extras, _ = skill.build_resume_init_state(
+        prev, project, "intent_select", {"choice": "survey_work"},
+    )
+    assert extras.get("route_to") == "determine_gen"
+    assert extras.get("route_to") != "intent_select"
+
+
+@test
+def confirm_table_redo_resume_routes_to_filter_build():
+    from agent.skills.zhgk.skill import ZhgkSkill
+
+    skill = ZhgkSkill(work_root=tmpdir())
+    project = skill.apply_resume_payload(
+        {"generation_cooling": "风冷", "table_confirmed": True},
+        {"choice": "redo"},
+        "confirm_table",
+    )
+    assert "table_confirmed" not in project
+    extras, _ = skill.build_resume_init_state(
+        prev={"steps": [{"key": "confirm_table", "status": "hitl"}]},
+        project=project,
+        hitl_step="confirm_table",
+        payload={"choice": "redo"},
+    )
+    assert extras.get("route_to") == "filter_build"
+
+
+@test
 def zhgk_sdui_progress_uses_state_over_stale_metrics():
     from agent.skills.zhgk.sdui import _build_metrics_card
 
@@ -84,6 +145,27 @@ def zhgk_sdui_progress_uses_state_over_stale_metrics():
     assert card is not None
     metric = card.children[0]
     assert metric.progress == 18
+
+
+@test
+def zhgk_sdui_progress_not_stuck_at_preflight_when_steps_advanced():
+    from agent.skills.zhgk.sdui import _build_metrics_card
+
+    state = {
+        "overall_progress": 6,
+        "current_step": "task_dispatch",
+        "steps": [
+            {"key": "preflight", "status": "completed"},
+            {"key": "intent_select", "status": "completed"},
+            {"key": "determine_gen", "status": "completed"},
+            {"key": "filter_build", "status": "completed"},
+            {"key": "confirm_table", "status": "completed"},
+            {"key": "task_dispatch", "status": "hitl"},
+        ],
+    }
+    card = _build_metrics_card(state)
+    assert card is not None
+    assert card.children[0].progress > 50
 
 
 @test

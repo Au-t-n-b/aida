@@ -510,7 +510,7 @@ export default function ProposalScreen() {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
       setDirty(false);
-      workspaceNavigate(navigate, '/twin?view=digital', location.pathname);
+      workspaceNavigate(navigate, '/twin/digital', location.pathname);
     } catch (err) {
       const msg =
         err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';

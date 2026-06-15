@@ -21,9 +21,10 @@ description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心
 
 | 步骤 | 名称 | 输入 → 输出 | 意图 | 后端节点 |
 |------|------|------------|------|---------|
+| 0 | 环境预检 | 检查 Template/Input 目录 | 所有 | `preflight` |
 | 1 | 意图选择 | 用户选择工作流 | 所有 | `intent_select` |
-| 2 | 场景建议生成 | 代际-制冷 → 场景推荐 | scene_suggest | `scene_suggest_run` |
-| 3 | 代际制冷识别 | BOQ.xlsx → 代际-制冷标签 | survey_work/supplement/report_gen | `determine_gen` |
+| 2 | 代际制冷识别 | BOQ.xlsx → 代际-制冷标签 | 全 4 意图 | `determine_gen` |
+| 3 | 场景建议生成 | 代际-制冷 → 场景推荐 | scene_suggest | `scene_suggest_run` |
 | 4 | 底表过滤建表 | 入场评估标准表 + 代际制冷 → 全量勘测结果表 | survey_work | `filter_build` |
 | 5 | 勘测方法分流 | 全量结果表 → 现场勘测/客户反馈分组 | survey_work | `method_split` |
 | 6 | 数据条目追加 | 底表数据类 → 追加到结果表 | survey_work | `data_append` |
@@ -36,6 +37,8 @@ description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心
 | 13 | 补充勘测处理 | 已有结果表 → 追加数据/自定义条目 | supplement | `supplement_run` |
 | 14 | 报告生成 | 三件套 + 报告模板 → 工勘报告.docx | report_gen | `report_gen_run` |
 | 15 | 审批与分发 | 工勘报告 → 邮件通知干系人 | report_gen | `report_distribute` |
+
+> **survey_work 不含 report_gen_run**：全流程工勘止于复勘闭环（`resurvey_gate` 结束）；Word 报告与审批分发请选 **report_gen** 意图。
 
 > **preflight（环境预检）** 为内部基础设施步骤（`internal=True`），豁免契约约束，先于所有业务步骤执行。
 
@@ -73,10 +76,10 @@ ProjectData/
 
 | 意图 | 触发关键词 | 适用步骤 |
 |------|-----------|---------|
-| survey_work | 开始工勘/全流程/建表/代际制冷/入场评估 | 步骤 3-12 |
-| report_gen | 生成报告/出报告/Word 报告 | 步骤 3, 10-11, 14-15 |
-| scene_suggest | 场景建议/推荐场景 | 步骤 2 |
-| supplement | 补充条目/追加条目 | 步骤 3, 13 |
+| survey_work | 开始工勘/全流程/建表/代际制冷/入场评估 | 步骤 2–12（不含报告生成） |
+| report_gen | 生成报告/出报告/Word 报告 | 步骤 2, 10–11, 14–15 |
+| scene_suggest | 场景建议/推荐场景 | 步骤 2–3 |
+| supplement | 补充条目/追加条目 | 步骤 2, 13 |
 
 ---
 
@@ -114,3 +117,22 @@ ProjectData/
 | `SS-BP-E-003` 无法推断代际制冷 | HITL ChoiceCard 手动指定 |
 | `SS-AE-E-001` LLM 评估超时 | 检查网络，重试 |
 | `SS-RB-E-001` 报告模板不存在 | 提供 `ProjectData/Template/新版项目工勘报告模板.docx` |
+
+---
+
+## H. HITL 续跑 · `route_to` 语义
+
+用户提交 HITL（`POST /agent/zhgk/resume`）后，后端 `full_restart` 图时会写入 `state.route_to`，LangGraph router 直达目标 step，避免重跑已完成阶段。
+
+| HITL 步骤 | 用户选择 | `route_to` | 说明 |
+|-----------|---------|------------|------|
+| `intent_select` | 任意 intent | `determine_gen` | 跳过意图门，进入代际识别 |
+| `determine_gen` | 手选代际 | `determine_gen` | 重跑本步写入 `generation_cooling` |
+| `confirm_table` | redo | `filter_build` | 重建勘测表 |
+| `confirm_table` | confirm | `task_dispatch` | 进入下发/等待上传 |
+| `resurvey_gate` | resurvey / dispatch / skip | 见 resurvey 分支 | 复勘闭环内跳转 |
+| （无 HITL） | — | 兜底 `_resume_route_from_previous_state` | 仅空 `hitl_step` 时 |
+
+**防振荡：** 目标 step 正常完成后 `execute_step` 清除 `route_to`；`steps` merge 按 key 去重，避免死循环时 steps 膨胀。
+
+实现：`agent/skills/zhgk/pipelines/resume.py` · `build_resume_init_state()` · `agent/skills/base.py` · `agent/main.py`。

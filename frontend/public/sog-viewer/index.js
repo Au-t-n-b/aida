@@ -85644,6 +85644,38 @@ class Viewer {
         });
         window.addEventListener('message', (event) => {
             const data = event.data;
+            if (data?.type === 'sog-camera:capture') {
+                try {
+                    if (!this.cameraManager) {
+                        throw new Error('camera not ready');
+                    }
+                    const focusVec = new Vec3();
+                    this.cameraManager.camera.calcFocusPoint(focusVec);
+                    const payload = {
+                        camera: {
+                            position: [
+                                this.cameraManager.camera.position.x,
+                                this.cameraManager.camera.position.y,
+                                this.cameraManager.camera.position.z,
+                            ],
+                            target: [focusVec.x, focusVec.y, focusVec.z],
+                            fov: this.cameraManager.camera.fov,
+                        },
+                        snapshot: captureCameraState(this.cameraManager, state),
+                    };
+                    event.source?.postMessage?.({
+                        type: 'sog-camera:captured',
+                        payload,
+                    }, event.origin || '*');
+                }
+                catch (error) {
+                    event.source?.postMessage?.({
+                        type: 'sog-camera:capture-error',
+                        payload: { message: error instanceof Error ? error.message : String(error) },
+                    }, event.origin || '*');
+                }
+                return;
+            }
             if (data?.type !== 'sog-hotspots:update') {
                 return;
             }

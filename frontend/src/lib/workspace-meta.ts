@@ -61,7 +61,23 @@ export function getWorkspaceMeta(
 
   if (pathname === '/twin/survey') {
     return {
-      breadcrumbs: ['孪生世界', '工勘孪生 · 通道1'],
+      breadcrumbs: ['孪生世界', '算力底座孪生', '实景孪生'],
+      clawProps: DEFAULT_CLAW,
+      clawCollapsedDefault: true,
+    };
+  }
+
+  if (pathname === '/twin/physical') {
+    return {
+      breadcrumbs: ['孪生世界', '算力底座孪生', '3D建模'],
+      clawProps: DEFAULT_CLAW,
+      clawCollapsedDefault: true,
+    };
+  }
+
+  if (pathname === '/twin/digital') {
+    return {
+      breadcrumbs: ['孪生世界', '算力底座孪生', '数字孪生'],
       clawProps: DEFAULT_CLAW,
       clawCollapsedDefault: true,
     };
@@ -70,14 +86,6 @@ export function getWorkspaceMeta(
   if (pathname === '/twin/digital-demo') {
     return {
       breadcrumbs: ['孪生世界', '数字孪生 · 预制演示'],
-      clawProps: DEFAULT_CLAW,
-      clawCollapsedDefault: true,
-    };
-  }
-
-  if (pathname === '/twin' || pathname.startsWith('/twin?')) {
-    return {
-      breadcrumbs: ['孪生世界', '算力底座孪生'],
       clawProps: DEFAULT_CLAW,
       clawCollapsedDefault: true,
     };
