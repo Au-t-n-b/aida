@@ -5,28 +5,30 @@
 //   1. Docker 镜像构建 + 推送（agent / manager / frontend 分别打包）
 //   2. SSH 部署到 10.143.2.231（拉取镜像 + docker compose 重启）
 //
-// 使用方式：
-//   - 在 Jenkins 中创建 Pipeline 项目，指向本仓库
-//   - 配置凭据 harbor-aie（usernamePassword 类型）
-//   - 配置凭据 ssh-231-root（SSH Username with private key 类型）
+// 凭据（Credentials Plugin）：
+//   - harbor-aie（usernamePassword）
+//   - ssh-231-root（SSH Username with private key）
 //
+// 配置文件（Config File Provider · 仅 agent/.env）：
+//   - aida-231-agent-env  ← 模板见 jenkins/aida-231-agent.env.example
+//
+// 远程部署脚本见 Deploy stage 内 writeFile deploy-remote.sh
 // Webhook 防抖：quietPeriod=1800（30 分钟），见 240 aida-deploy config.xml。
 // ============================================================
 
 pipeline {
-    // 固定常驻 Agent（agent-inbound-240），复用宿主机 Docker BuildKit 缓存
     agent { label 'persistent && docker' }
 
-    // ── 环境变量（写死，不走参数）──
     environment {
-        DOCKER_BUILDKIT   = '1'
-        DOCKER_REGISTRY   = 'harbor.aie.rnd.huawei.com'
-        HARBOR_PROJECT    = 'aida'
-        AGENT_IMAGE       = 'backend'
-        MANAGER_IMAGE     = 'manager'
-        FRONTEND_IMAGE    = 'frontend'
-        DEPLOY_HOST       = '10.143.2.231'
-        DEPLOY_DIR        = '/home/aida'
+        DOCKER_BUILDKIT      = '1'
+        DOCKER_REGISTRY      = 'harbor.aie.rnd.huawei.com'
+        HARBOR_PROJECT       = 'aida'
+        AGENT_IMAGE          = 'backend'
+        MANAGER_IMAGE        = 'manager'
+        FRONTEND_IMAGE       = 'frontend'
+        DEPLOY_HOST          = '10.143.2.231'
+        DEPLOY_DIR           = '/home/aida'
+        CF_AGENT_ENV         = 'aida-231-agent-env'
     }
 
     options {
@@ -37,7 +39,6 @@ pipeline {
     }
 
     stages {
-        // ──────────────────────────────────────────────
         stage('Checkout') {
             steps {
                 checkout scm
@@ -45,7 +46,6 @@ pipeline {
             }
         }
 
-        // ──────────────────────────────────────────────
         stage('Docker Build & Push') {
             steps {
                 withCredentials([usernamePassword(
@@ -91,7 +91,6 @@ pipeline {
             }
         }
 
-        // ──────────────────────────────────────────────
         stage('Deploy') {
             steps {
                 withCredentials([usernamePassword(
@@ -100,7 +99,9 @@ pipeline {
                     passwordVariable: 'HARBOR_PASS'
                 )]) {
                     sshagent(credentials: ['ssh-231-root']) {
-                        script {
+                        configFileProvider([
+                            configFile(fileId: "${env.CF_AGENT_ENV}", targetLocation: 'agent.env'),
+                        ]) {
                             writeFile file: 'harbor-deploy.env', text: """\
 HARBOR_PASS=${env.HARBOR_PASS}
 HARBOR_USER='${env.HARBOR_USER}'
@@ -109,14 +110,12 @@ REGISTRY=${env.DOCKER_REGISTRY}
                             writeFile file: 'deploy-remote.sh', text: """\
 #!/usr/bin/env bash
 set -euo pipefail
-cd ${env.DEPLOY_DIR}
+DEPLOY_DIR="\${DEPLOY_DIR:-${env.DEPLOY_DIR}}"
+cd "\${DEPLOY_DIR}"
 set -a
 source /tmp/harbor-deploy.env
 set +a
-printf '%s' "\$HARBOR_PASS" | docker login "\$REGISTRY" -u "\$HARBOR_USER" --password-stdin
-if [[ ! -f agent/.env ]]; then
-  echo 'WARN: /home/aida/agent/.env 不存在，manager 将 unhealthy。请 cp agent/.env.example agent/.env 并填入 DATA_CENTER_BASE_URL、ZHIPU_API_KEY' >&2
-fi
+printf '%s' "\${HARBOR_PASS}" | docker login "\${REGISTRY}" -u "\${HARBOR_USER}" --password-stdin
 docker compose pull
 docker compose up -d --remove-orphans
 docker compose ps
@@ -124,19 +123,21 @@ docker compose ps --status running | grep -q aida-agent
 docker compose ps --status running | grep -q aida-manager
 docker compose ps --status running | grep -q aida-frontend
 docker image prune -f
-docker logout "\$REGISTRY" || true
+docker logout "\${REGISTRY}" || true
 rm -f /tmp/harbor-deploy.env /tmp/deploy-remote.sh
 echo '=== Container Status ==='
 docker compose ps
 """
                             sh """
                                 set -e
+                                chmod +x deploy-remote.sh
                                 ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}/agent'
                                 scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
-                                scp -o StrictHostKeyChecking=no agent/.env.example root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env.example
+                                scp -o StrictHostKeyChecking=no agent.env root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
                                 scp -o StrictHostKeyChecking=no harbor-deploy.env deploy-remote.sh root@${DEPLOY_HOST}:/tmp/
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'chmod +x /tmp/deploy-remote.sh && bash /tmp/deploy-remote.sh'
-                                rm -f harbor-deploy.env deploy-remote.sh
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \
+                                    'DEPLOY_DIR=${DEPLOY_DIR} chmod +x /tmp/deploy-remote.sh && bash /tmp/deploy-remote.sh'
+                                rm -f harbor-deploy.env deploy-remote.sh agent.env
                             """
                         }
                     }
@@ -145,7 +146,6 @@ docker compose ps
         }
     }
 
-    // ── 构建后清理 ──
     post {
         success {
             echo """
@@ -158,7 +158,7 @@ docker compose ps
             ║
             ║  URL:      https://aida.rnd.huawei.com
             ║  调试(可选): http://${env.DEPLOY_HOST}:18080  (compose ports 取消注释)
-            ║  首次:     ${env.DEPLOY_DIR}/agent/.env 须含 DATA_CENTER_BASE_URL + ZHIPU_API_KEY
+            ║  Config:   Managed file ${env.CF_AGENT_ENV}
             ║
             ║  Branch:   ${env.GIT_BRANCH}
             ║  Commit:   ${env.GIT_COMMIT?.take(7) ?: 'N/A'}
