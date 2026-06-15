@@ -1,21 +1,24 @@
 # ============================================================
-# AIDA 演示服务器编排
+# AIDA · 231 容器编排（/home/aida）
 # ============================================================
-# 启动：docker compose up -d --build
-# 停止：docker compose down
-# 日志：docker compose logs -f agent
+# 对外入口：https://aida.rnd.huawei.com（nginx-231-internal → aida-frontend:8080）
+# 不映射 8080/8081/7401 到宿主机，避免与 /opt/aida_liwen 裸金属冲突。
+# 可选调试：取消注释 frontend 的 ports 18080:8080（+10000 偏移）。
+#
+# 首次部署（231 上执行一次）：
+#   mkdir -p /home/aida/agent
+#   cp agent/.env.example /home/aida/agent/.env   # 填入 ZHIPU_API_KEY 等
+#   # 编辑 agent/.env：DATA_CENTER_BASE_URL、AIDA_AGENT_BASE_URL（见 example 顶部说明）
+#   docker compose up -d
 # ============================================================
 
+name: aida
+
 services:
-  # ── Agent 后端（镜像由 Jenkins 构建推送 Harbor，231 仅 pull）──
   agent:
-    build:
-      context: .
-      dockerfile: agent/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/backend:latest
     container_name: aida-agent
     restart: unless-stopped
-    # 7401 仅容器内网；对外经 frontend:5401 反代 /agent、/api/v1
     env_file:
       - agent/.env.example
       - path: agent/.env
@@ -23,16 +26,16 @@ services:
     environment:
       AIDA_BUSINESS_ROOT: /app/.data/business
       AIDA_CHECKPOINT_DB: /app/.data/runtime/checkpoints.db
-      AIDA_MAIL_BACKEND: mailgw
       AIDA_SOG_DATA_ROOT: /app/.data/sog-assets
       AIDA_SOG_PROBE_EVENTS: /app/.data/sog-probe-events.json
       AIDA_SOG_SCENES_PATH: /app/.data/sog-scenes.json
-      MAILGW_BASE: http://mailgw:8025
       ZHGK_ROOT: /app/.data/zhgk
     volumes:
       - aida-data:/app/.data
       - ./data/sog-assets:/app/.data/sog-assets
       - ./data/sog-scenes.json:/app/.data/sog-scenes.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - aida-net
     healthcheck:
@@ -42,11 +45,7 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── Manager（鉴权 / 项目列表，frontend nginx 反代 manager:8081）──
   manager:
-    build:
-      context: .
-      dockerfile: manager/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/manager:latest
     container_name: aida-manager
     restart: unless-stopped
@@ -55,7 +54,10 @@ services:
       - path: agent/.env
         required: false
     environment:
-      AIDA_AGENT_BASE_URL: http://agent:7401
+      # 浏览器侧 Agent 入口（chat/access 回传）；经 nginx-backend → frontend 反代
+      AIDA_AGENT_BASE_URL: https://aida.rnd.huawei.com
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - aida-net
     healthcheck:
@@ -65,55 +67,21 @@ services:
       retries: 3
       start_period: 10s
 
-  # ── GKCLAW 邮件网关（演示链路必需：下发 + 回传通知）──
-  mailgw:
-    build:
-      context: .
-      dockerfile: mailgw/Dockerfile
-    image: harbor.aie.rnd.huawei.com/aida/mailgw:latest
-    container_name: aida-mailgw
-    restart: unless-stopped
-    env_file:
-      - mailgw/.env.example
-      - path: mailgw/.env
-        required: false
-    environment:
-      AGENT_NOTIFY_BASE: http://agent:7401
-      MAILGW_DATA_DIR: /app/.data/mailgw
-    volumes:
-      - aida-data:/app/.data
-      - ${MAILGW_CONFIG_FILE:-./mailgw/config.yaml.example}:/app/mailgw/config.yaml:ro
-    networks:
-      - aida-net
-    depends_on:
-      agent:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS -u admin:$$MAILGW_ADMIN_PASSWORD http://127.0.0.1:8025/admin >/dev/null"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
-  # ── 前端（Nginx + API 反代）──
   frontend:
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
     image: harbor.aie.rnd.huawei.com/aida/frontend:latest
     container_name: aida-frontend
     restart: unless-stopped
-    ports:
-      - "5401:5401"
+    # 正式流量走 nginx-231-internal；仅调试时取消下一行注释
+    # ports:
+    #   - "18080:8080"
     depends_on:
       agent:
         condition: service_healthy
       manager:
         condition: service_healthy
-      mailgw:
-        condition: service_healthy
     networks:
       - aida-net
+      - nginx-231-internal
 
 volumes:
   aida-data:
@@ -122,3 +90,6 @@ volumes:
 networks:
   aida-net:
     driver: bridge
+  nginx-231-internal:
+    external: true
+    name: nginx-231-internal

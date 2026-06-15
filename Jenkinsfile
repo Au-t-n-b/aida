@@ -114,6 +114,9 @@ set -a
 source /tmp/harbor-deploy.env
 set +a
 printf '%s' "\$HARBOR_PASS" | docker login "\$REGISTRY" -u "\$HARBOR_USER" --password-stdin
+if [[ ! -f agent/.env ]]; then
+  echo 'WARN: /home/aida/agent/.env 不存在，manager 将 unhealthy。请 cp agent/.env.example agent/.env 并填入 DATA_CENTER_BASE_URL、ZHIPU_API_KEY' >&2
+fi
 docker compose pull
 docker compose up -d --remove-orphans
 docker compose ps
@@ -128,8 +131,9 @@ docker compose ps
 """
                             sh """
                                 set -e
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}'
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}/agent'
                                 scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
+                                scp -o StrictHostKeyChecking=no agent/.env.example root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env.example
                                 scp -o StrictHostKeyChecking=no harbor-deploy.env deploy-remote.sh root@${DEPLOY_HOST}:/tmp/
                                 ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'chmod +x /tmp/deploy-remote.sh && bash /tmp/deploy-remote.sh'
                                 rm -f harbor-deploy.env deploy-remote.sh
@@ -152,8 +156,9 @@ docker compose ps
             ║  Frontend: ${env.FRONTEND_FULL_IMAGE ?: 'N/A'}
             ║  Deploy:   ${env.DEPLOY_HOST}:${env.DEPLOY_DIR}
             ║
-            ║  Frontend: http://${env.DEPLOY_HOST}:5401
-            ║  API:      http://${env.DEPLOY_HOST}:5401/agent  (及 /api/v1)
+            ║  URL:      https://aida.rnd.huawei.com
+            ║  调试(可选): http://${env.DEPLOY_HOST}:18080  (compose ports 取消注释)
+            ║  首次:     ${env.DEPLOY_DIR}/agent/.env 须含 DATA_CENTER_BASE_URL + ZHIPU_API_KEY
             ║
             ║  Branch:   ${env.GIT_BRANCH}
             ║  Commit:   ${env.GIT_COMMIT?.take(7) ?: 'N/A'}

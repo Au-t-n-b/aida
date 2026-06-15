@@ -33,6 +33,6 @@ COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
 # 拷入前端构建产物
 COPY --from=builder /build/dist /usr/share/nginx/html
 
-EXPOSE 5401
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
