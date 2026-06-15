@@ -2,8 +2,8 @@
 import { CriticalPathTimeline } from "./critical-path-timeline";
 import React from 'react';
 import { ActivitiesGraph } from './activities-graph';
-import type { AdjustResponse, GenerateResponse, ParseChangesResponse, PlanResult, ScheduledActivity, StrategyPlan } from '@/features/schedule/contracts/schedule.gen';
-import { adjustSchedule, commitSchedule, downloadChangeTemplate, downloadDeliveryPlan, ensureScheduleBaseline, generateInitialSchedule, loadProjectData, parseChangeTemplate } from '@/features/schedule/services/schedule';
+import type { Activity as TemplateActivity, AdjustResponse, GapSummary, GenerateResponse, InputBundle, ParseChangesResponse, PlanResult, ScheduledActivity, StrategyPlan } from '@/features/schedule/contracts/schedule.gen';
+import { adjustSchedule, buildGenerateRequest, commitSchedule, downloadChangeTemplate, downloadDeliveryPlan, ensureScheduleBaseline, generateInitialSchedule, loadProjectData, parseChangeTemplate } from '@/features/schedule/services/schedule';
 import { buildAdjustmentReport, type AdjustmentReport } from '@/features/schedule/services/schedule-adjustment-report';
 // 单一盘子数据源（站/货/人/批次/排期 共用）· 用户决策 2026-05-31
 import { BATCH, BATCH_COLORS, GO_LIVE_BATCHES, READY_BATCHES, INITIAL_ROOMS, INITIAL_BATCHES, INITIAL_TEAMS, type PodRow, type RoomRow, type BatchRow, type TeamRow } from './data/plan';
@@ -173,13 +173,34 @@ const GANTT_BASE: GanttRow[] = [
 ];
 // 方案数据与盘子口径一致（12 PoD · 上线目标 09-20 · 6 队/66 人）· 每方案给 风险(中/高/低)+建议 · 用户决策 2026-06-01 晚2
 type Plan = {
-  id: string; name: string; rec: boolean; ds: string;
+  id: string; name: string; ds: string;
   kpi: [string, string, string?][];
   risks: { lv: string; t: string; d: string }[];
   advice: string; gantt: GanttRow[];
+  // 各卡达标徽章用：该方案预计完成日 + 相对目标的缺口（读 plan.project_finish_date / kpis.gap_days·前端零派生）
+  gapDays?: number | null; finishDate?: string | null;
 };
+type PlanRisk = Plan["risks"][number];
+const PLAN_CARD_RISK_LIMIT = 4;
+const PLAN_CARD_RISK_ORDER: Record<string, number> = { "高": 0, "中": 1, "低": 2 };
+
+function sortPlanRisks(risks: PlanRisk[]): PlanRisk[] {
+  return risks
+    .map((risk, index) => ({ risk, index }))
+    .sort((a, b) => {
+      const bySeverity = (PLAN_CARD_RISK_ORDER[a.risk.lv] ?? 99) - (PLAN_CARD_RISK_ORDER[b.risk.lv] ?? 99);
+      return bySeverity || a.index - b.index;
+    })
+    .map(({ risk }) => risk);
+}
+
+function riskLevelClass(level: string): string {
+  if (level === "高") return "hi";
+  if (level === "中") return "mid";
+  return "lo";
+}
 const PLANS: Plan[] = [
-  { id:"even", name:"方案A · 均匀分配", rec:false,
+  { id:"even", name:"方案A · 均匀分配",
     ds:"把需压缩的 10 天平均摊到 3 个受人数约束的活动上，各加少量人力。",
     kpi:[["12","PoD"],["32","总工期/天"],["-10","压缩/天","cut"],["+24","新增/人","add"]],
     risks:[
@@ -188,7 +209,7 @@ const PLANS: Plan[] = [
     ],
     advice:"人力充裕、求稳时选用；先对齐三处班组排班再开工。",
     gantt:[["改造验收",0,10,0,10,false],["到货齐套",6,8,6,8,false],["上架安装",14,18,13,14,true],["综合布线",18,10,16,7,true],["上电点亮",28,4,26,4,false],["联调测试",28,14,26,9,true],["验收移交",40,2,30,2,false]] },
-  { id:"single", name:"方案B · TopK极限压缩", rec:true,
+  { id:"single", name:"方案B · TopK极限压缩",
     ds:"按可压缩空间 (SLA−极限工期) 排序，集中压缩联调与上架两个最大空间活动。",
     kpi:[["12","PoD"],["32","总工期/天"],["-10","压缩/天","cut"],["+16","新增/人","add"]],
     risks:[
@@ -197,7 +218,7 @@ const PLANS: Plan[] = [
     ],
     advice:"到货可控时首选，增员最少、达成 09-20 概率最高。",
     gantt:[["改造验收",0,10,0,10,false],["到货齐套",6,8,6,8,false],["上架安装",14,18,14,12,true],["综合布线",20,10,18,9,true],["上电点亮",30,4,27,4,false],["联调测试",30,14,27,8,true],["验收移交",40,2,30,2,false]] },
-  { id:"pull", name:"方案C · 货期提拉", rec:false,
+  { id:"pull", name:"方案C · 货期提拉",
     ds:"对到货未明 / 在途较晚的 7 个 PoD 提前催货（含空运），整体左移、仅少量加人。",
     kpi:[["12","PoD"],["32","总工期/天"],["-10","压缩/天","cut"],["+8","新增/人","add"]],
     risks:[
@@ -210,10 +231,10 @@ const PLANS: Plan[] = [
 
 function plansFromAdjustResponse(response: AdjustResponse | null): Plan[] {
   if (!response) return PLANS;
-  return response.options.map((option, index) => planCardFromStrategy(option, index, response.options.length));
+  return response.options.map(option => planCardFromStrategy(option));
 }
 
-function planCardFromStrategy(option: StrategyPlan, index: number, total: number): Plan {
+function planCardFromStrategy(option: StrategyPlan): Plan {
   const label = option.option_id === "BUFFER" ? "方案buffer" : `方案${option.option_id}`;
   const risks = [
     { lv: option.risk_level, t: "方案风险等级", d: `综合评估：${option.risk_level}` },
@@ -227,7 +248,6 @@ function planCardFromStrategy(option: StrategyPlan, index: number, total: number
   return {
     id: option.option_id,
     name: `${label} · ${option.strategy}`,
-    rec: option.option_id === "B" || (total === 1 && index === 0),
     ds: strategyDescription(option),
     kpi: [
       [String(option.kpis.pod_count), "PoD"],
@@ -238,6 +258,8 @@ function planCardFromStrategy(option: StrategyPlan, index: number, total: number
     risks,
     advice: option.advice,
     gantt: ganttRowsFromStrategy(option),
+    gapDays: option.kpis.gap_days ?? null,
+    finishDate: option.plan.project_finish_date ?? null,
   };
 }
 
@@ -251,6 +273,20 @@ function strategyDescription(option: StrategyPlan): string {
 function signedNumber(value: number): string {
   if (value > 0) return `+${value}`;
   return String(value);
+}
+
+// ISO 日期 → MM-DD 显示（如 2026-09-30 → 09-30）；空值显示破折号。banner / 达标徽章共用
+function fmtMD(iso?: string | null): string {
+  if (!iso) return "—";
+  return iso.length >= 10 ? iso.slice(5, 10) : iso;
+}
+
+function logDetail(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 function ganttRowsFromStrategy(option: StrategyPlan): GanttRow[] {
@@ -1702,16 +1738,10 @@ function TeamEditPopover({ team, onSave, onClose }: { team: TeamRow; onSave: (pa
 }
 
 /* ===================== schedule ===================== */
-function Gantt({ rows, showDeadline }: { rows: GanttRow[]; showDeadline: boolean }){
-  const AX=42, DL=32; // 轴 42 天, 移交线在 32 天
+function Gantt({ rows }: { rows: GanttRow[] }){
+  const AX=42; // 轴 42 天（小甘特移交线已去掉·T-045 议题1：物理上各方案 finish 不同·假移交线误导）
   return (
     <div className="gantt">
-      <div className="g-scale">
-        {showDeadline && <>
-          <div className="deadline-line" style={{left:(DL/AX*100)+"%"}}/>
-          <div className="dl-lab" style={{left:(DL/AX*100)+"%"}}>移交 09-20</div>
-        </>}
-      </div>
       {rows.map((g,i)=>(
         <div className="g-row" key={i}>
           <span className="gl">{g[0]}</span>
@@ -1729,16 +1759,37 @@ function Gantt({ rows, showDeadline }: { rows: GanttRow[]; showDeadline: boolean
 
 /* ===================== 压缩策略：缺口 + 多策略方案 + 操作 ===================== */
 /* 方案卡：渲染在排期内容区顶部（时间轴正下方、clock stage-head 之上）· 仅 adjust 用 */
-function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, plans = PLANS }: { clk: number; selPlan: string|null; onSelPlan: (id: string)=>void; onOpenGantt?: (id: string)=>void; onDispatch?: (id: string)=>void; plans?: Plan[] }){
-  const showGap = clk>=17 && plans.length > 1;
+function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, plans = PLANS, gap }: { clk: number; selPlan: string|null; onSelPlan: (id: string)=>void; onOpenGantt?: (id: string)=>void; onDispatch?: (id: string)=>void; plans?: Plan[]; gap?: GapSummary | null }){
+  // banner = 基线问题一句话（接 GapSummary·零派生）：gap>0 显超期 banner；gap≤0 改显「已达标」绿条（议题1/2 拍板·根治「一会ABC一会只A」）
+  const gapDays = gap?.gap_days ?? 0;
+  const hasTarget = gap?.target_date != null;
+  const needCompress = clk>=17 && hasTarget && gapDays > 0;   // 基线超期·要压缩
+  const baselineMet = clk>=17 && hasTarget && gapDays <= 0;   // 基线已满足目标·无需压缩
+  // 不达标置灰：仅当存在「可达标」方案时才把不达标卡压灰形成对比（全不达标则只靠徽章标注·不灰成一片）
+  const hasAchievable = plans.some(p => p.finishDate != null && (p.gapDays ?? 1) <= 0);
   const plansIn = clk>=18;
+  const [expandedRiskPlanIds, setExpandedRiskPlanIds] = useState<Set<string>>(() => new Set());
+  const toggleRiskList = useCallback((planId: string) => {
+    setExpandedRiskPlanIds(prev => {
+      const next = new Set(prev);
+      if (next.has(planId)) next.delete(planId);
+      else next.add(planId);
+      return next;
+    });
+  }, []);
   return (
     <>
-      {showGap && (
+      {needCompress && gap && (
         <div className="gap-banner fade">
-          <div className="gx late"><div className="lab">预计完成</div><div className="val">09-30</div></div>
-          <div className="arrow-mid"><div className="gd">超出移交 +10 天 · 需压缩</div></div>
-          <div className="gx deadline"><div className="lab">合同移交目标</div><div className="val">09-20</div></div>
+          <div className="gx late"><div className="lab">基线预计完成</div><div className="val">{fmtMD(gap.baseline_finish_date)}</div></div>
+          <div className="arrow-mid"><div className="gd">超出 +{gapDays} 天 · 需压缩</div></div>
+          <div className="gx deadline"><div className="lab">整体移交目标</div><div className="val">{fmtMD(gap.target_date)}</div></div>
+        </div>
+      )}
+      {baselineMet && gap && (
+        <div className="gap-met fade">
+          <span className="gm-ic">✓</span>
+          <span>基线预计完成 <b>{fmtMD(gap.baseline_finish_date)}</b> · 已满足整体移交目标 <b>{fmtMD(gap.target_date)}</b>{gapDays < 0 ? `（提前 ${-gapDays} 天）` : ""} · 无需压缩</span>
         </div>
       )}
 
@@ -1750,25 +1801,48 @@ function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, pl
       )}
 
       <div className="plans">
-        {plans.map((p,i)=>(
-          <div key={p.id} className={"plan "+(plansIn?"in ":"")+(p.rec?"rec ":"")+(selPlan===p.id?"sel":"")}
+        {plans.map((p,i)=>{
+          const sortedRisks = sortPlanRisks(p.risks);
+          const riskListExpanded = expandedRiskPlanIds.has(p.id);
+          const visibleRisks = riskListExpanded ? sortedRisks : sortedRisks.slice(0, PLAN_CARD_RISK_LIMIT);
+          const hiddenRiskCount = sortedRisks.length - visibleRisks.length;
+          const cardMet = p.finishDate != null && (p.gapDays ?? 1) <= 0;   // 该方案达标（预计完成 ≤ 目标）
+          const cardOver = p.finishDate != null && (p.gapDays ?? 0) > 0;   // 该方案不达标（超 N 天）
+          const dim = needCompress && hasAchievable && cardOver && selPlan !== p.id;  // 有可达标方案时·不达标卡压灰（选中态不灰）
+          return (
+          <div key={p.id} className={"plan "+(plansIn?"in ":"")+(dim?"dim ":"")+(selPlan===p.id?"sel":"")}
             style={{transitionDelay:(i*120)+"ms"}} onClick={()=>onSelPlan(p.id)}>
             <div className="pl-h">
-              {p.rec && <span className="rec-badge">★ 推荐</span>}
+              {p.finishDate != null && (
+                <div className={"pl-status "+(cardMet?"ok":"over")}>
+                  <span className="pls-tag">{cardMet ? "✓ 达标" : `超 ${p.gapDays} 天`}</span>
+                  <span className="pls-fin">预计完成 {fmtMD(p.finishDate)}</span>
+                </div>
+              )}
               <div className="nm">{p.name}</div>
               <div className="ds">{p.ds}</div>
             </div>
             <div className="kpis">{p.kpi.map((k,j)=>(
               <div className="kpi" key={j}><div className={"v "+(k[2]||"")}>{k[0]}</div><div className="l">{k[1]}</div></div>))}</div>
-            <Gantt rows={p.gantt} showDeadline={true}/>
+            <Gantt rows={p.gantt}/>
             <div className="pl-risks">
               <div className="plr-h">引入的风险</div>
-              {p.risks.map((r, k) => (
+              {visibleRisks.map((r, k) => (
                 <div className="plr-row" key={k}>
-                  <span className={"plr-lv lv-" + (r.lv === "高" ? "hi" : r.lv === "中" ? "mid" : "lo")}>{r.lv}</span>
+                  <span className={"plr-lv lv-" + riskLevelClass(r.lv)}>{r.lv}</span>
                   <span className="plr-tx"><b>{r.t}</b><i>{r.d}</i></span>
                 </div>
               ))}
+              {sortedRisks.length > PLAN_CARD_RISK_LIMIT && (
+                <button
+                  type="button"
+                  className="plr-more"
+                  aria-expanded={riskListExpanded}
+                  onClick={(e)=>{ e.stopPropagation(); toggleRiskList(p.id); }}
+                >
+                  {riskListExpanded ? "收起风险" : `+${hiddenRiskCount} 条更多`}
+                </button>
+              )}
               <div className="plr-advice"><span className="plr-adv-ic">{I.spark(11)}</span><span><b>建议</b> · {p.advice}</span></div>
             </div>
             <div className="pl-foot">
@@ -1780,7 +1854,7 @@ function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, pl
               )}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </>
   );
@@ -1910,6 +1984,83 @@ function bwdRowsFromPlan(batches: BatchRow[], rooms: RoomRow[], sug: boolean): B
       return { ...b, pods, arrive, room };
     })
     .sort((a, b) => (a.goLiveDate < b.goLiveDate ? -1 : 1));
+}
+
+function applyBatchTargetsToSuggestionRows(rows: GeneratedBwdRow[], batches: BatchRow[]): GeneratedBwdRow[] {
+  const batchTargetsById = new Map(batches.map(batch => [batch.id, { powerOnDate: batch.powerOnDate, goLiveDate: batch.goLiveDate }]));
+  return rows.map(row => {
+    const target = batchTargetsById.get(row.id);
+    if (!target) return row;
+    const goLiveDelta = target.goLiveDate && row.goLiveDate ? bwdDays(target.goLiveDate, row.goLiveDate) : 0;
+    const powerDelta = target.powerOnDate && row.powerOnDate ? bwdDays(target.powerOnDate, row.powerOnDate) : 0;
+    const targetDelta = goLiveDelta !== 0 ? goLiveDelta : powerDelta;
+    return {
+      ...row,
+      arrive: targetDelta ? bwdShift(row.arrive, targetDelta) : row.arrive,
+      room: targetDelta ? bwdShift(row.room, targetDelta) : row.room,
+      powerOnDate: target.powerOnDate,
+      goLiveDate: target.goLiveDate,
+    };
+  });
+}
+
+function overlayConfirmedSuggestionRows(sourceRows: GeneratedBwdRow[], batches: BatchRow[], rooms: RoomRow[], confirmedSuggestions?: ReadonlySet<string>): GeneratedBwdRow[] {
+  if (!confirmedSuggestions?.size) return sourceRows;
+  const stateRowsById = new Map(bwdRowsFromPlan(batches, rooms, false).map(row => [row.id, row]));
+  return sourceRows.map(row => {
+    const stateRow = stateRowsById.get(row.id);
+    const roomConfirmed = confirmedSuggestions.has(suggestionKey("room", row.id));
+    const arriveConfirmed = confirmedSuggestions.has(suggestionKey("arrive", row.id));
+    return {
+      ...row,
+      room: roomConfirmed && stateRow ? stateRow.room : row.room,
+      arrive: arriveConfirmed && stateRow ? stateRow.arrive : row.arrive,
+      ai: {
+        ...row.ai,
+        room: roomConfirmed ? false : row.ai?.room,
+        arrive: arriveConfirmed ? false : row.ai?.arrive,
+      },
+    };
+  });
+}
+
+function currentInitSuggestionRows(batches: BatchRow[], rooms: RoomRow[], generatedRows?: GeneratedBwdRow[] | null, confirmedSuggestions?: ReadonlySet<string>): GeneratedBwdRow[] {
+  const sourceRows = applyBatchTargetsToSuggestionRows(
+    generatedRows?.length ? generatedRows : bwdRowsFromPlan(batches, rooms, true),
+    batches,
+  );
+  return overlayConfirmedSuggestionRows(sourceRows, batches, rooms, confirmedSuggestions);
+}
+
+function materializeInitSuggestionRows(rooms: RoomRow[], batches: BatchRow[], rows: GeneratedBwdRow[], confirmedSuggestions?: ReadonlySet<string>): RoomRow[] {
+  const rowByBatchId = new Map(rows.map(row => [row.id, row]));
+  const batchIdByPodId = new Map<string, string>();
+  batches.forEach(batch => batch.podIds.forEach(podId => batchIdByPodId.set(podId, batch.id)));
+
+  return rooms.map(room => {
+    const rowsForRoom = room.pods
+      .map(pod => rowByBatchId.get(batchIdByPodId.get(pod.id) ?? ""))
+      .filter((row): row is GeneratedBwdRow => Boolean(row));
+    const roomReady = rowsForRoom.length ? rowsForRoom.map(row => row.room).reduce((latest, date) => (date > latest ? date : latest), rowsForRoom[0]!.room) : null;
+    const shouldWriteRoom = Boolean(roomReady) && (!hasAnyReady(room) || rowsForRoom.some(row => confirmedSuggestions?.has(suggestionKey("room", row.id))));
+    const nextPods = room.pods.map(pod => {
+      const row = rowByBatchId.get(batchIdByPodId.get(pod.id) ?? "");
+      if (!row || pod.arrival === "arrived") return pod;
+      const shouldWriteArrival = pod.arrival === "unknown" || confirmedSuggestions?.has(suggestionKey("arrive", row.id));
+      return shouldWriteArrival
+        ? { ...pod, arrival: "eta" as const, etaLabel: "在途 " + row.arrive.slice(5), etaDate: row.arrive }
+        : pod;
+    });
+    return {
+      ...room,
+      site: shouldWriteRoom ? "ready" : room.site,
+      readyUnknown: shouldWriteRoom ? false : room.readyUnknown,
+      cableReadyAt: shouldWriteRoom ? roomReady ?? undefined : room.cableReadyAt,
+      equipReadyAt: shouldWriteRoom ? roomReady ?? undefined : room.equipReadyAt,
+      liquidReadyAt: shouldWriteRoom ? roomReady ?? undefined : room.liquidReadyAt,
+      pods: nextPods,
+    };
+  });
 }
 
 function mapGenerateResponseToBwdRows(response: GenerateResponse, batches: BatchRow[], rooms: RoomRow[]): GeneratedBwdRow[] {
@@ -2100,42 +2251,17 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
     setEvDraft(null);
   };
 
-  const batchTargetsById = useMemo(
-    () => new Map(batches.map(batch => [batch.id, { powerOnDate: batch.powerOnDate, goLiveDate: batch.goLiveDate }])),
-    [batches],
-  );
   // 批次行计算抽到模块级 bwdRowsFromPlan（区间看板移入甘特后两处共用同一口径）· 用户决策 2026-06-01
   const sourceRows: GeneratedBwdRow[] = useMemo(
     () => {
       const rows = sug && generatedRows?.length ? generatedRows : bwdRowsFromPlan(batches, rooms, sug);
-      if (!sug || !generatedRows?.length) return rows;
-      return rows.map(row => {
-        const target = batchTargetsById.get(row.id);
-        return target ? { ...row, powerOnDate: target.powerOnDate, goLiveDate: target.goLiveDate } : row;
-      });
+      return sug ? applyBatchTargetsToSuggestionRows(rows, batches) : rows;
     },
-    [batchTargetsById, batches, generatedRows, rooms, sug],
+    [batches, generatedRows, rooms, sug],
   );
-  const stateRows = useMemo(() => bwdRowsFromPlan(batches, rooms, false), [batches, rooms]);
-  const stateRowsById = useMemo(() => new Map(stateRows.map(row => [row.id, row])), [stateRows]);
   const allRows: GeneratedBwdRow[] = useMemo(() => {
-    if (!sug || !confirmedSuggestions?.size) return sourceRows;
-    return sourceRows.map(row => {
-      const stateRow = stateRowsById.get(row.id);
-      const roomConfirmed = confirmedSuggestions.has(suggestionKey("room", row.id));
-      const arriveConfirmed = confirmedSuggestions.has(suggestionKey("arrive", row.id));
-      return {
-        ...row,
-        room: roomConfirmed && stateRow ? stateRow.room : row.room,
-        arrive: arriveConfirmed && stateRow ? stateRow.arrive : row.arrive,
-        ai: {
-          ...row.ai,
-          room: roomConfirmed ? false : row.ai?.room,
-          arrive: arriveConfirmed ? false : row.ai?.arrive,
-        },
-      };
-    });
-  }, [confirmedSuggestions, sourceRows, stateRowsById, sug]);
+    return sug ? overlayConfirmedSuggestionRows(sourceRows, batches, rooms, confirmedSuggestions) : sourceRows;
+  }, [batches, confirmedSuggestions, rooms, sourceRows, sug]);
 
   // given(adjust)：到货 / 机房 ready 冻结在基线快照——拖「上电 / 上线」目标只动该旗，不联动它们；
   // 再排期(组件重挂载)时按新结果刷新 · 用户决策 2026-05-31。suggest(init)保持实时倒推。
@@ -2396,7 +2522,7 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
       <div className="bwd-foot fade">
         <span><i className={sug ? "sug" : "given"} />{sug ? "AI 建议（货到 / 机房就位）" : "已知（货到 / 机房就位）"}</span>
         <span><i className="given" />{sug ? "给定目标（上电 / 上线）" : "目标（上电 / 上线）"}</span>
-        <span className="bwd-tip">{sug ? "拖红旗或改右侧「批次」tab → 建议实时重算" : "拖红旗调整目标 → 点「调整推演」重新计算方案"}</span>
+        <span className="bwd-tip">{sug ? "拖红旗调整目标；人工改过的 ready / 到货保持人设" : "拖红旗调整目标 → 点「调整推演」重新计算方案"}</span>
       </div>
 
       {/* 确认目标 → 生成多策略方案（init 倒排直出，showConfirm=false 时不显示） */}
@@ -2473,10 +2599,25 @@ const GD_PHASES = [
   { key: "power",   name: "上电联调", color: "var(--gd-power)" },
   { key: "accept",  name: "验收交付", color: "var(--gd-accept)" },
 ];
-type GdAct = { id: string; phase: string; name: string; batch: string; start: string; end: string; deps: string[]; progress: number; milestone?: boolean; ai?: boolean };
+type GdAct = {
+  id: string;
+  phase: string;
+  name: string;
+  batch: string;
+  start: string;
+  end: string;
+  deps: string[];
+  progress: number;
+  milestone?: boolean;
+  ai?: boolean;
+  constraintSource?: TemplateActivity["constraint_source"];
+  minimumDurationDays?: number;
+  teamEfficiency?: number;
+};
 type DurationOverrides = Record<string, number>;
 type GdPhase = typeof GD_PHASES[number];
 type GdRow = { type: "phase"; phase: GdPhase; items: GdAct[] } | { type: "task"; a: GdAct };
+const EXPERIENCE_EFFICIENCY: Record<"丰富" | "一般" | "缺乏", number> = { "丰富": 1, "一般": 0.8, "缺乏": 0.7 };
 const GD_ACTS: GdAct[] = [
   { id: "G00", phase: "plan", name: "项目立项 · 采购冻结",       batch: "—", start: "2026-06-01", end: "2026-06-08", deps: [], progress: 1 },
   { id: "G01", phase: "plan", name: "长周期物料下单 (GPU/光模块)", batch: "—", start: "2026-06-08", end: "2026-06-16", deps: ["G00"], progress: 1 },
@@ -2530,11 +2671,12 @@ function replaceOptionPlan(response: AdjustResponse, optionId: string, plan: Pla
   };
 }
 
-function mapGenerateResponseToGantt(response: GenerateResponse, batches: BatchRow[], rooms: RoomRow[]): GeneratedScheduleView {
+function mapGenerateResponseToGantt(response: GenerateResponse, batches: BatchRow[], rooms: RoomRow[], inputs: InputBundle): GeneratedScheduleView {
   const batchById = new Map(batches.map((batch) => [batch.id, batch]));
   const batchByPod = new Map<string, BatchRow>();
   batches.forEach((batch) => batch.podIds.forEach((podId) => batchByPod.set(podId, batch)));
   const batchByRoom = new Map<string, BatchRow>();
+  const templateById = new Map(inputs.activities.map((activity) => [activity.activity_id, activity]));
   rooms.forEach((room) => {
     const batch = batches.find((item) => item.podIds.some((podId) => room.pods.some((pod) => pod.id === podId)));
     if (batch) batchByRoom.set(room.code, batch);
@@ -2542,6 +2684,8 @@ function mapGenerateResponseToGantt(response: GenerateResponse, batches: BatchRo
 
   const acts = response.plan.activities.map((activity) => {
     const batch = batchForActivity(activity);
+    const template = templateById.get(activity.activity_id);
+    const teamEfficiency = teamEfficiencyForActivity(activity, template, inputs);
     return {
       id: activity.instance_id,
       phase: phaseForActivity(activity),
@@ -2553,6 +2697,9 @@ function mapGenerateResponseToGantt(response: GenerateResponse, batches: BatchRo
       progress: 0,
       milestone: activity.is_milestone,
       ai: activity.is_ai_generated,
+      constraintSource: template?.constraint_source,
+      minimumDurationDays: minimumDurationDaysForActivity(activity, template, inputs, teamEfficiency),
+      teamEfficiency,
     };
   });
 
@@ -2578,6 +2725,84 @@ function mapGenerateResponseToGantt(response: GenerateResponse, batches: BatchRo
     if (/设计|勘测|采购|立项|准备/.test(activity.activity_name)) return 'plan';
     return 'install';
   }
+}
+
+function minimumDurationDaysForActivity(
+  activity: ScheduledActivity,
+  template: TemplateActivity | undefined,
+  inputs: InputBundle,
+  teamEfficiency: number,
+): number {
+  const minimumWorkDays = minimumWorkDaysForActivity(activity, template, inputs);
+  if (minimumWorkDays == null) return 1;
+  return Math.max(1, Math.ceil(minimumWorkDays / Math.max(teamEfficiency, 0.01)));
+}
+
+function minimumWorkDaysForActivity(
+  activity: ScheduledActivity,
+  template: TemplateActivity | undefined,
+  inputs: InputBundle,
+): number | null {
+  if (!template) return null;
+  if (template.duration_mode === "弹性" && template.workload_rules?.length) {
+    let total = 0;
+    for (const rule of template.workload_rules) {
+      if (!rule.limit_daily_rate) return null;
+      total += matchingQuantity(inputs, activity, rule.workload_source) / rule.limit_daily_rate;
+    }
+    return Math.max(total, 1);
+  }
+  return template.minimum_sla_days ?? null;
+}
+
+function matchingQuantity(inputs: InputBundle, activity: ScheduledActivity, workloadSource: string): number {
+  const podIds = new Set(podIdsForActivity(inputs, activity));
+  return (inputs.arrivals ?? []).reduce((total, arrival) => {
+    if (!podIds.has(arrival.pod_id)) return total;
+    return arrivalMatchesWorkloadSource(arrival, workloadSource) ? total + arrival.quantity : total;
+  }, 0);
+}
+
+function arrivalMatchesWorkloadSource(
+  arrival: NonNullable<InputBundle["arrivals"]>[number],
+  workloadSource: string,
+): boolean {
+  const source = workloadSource.toLowerCase();
+  const haystack = [
+    arrival.device_type,
+    arrival.device_model ?? "",
+    arrival.unit ?? "",
+    arrival.note ?? "",
+  ].filter(Boolean).join(" ").toLowerCase();
+  return source.includes(haystack) || haystack.includes(source);
+}
+
+function podIdsForActivity(inputs: InputBundle, activity: ScheduledActivity): string[] {
+  const refId = activity.scope_ref.ref_id;
+  if (activity.scope_ref.scope === "PoD级") return refId ? [refId] : [];
+  if (activity.scope_ref.scope === "机房级") return inputs.pods.filter((pod) => pod.room_id === refId).map((pod) => pod.pod_id);
+  if (activity.scope_ref.scope === "批次级") return inputs.batches.find((batch) => batch.batch_id === refId)?.pod_ids ?? [];
+  return inputs.pods.map((pod) => pod.pod_id);
+}
+
+function teamEfficiencyForActivity(
+  activity: ScheduledActivity,
+  template: TemplateActivity | undefined,
+  inputs: InputBundle,
+): number {
+  if (template?.constraint_source !== "人") return 1;
+  const teams = inputs.teams ?? [];
+  const assigned = activity.team_id ? teams.find((team) => team.team_id === activity.team_id) : undefined;
+  if (assigned) return experienceEfficiency(assigned.experience);
+  const onSiteTeams = teams.filter((team) => team.on_site !== false).sort((a, b) => a.team_id.localeCompare(b.team_id));
+  if (!onSiteTeams.length) return EXPERIENCE_EFFICIENCY["一般"];
+  const scopeKey = activity.scope_ref.ref_id ?? "project";
+  const index = Array.from(scopeKey).reduce((sum, char) => sum + (char.codePointAt(0) ?? 0), 0) % onSiteTeams.length;
+  return experienceEfficiency(onSiteTeams[index]!.experience);
+}
+
+function experienceEfficiency(experience: "丰富" | "一般" | "缺乏" | undefined): number {
+  return EXPERIENCE_EFFICIENCY[experience ?? "一般"];
 }
 
 /* ===================== 意外事件（效率打折 / 假期停工）· 用户决策 2026-06-01；2026-06-02 改可配置 =====================
@@ -2610,10 +2835,14 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   const [showCrit, setShowCrit] = useState(true);
   // 意外事件由「当前基线」处注入 → props.events（甘特只渲染影响）；跳周末仍是甘特本地开关 · 用户决策 2026-06-01
   const [skipWeekends, setSkipWeekends] = useState(false);
+  const [batchFilter, setBatchFilter] = useState<string>("all");  // #3 详情甘特按批次筛选（all=全部·自动列真实批次）· T-046
+  const batchOptions = useMemo<string[]>(() => Array.from(new Set(gdActs.map(a => a.batch).filter((b): b is string => Boolean(b) && b !== "—"))).sort((a, b) => a.localeCompare(b)), [gdActs]);
   const listRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  const axisRef = useRef<HTMLDivElement | null>(null);
   const ganttRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const dayW = 16, ROW_H = 34, HEADER = 36;
+  const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(() => new Set(GD_PHASES.map(phase => phase.key)));
+  const dayW = 16, ROW_H = 34;
 
   const range = useMemo(() => {
     const starts = gdActs.map(a => a.start), ends = gdActs.map(a => a.end);
@@ -2634,31 +2863,50 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
     });
     return { start, end, dur, lag };
   }, [gdActs]);
+  const durationMinimums = useMemo(() => {
+    const mins: Record<string, number> = {};
+    gdActs.forEach((activity) => {
+      if (!activity.milestone) mins[activity.id] = Math.max(1, activity.minimumDurationDays ?? 1);
+    });
+    return mins;
+  }, [gdActs]);
+  const minDuration = useCallback((id: string) => durationMinimums[id] ?? 1, [durationMinimums]);
+  const clampDuration = useCallback((id: string, days: number) => {
+    if (!Number.isFinite(days)) return minDuration(id);
+    return Math.max(minDuration(id), Math.round(days));
+  }, [minDuration]);
+  const saveableDurations = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(durations).map(([id, days]) => [id, clampDuration(id, days)] as const),
+    );
+  }, [clampDuration, durations]);
 
   const eff = useMemo(() => {
     const start: Record<string, string> = {}, end: Record<string, string> = {}, dur: Record<string, number> = {};
-    const getDur = (id: string): number => dragPreview && dragPreview.id === id ? dragPreview.days : (durations[id] != null ? durations[id] : base.dur[id]!);
-    // 工作日历 → 每日产能系数 factor∈[0,1]：事件按**时间窗口**作用于当天所有在施工活动（停工=0 / 降效=比例）、否则 1；跳周末=0。
+    const getDur = (id: string): number => clampDuration(id, dragPreview && dragPreview.id === id ? dragPreview.days : (durations[id] != null ? durations[id] : base.dur[id]!));
+    const teamFactor = (a: GdAct): number => a.constraintSource === "人" ? Math.max(a.teamEfficiency ?? 1, 0.01) : 1;
+    const workDaysFor = (a: GdAct, calendarDays: number) => Math.max(0.01, calendarDays * teamFactor(a));
+    // 工作日历 → 每日产能系数 factor∈[0,1]：事件按**时间窗口**作用于当天所有在施工活动（停工=0 / 降效=比例）、否则 1；跳周末=0；人力活动再乘队伍经验系数。
     // 活动按 factor 累计工作量 → factor<1 拉长、factor=0 暂停顺延、下游级联（factor 全 1 时与旧整数步进等价）· 用户决策 2026-06-01 晚2
-    const dayFactor = (dt: Date) => {
+    const dayFactor = (a: GdAct, dt: Date) => {
       if (skipWeekends && GD.weekend(dt)) return 0;
       const iso = GD.iso(dt);
       let f = 1;
       events.forEach(ev => { if (iso >= ev.start && iso <= ev.end) f = Math.min(f, ev.efficiency); });
-      return f;
+      return f * teamFactor(a);
     };
-    const firstWork = (dt: Date) => { let x = dt, g = 0; while (dayFactor(x) <= 0 && g++ < 600) x = GD.add(x, 1); return x; };
-    const workEnd = (s: string, d: number) => { let dt = firstWork(GD.parse(s)), acc = 0, g = 0; while (g++ < 2000) { acc += dayFactor(dt); if (acc >= d - 1e-9) return GD.iso(dt); dt = GD.add(dt, 1); } return GD.iso(dt); };
+    const firstWork = (a: GdAct, dt: Date) => { let x = dt, g = 0; while (dayFactor(a, x) <= 0 && g++ < 600) x = GD.add(x, 1); return x; };
+    const workEnd = (a: GdAct, s: string, workDays: number) => { let dt = firstWork(a, GD.parse(s)), acc = 0, g = 0; while (g++ < 2000) { acc += dayFactor(a, dt); if (acc >= workDays - 1e-9) return GD.iso(dt); dt = GD.add(dt, 1); } return GD.iso(dt); };
     const compute = (a: GdAct) => {
       const d = getDur(a.id); let s: string;
       if (!a.deps.length || base.lag[a.id] === null) { s = base.start[a.id]!; }
       else { let mx: Date | null = null; a.deps.forEach(dep => { const depEnd = end[dep] || base.end[dep]; if (!depEnd) return; const e = GD.parse(depEnd); if (!mx || e > mx) mx = e; }); s = mx ? GD.iso(GD.add(mx, 1 + (base.lag[a.id] ?? 0))) : base.start[a.id]!; }
-      s = GD.iso(firstWork(GD.parse(s)));
-      start[a.id] = s; dur[a.id] = d; end[a.id] = a.milestone ? s : workEnd(s, d);
+      s = GD.iso(firstWork(a, GD.parse(s)));
+      start[a.id] = s; dur[a.id] = d; end[a.id] = a.milestone ? s : workEnd(a, s, workDaysFor(a, d));
     };
     for (let p = 0; p < 6; p++) gdActs.forEach(compute);
     return { start, end, dur };
-  }, [durations, dragPreview, base, events, skipWeekends, gdActs]);
+  }, [durations, dragPreview, base, events, skipWeekends, gdActs, clampDuration]);
 
   // 受影响活动（动态）：eff 执行期与任一事件窗口重叠 → 高亮 · 用户决策 2026-06-01 晚2
   const affectedActs = useMemo(() => {
@@ -2671,14 +2919,23 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   const rows = useMemo<GdRow[]>(() => {
     const out: GdRow[] = [];
     GD_PHASES.forEach(ph => {
-      const items = gdActs.filter(a => a.phase === ph.key);
+      const items = gdActs.filter(a => a.phase === ph.key && (batchFilter === "all" || a.batch === batchFilter));
       if (!items.length) return;
       out.push({ type: "phase", phase: ph, items });
+      if (collapsedPhases.has(ph.key)) return;
       items.forEach(a => out.push({ type: "task", a }));
     });
     return out;
-  }, [gdActs]);
+  }, [gdActs, batchFilter, collapsedPhases]);
   const rowIndex = (id: string) => rows.findIndex(r => r.type === "task" && r.a.id === id);
+  const togglePhase = useCallback((phaseKey: string) => {
+    setCollapsedPhases(prev => {
+      const next = new Set(prev);
+      if (next.has(phaseKey)) next.delete(phaseKey);
+      else next.add(phaseKey);
+      return next;
+    });
+  }, []);
 
   const focusGanttAct = useCallback((id: string) => {
     setSel(id);
@@ -2694,12 +2951,13 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
       canvas.scrollLeft = Math.max(0, left + width / 2 - canvas.clientWidth / 2);
       const idx = rowIndex(id);
       if (idx >= 0 && listRef.current) {
-        const top = HEADER + idx * ROW_H;
+        const top = idx * ROW_H;
         const viewH = listRef.current.clientHeight;
         const target = Math.max(0, top - viewH / 2 + ROW_H / 2);
         listRef.current.scrollTop = target;
         canvas.scrollTop = target;
       }
+      if (axisRef.current) axisRef.current.style.transform = `translateX(${-canvas.scrollLeft}px)`;
     });
   }, [eff, range, dayW, gdActs]);
 
@@ -2731,8 +2989,8 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
         const depAct = gdActs.find(x => x.id === dep);
         if (!depAct) return;
         const fr = barRect(depAct), to = barRect(a);
-        const x1 = fr.left + fr.width, y1 = HEADER + di * ROW_H + ROW_H / 2;
-        const x2 = to.left, y2 = HEADER + ri * ROW_H + ROW_H / 2;
+        const x1 = fr.left + fr.width, y1 = di * ROW_H + ROW_H / 2;
+        const x2 = to.left, y2 = ri * ROW_H + ROW_H / 2;
         const midX = Math.max(x1 + 4, x2 - 7);
         out.push({ d: `M${x1} ${y1} L${midX} ${y1} L${midX} ${y2} L${x2 - 2} ${y2}`, crit: critIds.has(dep) && critIds.has(a.id), key: dep + "-" + a.id });
       });
@@ -2743,12 +3001,12 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   const beginDrag = (e: React.MouseEvent, a: GdAct) => {
     e.stopPropagation(); e.preventDefault(); if (a.milestone) return;
     const startX = e.clientX, startDays = eff.dur[a.id]!; let cur = startDays;
-    const onMove = (mv: MouseEvent) => { cur = Math.max(1, startDays + Math.round((mv.clientX - startX) / dayW)); setDragPreview({ id: a.id, days: cur }); };
+    const onMove = (mv: MouseEvent) => { cur = clampDuration(a.id, startDays + Math.round((mv.clientX - startX) / dayW)); setDragPreview({ id: a.id, days: cur }); };
     const onUp = () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); document.body.style.cursor = ""; document.body.style.userSelect = ""; if (cur !== startDays) setDurations(d => ({ ...d, [a.id]: cur })); setDragPreview(null); };
     document.body.style.cursor = "ew-resize"; document.body.style.userSelect = "none";
     window.addEventListener("mousemove", onMove); window.addEventListener("mouseup", onUp);
   };
-  const commitDur = (id: string, val: string) => { const n = Math.max(1, Math.round(Number(val) || 0)); if (n > 0) setDurations(d => ({ ...d, [id]: n })); setEditing(null); };
+  const commitDur = (id: string, val: string) => { const n = clampDuration(id, Number(val)); setDurations(d => ({ ...d, [id]: n })); setEditing(null); };
 
   const latestOnlineId = latestActId(gdActs.filter((a) => /上线/.test(a.name)));
   const finalActId = latestActId(gdActs.filter((a) => /移交|交付|里程碑/.test(a.name))) ?? latestActId(gdActs);
@@ -2759,7 +3017,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   const projAccept = finalActId ? (eff.start[finalActId] || base.start[finalActId] || projGo) : projGo;
   const modCount = Object.keys(durations).length;
   const gdDirty = modCount > 0 || skipWeekends;  // 做了调整(改工期/跳周末)才显「取消 / 保存并写回」（意外事件在基线处管理）· 用户决策 2026-06-01
-  const canvasW = range.days * dayW, canvasH = HEADER + rows.length * ROW_H;
+  const canvasW = range.days * dayW, canvasH = rows.length * ROW_H;
   const todayLeft = GD.diff(range.start, PROJECT_START) * dayW + dayW / 2; // 甘特 mock 指针；不参与倒排拖拽约束
   const totalPods = rooms.reduce((sum, room) => sum + room.pods.length, 0);
   const criticalNodeCount = gdActs.filter((activity) => critIds.has(activity.id)).length;
@@ -2784,7 +3042,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
           <div className="gd-head-r">
             {modCount > 0 && <button className="gd-btn" onClick={() => setDurations({})}>重置 {modCount} 项</button>}
             {gdDirty && <button className="gd-btn" onClick={onClose}>取消</button>}
-            {gdDirty && <button className="gd-btn pri" onClick={() => onSaved(durations)}>{I.check(13)} 保存并写回</button>}
+            {gdDirty && <button className="gd-btn pri" onClick={() => onSaved(saveableDurations)}>{I.check(13)} 保存并写回</button>}
           </div>
         </div>
 
@@ -2813,6 +3071,14 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
             <label><input type="checkbox" checked={showDeps} onChange={e => setShowDeps(e.target.checked)} /> 依赖线</label>
             <label><input type="checkbox" checked={showCrit} onChange={e => setShowCrit(e.target.checked)} /> 关键路径</label>
             <label><input type="checkbox" checked={skipWeekends} onChange={e => setSkipWeekends(e.target.checked)} /> 跳周末</label>
+            {batchOptions.length > 1 && (
+              <label className="gd-batch-filter">批次
+                <select value={batchFilter} onChange={e => setBatchFilter(e.target.value)}>
+                  <option value="all">全部</option>
+                  {batchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+              </label>
+            )}
           </div>
         </div>
 
@@ -2847,13 +3113,41 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
         {roRows.length > 0 && <WindowReadout rows={roRows} dim="all" axis={roAxis} collapsible />}
 
         {/* 甘特体撑成全高（所有行一次铺开）→ 整页 stage-wrap 滚动看全；+12 给画布横向滚动条(9px)留余量，避免触发纵向幻影滚动条 · 用户决策 2026-06-02 */}
-        <div className="gd-gantt" style={{ height: canvasH + 12 }}>
+        <div className="gd-gantt">
+          <div className="gd-headband">
+            <div className="gd-legend">
+              <span className="gd-leg-i"><i className="gd-leg-dia" /> 里程碑</span>
+              <span className="gd-leg-i"><i className="gd-leg-bar" /> 条色＝阶段</span>
+              <span className="gd-leg-i"><i className="gd-leg-crit" /> 关键路径</span>
+              <span className="gd-leg-i"><i className="gd-leg-aff" /> 受影响</span>
+              <span className="gd-leg-i"><i className="gd-ai-pill">AI</i> 倒推建议日</span>
+              <span className="gd-leg-i"><i className="gd-leg-dep" /> 依赖线</span>
+            </div>
+            <div className="gd-headrow">
+              <div className="gd-list-h"><span>活动</span><span>批次</span><span className="r">工期</span></div>
+              <div className="gd-axis-clip">
+                <div className="gd-chead" ref={axisRef} style={{ width: canvasW }}>
+                  <div className="gd-months">{months.map((m, i) => <div key={i} className="gd-month" style={{ width: m.days * dayW }}>{m.label}</div>)}</div>
+                  <div className="gd-days">{Array.from({ length: range.days }).map((_, i) => { const dt = GD.add(range.start, i); const we = GD.weekend(dt); const today = GD.iso(dt) === PROJECT_START; return <div key={i} className={"gd-day" + (we ? " we" : "") + (today ? " today" : "")} style={{ width: dayW }}>{dt.getUTCDate() % 2 === 0 ? dt.getUTCDate() : ""}</div>; })}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="gd-body" style={{ height: canvasH + 12 }}>
           <div className="gd-list" ref={listRef} onScroll={(e) => { if (canvasRef.current) canvasRef.current.scrollTop = e.currentTarget.scrollTop; }}>
-            <div className="gd-list-h"><span>活动</span><span>批次</span><span className="r">工期</span></div>
             {rows.map((r) => {
+              const collapsed = r.type === "phase" && collapsedPhases.has(r.phase.key);
               if (r.type === "phase") return (
                 <div className="gd-lrow phase" key={"p" + r.phase.key}>
-                  <span className="gd-lname"><i className="gd-sw" style={{ background: r.phase.color }} />{r.phase.name}<em>· {r.items.length}</em></span>
+                  <button
+                    className="gd-phase-btn"
+                    type="button"
+                    aria-expanded={!collapsed}
+                    onClick={() => togglePhase(r.phase.key)}
+                  >
+                    <span className="gd-phase-caret" aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+                    <span className="gd-lname"><i className="gd-sw" style={{ background: r.phase.color }} />{r.phase.name}<em>· {r.items.length}</em></span>
+                  </button>
                 </div>
               );
               const a = r.a as GdAct; const mod = durations[a.id] != null; const crit = showCrit && critIds.has(a.id); const aff = affectedActs.has(a.id);
@@ -2878,19 +3172,18 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                 if (sw) sw.scrollTop += e.deltaY;
               }
             }}
-            onScroll={(e) => { if (listRef.current) listRef.current.scrollTop = e.currentTarget.scrollTop; }}>
+            onScroll={(e) => {
+              if (listRef.current) listRef.current.scrollTop = e.currentTarget.scrollTop;
+              if (axisRef.current) axisRef.current.style.transform = `translateX(${-e.currentTarget.scrollLeft}px)`;
+            }}>
             <div style={{ width: canvasW, position: "relative" }}>
-              <div className="gd-chead">
-                <div className="gd-months">{months.map((m, i) => <div key={i} className="gd-month" style={{ width: m.days * dayW }}>{m.label}</div>)}</div>
-                <div className="gd-days">{Array.from({ length: range.days }).map((_, i) => { const dt = GD.add(range.start, i); const we = GD.weekend(dt); const today = GD.iso(dt) === PROJECT_START; return <div key={i} className={"gd-day" + (we ? " we" : "") + (today ? " today" : "")} style={{ width: dayW }}>{dt.getUTCDate() % 2 === 0 ? dt.getUTCDate() : ""}</div>; })}</div>
-              </div>
               <div className="gd-grid" style={{ height: rows.length * ROW_H }}>
                 <div className="gd-today" style={{ left: todayLeft, height: rows.length * ROW_H }} />
                 {events.map(ev => (
                   <div className={"gd-exc-band" + (ev.kind === "efficiency" ? " eff" : "")} key={ev.id} title={ev.label}
                     style={{ left: GD.diff(range.start, GD.parse(ev.start)) * dayW, width: (GD.diff(GD.parse(ev.start), GD.parse(ev.end)) + 1) * dayW, height: rows.length * ROW_H }} />
                 ))}
-                {showDeps && <svg className="gd-deps" width={canvasW} height={canvasH} style={{ top: -HEADER }}>
+                {showDeps && <svg className="gd-deps" width={canvasW} height={canvasH}>
                   <defs>
                     <marker id="gd-arr" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 1 L6 4 L0 7 Z" fill="#94a3b8" /></marker>
                     <marker id="gd-arrc" viewBox="0 0 8 8" refX="6" refY="4" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 1 L6 4 L0 7 Z" fill="#CE382F" /></marker>
@@ -2909,13 +3202,12 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                             style={{ left: rect.left, width: rect.width, background: gdPhase(a.phase).color }}
                             onClick={() => focusGanttAct(a.id)} title={a.name}>
                             <div className="gd-prog" style={{ width: (a.progress * 100) + "%" }} />
-                            <span className="gd-bar-lab">{a.ai && <i className="gd-bar-ai">AI</i>}{a.name}</span>
                             <div className="gd-grip" title="拖拽改工期" onMouseDown={(e) => beginDrag(e, a)} />
                           </div>}
                       {!a.milestone && <div className={"gd-dur" + (mod ? " mod" : "") + (dragging ? " dragging" : "")} style={{ left: rect.left + rect.width + 5 }}
                         onClick={(e) => { e.stopPropagation(); setEditing(a.id); }} title="点击改工期">
                         {editing === a.id
-                          ? <input type="number" min="1" autoFocus defaultValue={eff.dur[a.id]} onClick={e => e.stopPropagation()} onBlur={e => commitDur(a.id, e.target.value)} onKeyDown={e => { if (e.key === "Enter") commitDur(a.id, (e.target as HTMLInputElement).value); else if (e.key === "Escape") setEditing(null); }} />
+                          ? <input type="number" min={minDuration(a.id)} autoFocus defaultValue={eff.dur[a.id]} onClick={e => e.stopPropagation()} onBlur={e => commitDur(a.id, e.target.value)} onKeyDown={e => { if (e.key === "Enter") commitDur(a.id, (e.target as HTMLInputElement).value); else if (e.key === "Escape") setEditing(null); }} />
                           : <><span>{eff.dur[a.id]}</span><span className="u">d</span>{mod && <span className="o">原 {base.dur[a.id]}d</span>}</>}
                       </div>}
                     </div>
@@ -2923,6 +3215,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                 })}
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -3039,12 +3332,13 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
   const [sel,setSel] = useState<number | null>(null);  // 用户点击回看的 step（null=跟随直播）
   const [picked,setPicked] = useState<string | null>(null);  // 选中机房
   const [selPlan,setSelPlan] = useState<string | null>(null);
-  // 排期步内部状态机（init 倒排页）：倒排建议 → 思考 → 多策略方案 · 用户决策 2026-05-30
+  // 排期步内部状态机：init 首版先出倒排建议；人工确认调整后复用推演 → 多策略方案。
   // 排期步状态机 · 用户决策 2026-05-30：
-  //   init（信息少）：thinking（思考动画）→ result（倒排结果，点批次开甘特），无 confirm/ABC
+  //   init（信息少）：thinking（思考动画）→ result（倒排结果）；人工改动后 thinking → plans（ABC）
   //   adjust（信息全）：backward（基线·可拖）→ thinking → plans（ABC）→ 甘特
   const phase0: "backward" | "result" | "thinking" | "plans" = mode === "adjust" ? "backward" : "thinking";
   const [schedPhase,setSchedPhase] = useState<"backward" | "result" | "thinking" | "plans">(phase0);
+  const [initAdjustFlow, setInitAdjustFlow] = useState(false);
   const [gantt,setGantt] = useState<{ title: string; back: string; optionId?: string } | null>(null);  // 打开的甘特详情（标题 + 返回文案）
   const [ganttReturn,setGanttReturn] = useState<number | null>(null);  // 从顶栏入口打开甘特时，记录返回的步
   const [panelOpen,setPanelOpen] = useState(false);  // 调整面板（路径③）开关 · 用户决策 2026-05-31
@@ -3122,9 +3416,10 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     });
     return () => controller.abort();
   }, [initialData, mode]);
+  const ganttInputs = useMemo(() => buildGenerateRequest({ rooms, batches, teams }).inputs, [rooms, batches, teams]);
   const generatedSchedule = useMemo(
-    () => (generateResponse ? mapGenerateResponseToGantt(generateResponse, batches, rooms) : null),
-    [generateResponse, batches, rooms],
+    () => (generateResponse ? mapGenerateResponseToGantt(generateResponse, batches, rooms, ganttInputs) : null),
+    [generateResponse, batches, rooms, ganttInputs],
   );
   const [adjustStatus, setAdjustStatus] = useState<"idle" | "loading" | "api" | "mock" | "fallback">("idle");
   const [adjustResponse, setAdjustResponse] = useState<AdjustResponse | null>(null);
@@ -3144,11 +3439,12 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       risks: selectedAdjustOption.risks ?? [],
       unmet: [],
       explanation: { is_initial: false, strategy_used: selectedAdjustOption.strategy },
-    }, batches, rooms);
-  }, [batches, rooms, selectedAdjustOption]);
+    }, batches, rooms, ganttInputs);
+  }, [batches, rooms, selectedAdjustOption, ganttInputs]);
   const activeSchedule = selectedAdjustSchedule ?? generatedSchedule;
-  const recommendedPlanId = useMemo(
-    () => adjustPlans.find(plan => plan.rec)?.id ?? adjustPlans[0]?.id ?? null,
+  // 默认选中第一张（删★写死推荐后·三卡平等·业务自选；保留默认选中以维持「确认&下发」流程不空）
+  const defaultPlanId = useMemo(
+    () => adjustPlans[0]?.id ?? null,
     [adjustPlans],
   );
   const [toast, setToast] = useState<string | null>(null);
@@ -3219,13 +3515,23 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       return next;
     });
     setRooms(nextRooms);
-    setGenerateResponse(null);
-    console.info("[T-012] suggested date confirmed", { kind: input.kind, batch_id: input.batchId, date: input.date, rooms: changedReadyRooms, pods: changedArrivalPods });
-    runGenerateSchedule({ rooms: nextRooms, batches, teams }, "[T-012]");
-  }, [batches, rooms, runGenerateSchedule, teams]);
+    setChanges(prev => {
+      const next = new Set(prev);
+      changedReadyRooms.forEach(code => next.add("room:" + code));
+      changedArrivalPods.forEach(id => next.add("pod:" + id));
+      return next;
+    });
+    console.info("[T-030] suggested date pinned", { kind: input.kind, batch_id: input.batchId, date: input.date, rooms: changedReadyRooms, pods: changedArrivalPods });
+  }, [rooms]);
   // 单一触发：跨页累计的变更交 Agent 重新推演（→ 排期步 → 思考 → ABC），并清零（若在看甘特则先收起）
   const runReschedule = () => {
     const changeKeys = Array.from(changes);
+    const initRows = !isAdjust ? currentInitSuggestionRows(batches, rooms, generatedSchedule?.rows, confirmedSuggestions) : [];
+    const rescheduleRooms = !isAdjust ? materializeInitSuggestionRows(rooms, batches, initRows, confirmedSuggestions) : rooms;
+    if (!isAdjust) {
+      setInitAdjustFlow(true);
+      setRooms(rescheduleRooms);
+    }
     setGantt(null);
     setGanttReturn(null);
     setSel(4);
@@ -3236,14 +3542,15 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     setAdjustmentReportOpen(false);
     setDurationOverridesByOption({});
     setAdjustStatus("loading");
-    void adjustSchedule({ rooms, batches, teams, changeKeys, incidents: schedEvents }).then((result) => {
+    void adjustSchedule({ rooms: rescheduleRooms, batches, teams, changeKeys, incidents: schedEvents }).then((result) => {
+      const logTag = isAdjust ? "[T-011]" : "[T-030]";
       if (result.source === "api") {
         setAdjustResponse(result.response);
         setAdjustStatus("api");
-        console.info("[T-011] /adjust api connected", { options: result.response.options.map(option => option.option_id), baseline: result.baseline });
+        console.info(`${logTag} /adjust api connected`, { options: result.response.options.map(option => option.option_id), baseline: result.baseline });
       } else {
         setAdjustStatus(result.reason === "forced" ? "mock" : "fallback");
-        console.warn("[T-011] /adjust fallback to mock", { reason: result.reason, error: result.error });
+        console.warn(`${logTag} /adjust fallback to mock`, { reason: result.reason, error: result.error, detail: logDetail(result.error) });
       }
     });
     setChanges(new Set());
@@ -3396,7 +3703,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       const code = "M" + (maxRoomNum + 1);
       const readyBatch = "B-ready-" + (batchIdx + 1);
       const newRoom: RoomRow = {
-        code, proj: "智算一期", gx, gy, site: "pending", readyBatch, goLiveBatch: batchId,
+        code, proj: rs[0]?.proj ?? BATCH.group, gx, gy, site: "pending", readyBatch, goLiveBatch: batchId,
         pods: [
           { id: "P-" + String(maxPodNum + 1).padStart(2,"0"), arrival: "unknown", etaLabel: "待定", status: "pending", goLiveBatch: batchId },
           { id: "P-" + String(maxPodNum + 2).padStart(2,"0"), arrival: "unknown", etaLabel: "待定", status: "pending", goLiveBatch: batchId },
@@ -3415,10 +3722,10 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     return ()=>clearTimeout(id);
   },[started,paused,clk]);
 
-  // 推荐方案在揭示时默认选中；真接口返回后若选项 id 变化，同步到推荐项
+  // 揭示时默认选中第一张；真接口返回后若选项 id 变化，回落到默认项（业务可改选·无推荐倾向）
   useEffect(()=>{
-    if(clk>=20 && recommendedPlanId && (!selPlan || !adjustPlans.some(plan => plan.id === selPlan))) setSelPlan(recommendedPlanId);
-  },[adjustPlans, clk, recommendedPlanId, selPlan]);
+    if(clk>=20 && defaultPlanId && (!selPlan || !adjustPlans.some(plan => plan.id === selPlan))) setSelPlan(defaultPlanId);
+  },[adjustPlans, clk, defaultPlanId, selPlan]);
   // 「计划调整」卡的实时状态 → Claw 侧栏 · 用户决策 2026-05-31：缺口(站/货/人) + 待推演变更数 + 模式；
   // ready=clk 到末才出卡；deps 含 rooms/teams/changes，改完即随动（init 实时补齐 / adjust 累计变更）
   useEffect(()=>{
@@ -3448,6 +3755,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     setPicked(null);
     setSelPlan(null);
     setSchedPhase(phase0);
+    setInitAdjustFlow(false);
     setGantt(null);
     setGenerateResponse(null);
     setGenerateStatus(isAdjust ? "idle" : "loading");
@@ -3469,7 +3777,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       });
     }
   }, [batches, isAdjust, phase0, rooms, runGenerateSchedule, teams]);
-  const replay = ()=>{ setClk(0); setSel(null); setPicked(null); setSelPlan(null); setSchedPhase(phase0); setGantt(null); setAdjustResponse(null); setDurationOverridesByOption({}); setAdjustStatus("idle"); setPaused(false); };
+  const replay = ()=>{ setClk(0); setSel(null); setPicked(null); setSelPlan(null); setSchedPhase(phase0); setInitAdjustFlow(false); setGantt(null); setAdjustResponse(null); setDurationOverridesByOption({}); setAdjustStatus("idle"); setPaused(false); };
   // 调试钩子（预览用：jump/end 会暂停时钟以定格在目标步，便于查 DOM）
   useEffect(()=>{ window.__aida = {
     start,
@@ -3554,12 +3862,12 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
 
         {started && <Stepper clk={clk} view={view} onPick={(n)=>setSel(n===activeStep?null:n)} rooms={rooms} isAdjust={isAdjust}/>}
 
-        {/* 跨步常驻飘红：站/货/人/排期 任一步有数据变动即提示确认重排（adjust）· 用户决策 2026-05-31 */}
-        {started && isAdjust && changes.size > 0 && (
+        {/* 跨步常驻飘红：站/货/人/排期 任一步有数据变动即提示确认推演 · init/adjust 共用 */}
+        {started && changes.size > 0 && (
           <div className="resched-banner">
             <span className="rb-dot"/>
-            <span className="rb-msg">已修改 <b className="tnum">{changes.size}</b> 项信息 · 确认后由 Agent 重新推演排期</span>
-            <button className="rb-btn" onClick={runReschedule}>确认调整需求，排期推演</button>
+            <span className="rb-msg">已修改 <b className="tnum">{changes.size}</b> 项信息 · 确认后由 Agent 进行排期推演</span>
+            <button className="rb-btn" onClick={runReschedule}>确认调整，进行排期推演</button>
           </div>
         )}
 
@@ -3572,7 +3880,9 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
                 curStep.key === "goods" ? "货 · 识别每个机房里安装哪些 PoD,对应到货是否就绪" :
                 curStep.key !== "plan"  ? curStep.lbl :
                 !isAdjust
-                  ? (schedPhase==="thinking" ? "排期 · 正在推算就位建议…" : "排期 · 上线目标 → 建议到货 / 机房就位")
+                  ? (initAdjustFlow
+                      ? (schedPhase==="thinking" ? "排期 · 正在排期推演…" : schedPhase==="plans" ? "排期 · 多策略方案 · 择优进入排期详情" : "排期 · 上线目标 → 建议到货 / 机房就位")
+                      : (schedPhase==="thinking" ? "排期 · 正在推算就位建议…" : "排期 · 上线目标 → 建议到货 / 机房就位"))
                   : (schedPhase==="backward" ? "排期 · 当前基线 · 拖动目标后点「调整推演」"
                      : schedPhase==="thinking" ? "排期 · 正在重新计算多策略方案…"
                      : "排期 · 多策略方案 · 择优进入排期详情")
@@ -3591,9 +3901,12 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
                 initialDurationOverrides={gantt.optionId ? durationOverridesByOption[gantt.optionId] : undefined}
                 onClose={()=>{ setGantt(null); if(ganttReturn!=null){ setSel(ganttReturn===activeStep?null:ganttReturn); setGanttReturn(null); } }}
                 onSaved={saveGanttDurationOverrides}/>}
-            {/* —— init（信息少 / 倒排）：思考 → 倒排结果（点批次开甘特），无 confirm / ABC —— */}
+            {/* —— init（信息少 / 倒排）：首版思考 → 倒排结果；人工确认调整后 → ABC —— */}
             {view===4 && !isAdjust && !gantt && schedPhase==="thinking" &&
-              <ScheduleThinking steps={THINK_STEPS_SUGGEST} title="AIDA 正在推算就位建议…" onDone={()=>setSchedPhase("result")}/>}
+              <ScheduleThinking
+                steps={initAdjustFlow ? THINK_STEPS_ABC : THINK_STEPS_SUGGEST}
+                title={initAdjustFlow ? "AIDA 正在排期推演…" : "AIDA 正在推算就位建议…"}
+                onDone={()=>setSchedPhase(initAdjustFlow ? "plans" : "result")}/>}
             {view===4 && !isAdjust && !gantt && schedPhase==="result" &&
               <BackwardSchedule batches={batches} rooms={rooms} updateBatch={updateBatch}
                 generatedRows={generatedSchedule?.rows}
@@ -3608,12 +3921,12 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
                 events={schedEvents} onAddEvent={addSchedEvent} onRemoveEvent={removeSchedEvent}/>}
             {view===4 && isAdjust && !gantt && schedPhase==="thinking" &&
               <ScheduleThinking onDone={()=>setSchedPhase("plans")}/>}
-            {view===4 && isAdjust && !gantt && schedPhase==="plans" && (<>
+            {view===4 && (isAdjust || initAdjustFlow) && !gantt && schedPhase==="plans" && (<>
               <div className="sched-back fade">
-                <button className="sched-back-btn" onClick={()=>setSchedPhase("backward")}>← 返回调整目标</button>
+                <button className="sched-back-btn" onClick={()=>setSchedPhase(isAdjust ? "backward" : "result")}>{isAdjust ? "← 返回调整目标" : "← 返回就位建议"}</button>
                 <span className="sched-back-tip">选定方案后点「排期详情」进入可编辑甘特</span>
               </div>
-              <CompressionPlans clk={TOTAL} selPlan={selPlan} onSelPlan={setSelPlan} onDispatch={runDispatch} plans={adjustPlans} onOpenGantt={(id)=> setGantt({ title: adjustPlans.find(p=>p.id===id)?.name ?? id, back: "← 返回方案", optionId: id })}/>
+              <CompressionPlans clk={TOTAL} selPlan={selPlan} onSelPlan={setSelPlan} onDispatch={runDispatch} plans={adjustPlans} gap={adjustResponse?.gap ?? null} onOpenGantt={(id)=> setGantt({ title: adjustPlans.find(p=>p.id===id)?.name ?? id, back: "← 返回方案", optionId: id })}/>
             </>)}
           </>)}
         </div>
