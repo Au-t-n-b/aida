@@ -12,7 +12,7 @@
 // 配置文件（Config File Provider · 仅 agent/.env）：
 //   - aida-231-agent-env  ← 模板见 jenkins/aida-231-agent.env.example
 //
-// 远程部署脚本见 Deploy stage 内 writeFile deploy-remote.sh
+// 远程部署：scp compose + agent.env，ssh 内联 bash；Harbor 凭据经 stdin 登录，无临时文件
 // Webhook 防抖：quietPeriod=1800（30 分钟），见 240 aida-deploy config.xml。
 // ============================================================
 
@@ -102,21 +102,20 @@ pipeline {
                         configFileProvider([
                             configFile(fileId: "${env.CF_AGENT_ENV}", targetLocation: 'agent.env'),
                         ]) {
-                            writeFile file: 'harbor-deploy.env', text: """\
-HARBOR_PASS=${env.HARBOR_PASS}
-HARBOR_USER='${env.HARBOR_USER}'
-REGISTRY=${env.DOCKER_REGISTRY}
-"""
-                            writeFile file: 'deploy-remote.sh', text: """\
-#!/usr/bin/env bash
+                            sh """
+                                set -e
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
+                                    'mkdir -p ${DEPLOY_DIR}/agent ${DEPLOY_DIR}/logs/agent'
+                                scp -o StrictHostKeyChecking=no docker-compose.yml \\
+                                    root@${DEPLOY_HOST}:${DEPLOY_DIR}/
+                                scp -o StrictHostKeyChecking=no agent.env \\
+                                    root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
+                                echo "\$HARBOR_PASS" | ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
+                                    "docker login ${DOCKER_REGISTRY} -u \$HARBOR_USER --password-stdin"
+                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} bash -s <<'EOS'
 set -euo pipefail
-DEPLOY_DIR="\${DEPLOY_DIR:-${env.DEPLOY_DIR}}"
-cd "\${DEPLOY_DIR}"
+cd ${DEPLOY_DIR}
 mkdir -p logs/agent
-set -a
-source /tmp/harbor-deploy.env
-set +a
-printf '%s' "\${HARBOR_PASS}" | docker login "\${REGISTRY}" -u "\${HARBOR_USER}" --password-stdin
 docker compose pull
 docker compose up -d --remove-orphans
 docker compose ps
@@ -124,21 +123,11 @@ docker compose ps --status running | grep -q aida-agent
 docker compose ps --status running | grep -q aida-manager
 docker compose ps --status running | grep -q aida-frontend
 docker image prune -f
-docker logout "\${REGISTRY}" || true
-rm -f /tmp/harbor-deploy.env /tmp/deploy-remote.sh
+docker logout ${DOCKER_REGISTRY} || true
 echo '=== Container Status ==='
 docker compose ps
-"""
-                            sh """
-                                set -e
-                                chmod +x deploy-remote.sh
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} 'mkdir -p ${DEPLOY_DIR}/agent ${DEPLOY_DIR}/logs/agent'
-                                scp -o StrictHostKeyChecking=no docker-compose.yml root@${DEPLOY_HOST}:${DEPLOY_DIR}/
-                                scp -o StrictHostKeyChecking=no agent.env root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
-                                scp -o StrictHostKeyChecking=no harbor-deploy.env deploy-remote.sh root@${DEPLOY_HOST}:/tmp/
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \
-                                    'DEPLOY_DIR=${DEPLOY_DIR} chmod +x /tmp/deploy-remote.sh && bash /tmp/deploy-remote.sh'
-                                rm -f harbor-deploy.env deploy-remote.sh agent.env
+EOS
+                                rm -f agent.env
                             """
                         }
                     }
