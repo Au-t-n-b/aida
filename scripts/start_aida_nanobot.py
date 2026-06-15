@@ -237,7 +237,8 @@ def start_frontend() -> subprocess.Popen | None:
         print("[frontend] dist/ not found, skip")
         return None
     py = _venv_python()
-    cmd = [py, "-m", "http.server", "8080", "--bind", "0.0.0.0", "--directory", str(dist)]
+    spa = ROOT / "scripts" / "spa_static_server.py"
+    cmd = [py, str(spa), "--host", "0.0.0.0", "--port", "8080", "--directory", str(dist)]
     return _popen(cmd, log_name="aida-liwen-frontend.log")
 
 
@@ -254,6 +255,7 @@ def verify(*, mailgw_started: bool = False) -> bool:
         ("backend", "http://127.0.0.1:7401/healthz"),
         ("ontology", f"http://127.0.0.1:{_backend_app_port()}/api/v2/ontologies"),
         ("frontend", "http://127.0.0.1:8080/"),
+        ("frontend-spa", "http://127.0.0.1:8080/proposal"),
     ]
     if mailgw_started:
         checks.insert(3, ("mailgw", f"http://127.0.0.1:{_mailgw_port()}/admin"))
@@ -269,11 +271,11 @@ def verify(*, mailgw_started: bool = False) -> bool:
                 print(f"[verify] {name}: HTTP {e.code} (auth required, ok)")
             else:
                 print(f"[verify] {name} FAIL: HTTP {e.code}")
-                if name not in ("frontend",):
+                if name not in ("frontend", "frontend-spa"):
                     ok = False
         except Exception as e:
             print(f"[verify] {name} FAIL: {e}")
-            if name not in ("frontend", "ontology"):
+            if name not in ("frontend", "frontend-spa", "ontology"):
                 ok = False
     return ok
 
@@ -283,6 +285,7 @@ def stop_old() -> None:
         "uvicorn manager.main",
         "uvicorn agent.main",
         "uvicorn backend_app",
+        "spa_static_server.py",
         "http.server 8080",
         "nanobot serve",
         "nanobot.cli.commands serve",

@@ -8,6 +8,7 @@ import { useCurrentProject } from '@/lib/current-project';
 import { useTweaks } from '@/lib/tweaks-context';
 import { getWorkspaceMeta } from '@/lib/workspace-meta';
 import { navDebug, navDebugDomSnapshot, navDebugHintOnce, navDebugWarn } from '@/lib/nav-debug';
+import { workspaceOutletKey, workspaceRoutePathKey } from '@/lib/workspace-nav-link';
 
 function PageSwitchFallback() {
   return (
@@ -38,8 +39,15 @@ export default function WorkspaceShell() {
   const prevPathRef = useRef('');
 
   const meta = getWorkspaceMeta(location.pathname, location.search, project);
-  const routeKey = `${location.pathname}${location.search}`;
-  const isNavigating = navigation.state === 'loading';
+  const pathKey = workspaceRoutePathKey(location.pathname, location.search);
+  const routeKey = workspaceOutletKey(location);
+  const pendingPathKey = navigation.location
+    ? workspaceRoutePathKey(navigation.location.pathname, navigation.location.search ?? '')
+    : '';
+  const isNavigating =
+    navigation.state === 'loading'
+    && pendingPathKey !== ''
+    && pendingPathKey !== pathKey;
 
   useEffect(() => {
     navDebugHintOnce();
