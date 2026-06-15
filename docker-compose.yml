@@ -1,15 +1,19 @@
 # ============================================================
-# AIDA · 231 容器编排（/home/aida）
+# AIDA · 231 Docker 编排（/home/aida）
 # ============================================================
-# 对外入口：https://aida.rnd.huawei.com（nginx-231-internal → aida-frontend:8080）
-# 不映射 8080/8081/7401 到宿主机，避免与 /opt/aida_liwen 裸金属冲突。
-# 可选调试：取消注释 frontend 的 ports 18080:8080（+10000 偏移）。
+# 【231 宿主机端口 · 手动部署已占用 · Docker 禁止 bind 这些端口】
+#   AIDA 前端 8080 | Manager 8081 | Agent 7401
+#   数据中心前端 5173 | 数据中心后端 8000
+# 容器内仍可用 8080/8081/7401（仅 aida-net 内网 DNS），与宿主机不冲突。
 #
-# 首次部署（231 上执行一次）：
-#   mkdir -p /home/aida/agent
-#   cp agent/.env.example /home/aida/agent/.env   # 填入 ZHIPU_API_KEY 等
-#   # 编辑 agent/.env：DATA_CENTER_BASE_URL、AIDA_AGENT_BASE_URL（见 example 顶部说明）
-#   docker compose up -d
+# 对外入口：https://aida.rnd.huawei.com
+#   nginx-backend（nginx-231-internal）→ aida-frontend:8080（容器内，非宿主机 8080）
+#   frontend 容器内再反代 manager:8081 / agent:7401（均不暴露宿主机）
+# 宿主机不映射 8080/8081/7401；可选调试 ports: "18080:8080"（+10000 偏移）。
+# 访问宿主机数据中心 API：agent/.env 设 DATA_CENTER_BASE_URL=http://host.docker.internal:8000
+#
+# 首次：mkdir -p /home/aida/agent && 配置 agent/.env（Jenkins Managed file 下发）
+# 启动：docker compose up -d
 # ============================================================
 
 name: aida
