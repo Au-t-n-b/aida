@@ -1,4 +1,96 @@
 {
+  "PRO20250108100603": [
+    {
+      "filename": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx",
+      "path": "boq/JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx",
+      "size": 41584,
+      "uploaded_at": "2026-06-12T07:03:58.239326+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "设备",
+      "status": "已发布"
+    },
+    {
+      "filename": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx",
+      "path": "boq/JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_年费_0R00Hz00833627202602060008_不含价格.xlsx",
+      "size": 41701,
+      "uploaded_at": "2026-06-12T07:03:58.244425+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "设备",
+      "status": "已发布"
+    },
+    {
+      "filename": "JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx",
+      "path": "boq/JXX-50POD-AI计算规划设计实施_宝德_10POD_from_g00589288_0000Hz00538459202602060034_不含价格.xlsx",
+      "size": 44767,
+      "uploaded_at": "2026-06-12T07:03:58.250869+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "服务",
+      "status": "已发布"
+    },
+    {
+      "filename": "JXX-50POD-维保_介质保留_E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx",
+      "path": "boq/JXX-50POD-维保_介质保留_E站_BD_10POD_0000Hz00538459202602060038_不含价格.xlsx",
+      "size": 45363,
+      "uploaded_at": "2026-06-12T07:03:58.257545+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "设备",
+      "status": "已发布"
+    },
+    {
+      "filename": "JXX-50POD-液冷保障_重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx",
+      "path": "boq/JXX-50POD-液冷保障_重保_BD_10POD_from_g00589288_0000Hz00538459202602060042_不含价格.xlsx",
+      "size": 49227,
+      "uploaded_at": "2026-06-12T07:03:58.264414+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "设备",
+      "status": "已发布"
+    },
+    {
+      "filename": "JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx",
+      "path": "boq/JXX50个POD-集群集成支持_BD_10POD_from_g00589288_0000Hz00538459202602060036_不含价格.xlsx",
+      "size": 44587,
+      "uploaded_at": "2026-06-12T07:03:58.267956+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "服务",
+      "status": "已发布"
+    },
+    {
+      "filename": "JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx",
+      "path": "boq/JXX计算驻场-4人年_BD_10POD_from_g00589288_0000Hz00538459202602060040_不含价格.xlsx",
+      "size": 45038,
+      "uploaded_at": "2026-06-12T07:03:58.274556+00:00",
+      "contract_no": "1Y01012602830P",
+      "version": "V1.0",
+      "sales_type": "服务",
+      "status": "已发布"
+    },
+    {
+      "filename": "京东科技网络设备_64pcsCE16800-X16_拆分_年费_0R00Hc00847542202511200002_不含价格.xlsx",
+      "path": "boq/京东科技网络设备_64pcsCE16800-X16_拆分_年费_0R00Hc00847542202511200002_不含价格.xlsx",
+      "size": 45022,
+      "uploaded_at": "2026-06-12T08:57:50.859951+00:00",
+      "contract_no": "1Y01052511770A",
+      "version": "V1.0",
+      "sales_type": "设备",
+      "status": "已发布"
+    },
+    {
+      "filename": "京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.xlsx",
+      "path": "boq/京东科技网络设备_64pcsCE16800-X16_拆分_设备及服务_0X00Hc00847542202511200002_不含价格.xlsx",
+      "size": 53006,
+      "uploaded_at": "2026-06-12T08:57:50.863951+00:00",
+      "contract_no": "1Y01052511770A",
+      "version": "V1.0",
+      "sales_type": "设备",
+      "status": "已发布"
+    }
+  ],
   "PROP-2026-K1903": [
     {
       "filename": "JXX26年昇腾液冷超节点框架-BD-CCAE-软件_拆分_License_0L00Hz00833627202602060008_不含价格.xlsx",

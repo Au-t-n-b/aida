@@ -13,6 +13,7 @@ Metrics 键约定（di_ 命名空间，由 task_store.task_summary 写入）：
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any, Literal
 
@@ -166,9 +167,46 @@ def _show_task_progress(state: dict[str, Any]) -> bool:
     return _esn_fill_done(state) or _pipeline_done(state)
 
 
+def _sanitize_preflight_log_line(line: str) -> str | None:
+    """环境预检 log_tail：仅保留设计稿 6 行，丢弃历史 LLM 摘要/思考链残留。"""
+    s = str(line or "").strip()
+    if not s:
+        return None
+    noise = (
+        "redacted_thinking", "说明提到", "用户要求", "不要加标号",
+        "已解析任务数", "主建设流程解析", "AI 摘要", "整体状态为",
+        "建议下一步", "预检结论", "勾选下发",
+    )
+    if any(n in s for n in noise):
+        return None
+    if "正在扫描设备安装环境" in s:
+        return "正在扫描设备安装环境…"
+    if "正在校验上游交付计划表" in s:
+        return "正在校验上游交付计划表…"
+    if "LLM 摘要跳过" in s:
+        return "LLM 摘要跳过"
+    m = re.match(r"^([✓√✗])\s*(交付计划表|设备位置表|到货信息表)[:：]\s*(.+)$", s)
+    if m:
+        mark = "√" if m.group(1) in ("√", "✓") else "✗"
+        return f"{mark} {m.group(2)}：{m.group(3).strip()}"
+    return None
+
+
+def _sanitize_stepper_logs(state: dict[str, Any], stepper_card: SduiCardNode) -> SduiCardNode:
+    """设备安装：步骤条不嵌 log_tail（逐节点日志在左栏独立 AIDA 卡片展示）。"""
+    children = list(stepper_card.children or [])
+    if not children or children[0].type != "Stepper":
+        return stepper_card
+    stepper = children[0]
+    steps = [st.model_copy(update={"detail": None}) for st in (stepper.steps or [])]
+    new_stepper = stepper.model_copy(update={"steps": steps})
+    return stepper_card.model_copy(update={"children": [new_stepper]})
+
+
 def _build_di_stepper(state: dict[str, Any]) -> SduiCardNode:
     """执行进度：Stepper 横向步骤条（组件库 SduiStepper horizontal）。"""
     base = build_stepper(state, step_names=DI_STEP_NAMES, orientation="horizontal")
+    base = _sanitize_stepper_logs(state, base)
     return SduiCardNode(
         id="stepper",
         title="设备安装 · 执行进度",
@@ -319,6 +357,7 @@ def _wrap_table_gantt_tabs(flat: SduiNode, rows: list[Any], hitl_step: str) -> S
     return SduiTabGroupNode(
         id=f"view-tabs-{hitl_step}",
         activeTab="table",
+        keepAlive=True,
         tabs=[
             SduiTabPanel(id="table", label="表格", children=[flat]),
             SduiTabPanel(id="gantt", label="甘特图", children=[gantt]),
@@ -476,12 +515,26 @@ def _sdui_meta(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _run_has_started(state: dict[str, Any]) -> bool:
+    """run 已启动但 steps 尚未落盘（节点切换 / SSE 重连快照）。"""
+    if not state.get("run_id"):
+        return False
+    logs = state.get("logs") or []
+    return any("[start]" in str(l) for l in logs)
+
+
 def project(state: dict[str, Any]) -> dict[str, Any]:
     """SkillState → SduiDocument（横向 Stepper + 主内容区）。"""
     status_key, _ = overall_status(state, DI_STEP_ORDER, paused_badge="待补充")
     is_idle = status_key == "idle"
 
     if is_idle:
+        if _run_has_started(state):
+            doc = SduiDocument(
+                root=SduiStackNode(id="di-root", gap="sm", children=[_build_di_stepper(state)]),
+                meta=_sdui_meta(state),
+            )
+            return dump_sdui_json(doc)
         doc = SduiDocument(
             root=SduiStackNode(id="di-root", gap="sm", children=[]),
             meta={**_sdui_meta(state), "suppress_idle_panel": True},

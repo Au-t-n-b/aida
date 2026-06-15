@@ -20,8 +20,10 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -1659,13 +1661,7 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
-            # 中间对话框：开一个该节点的日志气泡
-            if not _suppress_aux_run_log(d["step"]) and (
-                (not suppress_replay) or (d["step"] not in _runlog_logged)
-            ):
-                _runlog_shown_pass.add(d["step"])
-                _runlog_logged.add(d["step"])
-                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
+            # 左栏日志气泡在首条 step_log 时创建（HITL 仅 check_inputs 无 emit 的步骤不空开卡）
 
         elif ev == "step_log":
             d = item["data"]
@@ -1677,7 +1673,11 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
             # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
-            if step_key in _runlog_shown_pass:
+            if not _suppress_aux_run_log(step_key) and (
+                (not suppress_replay) or (step_key not in _runlog_logged)
+            ):
+                _runlog_shown_pass.add(step_key)
+                _runlog_logged.add(step_key)
                 _push_run_log({
                     "step": step_key,
                     "name": (running or {}).get("name", ""),
@@ -1712,10 +1712,10 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                     _dsteps = diff.get("steps") if isinstance(diff, dict) else None
                     if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
                         _last_status = _dsteps[-1].get("status", "")
-                    if _last_status in ("completed", "failed"):
+                    if _last_status in ("completed", "failed", "hitl"):
                         await queue.put({"event": "run_log", "data": {
                             "step": node_name,
-                            "phase": "done" if _last_status == "completed" else "failed",
+                            "phase": "done" if _last_status in ("completed", "hitl") else "failed",
                         }})
                 # system_design：新 HITL 门出现 → 归档弹框内容到 conv_log（对话区累积展示）
                 if skill_id == "system_design":

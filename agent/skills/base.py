@@ -501,6 +501,13 @@ class BaseSkill(abc.ABC):
                 except Exception:
                     pass
 
+        # 进入 step 即通知前端（含 check_inputs 耗时阶段，如设备安装解析 Excel）
+        if _push is not None:
+            try:
+                _push({"event": "step_started", "data": {"step": step.key, "name": step.name}})
+            except Exception:
+                pass
+
         # 前置检查
         check = step.check_inputs(ctx)
         if not check["ok"]:
@@ -532,13 +539,6 @@ class BaseSkill(abc.ABC):
                     "need_edit": check.get("need_edit"),
                 },
             }
-
-        # 通知前端：step 真正开始执行（Stepper 节点变蓝 / 进入 running 态）
-        if _push is not None:
-            try:
-                _push({"event": "step_started", "data": {"step": step.key, "name": step.name}})
-            except Exception:
-                pass
 
         # 真实执行
         try:

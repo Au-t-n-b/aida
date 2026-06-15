@@ -42,18 +42,21 @@ export type MyProjectsQuery = {
 
 export type CreateProjectBody = {
   projectName: string;
+  /** 必填：预销售合同 | 标准合同 */
+  contractType: string;
   projectCode?: string;
   bidCode?: string;
   customerName?: string;
-  tdUserId?: number;
-  pdUserId?: number;
-  pcmUserId?: number;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
   deliveryTraits?: unknown[];
 };
 
 /** PUT /api/v1/projects/{uuid} — 更新项目可变字段 */
 export type UpdateProjectBody = {
   projectName?: string;
+  contractType?: string;
   tdUsername?: string;
   pdUsername?: string;
   pcmUsername?: string;
@@ -88,6 +91,7 @@ export type DcProjectDetail = {
   bidCode?: string | null;
   customerName?: string | null;
   status?: string;
+  contractType?: string | null;
   stage?: string | null;
   progress?: number;
   risk?: string;
@@ -114,11 +118,16 @@ export type DcMyProjectsData = {
     projectName: string;
     projectCode?: string | null;
     bidCode?: string | null;
+    customerName?: string | null;
     status: string;
     stage?: string | null;
     progress: number;
     risk: string;
+    description?: string | null;
     updatedAt?: string | null;
+    pdName?: string | null;
+    tdName?: string | null;
+    pcmName?: string | null;
     myRoles: { roleCode: string; roleName?: string }[];
     canEnter: boolean;
     disabledReason?: string | null;

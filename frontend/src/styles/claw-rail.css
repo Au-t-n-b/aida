@@ -199,6 +199,40 @@
 .zhgk-card-progress-hint { font-size: 11px; color: var(--c-text-faint); }
 .zhgk-card-err { margin: 6px 10px; padding: 6px 8px; border-radius: 6px; background: var(--red-50, #fef2f2); color: var(--red-700, #b91c1c); font-size: 12px; }
 
+/* 节点运行日志：每个 step 独立 AIDA 对话卡片 */
+.run-log-msg { margin-top: 8px; }
+.run-log-msg .meta { padding-left: 2px; }
+.run-log-step-card {
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-surface);
+  overflow: hidden;
+  max-width: 96%;
+}
+.run-log-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--c-divider);
+  background: var(--c-surface);
+}
+.run-log-step-title { font-size: 14px; font-weight: 700; color: var(--c-text, #18181b); }
+.run-log-step-badge { font-size: 12px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.run-log-step-badge.done { color: var(--green-700, #15803d); }
+.run-log-step-badge.running { color: var(--blue-700, #1d4ed8); }
+.run-log-step-badge.failed { color: var(--red-700, #b91c1c); }
+.run-log-step-body {
+  padding: 10px 12px 12px;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--c-text-2, #3f3f46);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.run-log-step-line + .run-log-step-line { margin-top: 2px; }
+
 /* HITL 面板（文件型 + ChoiceCard 型共享外框） */
 .zhgk-hitl { padding: 8px 12px; border-top: 1px solid var(--c-divider); display: flex; flex-direction: column; gap: 6px; }
 .zhgk-hitl.ready { background: #f0fdf4; }

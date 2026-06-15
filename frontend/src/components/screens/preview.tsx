@@ -10,12 +10,21 @@ import {
   SERVICE_CATEGORY_TONE, PART_TONE,
 } from '../../data/contract-data';
 import VersionBar, { bumpVersion } from '../version-bar';
+import { useCurrentProject } from '@/lib/current-project';
 import { agentBase } from '@/lib/runtimeBase';
 
 /* 读 URL 参数 — 不用 useSearchParams 避免静态导出后 Suspense fallback=null 空白 */
 function readUrlParam(key) {
   if (typeof window === 'undefined') return null;
   return new URLSearchParams(window.location.search).get(key);
+}
+
+function derivePreviewProjectCode(proposalId, project) {
+  if (project?.projectCode) return project.projectCode;
+  if (project?.code && !String(project.code).startsWith('PROP-')) return project.code;
+  const tail = String(proposalId || project?.code || '').match(/-([A-Za-z0-9]+)$/);
+  if (tail?.[1]) return tail[1];
+  return project?.id || DEFAULT_PREVIEW_PROJECT.projectCode;
 }
 
 /* BOQ 当前文件清单：预览抽屉只展示用户点击的这一个文件 */
@@ -28,8 +37,12 @@ function boqAttachments(b) {
 }
 
 const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
-const AGENT_BASE = agentBase();
-const PREVIEW_PROPOSAL_ID = 'PROP-2026-K1903';
+const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+const DEFAULT_PREVIEW_PROJECT = {
+  proposalId: 'PROP-2026-K1903',
+  projectName: '京东三期',
+  projectCode: 'K1903',
+};
 const UNLINKED_CONTRACT_NO = '未关联合同';
 
 function fileExt(name) {
@@ -153,7 +166,7 @@ function PreviewAssetPane({ asset }) {
 }
 
 const CONTRACT_MAP = {
-  [PREVIEW_PROPOSAL_ID]: [
+  [DEFAULT_PREVIEW_PROJECT.proposalId]: [
     {
       contract_no: '1Y01012602830P',
       contract_name: '京东26年昇腾液冷超节点框架-宝德',
@@ -225,25 +238,19 @@ function PreviewFocus({ tab }) {
 }
 
 /* ── 合同 / BOQ tab（5.27 重做：合同列表 + 小三角下拉 + BOQ 默认全选 + 上传按钮） ── */
-function ContractTab({ onStateChange }) {
+function ContractTab({ projectInfo }) {
+  const proposalId = projectInfo.proposalId || DEFAULT_PREVIEW_PROJECT.proposalId;
   const boqUploadInputRef = useRef(null);
   const [openContracts, setOpenContracts] = useState({});
   /* BOQ 选中状态：默认全选 (AM-27) */
   const [selectedBoqs, setSelectedBoqs] = useState({});
-  /* 切换确认后展示 BOQ 解析结果 */
-  const [confirmed, setConfirmed] = useState(false);
   /* G-B · BOQ 预览抽屉（点行内"预览"按钮打开，不再就地展开子节） */
   const [previewBoq, setPreviewBoq] = useState(null);
   const [previewAsset, setPreviewAsset] = useState(null);
-  /* 解析结果双表当前 tab */
-  const [resultTab, setResultTab] = useState('device'); // device | service
-  /* NEW-4 · 解析进度条（进度 0→100，同步 ClawRail 4 拍消息） */
-  const [parseProgress, setParseProgress] = useState(0); // 0-100
-  const [parseStage, setParseStage] = useState('');      // 当前阶段名
   /* P1 · 上传 BOQ 兜底 */
   const [uploadToast, setUploadToast] = useState(null);
   const [isUploadingBoq, setIsUploadingBoq] = useState(false);
-  const [contractRecords, setContractRecords] = useState(() => CONTRACT_MAP[PREVIEW_PROPOSAL_ID] || []);
+  const [contractRecords, setContractRecords] = useState(() => CONTRACT_MAP[proposalId] || []);
   const [uploadedBoqs, setUploadedBoqs] = useState([]);
   /* BOQ 附件预览 / 下载操作提示 */
   const [attachToast, setAttachToast] = useState(null);
@@ -290,13 +297,6 @@ function ContractTab({ onStateChange }) {
   const totalContracts = activeContracts.length;
   const totalBoqs = activeBoqs.length;
   const selectedCount = activeBoqs.filter(b => selectedBoqs[b.id]).length;
-  const parseDone = confirmed && parseProgress === 100;  // 派生：解析完成后悬浮条让位给「进入交付预案」
-
-  /* 把解析状态提升给父组件，驱动底部悬浮条 */
-  useEffect(() => {
-    onStateChange?.({ confirmed, parseProgress, selectedCount, totalBoqs });
-  }, [confirmed, parseProgress, selectedCount, totalBoqs]);
-
   const toggleBoq = (id) =>
     setSelectedBoqs(s => ({ ...s, [id]: !s[id] }));
   const toggleContract = (id) =>
@@ -320,7 +320,7 @@ function ContractTab({ onStateChange }) {
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ proposal_id: PREVIEW_PROPOSAL_ID });
+    const params = new URLSearchParams({ proposal_id: proposalId });
     fetch(`${AGENT_BASE}/agent/preview/contracts?${params}`)
       .then(async (resp) => {
         if (!resp.ok) throw new Error(await errorMessage(resp));
@@ -332,7 +332,7 @@ function ContractTab({ onStateChange }) {
         }
       })
       .catch(() => {
-        if (!cancelled) setContractRecords(CONTRACT_MAP[PREVIEW_PROPOSAL_ID] || []);
+        if (!cancelled) setContractRecords(CONTRACT_MAP[proposalId] || []);
       });
     fetch(`${AGENT_BASE}/agent/preview/boq?${params}`)
       .then(async (resp) => {
@@ -348,7 +348,7 @@ function ContractTab({ onStateChange }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [proposalId]);
 
   useEffect(() => {
     if (!usingQueriedBoqs) return;
@@ -362,7 +362,7 @@ function ContractTab({ onStateChange }) {
     fireUploadToast(files.length === 1 ? `正在上传 ${files[0].name}…` : `正在上传 ${files.length} 份 BOQ…`, 120000);
     try {
       const form = new FormData();
-      form.append('proposal_id', PREVIEW_PROPOSAL_ID);
+      form.append('proposal_id', proposalId);
       files.forEach(file => form.append('files', file));
       const resp = await fetch(`${AGENT_BASE}/agent/preview/boq/upload`, {
         method: 'POST',
@@ -400,7 +400,6 @@ function ContractTab({ onStateChange }) {
             <col />
             <col />
             <col />
-            <col />
           </colgroup>
           <thead>
             <tr>
@@ -408,22 +407,15 @@ function ContractTab({ onStateChange }) {
               <th>Proposal ID</th>
               <th>项目名称</th>
               <th>项目编码</th>
-              <th>客户</th>
               <th>待交付合同</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td></td>
-              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title="PROP-2026-K1903">PROP-2026-K1903</td>
-              <td title="京东三期">京东三期</td>
-              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title="K1903">K1903</td>
-              <td
-                title="客户甲（华东）"
-                style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              >
-                客户甲（华东）
-              </td>
+              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={proposalId}>{proposalId}</td>
+              <td title={projectInfo.projectName}>{projectInfo.projectName}</td>
+              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={projectInfo.projectCode}>{projectInfo.projectCode}</td>
               <td>{totalContracts}</td>
             </tr>
           </tbody>
@@ -488,7 +480,7 @@ function ContractTab({ onStateChange }) {
                 <input
                   type="checkbox"
                   checked={totalBoqs > 0 && selectedCount === totalBoqs}
-                  disabled={totalBoqs === 0 || confirmed}
+                  disabled={totalBoqs === 0}
                   onChange={() => {
                     const next = !(totalBoqs > 0 && selectedCount === totalBoqs);
                     setSelectedBoqs(Object.fromEntries(activeBoqs.map(b => [b.id, next])));
@@ -532,7 +524,7 @@ function ContractTab({ onStateChange }) {
                     <input
                       type="checkbox"
                       checked={allSelected}
-                      disabled={confirmed || contract.boqs.length === 0}
+                      disabled={contract.boqs.length === 0}
                       onChange={() => {
                         const next = !allSelected;
                         setSelectedBoqs(s => {
@@ -576,19 +568,14 @@ function ContractTab({ onStateChange }) {
                         <tbody>
                           {contract.boqs.map((b) => {
                             const checked = !!selectedBoqs[b.id];
-                            const statusText = confirmed
-                              ? (parseProgress === 100 ? '已解析' : parseStage || '解析中')
-                              : checked ? b.status || '待解析' : '未选择';
-                            const statusColor = confirmed
-                              ? (parseProgress === 100 ? 'var(--c-success, #0f9d58)' : 'var(--c-brand, #1b84ff)')
-                              : checked ? 'var(--c-warning, #d97706)' : 'var(--c-text-muted)';
+                            const statusText = checked ? b.status || '待解析' : '未选择';
+                            const statusColor = checked ? 'var(--c-warning, #d97706)' : 'var(--c-text-muted)';
                             return (
                               <tr key={b.id} className="boq-hier-l1" style={{ background: checked ? 'rgba(27,132,255,.035)' : 'transparent' }}>
                                 <td>
                                   <input
                                     type="checkbox"
                                     checked={checked}
-                                    disabled={confirmed}
                                     onChange={() => toggleBoq(b.id)}
                                   />
                                 </td>
@@ -626,63 +613,6 @@ function ContractTab({ onStateChange }) {
             })}
           </tbody>
         </table>
-
-        {confirmed && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ height: 6, background: '#eef2f7', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%',
-                width: `${parseProgress}%`,
-                background: parseProgress === 100 ? 'var(--c-success, #0f9d58)' : 'var(--c-brand, #1b84ff)',
-                transition: 'width .35s ease',
-              }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 12, color: 'var(--c-text-muted)' }}>
-              <span>{parseStage || '解析中'}</span>
-              <span>{parseProgress}%</span>
-            </div>
-          </div>
-        )}
-
-        {!parseDone && (
-        <div style={{ display: 'none' }}>
-          {/* 按钮已移至 PreviewScreen 底部 action-footer，保留 onClick 逻辑 */}
-          <button
-            id="boq-confirm-trigger"
-            disabled={selectedCount === 0 || confirmed}
-            onClick={() => {
-              setConfirmed(true);
-              setParseProgress(0);
-              setParseStage('准备解析任务…');
-              /* NEW-4 · 同步进度条（与下面 fire(...) 节拍对齐）*/
-              const tick = (delay, pct, stage) => setTimeout(() => {
-                setParseProgress(pct);
-                setParseStage(stage);
-              }, delay);
-              tick(100,  10, '拉取 BOQ 文件…');
-              tick(700,  25, '设备类解析中…');
-              tick(1500, 55, '检测数据冲突…');
-              tick(2600, 80, '服务类分类中…');
-              tick(3700, 95, '写入风险列表…');
-              tick(4700, 100, '解析完成');
-              /* G-9 · 异步进度推 ClawRail 进度卡片 */
-              if (typeof window === 'undefined') return;
-              const fireProgress = (delay: number, body: string) =>
-                setTimeout(() => {
-                  window.dispatchEvent(new CustomEvent('aida:progress', { detail: { body } }));
-                }, delay);
-              fireProgress(0,    `开始解析 ${selectedCount} 份 BOQ`);
-              fireProgress(450,  '收到 · 已挂起解析任务…');
-              fireProgress(1500, '设备类 BOQ 已解析完毕…');
-              fireProgress(2600, '服务类 BOQ 已分到 5 大类…');
-              fireProgress(3700, '已把 ConnectX-7 数量冲突自动登记…');
-              fireProgress(4700, '全部解析任务已完成');
-            }}
-          >
-            {confirmed ? '已确认' : '确认并解析 BOQ →'}
-          </button>
-        </div>
-        )}
       </div>
 
       {uploadToast && (
@@ -697,61 +627,6 @@ function ContractTab({ onStateChange }) {
 
       {attachToast && (
         <div className="boq-attach-toast">{attachToast}</div>
-      )}
-
-      {/* BOQ 双表：设备 / 服务 卡片切换（AM-30） */}
-      {parseDone && (
-        <div className="jn-panel">
-          <div className="jn-panel-head" style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span>BOQ 解析结果</span>
-            <div className="flex items-center gap-6">
-              <button
-                onClick={() => setResultTab('device')}
-                className={`pb-1 text-sm font-medium transition-colors ${resultTab === 'device' ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-700'}`}
-                style={{ background: 'none', border: 'none', borderBottom: resultTab === 'device' ? '2px solid #18181b' : '2px solid transparent', cursor: 'pointer' }}
-              >
-                设备 BOQ · {PARSED_DEVICES.length} 项
-              </button>
-              <button
-                onClick={() => setResultTab('service')}
-                className={`pb-1 text-sm font-medium transition-colors ${resultTab === 'service' ? 'text-zinc-900' : 'text-zinc-500 hover:text-zinc-700'}`}
-                style={{ background: 'none', border: 'none', borderBottom: resultTab === 'service' ? '2px solid #18181b' : '2px solid transparent', cursor: 'pointer' }}
-              >
-                服务 BOQ · {PARSED_SERVICES.length} 项 · 5 大类
-              </button>
-            </div>
-            <span style={{ flex: 1 }} />
-            {/* 产品概览（5.30 减法：只保留 NPU 总数，删型号/散热/规模/设备类型识别）*/}
-            <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 6, fontSize: 12, color: 'var(--c-text-muted)' }}>
-              NPU 总数
-              <strong style={{ fontFamily: 'var(--font-mono)', fontSize: 15, color: 'var(--c-text)' }}>
-                {PARSED_DEVICES.filter(d => d.part === 'NPU').reduce((s, d) => s + d.qty, 0).toLocaleString()}
-              </strong>
-            </span>
-          </div>
-
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-            borderBottom: '1px solid var(--c-border, #e5e7eb)',
-            margin: '0 -1px 12px',
-          }}>
-            {[
-              ['解析文件', `${selectedCount} 份`],
-              ['设备条目', `${PARSED_DEVICES.length} 项`],
-              ['服务条目', `${PARSED_SERVICES.length} 项`],
-              ['待确认冲突', `${PARSED_DEVICES.filter(d => d.conflict).length} 项`],
-            ].map(([k, v]) => (
-              <div key={k} style={{ padding: '12px 14px', borderRight: '1px solid var(--c-border, #e5e7eb)' }}>
-                <div style={{ fontSize: 11, color: 'var(--c-text-muted)' }}>{k}</div>
-                <div style={{ marginTop: 4, fontSize: 18, fontWeight: 700, color: 'var(--c-text)' }}>{v}</div>
-              </div>
-            ))}
-          </div>
-
-          {resultTab === 'device' && <DeviceTable />}
-          {resultTab === 'service' && <ServiceTable />}
-        </div>
       )}
 
       {/* G-B · BOQ 预览抽屉（点行内"预览"按钮触发，分级展示子项与配套软件） */}
@@ -1210,16 +1085,26 @@ function LLDTab() {
 
 /* SVG 校正：/preview 只承载合同条线；DTRB/DRB/LLD 三快照拆到 /proposal 路由 */
 export default function PreviewScreen() {
+  const { project } = useCurrentProject();
   const navigate = useNavigate();
-  const [boqState, setBoqState] = useState({ confirmed: false, parseProgress: 0, selectedCount: 0, totalBoqs: 0 });
-  const parseDone = boqState.confirmed && boqState.parseProgress === 100;
+  const proposalId =
+    readUrlParam('proposal_id') ||
+    readUrlParam('proposalId') ||
+    readUrlParam('proposal') ||
+    project?.proposalId ||
+    (project?.code && String(project.code).startsWith('PROP-') ? project.code : null) ||
+    DEFAULT_PREVIEW_PROJECT.proposalId;
+  const projectName =
+    readUrlParam('project_name') ||
+    readUrlParam('projectName') ||
+    project?.name ||
+    DEFAULT_PREVIEW_PROJECT.projectName;
+  const projectCode =
+    readUrlParam('project_code') ||
+    readUrlParam('projectCode') ||
+    derivePreviewProjectCode(proposalId, project);
 
   const goProposal = () => workspaceNavigate(navigate, '/proposal', '/preview');
-
-  const confirmBoqParse = () => {
-    if (typeof document === 'undefined') return;
-    document.getElementById('boq-confirm-trigger')?.click();
-  };
 
   return (
     <div className="jn-wrap preview-screen" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -1230,46 +1115,26 @@ export default function PreviewScreen() {
           </div>
         </div>
 
-        <ContractTab onStateChange={setBoqState} />
+        <ContractTab
+          projectInfo={{ proposalId, projectName, projectCode }}
+        />
       </div>
 
-      {/* 确认前底部操作栏：已选 BOQ → 确认并解析 */}
-      {!boqState.confirmed && boqState.selectedCount > 0 && (
-        <div className="action-footer">
-          <span className="action-footer-hint">
-            已选 <strong style={{ color: 'var(--c-text)' }}>{boqState.selectedCount}</strong> / {boqState.totalBoqs} BOQ
-          </span>
-          <div className="action-footer-spacer" />
-          <button
-            type="button"
-            className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            onClick={confirmBoqParse}
-          >
-            确认并解析 BOQ →
-          </button>
-        </div>
-      )}
-
-      {/* 解析完成后底部悬浮条，取代原 ActionFooter */}
-      {parseDone && (
-        <div className="action-footer">
-          <span className="action-footer-hint">
-            已解析 <strong style={{ color: 'var(--c-text)' }}>{boqState.selectedCount}</strong> 份 BOQ，审视结果后可进入交付预案
-          </span>
-          <div className="action-footer-spacer" />
-          <button
-            type="button"
-            className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
-            onClick={goProposal}
-            onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-          >
-            进入交付预案 →
-          </button>
-        </div>
-      )}
+      <div className="action-footer">
+        <span className="action-footer-hint">
+          项目合同已就绪，可直接进入交付预案
+        </span>
+        <div className="action-footer-spacer" />
+        <button
+          type="button"
+          className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
+          onClick={goProposal}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+        >
+          进入交付预案 →
+        </button>
+      </div>
     </div>
   );
 }
