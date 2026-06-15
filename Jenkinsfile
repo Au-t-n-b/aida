@@ -13,6 +13,7 @@
 //   - aida-231-agent-env  ← 模板见 jenkins/aida-231-agent.env.example
 //
 // 远程部署：scp compose + agent.env，ssh 内联 bash；Harbor 凭据经 stdin 登录，无临时文件
+// 部署成功后清理 aida 悬空镜像：231（compose pull/up 遗留）+ Jenkins agent（构建遗留 tag/层）
 // Webhook 防抖：quietPeriod=1800（30 分钟），见 240 aida-deploy config.xml。
 // ============================================================
 
@@ -124,6 +125,7 @@ docker compose ps
 docker compose ps --status running | grep -q aida-agent
 docker compose ps --status running | grep -q aida-manager
 docker compose ps --status running | grep -q aida-frontend
+echo '=== Prune aida dangling images (231) ==='
 docker image prune -f
 docker logout ${DOCKER_REGISTRY} || true
 echo '=== Container Status ==='
@@ -141,6 +143,20 @@ EOS
 
     post {
         success {
+            sh """
+                set +e
+                echo '=== Prune aida dangling images (Jenkins agent) ==='
+                docker image prune -f
+                for svc in ${AGENT_IMAGE} ${MANAGER_IMAGE} ${FRONTEND_IMAGE}; do
+                  repo='${DOCKER_REGISTRY}/${HARBOR_PROJECT}/'\$svc
+                  docker images "\$repo" --format '{{.Tag}}' | grep -E '^[0-9]+\$' | while read -r tag; do
+                    [ "\$tag" = '${env.BUILD_NUMBER}' ] && continue
+                    docker rmi "\$repo:\$tag" 2>/dev/null || true
+                  done
+                done
+                docker image prune -f
+                set -e
+            """
             echo """
             ╔══════════════════════════════════════════════════╗
             ║  AIDA Build + Deploy Success                     ║
