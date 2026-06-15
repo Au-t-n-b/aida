@@ -17,6 +17,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from agent.schedule.api import export_plan as export_plan_module  # noqa: E402
 from agent.schedule.app_main import create_app  # noqa: E402
 from agent.schedule.importer import DataImportError  # noqa: E402
+from agent.schedule.engine import select_shadow_recommendation  # noqa: E402
 from agent.schedule.store import PlanVersionStore  # noqa: E402
 from agent.schedule.contracts.api import (  # noqa: E402
     ADJUST_PATH,
@@ -73,7 +74,7 @@ def test_generate_saves_initial_version_and_returns_contract_response(
     assert stored.inputs == bundle
 
 
-def test_project_data_returns_real_input_bundle_with_table_card_count(client: TestClient):
+def test_project_data_returns_real_input_bundle_with_scenario_card_count(client: TestClient):
     response = client.get(PROJECT_DATA_PATH)
 
     assert response.status_code == 200
@@ -86,7 +87,7 @@ def test_project_data_returns_real_input_bundle_with_table_card_count(client: Te
     assert {room.room_id for room in parsed.rooms} == {"B2DH401", "B2DH402", "B2DH403"}
 
 
-def test_project_data_query_card_count_overrides_table(client: TestClient):
+def test_project_data_query_card_count_overrides_scenario_table(client: TestClient):
     response = client.get(PROJECT_DATA_PATH, params={"total_card_count": 10001})
 
     assert response.status_code == 200
@@ -219,6 +220,11 @@ def test_adjust_merges_changes_by_id_and_commit_writes_incremented_version(
     assert len(adjust_body.options) == 1
     option = adjust_body.options[0]
     assert option.option_id == "A"
+    assert adjust_body.gap is not None
+    assert adjust_body.gap.baseline_finish_date == option.plan.project_finish_date
+    assert adjust_body.gap.target_date is None
+    assert adjust_body.gap.gap_days == 0
+    assert option.kpis.gap_days == 0
     activities = {activity.instance_id: activity for activity in option.plan.activities}
     assert activities["R1/ready"].end_date == date(2026, 1, 10)
     assert activities["P1/install"].start_date == date(2026, 1, 10)
@@ -338,8 +344,13 @@ def test_adjust_returns_abc_options_and_transmits_unmet(client: TestClient):
     adjust_body = AdjustResponse.model_validate(adjusted.json())
     assert [option.option_id for option in adjust_body.options] == ["A", "B", "C"]
     assert [option.strategy for option in adjust_body.options] == ["均匀压缩", "集中压缩", "站货提拉"]
+    assert adjust_body.gap is not None
+    assert adjust_body.gap.baseline_finish_date == base.plan.project_finish_date
+    assert adjust_body.gap.target_date == date(2026, 1, 1)
+    assert adjust_body.gap.gap_days == 2
+    assert all(option.kpis.gap_days == 2 for option in adjust_body.options)
     assert adjust_body.unmet
-    assert adjust_body.unmet[0].gap_days == 1
+    assert adjust_body.unmet[0].gap_days == 2
 
 
 def test_commit_any_adjust_option_keeps_full_initial_activity_set_for_real_data(
@@ -374,6 +385,10 @@ def test_commit_any_adjust_option_keeps_full_initial_activity_set_for_real_data(
     assert adjusted.status_code == 200
     adjust_body = AdjustResponse.model_validate(adjusted.json())
     assert [option.option_id for option in adjust_body.options] == ["A", "B", "C"]
+    assert adjust_body.gap is not None
+    assert adjust_body.gap.baseline_finish_date == base.plan.project_finish_date
+    assert adjust_body.gap.target_date == target_end - timedelta(days=2)
+    assert adjust_body.gap.gap_days == 2
     assert len(base_activity_ids) == 396
 
     for option in adjust_body.options:
@@ -392,6 +407,59 @@ def test_commit_any_adjust_option_keeps_full_initial_activity_set_for_real_data(
         stored = store.get_plan_version(base.plan.plan_id, commit_body.new_version)
         assert committed_activity_ids == base_activity_ids
         assert {activity.instance_id for activity in stored.plan.activities} == base_activity_ids
+
+
+def test_commit_records_shadow_recommendation_log(client: TestClient, store: PlanVersionStore):
+    bundle = _basic_bundle()
+    generated = client.post(GENERATE_PATH, json={"inputs": bundle.model_dump(mode="json")})
+    base = GenerateResponse.model_validate(generated.json())
+
+    adjusted = client.post(
+        ADJUST_PATH,
+        json={
+            "plan_id": base.plan.plan_id,
+            "base_version": base.plan.version,
+            "changes": {
+                "demands": [
+                    DemandRequest(
+                        demand_id="D-shadow-log",
+                        target=TargetRef(kind="活动实例", ref_id="P1/install"),
+                        direction="某日期前完成",
+                        deadline=date(2026, 1, 1),
+                    ).model_dump(mode="json")
+                ]
+            },
+        },
+    )
+    assert adjusted.status_code == 200
+    adjust_body = AdjustResponse.model_validate(adjusted.json())
+    shadow_option = select_shadow_recommendation(adjust_body.options)
+    selected_option = next(
+        (option for option in adjust_body.options if option.option_id != shadow_option.option_id),
+        shadow_option,
+    )
+
+    committed = client.post(
+        COMMIT_PATH,
+        json={
+            "plan_id": base.plan.plan_id,
+            "base_version": base.plan.version,
+            "option_id": selected_option.option_id,
+        },
+    )
+
+    assert committed.status_code == 200
+    commit_body = CommitResponse.model_validate(committed.json())
+    logs = store.list_shadow_recommendation_logs(base.plan.plan_id, base.plan.version)
+    assert len(logs) == 1
+    log = logs[0]
+    assert log.new_version == commit_body.new_version
+    assert log.shadow_option_id == shadow_option.option_id
+    assert log.selected_option_id == selected_option.option_id
+    assert log.is_match == (shadow_option.option_id == selected_option.option_id)
+    assert log.kpi_snapshot["shadow"] == shadow_option.kpis.model_dump(mode="json")
+    assert log.kpi_snapshot["selected"] == selected_option.kpis.model_dump(mode="json")
+    assert log.kpi_snapshot["duration_overrides_applied"] is False
 
 
 def test_healthz(client: TestClient):
