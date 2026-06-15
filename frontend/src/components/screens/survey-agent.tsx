@@ -42,17 +42,38 @@ import {
   emitCommissionProgress,
   formatCommissionScope,
   isCommissionStepSettledInDoc,
+  isCommissionStepSettledInStatus,
+  isStepFailedInDoc,
+  isToolkitHubReadyInDoc,
+  isToolkitImportSettledInDoc,
+  isToolkitImportSettledInStatus,
   readCommissionKpi,
   readReportArtifactPath,
+  readStepDetailError,
+  readCommissionProject,
+  readCommissionRecordFromStatus,
+  readCommissionRecordFromDoc,
+  formatCommissionResultChat,
+  isScopeConfirmInDoc,
 } from '@/lib/commissionCommands';
 import type { CommissionExecuting } from '@/components/sdui/SduiContext';
+import { setCommissionBusy, clearCommissionBusy, getCommissionBusy } from '@/lib/commissionBusyStore';
 import { persistSkillRunId, readSkillRunId, clearPersistedSkillRun } from '@/lib/skillRunPersist';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl, getSkillHitl } from '@/lib/skillHitlStore';
+import {
+  emitSkillStep,
+  emitSkillStepDone,
+  emitSkillStepFailed,
+  extractHitlStepKey,
+  extractWorkflowStep,
+} from '@/lib/skillStepFeed';
 import { dispatchRailSend } from '@/lib/claw-send';
+// 部署调测：执行机配置弹窗（仅 skillId==='software_deployment'）
+import { ExecutorConfigDialog } from '@/components/sdui/ExecutorConfigDialog';
 // system_design 交付台专用（仅 skillId==='system_design' 路径使用）
 import { resolveUploadSlotTag } from '@/lib/systemDesignUpload';
 import { ensureAgentBase, staleSystemDesignUploadMessage } from '@/lib/agentBase';
@@ -949,6 +970,19 @@ export default function SkillAgentScreen({
   const [commissionPollDoc, setCommissionPollDoc] = useState<SduiDocument | null>(null);
   const commissionExecStartedAt = useRef(0);
   const commissionPollGenRef = useRef(0);
+  const pendingCommissionCmdRef = useRef<string | null>(null);
+  const pendingScopeSummaryRef = useRef<string>('');
+  // 部署调测 · 线性长步骤（toolkit_import 等）轮询兜底，避免 frozenDoc 挡住进度
+  const [deployLinearPollDoc, setDeployLinearPollDoc] = useState<SduiDocument | null>(null);
+  const deployLinearPollGenRef = useRef(0);
+  const lastFeedStepKeyRef = useRef<string | null>(null);
+  const lastFeedPhaseRef = useRef<string | null>(null);
+  // 部署调测 · 执行机配置弹窗（「配置执行机」按钮触发）
+  const [executorDialogOpen, setExecutorDialogOpen] = useState(false);
+  const [executorIp, setExecutorIp] = useState('');
+  const [executorSk, setExecutorSk] = useState('');
+  const [executorSaving, setExecutorSaving] = useState(false);
+  const [executorError, setExecutorError] = useState<string | null>(null);
   // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
   const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
   // system_design 交付台：SSE + 冻结窗口（进度/HITL 丝滑）；磁盘真值由后端 project() 投影前 sync
@@ -1104,7 +1138,7 @@ export default function SkillAgentScreen({
       : null;
   const displayDoc = usesDeliveryWorkbench
     ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
-    : (diSubmitOverride ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
+    : (diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
@@ -1152,6 +1186,8 @@ export default function SkillAgentScreen({
   useEffect(() => {
     diskPollGenRef.current = 0;
     setDiskPollDoc(null);
+    deployLinearPollGenRef.current += 1;
+    setDeployLinearPollDoc(null);
     postUploadEpochRef.current = 0;
     setPostUploadDoc(null);
   }, [runId, taskId]);
@@ -1188,6 +1224,55 @@ export default function SkillAgentScreen({
     }
     updateSkillRun({ ...patch, progress });
   }, [displayDoc, activeRunId, frozenDoc]);
+
+  // 部署调测：右侧 FlowSteps/HITL 变化只向 deploy 左侧扩展发节点事件。
+  useEffect(() => {
+    if (skillId !== 'software_deployment' || !displayDoc || !activeRunId) return;
+
+    if (isToolkitHubReadyInDoc(displayDoc) && lastFeedStepKeyRef.current === 'toolkit_import') {
+      clearSkillHitl(skillId);
+      emitSkillStepDone(skillId, 'toolkit_import');
+      emitCommissionProgress(
+        'Toolkit 导入完成！请在右侧「命令调测 · 调度」选择调测命令，或在左侧输入「开始命令调测」。',
+      );
+      lastFeedStepKeyRef.current = null;
+      lastFeedPhaseRef.current = null;
+    }
+
+    const snap = extractWorkflowStep(displayDoc);
+    const progress = extractProgressFromSdui(displayDoc);
+    if (progress.phase === 'done' && lastFeedStepKeyRef.current) {
+      emitSkillStepDone(skillId, lastFeedStepKeyRef.current);
+      lastFeedStepKeyRef.current = null;
+      lastFeedPhaseRef.current = null;
+      return;
+    }
+    if (!snap) return;
+
+    const busy = getCommissionBusy();
+    if (busy.active && busy.kind === 'command' && snap.stepKey === 'commission_scope') return;
+
+    const token = `${snap.stepKey}:${snap.phase}`;
+    if (token === lastFeedPhaseRef.current) return;
+    if (lastFeedStepKeyRef.current && lastFeedStepKeyRef.current !== snap.stepKey) {
+      emitSkillStepDone(skillId, lastFeedStepKeyRef.current);
+    }
+
+    emitSkillStep({
+      skillId,
+      runId: activeRunId,
+      stepKey: snap.stepKey,
+      stepTitle: snap.stepTitle,
+      stepNum: snap.stepNum,
+      phase: snap.phase,
+    });
+    lastFeedStepKeyRef.current = snap.stepKey;
+    lastFeedPhaseRef.current = token;
+
+    if (isStepFailedInDoc(displayDoc)) {
+      emitSkillStepFailed(skillId, snap.stepKey, readStepDetailError(displayDoc) || '本步执行失败');
+    }
+  }, [displayDoc, activeRunId, skillId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
@@ -1326,20 +1411,41 @@ export default function SkillAgentScreen({
     label: string,
     doc: SduiDocument | null,
     isError: boolean,
+    statusSnap?: Awaited<ReturnType<typeof fetchRunStatus>> | null,
   ) => {
     setCommissionExecuting(null);
     setCommissionPollDoc(null);
+    clearCommissionBusy();
     const kpi = doc ? readCommissionKpi(doc) : null;
+    const scopeSummary = pendingScopeSummaryRef.current
+      || readCommissionProject(statusSnap ?? null).summary
+      || resolveCommissionScope();
+    const record = readCommissionRecordFromStatus(statusSnap ?? null, stepKey)
+      ?? readCommissionRecordFromDoc(doc, stepKey);
+    const errMsg = isError
+      ? ((doc ? readStepDetailError(doc) : null)
+        || statusSnap?.error
+        || record?.errorMessage
+        || `${label} 失败`)
+      : '';
+    const chatBody = formatCommissionResultChat(label, {
+      scopeSummary: scopeSummary || undefined,
+      record,
+      isError,
+      errorMessage: errMsg || undefined,
+      kpi,
+    });
     if (isError) {
-      emitCommissionProgress(`「${label}」执行失败，请查看右侧红色错误条。`);
+      emitCommissionProgress(chatBody);
+      emitSkillStepFailed(skillId, stepKey, errMsg || `${label} 失败`);
       updateSkillRun({ phase: 'error', errorMsg: `${label} 失败` });
       return;
     }
-    const kpiHint = kpi ? `命令调测 ${kpi}。` : '';
     if (stepKey === 'commission_report') {
       const rel = doc ? readReportArtifactPath(doc) : null;
       const dlHint = rel ? '请在右侧调度区「下载 · 调测报告」保存 xlsx。' : '报告已生成，请在右侧查看。';
-      emitCommissionProgress(`调测报告已生成。${dlHint}`);
+      emitCommissionProgress(`${chatBody}\n${dlHint}`);
+      emitSkillStepDone(skillId, stepKey);
       updateSkillRun({
         phase: 'done',
         progress: 100,
@@ -1351,8 +1457,9 @@ export default function SkillAgentScreen({
     }
     const allDone = kpi === '4/4';
     emitCommissionProgress(
-      `「${label}」已完成。${kpiHint}${allDone ? '四条命令均已执行，可点「生成调测报告」。' : '对应按钮应显示「重新执行」。'}`,
+      `${chatBody}${allDone ? '\n四条命令均已执行，可点「生成调测报告」。' : ''}`,
     );
+    emitSkillStepDone(skillId, stepKey);
     updateSkillRun({
       phase: allDone ? 'done' : 'running',
       progress: allDone ? 100 : undefined,
@@ -1360,7 +1467,7 @@ export default function SkillAgentScreen({
       hitlType: null,
       errorMsg: '',
     });
-  }, []);
+  }, [skillId, resolveCommissionScope]);
 
   const pollCommissionUntilSettled = useCallback(async (
     rid: string,
@@ -1379,32 +1486,161 @@ export default function SkillAgentScreen({
       if (commissionPollGenRef.current !== gen) return;
       if (snap) setCommissionPollDoc(snap);
       const outcome = runStepOutcome(st, stepKey);
-      const settled = snap ? isCommissionStepSettledInDoc(snap, stepKey) : false;
-      if (settled || outcome === 'done' || outcome === 'error') {
-        finishCommissionExec(stepKey, label, snap, Boolean(st?.error || outcome === 'error'));
+      // 双通道判定：/status（metrics、steps）或 SDUI（按钮、任务记录表）任一落地即视为完成，
+      // 避免「后端已写完但 SDUI 按钮投影滞后」导致页面一直转圈。
+      const settledStatus = isCommissionStepSettledInStatus(st, stepKey);
+      const settledDoc = snap ? isCommissionStepSettledInDoc(snap, stepKey) : false;
+      if (settledStatus || settledDoc || outcome === 'done' || outcome === 'error') {
+        finishCommissionExec(
+          stepKey,
+          label,
+          snap,
+          Boolean(st?.error || outcome === 'error'),
+          st,
+        );
         return;
       }
     }
     if (commissionPollGenRef.current !== gen) return;
     setCommissionExecuting(null);
+    clearCommissionBusy();
     emitCommissionProgress(
       `「${label}」等待超过 20 分钟仍未返回；可能仍在 Toolkit 执行，请查右侧日志或稍后刷新。`,
     );
   }, [skillId, finishCommissionExec]);
 
-  const executeCommissionStep = useCallback(async (
+  const beginCommandPoll = useCallback((
+    rid: string,
     stepKey: string,
-    opts?: { rerun?: boolean; scope?: string },
+    label: string,
+    scope: string,
   ) => {
-    const scope = resolveCommissionScope(opts?.scope);
-    const label = commissionStepLabel(stepKey);
-    setLoadError(null);
     const pollGen = commissionPollGenRef.current + 1;
     commissionPollGenRef.current = pollGen;
     setCommissionPollDoc(null);
     setCommissionExecuting({ stepKey, label, scope });
     commissionExecStartedAt.current = Date.now();
-    emitCommissionProgress(`正在执行 · ${label}（范围：${formatCommissionScope(scope)}）…`);
+    setCommissionBusy(true, label, 'command');
+    emitCommissionProgress(`正在执行 · ${label}…`);
+    updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
+    emitSkillStepDone(skillId, 'commission_scope');
+    emitSkillStep({
+      skillId,
+      runId: rid,
+      stepKey,
+      stepTitle: label,
+      stepNum: 9,
+      phase: 'running',
+    });
+    lastFeedStepKeyRef.current = stepKey;
+    lastFeedPhaseRef.current = `${stepKey}:running`;
+    void pollCommissionUntilSettled(rid, stepKey, label, pollGen);
+  }, [skillId, pollCommissionUntilSettled]);
+
+  const pollScopeParseUntilSettled = useCallback(async (rid: string, gen: number) => {
+    const deadline = Date.now() + 3 * 60 * 1000;
+    while (Date.now() < deadline) {
+      if (commissionPollGenRef.current !== gen) return;
+      await new Promise<void>(resolve => { window.setTimeout(resolve, 1200); });
+      const [st, snap] = await Promise.all([
+        fetchRunStatus(skillId, rid),
+        fetchUiSnapshot(skillId, rid),
+      ]);
+      if (commissionPollGenRef.current !== gen) return;
+      if (snap) setCommissionPollDoc(snap);
+      const proj = readCommissionProject(st);
+      if (proj.summary) pendingScopeSummaryRef.current = proj.summary;
+      if (snap && isScopeConfirmInDoc(snap)) {
+        clearCommissionBusy();
+        setStreamEpoch(e => e + 1);
+        emitCommissionProgress(
+          proj.summary
+            ? `范围已解析：${proj.summary}。请确认后执行。`
+            : '范围已解析，请确认设备范围与台数。',
+        );
+        return;
+      }
+      if (snap && isStepFailedInDoc(snap)) {
+        clearCommissionBusy();
+        emitCommissionProgress(readStepDetailError(snap) || '范围解析失败');
+        return;
+      }
+      if (st?.error) {
+        clearCommissionBusy();
+        emitCommissionProgress(String(st.error));
+        return;
+      }
+    }
+    clearCommissionBusy();
+    emitCommissionProgress('范围解析等待超时，请刷新页面后重试。');
+  }, [skillId]);
+
+  // 部署调测 · 线性长步骤轮询（toolkit_import 确认后 SSE/冻结层可能滞后）
+  const pollDeployLinearUntilSettled = useCallback(async (
+    rid: string,
+    stepKey: string,
+    gen: number,
+  ) => {
+    const deadline = Date.now() + 30 * 60 * 1000;
+    const label = stepKey === 'toolkit_import' ? 'Toolkit 导入' : stepKey;
+    while (Date.now() < deadline) {
+      if (deployLinearPollGenRef.current !== gen) return;
+      await new Promise<void>(resolve => { window.setTimeout(resolve, 2500); });
+      const [st, snap] = await Promise.all([
+        fetchRunStatus(skillId, rid),
+        fetchUiSnapshot(skillId, rid),
+      ]);
+      if (deployLinearPollGenRef.current !== gen) return;
+      if (snap) {
+        setDeployLinearPollDoc(snap);
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+      }
+      const settled = stepKey === 'toolkit_import' && (
+        isToolkitImportSettledInStatus(st)
+        || (snap ? isToolkitImportSettledInDoc(snap) : false)
+      );
+      const failed = snap && isStepFailedInDoc(snap);
+      if (failed) {
+        setDeployLinearPollDoc(null);
+        const err = (snap ? readStepDetailError(snap) : null) || st?.error || '执行失败';
+        emitSkillStepFailed(skillId, stepKey, err);
+        emitCommissionProgress(`「${label}」失败：${err}`);
+        updateSkillRun({ phase: 'error', errorMsg: err });
+        return;
+      }
+      if (settled) {
+        setDeployLinearPollDoc(null);
+        clearSkillHitl(skillId);
+        emitSkillStepDone(skillId, stepKey);
+        emitCommissionProgress(
+          'Toolkit 导入完成！请在右侧「命令调测 · 调度」选择调测命令，或在左侧输入「开始命令调测」。',
+        );
+        updateSkillRun({ phase: 'running', hitlType: null, currentStepName: '命令调测' });
+        setStreamEpoch(e => e + 1);
+        return;
+      }
+    }
+    if (deployLinearPollGenRef.current !== gen) return;
+    setDeployLinearPollDoc(null);
+    emitCommissionProgress(
+      `「${label}」等待超过 30 分钟仍未返回；可能仍在执行，请查右侧日志或刷新页面。`,
+    );
+  }, [skillId]);
+
+  const executeCommissionStep = useCallback(async (
+    stepKey: string,
+    opts?: { rerun?: boolean },
+  ) => {
+    const label = commissionStepLabel(stepKey);
+    setLoadError(null);
+    const pollGen = commissionPollGenRef.current + 1;
+    commissionPollGenRef.current = pollGen;
+    setCommissionPollDoc(null);
+    setCommissionExecuting({ stepKey, label, scope: 'all' });
+    commissionExecStartedAt.current = Date.now();
+    setCommissionBusy(true, label, 'command');
+    emitCommissionProgress(`正在执行 · ${label}…`);
     updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
 
     try {
@@ -1416,7 +1652,6 @@ export default function SkillAgentScreen({
           payload: {
             choice: 'confirm',
             rerun: !!opts?.rerun,
-            ...(scope !== 'all' ? { scope } : {}),
             from_step: stepKey,
           },
         });
@@ -1432,7 +1667,7 @@ export default function SkillAgentScreen({
         await resumeRun(
           skillId,
           rid,
-          { choice: 'confirm', rerun: !!opts?.rerun, ...(scope !== 'all' ? { scope } : {}) },
+          { choice: 'confirm', rerun: !!opts?.rerun },
           stepKey,
         );
         setStreamEpoch(e => e + 1);
@@ -1441,11 +1676,11 @@ export default function SkillAgentScreen({
     } catch (e) {
       const msg = e instanceof Error ? e.message : '执行失败';
       setCommissionExecuting(null);
+      clearCommissionBusy();
       emitCommissionProgress(`「${label}」执行失败：${msg}`);
       setLoadError(msg);
     }
   }, [
-    resolveCommissionScope,
     useClawMode,
     session,
     taskId,
@@ -1455,24 +1690,82 @@ export default function SkillAgentScreen({
     pollCommissionUntilSettled,
   ]);
 
+  // 命令调测：走 LangGraph commission_scope 节点（解析 → 预览 → 确认 → chain 到命令步）。
+  const startCommissionScopeFlow = useCallback(async (
+    stepKey: string,
+    rerun: boolean,
+    scopeText?: string,
+  ) => {
+    const label = commissionStepLabel(stepKey);
+    pendingCommissionCmdRef.current = stepKey;
+    pendingScopeSummaryRef.current = '';
+    setLoadError(null);
+    emitCommissionProgress(
+      scopeText
+        ? `正在解析「${label}」设备范围…`
+        : `请选择「${label}」的设备范围（见左侧步骤卡）。`,
+    );
+    updateSkillRun({ phase: 'hitl', hitlType: 'choice', currentStepName: '设备范围' });
+
+    const payload: Record<string, unknown> = { command: stepKey, rerun: !!rerun };
+    if (scopeText?.trim()) payload.choice = scopeText.trim();
+
+    try {
+      if (useClawMode && session && taskId) {
+        await resumeClawTask({
+          accessToken: session.accessToken,
+          sessionId: session.sessionId,
+          taskId,
+          payload: { ...payload, from_step: 'commission_scope' },
+        });
+      } else {
+        let rid = activeRunId;
+        if (!rid) {
+          rid = await startRun(skillId, { entry_mode: 'commission' });
+          setRunId(rid);
+          setSkillRun(skillId, rid, 'ui');
+          persistSkillRunId(skillId, rid);
+        }
+        if (!rid) throw new Error('无法启动调测 run');
+        if (scopeText?.trim()) {
+          setCommissionBusy(true, '解析设备范围', 'scope');
+        }
+        await resumeRun(skillId, rid, payload, 'commission_scope');
+        setStreamEpoch(e => e + 1);
+        if (scopeText?.trim()) {
+          const gen = commissionPollGenRef.current + 1;
+          commissionPollGenRef.current = gen;
+          void pollScopeParseUntilSettled(rid, gen);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '启动范围确认失败';
+      emitCommissionProgress(`「${label}」范围确认失败：${msg}`);
+      setLoadError(msg);
+      updateSkillRun({ phase: 'error', errorMsg: msg });
+    }
+  }, [skillId, activeRunId, storeRun, useClawMode, session, taskId, handleStart, pollScopeParseUntilSettled]);
+
   const runCommissionStep = useCallback(async (
     stepKey: string,
     rerun: boolean,
     scope?: string,
   ) => {
-    await executeCommissionStep(stepKey, { rerun, scope });
-  }, [executeCommissionStep]);
+    if (stepKey === 'commission_report') {
+      await executeCommissionStep(stepKey, { rerun });
+      return;
+    }
+    await startCommissionScopeFlow(stepKey, rerun, scope);
+  }, [executeCommissionStep, startCommissionScopeFlow]);
 
   const handleCommissionIntent = useCallback(async (intent: CommissionIntent) => {
     if (intent.kind === 'start_commission') {
       await handleStart({ entry_mode: 'commission' });
       return;
     }
-    await executeCommissionStep(intent.step, {
-      rerun: intent.rerun,
-      scope: intent.scope,
-    });
-  }, [handleStart, executeCommissionStep]);
+    // 经 runCommissionStep：带 scope 直接执行，无 scope 则弹左侧范围卡。
+    await runCommissionStep(intent.step, !!intent.rerun, intent.scope);
+  }, [handleStart, runCommissionStep]);
 
   // SSE 推新 SDUI 且步骤已落地时结束「执行中」（running 中间态不会误停）
   useEffect(() => {
@@ -1535,10 +1828,15 @@ export default function SkillAgentScreen({
     clearSkillRun(skillId);
     clearPersistedSkillRun(skillId);
     clearSkillHitl(skillId);
+    pendingCommissionCmdRef.current = null;
+    pendingScopeSummaryRef.current = '';
+    clearCommissionBusy();
     setBootDoc(null);
     setLoadError(null);
     setCommissionExecuting(null);
     setCommissionPollDoc(null);
+    deployLinearPollGenRef.current += 1;
+    setDeployLinearPollDoc(null);
     setRunId(null);
     setTaskId(null);
     frozenSnapshotRef.current = null;
@@ -1547,6 +1845,8 @@ export default function SkillAgentScreen({
     setPreviewPath(null);
     setError(null);
     setStarting(false);
+    lastFeedStepKeyRef.current = null;
+    lastFeedPhaseRef.current = null;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('aida:clear'));
     }
@@ -1624,6 +1924,8 @@ export default function SkillAgentScreen({
             })();
           }
         }
+      } else if (text === '/edit_executor') {
+        openExecutorConfig();
       } else {
         dispatchRailSend(text);
       }
@@ -1764,19 +2066,139 @@ export default function SkillAgentScreen({
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
   const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    const fromStep = resolveChoiceResumeFromStep(skillId, value, stepId);
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+
+    // 部署调测 · commission_scope：提交即上锁，避免重复点击
+    if (skillId === 'software_deployment' && fromStep === 'commission_scope') {
+      if (value === 'confirm') {
+        const cmd = pendingCommissionCmdRef.current;
+        if (!cmd) {
+          clearCommissionBusy();
+          emitCommissionProgress('未能启动命令执行：缺少待执行命令，请从右侧重新点「执行」。');
+          return;
+        }
+        const label = commissionStepLabel(cmd);
+        const scope = pendingScopeSummaryRef.current || resolveCommissionScope();
+        setCommissionBusy(true, label, 'command');
+        clearSkillHitl(skillId);
+        updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
+        await doResume({ choice: value }, fromStep);
+        setStreamEpoch(e => e + 1);
+        if (rid) {
+          beginCommandPoll(rid, cmd, label, scope);
+        } else {
+          clearCommissionBusy();
+          emitCommissionProgress('未能启动命令执行：缺少 run_id，请刷新后重试。');
+        }
+        return;
+      }
+      if (value !== 'back') {
+        setCommissionBusy(true, '解析设备范围', 'scope');
+        clearSkillHitl(skillId);
+        await doResume({ choice: value }, fromStep);
+        setStreamEpoch(e => e + 1);
+        if (rid) {
+          const gen = commissionPollGenRef.current + 1;
+          commissionPollGenRef.current = gen;
+          void pollScopeParseUntilSettled(rid, gen);
+        } else {
+          clearCommissionBusy();
+        }
+        return;
+      }
+    }
+
     await doResume(
       { choice: value },
-      resolveChoiceResumeFromStep(skillId, value, stepId),
+      fromStep,
     );
-  }, [doResume, skillId]);
+    // 部署调测 · 步骤 8 确认导入：长耗时，轮询 /status + /ui 推进界面并解冻
+    if (
+      skillId === 'software_deployment'
+      && fromStep === 'toolkit_import'
+      && (value === 'confirm' || value === '确认执行')
+    ) {
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      if (rid) {
+        emitCommissionProgress('Toolkit 导入已开始（大文件可能需数分钟），右侧会同步更新进度…');
+        const gen = deployLinearPollGenRef.current + 1;
+        deployLinearPollGenRef.current = gen;
+        setDeployLinearPollDoc(null);
+        void pollDeployLinearUntilSettled(rid, 'toolkit_import', gen);
+      }
+    }
+  }, [doResume, skillId, activeRunId, storeRun, pollDeployLinearUntilSettled, beginCommandPoll, pollScopeParseUntilSettled, resolveCommissionScope]);
+
+  // 部署调测：HitlForm（如步骤 7 调测设备 IP/SK「保存并继续」）提交 → resume 续跑。
+  // HitlForm 负载形如 { [formId]: { base_url_ip, secret_key } }，需扁平化后再续跑。
+  const handleFormSubmit = useCallback(async (payload: Record<string, unknown>, stepId?: string) => {
+    const fromStep = stepId?.trim() || undefined;
+    let flat: Record<string, unknown> = { ...payload };
+    for (const v of Object.values(payload)) {
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const row = v as Record<string, unknown>;
+        if ('base_url_ip' in row || 'secret_key' in row) {
+          flat = { ...flat, ...row };
+          break;
+        }
+      }
+    }
+    const resumePayload = fromStep === 'toolkit_executor'
+      ? {
+          choice: 'confirm',
+          base_url_ip: String(flat.base_url_ip ?? '').trim(),
+          secret_key: String(flat.secret_key ?? '').trim(),
+          base_url_port: '28880',
+        }
+      : payload;
+    await doResume(resumePayload, fromStep);
+    if (activeRunId && skillId === 'software_deployment' && fromStep) {
+      setStreamEpoch(e => e + 1);  // 重订阅 SSE，推动界面前进到步骤 8
+    }
+  }, [doResume, activeRunId, skillId]);
+
+  // 「配置执行机」按钮：读取当前 HITL 表单预填，弹出 IP/SK 小窗
+  const openExecutorConfig = useCallback(() => {
+    if (skillId !== 'software_deployment') return;
+    setExecutorError(null);
+    const doc = displayDocRef.current;
+    const form = doc ? findNodeById(doc.root, 'hitl-form-toolkit-executor') : null;
+    const fields = (form as { fields?: Array<{ key?: string; defaultValue?: unknown }> } | null)?.fields ?? [];
+    const ipField = fields.find(f => f.key === 'base_url_ip');
+    const skField = fields.find(f => f.key === 'secret_key');
+    setExecutorIp(String(ipField?.defaultValue ?? '').trim());
+    setExecutorSk(String(skField?.defaultValue ?? '').trim());
+    setExecutorDialogOpen(true);
+  }, [skillId]);
+
+  // 弹窗保存 → 走标准 resume 续跑步骤 7（toolkit_executor），无需自定义后端端点
+  const handleExecutorSave = useCallback(async (ip: string, sk: string) => {
+    setExecutorSaving(true);
+    setExecutorError(null);
+    try {
+      await handleFormSubmit(
+        { 'hitl-form-toolkit-executor': { base_url_ip: ip, secret_key: sk } },
+        'toolkit_executor',
+      );
+      setExecutorDialogOpen(false);
+      emitCommissionProgress(`调测执行机已保存（${ip}），正在继续步骤 8（Toolkit 导入）…`);
+    } catch (e) {
+      setExecutorError(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setExecutorSaving(false);
+    }
+  }, [handleFormSubmit]);
 
   // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
   const handleActionRef = useRef(handleAction);
   const handleUploadRef = useRef(handleUpload);
   const handleChoiceSubmitRef = useRef(handleChoiceSubmit);
+  const handleFormSubmitRef = useRef(handleFormSubmit);
   handleActionRef.current = handleAction;
   handleUploadRef.current = handleUpload;
   handleChoiceSubmitRef.current = handleChoiceSubmit;
+  handleFormSubmitRef.current = handleFormSubmit;
 
   const railRuntimeCallbacks = useRef({
     onAction: (action: SduiAction) => { void handleActionRef.current(action); },
@@ -1789,6 +2211,9 @@ export default function SkillAgentScreen({
     ) => handleUploadRef.current(files, purpose, stepId, slotTag, slotLabel),
     onChoiceSubmit: (value: string, stepId?: string) => {
       void handleChoiceSubmitRef.current(value, stepId);
+    },
+    onFormSubmit: (p: Record<string, unknown>, stepId?: string) => {
+      void handleFormSubmitRef.current(p, stepId);
     },
   }).current;
 
@@ -1807,9 +2232,11 @@ export default function SkillAgentScreen({
     if (card) {
       setSkillHitl({
         skillId, runId: rid, node: card,
+        stepKey: extractHitlStepKey(card) || undefined,
         onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
         onUpload: railRuntimeCallbacks.onUpload,
         onAction: railRuntimeCallbacks.onAction,
+        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
       });
     } else {
       clearSkillHitl(skillId);
@@ -1852,6 +2279,7 @@ export default function SkillAgentScreen({
     onAction: railRuntimeCallbacks.onAction,
     onUpload: railRuntimeCallbacks.onUpload,
     onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+    onFormSubmit: railRuntimeCallbacks.onFormSubmit,
     onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
     onRunPatch: handleRunPatch,
     streamEpoch,
@@ -1976,6 +2404,18 @@ export default function SkillAgentScreen({
         <Suspense fallback={null}>
           <SduiPreviewModal skillId={skillId} path={previewPath} onClose={() => setPreviewPath(null)} />
         </Suspense>
+      )}
+      {/* 部署调测 · 「配置执行机」弹窗（IP/SK） */}
+      {skillId === 'software_deployment' && (
+        <ExecutorConfigDialog
+          open={executorDialogOpen}
+          initialIp={executorIp}
+          initialSk={executorSk}
+          saving={executorSaving}
+          error={executorError}
+          onSave={(ip, sk) => { void handleExecutorSave(ip, sk); }}
+          onClose={() => setExecutorDialogOpen(false)}
+        />
       )}
       {nextModule && (
         <NextModuleButton label={nextModule.label} onClick={handleNextModule} />

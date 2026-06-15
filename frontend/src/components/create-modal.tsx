@@ -174,19 +174,7 @@ export default function CreateProjectModal({
       return;
     }
 
-    // 编辑模式：暂保留原行为（后续对接 PUT）
-    const payload = { mode, fields: obj, ts: Date.now() };
-    try { sessionStorage.setItem('aida:just-created', JSON.stringify(payload)); } catch {}
-    const id = projectId ?? deriveProjectId(obj.code, obj.proposal);
-    selectProject({
-      id,
-      name: obj.name || '未命名项目',
-      code: obj.code || obj.proposal || undefined,
-      projectCode: obj.code || undefined,
-      proposalId: obj.proposal || undefined,
-    });
-    onClose?.();
-    navigate('/cockpit');
+    // 编辑模式：PUT 更新项目
     if (!projectId) {
       setSubmitError('缺少项目 ID，无法保存');
       return;

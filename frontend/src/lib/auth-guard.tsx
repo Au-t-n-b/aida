@@ -3,11 +3,24 @@ import type { ReactNode } from 'react';
 import { useAidaSession } from './aida-session';
 import { useCurrentProject } from './current-project';
 
+/**
+ * TEMP(local-dev) · 仅本地 `npm run dev` 调测用的免登录直达白名单。
+ * 用 import.meta.env.DEV 守门：`npm run build`（即上传/部署版本）下恒为 false，
+ * 自动回归正常登录，无需手动回滚。新增路径只在此白名单加前缀。
+ */
+const DEV_LOGIN_BYPASS_PREFIXES = ['/module/deploy'];
+
+function isDevLoginBypass(pathname: string): boolean {
+  return import.meta.env.DEV
+    && DEV_LOGIN_BYPASS_PREFIXES.some(prefix => pathname.startsWith(prefix));
+}
+
 /** 已登录才可访问；否则跳转登录页并记录来源路径。 */
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { session } = useAidaSession();
   const location = useLocation();
   if (!session) {
+    if (isDevLoginBypass(location.pathname)) return children;  // 本地调测直达，生产自动失效
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
   return children;

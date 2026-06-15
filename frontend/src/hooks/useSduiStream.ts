@@ -661,7 +661,13 @@ export async function fetchUiSnapshot(skillId: string, runId: string, base?: str
 
 export type RunStatusSnapshot = {
   error?: string;
-  steps?: Array<{ key?: string; status?: string }>;
+  project?: Record<string, unknown>;
+  steps?: Array<{
+    key?: string;
+    status?: string;
+    error?: string;
+    metrics?: Record<string, unknown>;
+  }>;
 };
 
 export async function fetchRunStatus(
@@ -682,11 +688,19 @@ export function runStepOutcome(
   stepKey: string,
 ): 'pending' | 'running' | 'done' | 'error' {
   if (!state) return 'pending';
-  if (state.error) return 'error';
-  const rec = (state.steps ?? []).find(s => s.key === stepKey);
+  const rec = latestStepRecord(state.steps, stepKey);
   if (!rec) return 'pending';
   if (rec.status === 'completed') return 'done';
   if (rec.status === 'failed') return 'error';
   if (rec.status === 'running') return 'running';
+  if (state.error) return 'error';
   return 'pending';
+}
+
+export function latestStepRecord(
+  steps: RunStatusSnapshot['steps'] | null | undefined,
+  stepKey: string,
+): NonNullable<RunStatusSnapshot['steps']>[number] | null {
+  const matches = (steps ?? []).filter(s => s.key === stepKey);
+  return matches.length ? matches[matches.length - 1]! : null;
 }

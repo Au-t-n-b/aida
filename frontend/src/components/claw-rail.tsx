@@ -19,6 +19,10 @@ import { startRun } from '@/hooks/useSduiStream';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
 import { RAIL_SEND_EVENT } from '@/lib/claw-send';
+// 部署调测左栏扩展（仅 /module/deploy 生效；其它模块零感知）
+import { useDeployRail } from '@/components/claw-rail/useDeployRail';
+import { SdSkillStepCard } from '@/components/claw-rail/SdSkillStepCard';
+import { useCommissionBusy } from '@/lib/commissionBusyStore';
 
 import { agentBaseSync } from '@/lib/agentBase';
 import {
@@ -650,6 +654,8 @@ function SkillRunBanner({
   // HITL 交互卡（由右侧 SkillAgentScreen 抽取写入）：在左侧会话框内可交互渲染
   const hitlInfo = useSkillHitlStore();
   const myHitl   = hitlInfo?.skillId === skillId ? hitlInfo : null;
+  // 部署调测：HITL 由 deploy 步骤卡（SdSkillStepCard）承接，本 banner 不再重复渲染，避免左侧双卡
+  const useStepFeed = skillId === 'software_deployment';
 
   const convInfo = useSkillConversationStore();
   const myConv   = convInfo?.skillId === skillId ? convInfo : null;
@@ -708,7 +714,7 @@ function SkillRunBanner({
           </div>
         )}
 
-        {!usesDeliveryWorkbench && phase === 'hitl' && !myHitl && (
+        {!usesDeliveryWorkbench && !useStepFeed && phase === 'hitl' && !myHitl && (
           <div style={{
             margin: '6px 10px 8px',
             padding: '8px 10px',
@@ -750,7 +756,8 @@ function SkillRunBanner({
 
       {/* HITL 交互卡：直接在左侧会话框内可操作（选择 / 上传），回调直连右侧 resume */}
       {/* phase==='done' 时也渲染：guihua 的 completion-card（询问是否输出文件）需在完成态下显示 */}
-      {(phase === 'hitl' || phase === 'done') && myHitl && (
+      {/* 部署调测除外：HITL 由 SdSkillStepCard 承接，此处跳过避免左侧重复卡 */}
+      {!useStepFeed && (phase === 'hitl' || phase === 'done') && myHitl && (
         <div style={{ margin: '6px 10px 10px' }}>
           <SduiRuntimeContext.Provider
             value={{
@@ -1008,6 +1015,10 @@ export default function ClawRail({
 
   const skillRun = useSkillRunStore();
 
+  // 部署调测左栏扩展：步骤卡 + 设备范围卡 + 自然语言调度拦截（仅 /module/deploy 生效）
+  const deployRail = useDeployRail(pathname);
+  const commissionBusy = useCommissionBusy();
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onProgress = (e: Event) => {
@@ -1111,6 +1122,7 @@ export default function ClawRail({
     threadScrollKey, chatMsgs.length, pathname, isStreaming,
     convInfoTop?.node, hitlInfoTop?.node,
     runInfoTop?.phase, runInfoTop?.progress, uiSkillRun,
+    deployRail.stepMsgs.length, commissionBusy.active,
   ]);
 
   const allMsgs: Msg[] = [...seedForPath, ...chatMsgs];
@@ -1310,7 +1322,13 @@ export default function ClawRail({
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || commissionBusy.active) return;
+    // 部署调测：自然语言调度意图（开始调测 / 执行某命令）转交右侧 SkillAgentScreen 处理
+    if (deployRail.interceptSend(text)) {
+      setDraft('');
+      setChatMsgs(prev => [...prev, { role: 'user', body: text, ts: nowTs() }]);
+      return;
+    }
     // 技能页（如系统设计）：把指令转交右侧技能驱动，而非通用对话（不受通用 chat isStreaming 阻塞）
     const skillConv = getSkillConversation() ?? convInfoTop;
     if (skillConv?.runtime) {
@@ -1321,7 +1339,7 @@ export default function ClawRail({
     if (isStreaming) return;
     setDraft('');
     await sendText(text);
-  }, [draft, isStreaming, sendText, convInfoTop]);
+  }, [draft, isStreaming, sendText, convInfoTop, deployRail, commissionBusy.active]);
 
   // 右侧 skill 作业区下钻（3D 机房入口）→ 作为一条用户消息投递进本会话
   useEffect(() => {
@@ -1554,6 +1572,13 @@ export default function ClawRail({
             )}
           </>
         )}
+
+        {/* 部署调测扩展：按节点逐步发的步骤卡 + 命令调测设备范围卡（仅 /module/deploy） */}
+        {deployRail.enabled && deployRail.stepMsgs.map((s, i) => (
+          <div key={`sd-step-${s.stepKey}-${i}`} className="cmsg ai">
+            <SdSkillStepCard step={s} />
+          </div>
+        ))}
       </div>
 
       {/* suggestion chips */}
@@ -1571,10 +1596,15 @@ export default function ClawRail({
       <div className="claw-input-wrap">
         <div className="claw-input">
           <textarea
-            placeholder={inputPlaceholder}
+            placeholder={
+              commissionBusy.active
+                ? (commissionBusy.label ? `正在处理 · ${commissionBusy.label}…` : '正在处理中…')
+                : inputPlaceholder
+            }
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={handleKey}
+            disabled={isStreaming || commissionBusy.active}
             rows={2}
           />
           <div className="ci-foot">
@@ -1586,9 +1616,9 @@ export default function ClawRail({
             <button
               className="send-btn"
               onClick={() => { void sendMessage(); }}
-              disabled={isStreaming || !draft.trim()}
+              disabled={isStreaming || commissionBusy.active || !draft.trim()}
             >
-              <IcSend />{isStreaming ? '…' : '发送'}
+              <IcSend />{isStreaming || commissionBusy.active ? '…' : '发送'}
             </button>
           </div>
         </div>

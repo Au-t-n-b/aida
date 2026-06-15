@@ -3,6 +3,7 @@
  */
 import { useEffect, useState } from 'react';
 import { useSduiRuntime } from './SduiContext';
+import { useCommissionBusy } from '@/lib/commissionBusyStore';
 import { hitlKey, getHitlOptimistic, setHitlOptimistic } from './hitlOptimistic';
 import type { SduiChoiceCardNode } from '@/lib/sdui';
 
@@ -19,6 +20,7 @@ export function SduiChoiceCard({
   repeatable = false,
 }: Props) {
   const { onChoiceSubmit, runId, streamEpoch } = useSduiRuntime();
+  const busy = useCommissionBusy();
   const isRefreshAction = options.length === 1 && options.some((opt) => {
     const value = String(opt.value ?? opt.id ?? '').toLowerCase();
     return value === 'refresh' || opt.label.includes('刷新检查回传');
@@ -197,19 +199,31 @@ export function SduiChoiceCard({
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 14px',
           borderRadius: 'var(--radius-md)',
-          background: '#e6f6ee',
-          border: '1px solid #bfe9d3',
-          fontSize: '12px', color: '#065f46', fontWeight: 500,
+          background: busy.active ? '#eef1fc' : '#e6f6ee',
+          border: busy.active ? '1px solid #c7d2fe' : '1px solid #bfe9d3',
+          fontSize: '12px',
+          color: busy.active ? '#1e34a8' : '#065f46',
+          fontWeight: 500,
         }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
-          </svg>
+          {busy.active ? (
+            <i style={{
+              width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+              border: '2px solid #3551d8', borderTopColor: 'transparent',
+              display: 'inline-block', animation: 'spin .8s linear infinite',
+            }} />
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
+            </svg>
+          )}
           已提交：
           <span style={{ fontWeight: 600 }}>
             {picked.map((v) => options.find((o) => (o.value ?? o.id) === v)?.label ?? v).join('、')}
           </span>
-          <span style={{ color: '#0a7350', fontWeight: 400, marginLeft: 4 }}>· 等待处理中…</span>
+          <span style={{ fontWeight: 400, marginLeft: 4 }}>
+            · {busy.active ? (busy.label ? `正在处理 · ${busy.label}…` : '正在处理中…') : '等待处理中…'}
+          </span>
         </div>
       )}
     </div>

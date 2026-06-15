@@ -94,7 +94,7 @@ function simplifyPreflightLogLine(raw: string): string {
   if (/正在校验上游交付计划表/.test(s)) return '正在校验上游交付计划表…';
   if (/LLM\s*摘要跳过/.test(s)) return 'LLM 摘要跳过';
   const fileReady = s.match(/^([✓√✗])\s*(交付计划表|设备位置表|到货信息表)[:：]\s*(.+)$/);
-  if (fileReady) {
+  if (fileReady?.[1] && fileReady[2] && fileReady[3]) {
     const mark = fileReady[1] === '✗' ? '✗' : '√';
     const status = fileReady[3].trim().replace(/（[^）]*）/g, '').trim();
     return `${mark} ${fileReady[2]}：${status}`;
@@ -125,7 +125,7 @@ function simplifyLogLine(msg: string, step?: string): string {
 
   // 环境预检：三张输入表就绪态（统一 √ + 全角冒号）
   const fileReady = s.match(/^([✓√✗])\s*(交付计划表|设备位置表|到货信息表)[:：]\s*(.+)$/);
-  if (fileReady) {
+  if (fileReady?.[1] && fileReady[2] && fileReady[3]) {
     const mark = fileReady[1] === '✗' ? '✗' : '√';
     const status = fileReady[3].trim().replace(/（[^）]*）/g, '').trim();
     return `${mark} ${fileReady[2]}：${status}`;

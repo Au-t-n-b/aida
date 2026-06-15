@@ -19,6 +19,8 @@ import type { SduiNode, SduiAction } from '@/lib/sdui';
 export interface SkillHitlState {
   skillId: string;
   runId: string | null;
+  /** 与 FlowSteps/HITL stepId 对齐，供分步会话卡匹配当前交互步。*/
+  stepKey?: string;
   /** 待交互的 HITL 卡节点（通常是 id=hitl-card 的 Card，内含 ChoiceCard / FilePicker）。*/
   node: SduiNode;
   /** ChoiceCard 提交回调（直连 SkillAgentScreen.handleChoiceSubmit → resume）。*/

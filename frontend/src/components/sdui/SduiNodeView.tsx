@@ -12,6 +12,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom, SduiZhgkAssessmentPanelNode } from '@/lib/sdui';
 import { stableChildKey } from '@/lib/sduiKeys';
+import { useCommissionBusy } from '@/lib/commissionBusyStore';
 import { Badge, Button, Panel } from '@/components/primitives';
 import { SduiGanttChart } from './SduiGanttChart';
 import { SduiTabBarActionsContext } from './SduiTabBarActionsContext';
@@ -1977,6 +1978,7 @@ function MachineRoom3DView({ node }: { node: SduiMachineRoom3DNode }) {
 
 export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
   const { onAction, onChoiceSubmit, onFormSubmit, commissionExecuting = null } = useSduiRuntime();
+  const commissionBusy = useCommissionBusy();
 
   const renderChildren = (children: SduiNode[] | undefined) =>
     children?.map((child, i) => {
@@ -2173,13 +2175,18 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       const isThis = Boolean(
         commissionExecuting && stepKey && commissionExecuting.stepKey === stepKey,
       );
+      const isCommissionBtn = btnId.startsWith('sd-cmd-');
+      const blocked = Boolean(
+        (commissionExecuting && isCommissionBtn)
+        || (commissionBusy.active && isCommissionBtn),
+      );
       return (
         <Button
           variant={v}
           size="sm"
-          disabled={isThis}
+          disabled={isThis || blocked}
           onClick={() => onAction(node.action)}
-          style={isThis ? { minWidth: 120 } : undefined}
+          style={(isThis || blocked) ? { minWidth: 120, pointerEvents: isThis ? undefined : 'none' } : undefined}
         >
           {isThis ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
