@@ -6,6 +6,7 @@ export type LandingProjectCard = {
   dbId?: number;
   name: string;
   code: string;
+  projectCode?: string;
   roles: string[];
   stage4: 'survey' | 'modeling' | 'install' | 'deploy';
   todoCount: number;
@@ -164,6 +165,7 @@ export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {
     dbId: item.id,
     name: item.projectName,
     code: item.projectCode || item.bidCode || item.projectId,
+    projectCode: item.projectCode || undefined,
     roles,
     stage4,
     todoCount: item.progress > 0 ? Math.max(1, Math.round(item.progress / 25)) : 0,

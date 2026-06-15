@@ -112,6 +112,8 @@ export default function CreateProjectModal({
       id,
       name: obj.name || '未命名项目',
       code: obj.code || obj.proposal || undefined,
+      projectCode: obj.code || undefined,
+      proposalId: obj.proposal || undefined,
     });
     onClose?.();
     navigate('/cockpit');

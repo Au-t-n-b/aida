@@ -8,11 +8,20 @@ import {
   SERVICE_CATEGORY_TONE, PART_TONE,
 } from '../../data/contract-data';
 import VersionBar, { bumpVersion } from '../version-bar';
+import { useCurrentProject } from '@/lib/current-project';
 
 /* 读 URL 参数 — 不用 useSearchParams 避免静态导出后 Suspense fallback=null 空白 */
 function readUrlParam(key) {
   if (typeof window === 'undefined') return null;
   return new URLSearchParams(window.location.search).get(key);
+}
+
+function derivePreviewProjectCode(proposalId, project) {
+  if (project?.projectCode) return project.projectCode;
+  if (project?.code && !String(project.code).startsWith('PROP-')) return project.code;
+  const tail = String(proposalId || project?.code || '').match(/-([A-Za-z0-9]+)$/);
+  if (tail?.[1]) return tail[1];
+  return project?.id || DEFAULT_PREVIEW_PROJECT.projectCode;
 }
 
 /* BOQ 当前文件清单：预览抽屉只展示用户点击的这一个文件 */
@@ -26,7 +35,11 @@ function boqAttachments(b) {
 
 const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
 const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
-const PREVIEW_PROPOSAL_ID = 'PROP-2026-K1903';
+const DEFAULT_PREVIEW_PROJECT = {
+  proposalId: 'PROP-2026-K1903',
+  projectName: '京东三期',
+  projectCode: 'K1903',
+};
 const UNLINKED_CONTRACT_NO = '未关联合同';
 
 function fileExt(name) {
@@ -150,7 +163,7 @@ function PreviewAssetPane({ asset }) {
 }
 
 const CONTRACT_MAP = {
-  [PREVIEW_PROPOSAL_ID]: [
+  [DEFAULT_PREVIEW_PROJECT.proposalId]: [
     {
       contract_no: '1Y01012602830P',
       contract_name: '京东26年昇腾液冷超节点框架-宝德',
@@ -222,7 +235,8 @@ function PreviewFocus({ tab }) {
 }
 
 /* ── 合同 / BOQ tab（5.27 重做：合同列表 + 小三角下拉 + BOQ 默认全选 + 上传按钮） ── */
-function ContractTab({ onStateChange }) {
+function ContractTab({ projectInfo, onStateChange }) {
+  const proposalId = projectInfo.proposalId || DEFAULT_PREVIEW_PROJECT.proposalId;
   const boqUploadInputRef = useRef(null);
   const [openContracts, setOpenContracts] = useState({});
   /* BOQ 选中状态：默认全选 (AM-27) */
@@ -240,7 +254,7 @@ function ContractTab({ onStateChange }) {
   /* P1 · 上传 BOQ 兜底 */
   const [uploadToast, setUploadToast] = useState(null);
   const [isUploadingBoq, setIsUploadingBoq] = useState(false);
-  const [contractRecords, setContractRecords] = useState(() => CONTRACT_MAP[PREVIEW_PROPOSAL_ID] || []);
+  const [contractRecords, setContractRecords] = useState(() => CONTRACT_MAP[proposalId] || []);
   const [uploadedBoqs, setUploadedBoqs] = useState([]);
   /* BOQ 附件预览 / 下载操作提示 */
   const [attachToast, setAttachToast] = useState(null);
@@ -317,7 +331,7 @@ function ContractTab({ onStateChange }) {
 
   useEffect(() => {
     let cancelled = false;
-    const params = new URLSearchParams({ proposal_id: PREVIEW_PROPOSAL_ID });
+    const params = new URLSearchParams({ proposal_id: proposalId });
     fetch(`${AGENT_BASE}/agent/preview/contracts?${params}`)
       .then(async (resp) => {
         if (!resp.ok) throw new Error(await errorMessage(resp));
@@ -329,7 +343,7 @@ function ContractTab({ onStateChange }) {
         }
       })
       .catch(() => {
-        if (!cancelled) setContractRecords(CONTRACT_MAP[PREVIEW_PROPOSAL_ID] || []);
+        if (!cancelled) setContractRecords(CONTRACT_MAP[proposalId] || []);
       });
     fetch(`${AGENT_BASE}/agent/preview/boq?${params}`)
       .then(async (resp) => {
@@ -345,7 +359,7 @@ function ContractTab({ onStateChange }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [proposalId]);
 
   useEffect(() => {
     if (!usingQueriedBoqs) return;
@@ -359,7 +373,7 @@ function ContractTab({ onStateChange }) {
     fireUploadToast(files.length === 1 ? `正在上传 ${files[0].name}…` : `正在上传 ${files.length} 份 BOQ…`, 120000);
     try {
       const form = new FormData();
-      form.append('proposal_id', PREVIEW_PROPOSAL_ID);
+      form.append('proposal_id', proposalId);
       files.forEach(file => form.append('files', file));
       const resp = await fetch(`${AGENT_BASE}/agent/preview/boq/upload`, {
         method: 'POST',
@@ -397,7 +411,6 @@ function ContractTab({ onStateChange }) {
             <col />
             <col />
             <col />
-            <col />
           </colgroup>
           <thead>
             <tr>
@@ -405,22 +418,15 @@ function ContractTab({ onStateChange }) {
               <th>Proposal ID</th>
               <th>项目名称</th>
               <th>项目编码</th>
-              <th>客户</th>
               <th>待交付合同</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td></td>
-              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title="PROP-2026-K1903">PROP-2026-K1903</td>
-              <td title="京东三期">京东三期</td>
-              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title="K1903">K1903</td>
-              <td
-                title="客户甲（华东）"
-                style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
-              >
-                客户甲（华东）
-              </td>
+              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={proposalId}>{proposalId}</td>
+              <td title={projectInfo.projectName}>{projectInfo.projectName}</td>
+              <td className="num" style={{ fontFamily: 'var(--font-mono)' }} title={projectInfo.projectCode}>{projectInfo.projectCode}</td>
               <td>{totalContracts}</td>
             </tr>
           </tbody>
@@ -1253,8 +1259,25 @@ function LLDTab() {
 
 /* SVG 校正：/preview 只承载合同条线；DTRB/DRB/LLD 三快照拆到 /proposal 路由 */
 export default function PreviewScreen() {
+  const { project } = useCurrentProject();
   const [boqState, setBoqState] = useState({ confirmed: false, parseProgress: 0, selectedCount: 0, totalBoqs: 0 });
   const parseDone = boqState.confirmed && boqState.parseProgress === 100;
+  const proposalId =
+    readUrlParam('proposal_id') ||
+    readUrlParam('proposalId') ||
+    readUrlParam('proposal') ||
+    project?.proposalId ||
+    (project?.code && String(project.code).startsWith('PROP-') ? project.code : null) ||
+    DEFAULT_PREVIEW_PROJECT.proposalId;
+  const projectName =
+    readUrlParam('project_name') ||
+    readUrlParam('projectName') ||
+    project?.name ||
+    DEFAULT_PREVIEW_PROJECT.projectName;
+  const projectCode =
+    readUrlParam('project_code') ||
+    readUrlParam('projectCode') ||
+    derivePreviewProjectCode(proposalId, project);
 
   return (
     <div className="jn-wrap preview-screen" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -1265,7 +1288,10 @@ export default function PreviewScreen() {
           </div>
         </div>
 
-        <ContractTab onStateChange={setBoqState} />
+        <ContractTab
+          projectInfo={{ proposalId, projectName, projectCode }}
+          onStateChange={setBoqState}
+        />
       </div>
 
       {/* 确认前底部操作栏：居中显示「已选 N / M BOQ」+ 「确认并解析 BOQ →」*/}

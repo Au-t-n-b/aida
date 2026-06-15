@@ -58,11 +58,16 @@ export type DcMyProjectsData = {
     projectName: string;
     projectCode?: string | null;
     bidCode?: string | null;
+    customerName?: string | null;
     status: string;
     stage?: string | null;
     progress: number;
     risk: string;
+    description?: string | null;
     updatedAt?: string | null;
+    pdName?: string | null;
+    tdName?: string | null;
+    pcmName?: string | null;
     myRoles: { roleCode: string; roleName?: string }[];
     canEnter: boolean;
     disabledReason?: string | null;

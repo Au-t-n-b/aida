@@ -200,7 +200,13 @@ export default function LandingScreen() {
   const openProject = (id: string) => {
     const p = projects.find((x) => x.id === id);
     if (!p || !p.canEnter) return;
-    selectProject({ id: p.id, name: p.name, code: p.code });
+    selectProject({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+      projectCode: p.projectCode || (String(p.code).startsWith('PROP-') ? undefined : p.code),
+      proposalId: p.bidCode || (String(p.code).startsWith('PROP-') ? p.code : undefined),
+    });
     navigate('/cockpit');
   };
 
