@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """lint_module_boundaries · 守门：模块边界契约 ≡ 代码
 
-纯文本扫描（不 import / 不实例化 skill，无需 venv），校验三件事：
+纯文本扫描（不 import / 不实例化 skill，无需 venv），校验四件事：
 
   1) 跨 skill 隔离（硬阻断）
      agent/skills/<A>/ 下任意 .py 不得 import 另一个已注册 skill <B>。
      业务场景 Skill之间零横向依赖；共享只走通用底座（base/llm/tools/mailer）或数据中心运行时目录。
      对齐 docs/20_架构与范式/architecture/02_module_boundaries.md §3 依赖矩阵。
 
-  2) 注册表 ↔ 边界图（硬阻断）
-     agent/skills/__init__.py 里每个 registry.register("<id>", ...) 的 <id>
-     必须出现在 docs/20_架构与范式/architecture/02_module_boundaries.md（§1 模块清单）。
+  2) 目录自动发现约定（硬阻断）
+     每个 agent/skills/<id>/（非下划线开头、含 skill.py）必须暴露 get_<id>_skill 工厂——
+     这是运行时自动注册的契约（VIBECODING_HARNESS.md §7·P1a），缺工厂则该 skill 静默不注册。
 
-  3) A 层门面（仅告警）
+  3) 自动发现 ↔ 边界图（硬阻断）
+     每个自动发现的 <id> 必须出现在 docs/20_架构与范式/architecture/02_module_boundaries.md（§1 模块清单）。
+
+  4) A 层门面（仅告警）
      每个已注册 skill 宜有 skills/<id>/SKILL.md。
 
-命中 (1)/(2) → 退出码 1；(3) 仅打印告警。输出风格对齐 lint_skill_contract.py。
+命中 (1)/(2)/(3) → 退出码 1；(4) 仅打印告警。输出风格对齐 lint_skill_contract.py。
 
 用法：  python agent/scripts/lint_module_boundaries.py
 """
@@ -33,7 +36,6 @@ except Exception:
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO / "agent" / "skills"
-REGISTRY_INIT = SKILLS_DIR / "__init__.py"
 BOUNDARIES = REPO / "docs" / "20_架构与范式" / "architecture" / "02_module_boundaries.md"
 SKILL_MD_DIR = REPO / "skills"
 
@@ -55,8 +57,18 @@ def _read(path: Path) -> str:
 
 
 def registered_skill_ids() -> list[str]:
-    text = _read(REGISTRY_INIT)
-    return re.findall(r'registry\.register\(\s*["\']([a-z0-9_]+)["\']', text)
+    """目录自动发现的 skill id —— 与 agent/skills/__init__.py 运行时同规则：
+    agent/skills/<id>/ 且非下划线/点开头、含 skill.py。
+    （P1a 后注册表不再有 registry.register 字面量，真相 = 目录约定。）"""
+    if not SKILLS_DIR.is_dir():
+        return []
+    ids: list[str] = []
+    for child in sorted(SKILLS_DIR.iterdir()):
+        name = child.name
+        if not child.is_dir() or name[0] in "_." or not (child / "skill.py").is_file():
+            continue
+        ids.append(name)
+    return ids
 
 
 def scan_cross_skill_imports(skill_id: str, others: set[str]) -> list[tuple[str, int, str]]:
@@ -84,7 +96,7 @@ def main() -> int:
 
     ids = registered_skill_ids()
     if not ids:
-        print("[module-boundaries] SKIP · 注册表为空（agent/skills/__init__.py 无 registry.register）")
+        print("[module-boundaries] SKIP · 未发现任何 skill 目录（agent/skills/<id>/skill.py）")
         return 0
 
     id_set = set(ids)
@@ -100,7 +112,16 @@ def main() -> int:
                 f"      → 业务场景 Skill 间零横向依赖（02_module_boundaries §3）；共享走 base/llm/tools 或数据中心运行时目录"
             )
 
-    # (2) 注册表 ↔ 边界图
+    # (2) 目录自动发现约定：每个 skill 目录必须暴露 get_<id>_skill 工厂（否则运行时静默不注册）
+    for sid in ids:
+        skill_py = SKILLS_DIR / sid / "skill.py"
+        if not re.search(rf"def\s+get_{re.escape(sid)}_skill\b", _read(skill_py)):
+            errors.append(
+                f"  缺工厂：agent/skills/{sid}/skill.py 未定义 get_{sid}_skill —— "
+                f"目录自动发现注册的契约（VIBECODING_HARNESS §7·P1a），缺则该 skill 静默不注册"
+            )
+
+    # (3) 自动发现 ↔ 边界图
     if not BOUNDARIES.is_file():
         errors.append(
             f"  边界图缺失：{BOUNDARIES.relative_to(REPO)} 不存在 —— 治理骨架未落盘"
@@ -114,7 +135,7 @@ def main() -> int:
                     f"{BOUNDARIES.relative_to(REPO)} §1 模块清单 —— 跑 Workflow C 基线重置补登"
                 )
 
-    # (3) A 层门面（告警）
+    # (4) A 层门面（告警）
     for sid in ids:
         if not (SKILL_MD_DIR / sid / "SKILL.md").is_file():
             warnings.append(f"  模块 '{sid}' 缺 skills/{sid}/SKILL.md（A 层门面建议补齐）")

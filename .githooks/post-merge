@@ -1,0 +1,27 @@
+#!/bin/sh
+# AIDA 派生制品守门 · post-merge
+# merge=ours 让合并只保留本侧派生制品，但合进来的「源」可能已变 →
+# 从合并后的源重生成一次对齐。有变化只提示、不自动提交（留痕给人 review）。
+# 启用：scripts/setup-git-hooks.sh
+set -eu
+
+REPO="$(git rev-parse --show-toplevel)"
+cd "$REPO"
+
+# 优先用 agent venv 的 python（gen_sdui_gallery 需 builder.py 的依赖）。可用 AIDA_PYTHON 覆盖。
+if [ -n "${AIDA_PYTHON:-}" ]; then PY="$AIDA_PYTHON"
+elif [ -x "agent/.venv/Scripts/python.exe" ]; then PY="agent/.venv/Scripts/python.exe"
+elif [ -x "agent/.venv/bin/python" ]; then PY="agent/.venv/bin/python"
+else PY="python"; fi
+
+echo "[post-merge] 从合并后的源重生成派生制品…"
+"$PY" agent/scripts/gen_docs_site.py    >/dev/null 2>&1 || echo "[post-merge] ⚠ gen_docs_site 失败，请手动跑"
+"$PY" agent/scripts/gen_sdui_gallery.py >/dev/null 2>&1 || echo "[post-merge] ⚠ gen_sdui_gallery 失败，请手动跑"
+"$PY" agent/scripts/gen_team_portal.py  >/dev/null 2>&1 || echo "[post-merge] ⚠ gen_team_portal 失败，请手动跑"
+
+if ! git diff --quiet -- docs/site/; then
+  echo "[post-merge] ⚠ 派生制品因本次合并已更新，请 review 后：git add docs/site/ && git commit"
+else
+  echo "[post-merge] 派生制品已与合并后的源一致。"
+fi
+exit 0

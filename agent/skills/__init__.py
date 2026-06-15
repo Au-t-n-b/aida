@@ -19,29 +19,32 @@ from ._loader import SkillMetadata, load_skill_md, default_skill_md_path
 
 
 def _register_all():
-    """启动时只注册工厂引用，不实例化（lazy）。
+    """目录自动发现：扫 agent/skills/<name>/skill.py，注册其 get_<name>_skill 工厂。
 
-    单个 skill 缺目录 / 导入失败时**只跳过它**，不拖垮整个注册表——
-    否则一个未提交的可选 skill（如 device_install）会让全部 skill 不可用。
+    加一个 skill = 新建 agent/skills/<name>/（skill.py 暴露 get_<name>_skill），
+    **无需改本文件**——消除「每加一个 skill 都要碰 __init__.py」这个高冲突注册点
+    （VIBECODING_HARNESS.md §7 · P1a）。约定由 lint_module_boundaries.py 守门。
+
+    规则：
+    - 只认 agent/skills/ 下的**目录**且含 skill.py；下划线/点开头的目录
+      （`_template` 脚手架、`__pycache__` 等）跳过，不注册。
+    - 工厂名约定 `get_<dirname>_skill`，注册 id = 目录名。
+    - 单个 skill 导入失败 / 缺工厂时**只跳过它**并打印 stderr，不拖垮整个注册表——
+      否则一个未提交的可选 skill（如 device_install）会让全部 skill 不可用。
     """
     import importlib
     import sys
+    from pathlib import Path
 
-    # (skill 名, "模块路径:工厂函数名")
-    _specs = [
-        ("zhgk",                ".zhgk.skill:get_zhgk_skill"),
-        ("guihua",              ".guihua.skill:get_guihua_skill"),
-        ("xtsj",                ".xtsj.skill:get_xtsj_skill"),
-        ("system_design",       ".system_design.skill:get_system_design_skill"),
-        ("device_install",      ".device_install.skill:get_device_install_skill"),
-        ("software_deployment", ".software_deployment.skill:get_software_deployment_skill"),
-    ]
-    for name, target in _specs:
-        mod_path, factory_name = target.split(":")
+    skills_dir = Path(__file__).resolve().parent
+    for child in sorted(skills_dir.iterdir()):
+        name = child.name
+        if not child.is_dir() or name[0] in "_." or not (child / "skill.py").is_file():
+            continue
         try:
-            mod = importlib.import_module(mod_path, package=__name__)
-            registry.register(name, getattr(mod, factory_name))
-        except Exception as e:  # noqa: BLE001 — 缺件/语法错都不应阻断其余 skill
+            mod = importlib.import_module(f".{name}.skill", package=__name__)
+            registry.register(name, getattr(mod, f"get_{name}_skill"))
+        except Exception as e:  # noqa: BLE001 — 缺件/语法/缺工厂都不应阻断其余 skill
             sys.stderr.write(f"[skills] 跳过 {name}：{type(e).__name__}: {e}\n")
 
 

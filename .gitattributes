@@ -1,5 +1,10 @@
 # 派生制品锁 LF：让生成器的字节级 diff 守门在 autocrlf=true 的 Windows 检出下也成立
 # （否则检出变 CRLF、生成器产 LF → lint_sdui_gallery / lint_docs_site / lint_team_portal 假阳性）。
-agent/docs/sdui-gallery.html text eol=lf
-docs/site/index.html text eol=lf
-docs/site/portal.html text eol=lf
+#
+# merge=ours：派生制品 100% 可由源重现，合并时绝不做 3-way（近单行巨串无法手解，AI 手解会
+# 产出既不等于任一源的怪物）。合并保留本侧 → post-merge 钩子从「合并后的源」重生成一次对齐。
+# 启用：scripts/setup-git-hooks.sh（注册 merge.ours.driver=true + core.hooksPath=.githooks）。
+# 未启用者回退旧 3-way（无回归），可平滑推开。
+docs/site/index.html         text eol=lf merge=ours
+docs/site/portal.html        text eol=lf merge=ours
+docs/site/sdui-gallery.html  text eol=lf merge=ours

@@ -14,7 +14,8 @@
 |---------|------|---------|--------|------|----------------|---------|------|
 | `zhgk` | 智慧工勘 | 线性 DAG · **意图驱动** | 14 (+preflight) | `intent`（4 意图） | `survey` | [SKILL.md](../../../skills/zhgk/SKILL.md) | ✅ 端到端样板 |
 | `guihua` | 规划设计（建模仿真） | 线性 DAG | 5 | `{}`（顺序执行） | `modeling` | [SKILL.md](../../../skills/guihua/SKILL.md) | ✅ |
-| `xtsj` | 系统设计（网络开局） | **dispatch 分发** | 2 (+路线图) | `command`（菜单命令） | `design` | [SKILL.md](../../../skills/xtsj/SKILL.md) | ✅ PoC |
+| `xtsj` | 系统设计（网络开局·PoC） | **dispatch 分发** | 2 (+路线图) | `command`（菜单命令） | `design`（config 切换） | [SKILL.md](../../../skills/xtsj/SKILL.md) | ✅ PoC（被 `system_design` 取代为 design 默认） |
+| `system_design` | 系统设计（A3 智能网络开局） | 线性 DAG · **意图驱动 + dispatch** | 10 | `command/text`（意图识别） | `design`（与 xtsj 同键·`designSkillId` 切换） | ❌ 缺 `skills/system_design/SKILL.md` | ✅ 默认 design 实现 |
 | `device_install` | 设备安装 | 线性 DAG | 待定 | 待定 | `install` | [SKILL.md](../../../skills/device_install/SKILL.md) | 🟡 B 层可选注册 |
 | `software_deployment` | 软件部署与调测 | 线性 DAG + **resume 单步调度** | 13 | `entry_mode`（全量 / 直达命令调测） | `deploy` | [SKILL.md](../../../skills/software_deployment/SKILL.md) | ✅ E2E |
 | `delivery` | 交付编排 | 待定 | 待定 | 待定 | 待定 | ❌ 待建 | 🟡 试点目标 |
@@ -78,8 +79,8 @@ AIDA 运行时已 1→N 泛化（注册即得图+端点），消除了改 `main.
 
 | 共享文件 | 改什么 | 位置锚点 | 冲突级别 | 合并协议 |
 |---------|--------|---------|:---:|---------|
-| `agent/skills/__init__.py` | `_register_all()` 内加 `import` + `registry.register("<id>", get_<id>_skill)` | 函数体内追加 2 行 | 🔴 高 | 各 TASK 在函数末尾追加，架构师合并 |
-| `frontend/src/routes/module.tsx` | `MODULE_TO_SKILL` 加 `<moduleKey>: '<id>'` | 对象字面量（约 L12–16） | 🔴 高 | 各 TASK 加 1 行键值 |
+| ~~`agent/skills/__init__.py`~~ | **✅ 已消除（P1a 目录自动发现）**：新建 `agent/skills/<id>/skill.py`（暴露 `get_<id>_skill`）即自动注册，**加 skill 零碰本文件** | — | ⚪ 无 | 不再需要合并（守门：`lint_module_boundaries` 校验工厂约定） |
+| `frontend/src/data/module-skill-map.ts` | `MODULE_TO_SKILL` 加 `<moduleKey>: '<id>'` | 对象字面量 | 🔴 高 | 各 TASK 加 1 行键值（**P1b 后将从 skill 元数据派生消除**） |
 | `frontend/src/data/modules-data.ts` | `MODULE_SCHEMAS` 加 `<moduleKey>: {…}` 一条 | 对象字面量（现有键 survey/modeling/job） | 🔴 高 | 各 TASK 加 1 条 schema 块 |
 | `agent/tools/run_<id>.py` + `chat_engine`（可选） | skill-as-tool 会话唤起 | 新文件 + 分发分支 | 🟡 中 | 仅做会话唤起时碰 |
 
@@ -116,9 +117,9 @@ NEW（只属于你的模块 · 别人不碰）
   agent/tools/run_<id>.py         skill-as-tool（可选）
 
 MODIFY（高冲突共享 · 行级范围 · 架构师合并 —— 见 §4）
-  agent/skills/__init__.py
-  frontend/src/routes/module.tsx
-  frontend/src/data/modules-data.ts
+  frontend/src/data/module-skill-map.ts   (MODULE_TO_SKILL；P1b 后派生消除)
+  frontend/src/data/modules-data.ts        (MODULE_SCHEMAS)
+  # agent/skills/__init__.py 已不在此列：P1a 目录自动发现后，加 skill 零碰它
 
 零改（红线 · 见 §5）
   agent/main.py · graph.py · base.py · 前端 SkillAgentScreen/useSduiStream/SduiNodeView

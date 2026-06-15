@@ -26,6 +26,20 @@ source agent/.venv/bin/activate
 python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r agent/requirements.txt
 ```
 
+**启用 git 工作流护栏（每个 clone 跑一次，强烈建议）**：
+
+```bash
+# Windows：双击 scripts\setup-git-hooks.bat，或命令行：
+scripts\setup-git-hooks.bat
+# macOS / Linux / Git Bash：
+sh scripts/setup-git-hooks.sh
+```
+
+作用（消灭派生制品的合并冲突与手解，见 [60_部署运维] / 团队范式）：
+- `core.hooksPath=.githooks`：**pre-commit** 改了源（`docs/`、`builder.py`、`portal.json`）自动重生成对应派生制品（`docs/site/*.html`）并入库；**post-merge** 合并后从合并源重生成对齐。
+- `merge.ours.driver=true`：配合 `.gitattributes` 的 `merge=ours`，让 `docs/site/*.html` 合并时**永不 3-way 冲突**（派生制品 100% 可由源重现，保本侧 + post-merge 对齐，不丢信息）。
+- 未跑此步者回退旧 3-way 合并（无回归），但会重新陷入「926KB 单行 HTML 手解」之苦——**务必跑**。
+
 ---
 
 ## 第二步：配置密钥

@@ -1,0 +1,44 @@
+#!/bin/sh
+# AIDA 派生制品守门 · pre-commit
+# 源改了 → 自动重生成对应派生制品并加入本次提交，杜绝「过期产物 / 手解的怪物 HTML」入库。
+# 仅当本次提交涉及对应源时才重生成（省时）。启用：scripts/setup-git-hooks.sh
+set -eu
+
+REPO="$(git rev-parse --show-toplevel)"
+cd "$REPO"
+
+# 优先用 agent venv 的 python：gen_sdui_gallery 要 import builder.py 的依赖，
+# 系统 python 常缺 → 钩子会失败挡提交。可用 AIDA_PYTHON 覆盖。
+if [ -n "${AIDA_PYTHON:-}" ]; then PY="$AIDA_PYTHON"
+elif [ -x "agent/.venv/Scripts/python.exe" ]; then PY="agent/.venv/Scripts/python.exe"
+elif [ -x "agent/.venv/bin/python" ]; then PY="agent/.venv/bin/python"
+else PY="python"; fi
+
+# core.quotepath=false：本仓 docs 多为中文名，默认 git 会把非 ASCII 路径加引号转义
+# （"docs/00_\345..."），令 ^docs/ 匹配失效 → 钩子静默不触发。务必关掉。
+staged="$(git -c core.quotepath=false diff --cached --name-only)"
+changed=0
+
+regen() {
+  echo "  [pre-commit] 重生成 $1"
+  if ! "$PY" "$2" >/dev/null; then
+    echo "  [pre-commit] ❌ 生成失败：$2（修复后再提交）" >&2
+    exit 1
+  fi
+  git add "$3"
+  changed=1
+}
+
+# 源 → 产物 映射（与 .gitattributes / lint_* 守门一致）
+if printf '%s\n' "$staged" | grep -qE '^(docs/|agent/docs/)'; then
+  regen "docs-site"     agent/scripts/gen_docs_site.py    docs/site/index.html
+fi
+if printf '%s\n' "$staged" | grep -qE 'builder\.py$'; then
+  regen "sdui-gallery"  agent/scripts/gen_sdui_gallery.py docs/site/sdui-gallery.html
+fi
+if printf '%s\n' "$staged" | grep -qE 'portal\.json$'; then
+  regen "team-portal"   agent/scripts/gen_team_portal.py  docs/site/portal.html
+fi
+
+[ "$changed" = "1" ] && echo "  [pre-commit] 派生制品已刷新并加入本次提交。"
+exit 0
