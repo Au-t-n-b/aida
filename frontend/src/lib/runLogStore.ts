@@ -21,6 +21,8 @@ export interface RunLogGroup {
   name: string;
   lines: string[];
   status: RunLogStatus;
+  /** 节点开始时刻（展示在 AIDA · 时间戳） */
+  ts?: string;
 }
 
 /** 主建设 build 流程末尾串过的辅助只读步（ESN 完成后从中间对话框移除） */
@@ -61,6 +63,12 @@ function stripParens(text: string): string {
 
 const PATH_RE = /[A-Za-z]:\\|\/Users\/|ProjectData[\\/]|\.nanobot[\\/]|workspace[\\/]/;
 
+function formatRunLogTs(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 /** 中间对话框专用：精简为业务可读短句，不展示路径与括号解释 */
 function simplifyLogLine(msg: string): string {
   const raw = stripStepTag(msg).trim();
@@ -69,16 +77,28 @@ function simplifyLogLine(msg: string): string {
   // 整行丢弃：路径、内部态、低价值信息
   if (/^源文件目录：/.test(raw)) return '';
   if (/^源目录\s/.test(raw)) return '';
+  if (/^输入目录：/.test(raw)) return '';
+  if (/^期望文件：/.test(raw)) return '';
   if (/当前命令:/.test(raw)) return '';
   if (/重放续跑/.test(raw)) return '';
+  if (/^扫描设备安装环境与上游交付计划表/.test(raw)) return '';
   if (/▶\s*开始/.test(raw)) return '';
   if (/此前已下发.*幂等/.test(raw)) return '';
   if (PATH_RE.test(raw)) return '';
 
   let s = stripParens(raw);
 
+  // 环境预检：三张输入表就绪态（统一 √ + 全角冒号）
+  const fileReady = s.match(/^([✓√✗])\s*(交付计划表|设备位置表|到货信息表)[:：]\s*(.+)$/);
+  if (fileReady) {
+    const mark = fileReady[1] === '✗' ? '✗' : '√';
+    const status = fileReady[3].trim().replace(/（[^）]*）/g, '').trim();
+    return `${mark} ${fileReady[2]}：${status}`;
+  }
+
   // 常见句式缩短
   if (/^⚠\s*LLM 摘要跳过/.test(s)) return 'LLM 摘要跳过';
+  if (s === 'LLM 摘要跳过') return s;
   if (/^✓\s*上游·/.test(s) && /已就绪/.test(s)) return '上游实施计划已就绪';
   if (/^✗\s*上游·/.test(s)) return '上游实施计划缺失';
   if (/^重新解析上游实施计划：/.test(s)) return '正在解析实施计划';
@@ -87,6 +107,12 @@ function simplifyLogLine(msg: string): string {
     return m ? `已解析 ${m[1]} 条实施计划` : '实施计划解析完成';
   }
   if (s === '🤖 AI 摘要：') return '预检结论';
+  if (/^✓\s*已保存责任人信息/.test(s)) {
+    const m = s.match(/回填 (\d+) 条任务/);
+    return m
+      ? `√ 已保存责任人信息，回填 ${m[1]} 条任务并生成《责任人信息表》`
+      : '√ 已保存责任人信息并生成《责任人信息表》';
+  }
   if (/^✓\s*已下发 (\d+) 条/.test(s)) {
     const m = s.match(/已下发 (\d+) 条/);
     return m ? `已下发 ${m[1]} 条计划` : '计划下发完成';
@@ -145,6 +171,7 @@ export function pushRunLog(runId: string, ev: RunLogEvent): void {
       name: ev.name || (idx >= 0 ? cur[idx]!.name : ev.step),
       lines: [],
       status: 'running',
+      ts: formatRunLogTs(),
     };
     next = idx >= 0 ? cur.map((g, i) => (i === idx ? group : g)) : [...cur, group];
   } else if (phase === 'done' || phase === 'failed') {
@@ -168,7 +195,13 @@ export function pushRunLog(runId: string, ev: RunLogEvent): void {
     } else {
       next = [
         ...cur,
-        { step: ev.step, name: ev.name || ev.step, lines: [line], status: 'running' as RunLogStatus },
+        {
+          step: ev.step,
+          name: ev.name || ev.step,
+          lines: [line],
+          status: 'running' as RunLogStatus,
+          ts: formatRunLogTs(),
+        },
       ];
     }
   }
