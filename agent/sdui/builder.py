@@ -167,6 +167,15 @@ class SduiStatisticRowNode(BaseModel):
     flex: float | None = None
 
 
+class SduiZhgkAssessmentDetail(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    item: str | None = None
+    result: str | None = None
+    source: str | None = None
+    time: str | None = None
+    risk: str | None = None
+
+
 class SduiKeyValueListNode(BaseModel):
     model_config = ConfigDict(extra="ignore")
     type: Literal["KeyValueList"] = "KeyValueList"
@@ -187,6 +196,42 @@ class SduiGoldenMetricsNode(BaseModel):
     type: Literal["GoldenMetrics"] = "GoldenMetrics"
     id: str | None = None
     metrics: list[dict[str, Any]] | None = None
+
+
+class SduiZhgkGoldenMetricsNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkGoldenMetrics"] = "ZhgkGoldenMetrics"
+    id: str | None = None
+    progress: int | float
+    centerLabel: str | None = None
+    items: list[SduiStatisticRowItem]
+
+
+class SduiZhgkAssessmentCategory(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    label: str
+    value: int | float
+    tone: Literal["success", "warning", "error", "accent", "subtle"] | None = None
+    details: list[SduiZhgkAssessmentDetail] = Field(default_factory=list)
+
+
+class SduiZhgkAssessmentAlert(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    tone: Literal["info", "success", "warning", "error"] | None = None
+    title: str | None = None
+    message: str
+
+
+class SduiZhgkAssessmentPanelNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkAssessmentPanel"] = "ZhgkAssessmentPanel"
+    id: str | None = None
+    title: str = "AI 五值评估"
+    total: int
+    rateLabel: str = "满足率"
+    rateValue: int | float
+    categories: list[SduiZhgkAssessmentCategory]
+    alerts: list[SduiZhgkAssessmentAlert] = Field(default_factory=list)
 
 
 # ── Chart nodes ────────────────────────────────────────────────────────────────
@@ -496,8 +541,10 @@ class SduiDataTableColumn(BaseModel):
     model_config = ConfigDict(extra="ignore")
     key: str
     label: str
-    type: Literal["text", "status", "progress"] = "text"
+    type: Literal["text", "status", "progress", "date"] = "text"
     width: int | None = None
+    paddingLeft: int | None = None  # 列单元格左内边距（用于列内容右移）
+    nowrap: bool = False            # True → 单元格不换行（活动名称等）
     editable: bool = False
     placeholder: str | None = None
 
@@ -532,6 +579,7 @@ class SduiDataTableNode(BaseModel):
     backStepId: str | None = None        # run-patch stepId，默认 go_back
     groupKey: str | None = None          # 分组列（esn 按设备大类）
     groupAsTabs: bool | None = None      # True → 按 groupKey 分页签切换（替代表内分组头）
+    filterKeys: list[str] | None = None  # 可按这些列下拉筛选行（如 ["unit"] 按管理单元筛选）
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
     dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
@@ -829,6 +877,27 @@ class SduiTaskTimelineStripNode(BaseModel):
     progressPct: float | int | None = None
 
 
+class SduiGanttRow(BaseModel):
+    """GanttChart 的一行任务条：id + label + 可选 group（管理单元）+ start/end + 可选 status。"""
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    label: str
+    group: str | None = None
+    start: str
+    end: str
+    status: str | None = None
+
+
+class SduiGanttChartNode(BaseModel):
+    """多行甘特图 · 按 group 分组展示计划条（只读；编辑走 DataTable 页签）。
+    rows 每行 start/end 为 ISO 日期字符串（YYYY-MM-DD）；status 可选用于着色（如待下发/已下发）。"""
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["GanttChart"] = "GanttChart"
+    id: str | None = None
+    rows: list[SduiGanttRow]
+    title: str | None = None
+
+
 class SduiContextBarGroup(BaseModel):
     """ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。"""
     model_config = ConfigDict(extra="ignore")
@@ -923,6 +992,7 @@ class SduiOutputDocItem(BaseModel):
     category: str
     tag: str | None = None
     desc: str | None = None
+    path: str | None = None  # 下载相对路径（artifact?path=）；None 时卡片不可下载
 
 
 class SduiOutputDocCategory(BaseModel):
@@ -975,6 +1045,10 @@ class SduiChoiceCardNode(BaseModel):
     options: list[SduiChoiceOption]
     hitlRequestId: str | None = None
     stepId: str | None = None
+    multiple: bool | None = None
+    maxSelections: int | None = None
+    submitLabel: str | None = None
+    repeatable: bool | None = None
 
 
 class SduiIoConfirmPanelNode(BaseModel):
@@ -1112,6 +1186,8 @@ SduiNode = Annotated[
         SduiDonutChartNode,
         SduiBarChartNode,
         SduiGoldenMetricsNode,
+        SduiZhgkGoldenMetricsNode,
+        SduiZhgkAssessmentPanelNode,
         SduiArtifactGridNode,
         # v1.1 display nodes
         SduiAlertNode,
@@ -1155,6 +1231,7 @@ SduiNode = Annotated[
         SduiTabGroupNode,
         SduiInputSlotListNode,
         SduiTaskTimelineStripNode,
+        SduiGanttChartNode,
         SduiContextBarNode,
         SduiFlowStepsNode,
         SduiMacroStepRailNode,

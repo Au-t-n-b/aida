@@ -4,13 +4,10 @@ from __future__ import annotations
 from typing import Any
 
 from agent.proposal.auth import proposal_operator_display_name
+from agent.proposal.chapter_files import load_chapter_payload
+from agent.proposal.chapter_registry import LEAF_CHAPTERS
 from agent.proposal.draft_store import (
     format_display_datetime,
-    load_chapter_02,
-    load_chapter_81,
-    load_chapter_82,
-    load_chapter_83,
-    load_chapter_84,
     load_manifest,
     load_version_info,
     list_published_versions,
@@ -86,21 +83,17 @@ def get_version_snapshot(project_id: str, proposal_version: str) -> dict[str, An
 
     meta_row, _ = metadata_service.get_metadata(project_id, proposal_version)
     chapters: dict[str, Any] = {}
-    ch02 = load_chapter_02(project_id, proposal_version)
-    if ch02.get("rows"):
-        chapters["2"] = ch02
-    ch81 = load_chapter_81(project_id, proposal_version)
-    if ch81.get("rows"):
-        chapters["8.1"] = ch81
-    ch82 = load_chapter_82(project_id, proposal_version)
-    if ch82.get("rows"):
-        chapters["8.2"] = ch82
-    ch83 = load_chapter_83(project_id, proposal_version)
-    if ch83.get("rows"):
-        chapters["8.3"] = ch83
-    ch84 = load_chapter_84(project_id, proposal_version)
-    if ch84.get("rows") or ch84.get("hardwareSupport"):
-        chapters["8.4"] = ch84
+    for spec in LEAF_CHAPTERS:
+        if spec.key == "meta":
+            continue
+        payload = load_chapter_payload(project_id, spec.key, proposal_version)
+        if (
+            (isinstance(payload.get("rows"), list) and payload.get("rows"))
+            or (isinstance(payload.get("fields"), dict) and payload.get("fields"))
+            or (isinstance(payload.get("extras"), dict) and payload.get("extras"))
+            or payload.get("hardwareSupport")
+        ):
+            chapters[spec.key] = payload
 
     return {
         "proposalVersion": proposal_version,

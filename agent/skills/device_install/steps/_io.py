@@ -13,6 +13,7 @@ from ..services.dispatch_plan_parser import (
     parse_dispatch_plan_with_sn,
     save_sn_pool,
 )
+from ..path_config import get_upstream_input_dir
 from ..services.source_files import get_source_dir, sync_dispatch_plan_to_input
 from ..services.task_store import get_tasks, load_tasks_state, save_tasks_state, task_summary, iso_now
 
@@ -20,33 +21,61 @@ from ..services.task_store import get_tasks, load_tasks_state, save_tasks_state,
 _TASK_RUNTIME_KEYS = ("status", "progress_pct", "progress_records")
 _STATE_PRESERVE_KEYS = ("last_dispatch_tasks", "dispatched_at", "esn_collected_at")
 
-# 自动步固定时延（步进条 running + 分阶段日志；resume 重放时 preflight/plan_receive 跳过）
-PREFLIGHT_PACE_SEC = 1.2
+# 自动步固定时延（步进条 running + 分阶段日志；resume 重放时跳过）
 PLAN_RECEIVE_PACE_SEC = 1.8
 SN_GENERATE_PACE_SEC = 1.5
 
 
+def _skip_input_xlsx(name: str) -> bool:
+    """跳过 Excel 打开时产生的锁文件 / 临时文件（~$xxx.xlsx）。"""
+    n = name.strip()
+    return n.startswith("~$") or n.startswith(".~")
+
+
+def _input_search_dirs(ctx: SkillContext) -> list[Path]:
+    """输入 xlsx 搜索目录：上游 SSOT 目录 + HITL 上传的 ProjectData/Input/（去重）。"""
+    seen: set[Path] = set()
+    dirs: list[Path] = []
+    for d in (get_upstream_input_dir(ctx.project), ctx.input_dir):
+        resolved = d.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        dirs.append(resolved)
+    return dirs
+
+
 def find_input(ctx: SkillContext, *keywords: str, exclude: tuple[str, ...] = ()) -> str | None:
-    """在 Input/ 找文件名（不含扩展名也可）含全部 keywords、且不含任一 exclude 的首个 .xlsx。"""
-    if not ctx.input_dir.exists():
-        return None
-    for p in sorted(ctx.input_dir.glob("*.xlsx")):
-        name = p.name
-        if any(k.lower() in name.lower() for k in keywords) and not any(
-            e.lower() in name.lower() for e in exclude
-        ):
-            return str(p)
+    """在上游输入目录找文件名含任一 keyword、且不含任一 exclude 的首个 .xlsx。"""
+    for search_dir in _input_search_dirs(ctx):
+        if not search_dir.exists():
+            continue
+        for p in sorted(search_dir.glob("*.xlsx")):
+            name = p.name
+            if _skip_input_xlsx(name):
+                continue
+            if any(k.lower() in name.lower() for k in keywords) and not any(
+                e.lower() in name.lower() for e in exclude
+            ):
+                return str(p)
     return None
 
 
 def find_inputs(ctx: SkillContext, *keywords: str) -> list[str]:
-    """在 Input/ 找所有文件名含任一 keyword 的 .xlsx。"""
-    if not ctx.input_dir.exists():
-        return []
+    """在上游输入目录找所有文件名含任一 keyword 的 .xlsx。"""
     out: list[str] = []
-    for p in sorted(ctx.input_dir.glob("*.xlsx")):
-        if any(k.lower() in p.name.lower() for k in keywords):
-            out.append(str(p))
+    seen_paths: set[str] = set()
+    for search_dir in _input_search_dirs(ctx):
+        if not search_dir.exists():
+            continue
+        for p in sorted(search_dir.glob("*.xlsx")):
+            if _skip_input_xlsx(p.name):
+                continue
+            if any(k.lower() in p.name.lower() for k in keywords):
+                ps = str(p)
+                if ps not in seen_paths:
+                    seen_paths.add(ps)
+                    out.append(ps)
     return out
 
 
@@ -136,3 +165,51 @@ def refresh_task_metrics(ctx: SkillContext) -> dict:
     st = load_tasks_state(path)
     tasks = get_tasks(path)
     return task_summary(tasks, state=st)
+
+
+# ── 交付计划表（新流水线输入源）──────────────────────────────────────────────
+
+DELIVERY_PLAN_KEYWORDS = ("交付计划", "delivery")
+POSITION_KEYWORDS = ("设备位置", "位置表", "position")
+ARRIVAL_KEYWORDS = ("到货",)
+
+
+def find_delivery_plan(ctx: SkillContext) -> str | None:
+    """在 Input/ 定位《交付计划表.xlsx》。"""
+    return find_input(ctx, *DELIVERY_PLAN_KEYWORDS, exclude=("责任人", "实施计划"))
+
+
+def find_position_table(ctx: SkillContext) -> str | None:
+    return find_input(ctx, *POSITION_KEYWORDS)
+
+
+def find_arrival_table(ctx: SkillContext) -> str | None:
+    return find_input(ctx, *ARRIVAL_KEYWORDS)
+
+
+def load_or_parse_delivery_tasks(ctx: SkillContext, *, emit=None) -> list[dict]:
+    """任务单一事实源：同 run resume/go_back 复用 tasks_state；冷启动则重解析《交付计划表》。
+
+    冷启动时即使磁盘上仍有旧 tasks_state.json（上一轮会话残留），也须重解析，
+    否则任务 status 可能仍为「已下发」，导致「计划下发」界面无待下发条目。
+    """
+    from ..services.plan_parser import parse_delivery_plan
+
+    state_path = str(tasks_state_path(ctx))
+    if is_pipeline_replay(ctx.project):
+        return get_tasks(state_path)
+
+    plan_path = find_delivery_plan(ctx)
+    if not plan_path:
+        raise RuntimeError(
+            f"未找到《交付计划表.xlsx》，请将上游交付计划表放入：{get_upstream_input_dir(ctx.project)}"
+        )
+    tasks = parse_delivery_plan(plan_path)
+    if not tasks:
+        raise RuntimeError(
+            "未从《交付计划表》解析到任何 7.x 安装任务，请检查 ACTIVITY_ID 列。"
+        )
+    save_tasks_state(state_path, {"loaded_at": iso_now(), "source_plan": plan_path, "tasks": tasks})
+    if emit:
+        emit(f"[plan] ✓ 已解析《交付计划表》→ {len(tasks)} 条三级安装任务")
+    return tasks

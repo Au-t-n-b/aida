@@ -54,6 +54,8 @@ export function DeviceChapter({
   const [enrichNotice, setEnrichNotice] = useState<string | null>(null);
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
   const enrichStartedRef = useRef(false);
+  const onDirtyRef = useRef(onDirty);
+  onDirtyRef.current = onDirty;
 
   const runEnrichment = useCallback(
     async (currentRows: DeviceInfoRow[]) => {
@@ -90,7 +92,7 @@ export function DeviceChapter({
       let data = await fetchDeviceInfo(projectId, headers, proposalVersion);
       if (proposalVersion === 'draft' && data.rows.length === 0) {
         data = await parseDeviceBoq(projectId, headers);
-        onDirty?.();
+        onDirtyRef.current?.();
       }
       setRows(data.rows);
       setLoading(false);
@@ -109,7 +111,7 @@ export function DeviceChapter({
       setError(msg);
       setLoading(false);
     }
-  }, [headers, onDirty, projectId, proposalVersion, runEnrichment]);
+  }, [headers, projectId, proposalVersion, runEnrichment]);
 
   useEffect(() => {
     void loadRows();

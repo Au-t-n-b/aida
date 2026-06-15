@@ -93,10 +93,9 @@ def local_logical_candidates(
     if slot == "raci_template":
         return [suffix]
     candidates: list[str] = []
-    for folder in (project_name, project_code or ""):
+    for folder in (project_code or "", project_name, _DEFAULT_MOCK_PROJECT):
         if folder:
             candidates.append(ipo_paths.mock_logical_path(folder, suffix))
-    candidates.append(ipo_paths.mock_logical_path(_DEFAULT_MOCK_PROJECT, suffix))
     return candidates
 
 
@@ -147,7 +146,7 @@ def mock_logical_for_slot(slot: str, project_name: str, project_code: str | None
     suffix = ipo_paths.slot_to_mock_suffix(slot)
     if slot == "raci_template":
         return suffix
-    for folder in (project_name, project_code or "", _DEFAULT_MOCK_PROJECT):
+    for folder in (project_code or "", project_name, _DEFAULT_MOCK_PROJECT):
         if not folder:
             continue
         candidate = ipo_paths.mock_logical_path(folder, suffix)
@@ -159,7 +158,7 @@ def mock_logical_for_slot(slot: str, project_name: str, project_code: str | None
             if slot == "acceptance_input" and (MOCK_ROOT / candidate.replace("\\", "/")).is_dir():
                 return candidate
             continue
-    return ipo_paths.mock_logical_path(project_name or project_code or _DEFAULT_MOCK_PROJECT, suffix)
+    return ipo_paths.mock_logical_path(_DEFAULT_MOCK_PROJECT, suffix)
 
 
 def read_bytes(slot: str, project_name: str, project_code: str | None) -> tuple[bytes, str]:
@@ -171,9 +170,14 @@ def read_bytes(slot: str, project_name: str, project_code: str | None) -> tuple[
 
 
 def write_bytes(logical_path: str, content: bytes) -> str:
-    path = _resolve_path(logical_path)
-    if path.is_dir():
+    """写入 mock 逻辑路径（不存在则创建父目录与文件）。"""
+    p = (MOCK_ROOT / logical_path.replace("\\", "/")).resolve()
+    try:
+        p.relative_to(MOCK_ROOT.resolve())
+    except ValueError as e:
+        raise FileNotFoundError("path outside mock root") from e
+    if p.is_dir():
         raise FileNotFoundError(logical_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(content)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(content)
     return logical_path

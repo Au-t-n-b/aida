@@ -2,12 +2,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { workspaceNavigate } from '@/lib/workspace-nav-link';
 import { JOURNEY_STAGES } from '../../data/journey-data';
 import {
   PARSED_DEVICES, PARSED_SERVICES,
   SERVICE_CATEGORY_TONE, PART_TONE,
 } from '../../data/contract-data';
 import VersionBar, { bumpVersion } from '../version-bar';
+import { agentBase } from '@/lib/runtimeBase';
 
 /* 读 URL 参数 — 不用 useSearchParams 避免静态导出后 Suspense fallback=null 空白 */
 function readUrlParam(key) {
@@ -25,7 +28,7 @@ function boqAttachments(b) {
 }
 
 const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+const AGENT_BASE = agentBase();
 const PREVIEW_PROPOSAL_ID = 'PROP-2026-K1903';
 const UNLINKED_CONTRACT_NO = '未关联合同';
 
@@ -662,64 +665,18 @@ function ContractTab({ onStateChange }) {
               tick(2600, 80, '服务类分类中…');
               tick(3700, 95, '写入风险列表…');
               tick(4700, 100, '解析完成');
-              /* 解析完成后底部悬浮按钮自动出现，不弹窗打断用户 */
-              /* G-9 · 异步进度推 ClawRail
-               * 模拟 BOQ 解析流：清空 → 收到任务 → 拉取 → 解析 → 完成 */
+              /* G-9 · 异步进度推 ClawRail 进度卡片 */
               if (typeof window === 'undefined') return;
-              const fire = (delay, detail) => setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('aida:progress', { detail }));
-              }, delay);
-              const selectedNames = Object.entries(selectedBoqs)
-                .filter(([, v]) => v)
-                .map(([id]) => activeBoqById[id]?.name)
-                .filter(Boolean);
-              fire(0, {
-                role: 'user',
-                body: `开始解析 ${selectedCount} 份 BOQ`,
-              });
-              fire(450, {
-                role: 'ai',
-                body: `收到 · 已挂起解析任务，依次拉取${selectedCount > 4 ? ` ${selectedCount} 份` : ''} BOQ 文件…`,
-                reasoning: selectedNames.slice(0, 5).map((n, i) => ({
-                  ix: String(i + 1), text: `Fetch · ${n}`,
-                })),
-              });
-              fire(1500, {
-                role: 'ai',
-                body: '设备类 BOQ 已解析完毕，识别到 4 部件 8 项；其中 ConnectX-7 数量与 HLD 冲突，已挂"待确认"。',
-                chips: ['CPU/NPU/Mem/PCIe', 'BOQ vs HLD 冲突'],
-                actions: [
-                  { label: '查看冲突项', kind: 'primary', icon: 'Eye' },
-                ],
-              });
-              fire(2600, {
-                role: 'ai',
-                body: '服务类 BOQ 已分到 5 大类 · 共 9 行（算力集成 / 算力使能优化 / 智算上路 / 维保 / 培训）。解析完成。',
-                chips: ['服务 5 大类'],
-                actions: [
-                  { label: '导出 BOM', kind: 'ghost', icon: 'Doc' },
-                  { label: '推到 LLD', kind: 'primary' },
-                ],
-              });
-              /* M-112 · 冲突项自动入 cockpit 风险列表 */
-              fire(3700, {
-                role: 'ai',
-                body: '已把 ConnectX-7 数量冲突自动登记为「设计来源」风险，在 /cockpit 的风险预警面板可见。OCC 跨境数据出境项也已挂到「合规来源」。',
-                chips: ['设计来源 +1', '合规来源 +1'],
-                actions: [
-                  { label: '去看风险预警', kind: 'primary', icon: 'Eye' },
-                ],
-              });
-              /* R-10 · 解析全流程完成 → 提醒刷新页面 */
-              fire(4700, {
-                role: 'ai',
-                body: '⚡ 全部解析任务已完成。请刷新本页面查看 7 部件最新数据；下方表格已支持数量与备注就地编辑。',
-                chips: ['解析完成', 'HITL 可编辑'],
-                actions: [
-                  { label: '刷新页面看结果', kind: 'primary', icon: 'Eye' },
-                  { label: '推到 LLD 出图', kind: 'ghost' },
-                ],
-              });
+              const fireProgress = (delay: number, body: string) =>
+                setTimeout(() => {
+                  window.dispatchEvent(new CustomEvent('aida:progress', { detail: { body } }));
+                }, delay);
+              fireProgress(0,    `开始解析 ${selectedCount} 份 BOQ`);
+              fireProgress(450,  '收到 · 已挂起解析任务…');
+              fireProgress(1500, '设备类 BOQ 已解析完毕…');
+              fireProgress(2600, '服务类 BOQ 已分到 5 大类…');
+              fireProgress(3700, '已把 ConnectX-7 数量冲突自动登记…');
+              fireProgress(4700, '全部解析任务已完成');
             }}
           >
             {confirmed ? '已确认' : '确认并解析 BOQ →'}
@@ -1253,8 +1210,16 @@ function LLDTab() {
 
 /* SVG 校正：/preview 只承载合同条线；DTRB/DRB/LLD 三快照拆到 /proposal 路由 */
 export default function PreviewScreen() {
+  const navigate = useNavigate();
   const [boqState, setBoqState] = useState({ confirmed: false, parseProgress: 0, selectedCount: 0, totalBoqs: 0 });
   const parseDone = boqState.confirmed && boqState.parseProgress === 100;
+
+  const goProposal = () => workspaceNavigate(navigate, '/proposal', '/preview');
+
+  const confirmBoqParse = () => {
+    if (typeof document === 'undefined') return;
+    document.getElementById('boq-confirm-trigger')?.click();
+  };
 
   return (
     <div className="jn-wrap preview-screen" style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -1268,7 +1233,7 @@ export default function PreviewScreen() {
         <ContractTab onStateChange={setBoqState} />
       </div>
 
-      {/* 确认前底部操作栏：居中显示「已选 N / M BOQ」+ 「确认并解析 BOQ →」*/}
+      {/* 确认前底部操作栏：已选 BOQ → 确认并解析 */}
       {!boqState.confirmed && boqState.selectedCount > 0 && (
         <div className="action-footer">
           <span className="action-footer-hint">
@@ -1280,9 +1245,9 @@ export default function PreviewScreen() {
             className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-            onClick={() => { if (typeof window !== 'undefined') window.location.href = '/proposal'; }}
+            onClick={confirmBoqParse}
           >
-            进入交付预案 →
+            确认并解析 BOQ →
           </button>
         </div>
       )}
@@ -1297,7 +1262,7 @@ export default function PreviewScreen() {
           <button
             type="button"
             className="bg-blue-600 text-white hover:bg-blue-700 transition-all duration-200 px-5 py-2.5 rounded-lg text-sm font-medium"
-            onClick={() => { if (typeof window !== 'undefined') window.location.href = '/proposal'; }}
+            onClick={goProposal}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-1px)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
           >

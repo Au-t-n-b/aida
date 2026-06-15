@@ -52,7 +52,18 @@ def manager_host() -> str:
 
 
 def manager_port() -> int:
-    return int(os.environ.get("MANAGER_PORT", "8001"))
+    return int(os.environ.get("MANAGER_PORT", "8081"))
+
+
+def business_root() -> Path:
+    """项目业务数据根目录（与 agent AIDA_BUSINESS_ROOT 对齐）。"""
+    raw = os.environ.get("AIDA_BUSINESS_ROOT", "").strip()
+    if raw:
+        return Path(raw).resolve()
+    linux_default = Path("/opt/aida/aida-data/business")
+    if linux_default.is_dir():
+        return linux_default.resolve()
+    return (_repo_root() / "data").resolve()
 
 
 def _is_local_host(url: str) -> bool:
@@ -62,9 +73,23 @@ def _is_local_host(url: str) -> bool:
     return host in ("127.0.0.1", "localhost", "::1")
 
 
+def _is_private_datacenter_host(url: str) -> bool:
+    """内网数据中心 IP 必须直连；走企业 HTTP_PROXY 常被网关 504。"""
+    from urllib.parse import urlparse
+    import ipaddress
+
+    host = (urlparse(url).hostname or "").lower()
+    if _is_local_host(url):
+        return True
+    try:
+        return ipaddress.ip_address(host).is_private
+    except ValueError:
+        return False
+
+
 def http_proxy() -> str | None:
-    # 本地 Mock 数据中心必须直连；显式 proxy 会把 127.0.0.1 交给企业网关 → 504
-    if _is_local_host(datacenter_base()):
+    base = datacenter_base()
+    if _is_private_datacenter_host(base):
         return None
     return (
         os.environ.get("HTTPS_PROXY")

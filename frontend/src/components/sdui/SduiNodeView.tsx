@@ -7,11 +7,14 @@
  *  - 简单叶节点（Text/Badge/Button/Statistic）：inline 实现
  *  - 未知节点：降级提示
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom } from '@/lib/sdui';
+import { createPortal } from 'react-dom';
+import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom, SduiZhgkAssessmentPanelNode } from '@/lib/sdui';
 import { stableChildKey } from '@/lib/sduiKeys';
 import { Badge, Button, Panel } from '@/components/primitives';
+import { SduiGanttChart } from './SduiGanttChart';
+import { SduiTabBarActionsContext } from './SduiTabBarActionsContext';
 import { SduiStepper } from './SduiStepper';
 import { SduiDonutChart } from './SduiDonutChart';
 import { SduiArtifactGrid } from './SduiArtifactGrid';
@@ -24,6 +27,213 @@ import { SduiContextBar, SduiFlowSteps } from './SduiWorkbench';
 import { useSduiRuntime } from './SduiContext';
 
 // ── Sub-components (must be real components for hook rules) ────────────────────
+
+function ZhgkAssessmentPanelView({ node }: { node: SduiZhgkAssessmentPanelNode }) {
+  const [active, setActive] = useState<SduiZhgkAssessmentPanelNode['categories'][number] | null>(null);
+  const categories = node.categories ?? [];
+  const total = node.total || 0;
+  const toneColor: Record<string, string> = {
+    success: 'var(--c-success)',
+    warning: 'var(--c-warning)',
+    error: 'var(--c-danger)',
+    danger: 'var(--c-danger)',
+    accent: 'var(--c-brand)',
+    subtle: 'var(--c-border-strong)',
+  };
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const dash = circumference * Math.max(0, Math.min(100, node.rateValue || 0)) / 100;
+
+  return (
+    <div style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#fffaf0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 'var(--sp-3) var(--pad-panel)', borderBottom: '1px solid rgba(217,119,6,.18)' }}>
+        <span style={{ width: 3, height: 14, borderRadius: 2, background: '#d97706', flexShrink: 0 }} />
+        <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>
+          {node.title ?? 'AI 五值评估'}（共 {total} 项）
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
+          {categories.map((cat) => {
+            const color = toneColor[cat.tone ?? 'subtle'] || toneColor.subtle || 'var(--c-border-strong)';
+            const details = cat.details ?? [];
+            const clickable = details.length > 0 && Number(cat.value || 0) > 0;
+            return (
+              <button
+                key={cat.label}
+                type="button"
+                aria-disabled={!clickable}
+                onClick={() => clickable && setActive(cat)}
+                style={{
+                  position: 'relative',
+                  minHeight: 86,
+                  padding: '14px 14px 12px',
+                  textAlign: 'left',
+                  borderRadius: 6,
+                  border: '1px solid var(--c-border)',
+                  background: 'var(--c-surface)',
+                  boxShadow: 'var(--shadow-xs)',
+                  cursor: clickable ? 'pointer' : 'default',
+                  overflow: 'hidden',
+                  transition: 'border-color .14s, box-shadow .14s, transform .14s',
+                }}
+                onMouseEnter={(event) => {
+                  if (!clickable) return;
+                  event.currentTarget.style.borderColor = color;
+                  event.currentTarget.style.boxShadow = '0 10px 24px rgba(15,23,42,.10)';
+                  event.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.borderColor = 'var(--c-border)';
+                  event.currentTarget.style.boxShadow = 'var(--shadow-xs)';
+                  event.currentTarget.style.transform = 'none';
+                }}
+              >
+                <span style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 4, background: color }} />
+                <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.2, marginBottom: 11, whiteSpace: 'nowrap' }}>
+                  {cat.label}
+                </span>
+                <span style={{ display: 'block', color: 'var(--c-text)', fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 800, lineHeight: 1 }}>
+                  {cat.value}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)', gap: 28, alignItems: 'center' }}>
+          <div style={{ minHeight: 152, display: 'grid', placeItems: 'center' }}>
+            <svg width="136" height="136" viewBox="0 0 168 168" aria-label={node.rateLabel ?? '满足率'}>
+              <circle cx="84" cy="84" r={radius} fill="none" stroke="rgba(226,232,240,.9)" strokeWidth="20" />
+              <circle
+                cx="84"
+                cy="84"
+                r={radius}
+                fill="none"
+                stroke="var(--c-warning)"
+                strokeWidth="20"
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeLinecap="butt"
+                transform="rotate(-90 84 84)"
+              />
+              <text x="84" y="82" textAnchor="middle" fontSize="24" fontWeight="800" fill="var(--c-text)" fontFamily="var(--font-mono)">
+                {node.rateValue}%
+              </text>
+              <text x="84" y="105" textAnchor="middle" fontSize="13" fill="var(--text-secondary)">
+                {node.rateLabel ?? '满足率'}
+              </text>
+            </svg>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {categories.map((cat) => {
+              const value = Number(cat.value || 0);
+              const pct = total ? Math.round(value / total * 100) : 0;
+              const color = toneColor[cat.tone ?? 'subtle'] || toneColor.subtle || 'var(--c-border-strong)';
+              return (
+                <div key={cat.label}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '76px minmax(0, 1fr) 96px', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: 'var(--c-text)', whiteSpace: 'nowrap' }}>{cat.label}</span>
+                    <div style={{ height: 9, borderRadius: 999, background: '#eef2f7', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999 }} />
+                    </div>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 800, color: 'var(--c-text)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {value} <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 500 }}>项</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>（{pct}%）</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {(node.alerts ?? []).length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(node.alerts ?? []).map((alert, i) => {
+              const isError = alert.tone === 'error';
+              return (
+                <div key={i} style={{
+                  border: `1px solid ${isError ? 'rgba(220,38,38,.18)' : 'rgba(217,119,6,.22)'}`,
+                  background: isError ? 'rgba(254,242,242,.75)' : 'rgba(255,247,230,.65)',
+                  borderRadius: 6,
+                  padding: '11px 13px',
+                  color: isError ? 'var(--c-danger-text)' : '#9a5b05',
+                }}>
+                  {alert.title && <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>{alert.title}</div>}
+                  <div style={{ fontSize: 13, lineHeight: 1.6 }}>{alert.message}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {active && typeof document !== 'undefined' && createPortal((
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${active.label}明细`}
+          onClick={() => setActive(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', padding: 24 }}
+        >
+          <div onClick={(event) => event.stopPropagation()} style={{
+            width: 'min(1040px, calc(100vw - 48px))',
+            maxHeight: 'calc(100vh - 80px)',
+            overflow: 'hidden',
+            borderRadius: 8,
+            border: '1px solid var(--c-border)',
+            background: 'var(--c-surface)',
+            boxShadow: '0 24px 80px rgba(15,23,42,.26)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '18px 20px', borderBottom: '1px solid var(--c-border)' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--c-text)' }}>{active.label}</div>
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--c-text-muted)' }}>共 {(active.details ?? []).length} 项</div>
+              </div>
+              <button type="button" onClick={() => setActive(null)} aria-label="关闭" style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--c-border)', background: 'var(--c-surface-2)', color: 'var(--c-text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: 20, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ border: '1px solid var(--c-border)', borderRadius: 6, overflow: 'auto', minHeight: 0 }}>
+                <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
+                  <colgroup>
+                    <col style={{ width: '52%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '10%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', color: 'var(--c-text-muted)', fontWeight: 800 }}>
+                      <th style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>工勘项</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'center', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>工勘结果</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'center', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>结果来源</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'center', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>勘测时间</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>风险</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(active.details ?? []).map((detail, index) => (
+                      <tr key={`${detail.item ?? 'item'}-${index}`}>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--c-text)', lineHeight: 1.45, wordBreak: 'break-word' }}>{detail.item || '未填写'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', lineHeight: 1.45, textAlign: 'center', wordBreak: 'break-word' }}>{detail.result || '未填写'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', lineHeight: 1.45, textAlign: 'center', wordBreak: 'break-word' }}>{detail.source || '未填写'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', lineHeight: 1.45, textAlign: 'center', wordBreak: 'break-word' }}>{detail.time || '未记录'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: detail.risk ? 'var(--c-warning-text)' : 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 400, lineHeight: 1.45, textAlign: 'left', wordBreak: 'break-word' }}>{detail.risk || '暂无'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
 
 // EmbeddedWeb — iframe 承载外部 Web UI（nVisual 仿真软件）。保留「刷新」+「新页打开」。
 // 独立组件以满足 hook 规则（switch case 内不能用 useState/useRef）。
@@ -145,9 +355,16 @@ const OUTPUT_DOC_CAT_COLOR: Record<string, { color: string; bg: string }> = {
   交付准备:  { color: 'var(--c-success, #0f9d58)', bg: 'var(--c-success-soft, #e6f6ee)' },
 };
 function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputDocsGrid' }> }) {
+  const { skillId } = useSduiRuntime();
   const unlocked = node.unlocked !== false && !!node.unlocked;
   const cats = node.categories ?? [];
   const docs = node.docs ?? [];
+  // 下载经 Vite 代理：dev 用空 base（同源 /agent → 代理到后端，download 属性才生效）；
+  // 生产由 VITE_AGENT_BASE 注入绝对地址。不再耦合 useSduiStream / agentBaseSync。
+  const docHref = (path?: string) =>
+    path
+      ? `${import.meta.env.VITE_AGENT_BASE || ''}/agent/${skillId ?? ''}/artifact?path=${encodeURIComponent(path)}`
+      : undefined;
   const groups = (cats.length ? cats : [...new Set(docs.map(d => d.category))].map(k => ({ key: k, label: k })));
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', background: 'var(--surface)' }}>
@@ -173,11 +390,19 @@ function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputD
                 <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{list.length} 份</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 8 }}>
-                {list.map(doc => (
-                  <div key={doc.no} title={doc.fullName ?? doc.name} style={{
+                {list.map(doc => {
+                  const href = unlocked ? docHref(doc.path) : undefined;
+                  const CardTag = href ? 'a' : 'div';
+                  return (
+                  <CardTag
+                    key={doc.no}
+                    title={doc.fullName ?? doc.name}
+                    {...(href ? { href, download: doc.fullName ?? doc.name } : {})}
+                    style={{
                     border: '1px solid var(--border)', borderRadius: 7, padding: '9px 11px',
                     background: unlocked ? 'var(--surface)' : 'var(--c-bg-soft, #f7f9fc)',
                     opacity: unlocked ? 1 : 0.55, display: 'flex', flexDirection: 'column', gap: 4,
+                    textDecoration: 'none', color: 'inherit', cursor: href ? 'pointer' : 'default',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                       <div style={{ width: 26, height: 26, borderRadius: 5, background: c.bg, border: `1px solid ${c.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -196,8 +421,9 @@ function OutputDocsGridView({ node }: { node: Extract<SduiNode, { type: 'OutputD
                       {doc.tag && <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 3, background: c.bg, color: c.color, border: `1px solid ${c.color}30` }}>{doc.tag}</span>}
                       <span style={{ fontSize: 9, color: unlocked ? c.color : 'var(--text-tertiary)', marginLeft: 'auto' }}>{unlocked ? '↓ xlsx' : '待生成'}</span>
                     </div>
-                  </div>
-                ))}
+                  </CardTag>
+                  );
+                })}
               </div>
             </div>
           );
@@ -316,6 +542,111 @@ function GoldenMetricsCards({ items }: { items: SduiStatisticRowItem[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ZhgkGoldenMetricsView({
+  progress,
+  centerLabel,
+  items,
+}: {
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+}) {
+  const pct = Math.max(0, Math.min(100, Number(progress) || 0));
+  const size = 112;
+  const r = 42;
+  const circumference = 2 * Math.PI * r;
+  const dash = (pct / 100) * circumference;
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '28px 34px',
+      flexWrap: 'wrap',
+      width: '100%',
+    }}>
+      <div style={{
+        width: 'min(112px, 28vw)',
+        minWidth: 88,
+        flex: '0 0 auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--zinc-100)" strokeWidth={12} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke="var(--c-brand,#3551d8)" strokeWidth={12}
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeLinecap="butt"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: 'stroke-dasharray .22s ease' }}
+          />
+          <text x={size / 2} y={centerLabel ? 55 : 60} textAnchor="middle" fontSize="22" fontWeight={700}
+                fill="var(--text-primary)" fontFamily="var(--font-mono)">
+            {pct}%
+          </text>
+          {centerLabel && (
+            <text x={size / 2} y={73} textAnchor="middle" fontSize="11" fill="var(--text-tertiary)">
+              {centerLabel}
+            </text>
+          )}
+        </svg>
+      </div>
+      <div style={{
+        flex: '1 1 420px',
+        minWidth: 0,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 240px))',
+        justifyContent: 'start',
+        gap: '12px',
+      }}>
+        {items.map((item, i) => {
+          const accent = item.color ? (STAT_ACCENT[item.color] ?? '#94a3b8') : '#94a3b8';
+          const value = String(item.value);
+          const isLong = value.length >= 6 || /[/·]/.test(value);
+          return (
+            <div key={i} style={{
+              position: 'relative',
+              minHeight: 116,
+              background: 'var(--c-surface)',
+              border: '1px solid var(--c-border)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-xs)',
+              padding: '16px 18px 16px 22px',
+              overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: '0 999px 999px 0', background: accent }} />
+              <div style={{
+                fontSize: 'var(--fs-12)',
+                color: 'var(--c-text-muted)',
+                fontWeight: 500,
+                lineHeight: 1.25,
+              }}>
+                {item.title}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: isLong ? 24 : 28,
+                fontWeight: 640,
+                color: 'var(--c-text)',
+                marginTop: 14,
+                letterSpacing: 0,
+                lineHeight: 1.18,
+                fontVariantNumeric: 'tabular-nums',
+                wordBreak: 'keep-all',
+                overflowWrap: 'anywhere',
+              }}>
+                {value}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -730,6 +1061,14 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
     return i >= 0 ? i : 0;
   };
   const [active, setActive] = useState(initialIdx());
+  const [tabBarActions, setTabBarActions] = useState<React.ReactNode>(null);
+  const tabBarApi = useMemo(
+    () => ({
+      setActions: (actions: React.ReactNode) => setTabBarActions(actions),
+      clearActions: () => setTabBarActions(null),
+    }),
+    [],
+  );
   const prevFocusToken = useRef<number | undefined>(undefined);
   // 后端引导：activeTab / focusToken 变化时同步选中（如检查测试用例后切「输出件」页）；
   // focusToken 递增时强制切页；用户点击在两次刷新之间接管本地选择。
@@ -772,12 +1111,14 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
       return <SduiNodeView key={seg} node={child} pathPrefix={seg} />;
     });
   return (
+    <SduiTabBarActionsContext.Provider value={tabBarApi}>
     <div style={{
       border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden',
       background: 'var(--surface)',
       ...(fill ? { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' } : {}),
     }}>
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', padding: '0 8px', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'nowrap', borderBottom: '1px solid var(--border)', padding: '0 8px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 auto', minWidth: 0 }}>
         {tabs.map((t, i) => {
           const on = i === idx;
           const hasBadge = t.badge != null && t.badge !== '';
@@ -801,6 +1142,12 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
             </button>
           );
         })}
+        </div>
+        {tabBarActions && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0 6px 8px', flexShrink: 0, marginLeft: 'auto' }}>
+            {tabBarActions}
+          </div>
+        )}
       </div>
       <div style={{
         padding: embedFill ? 0 : 14,
@@ -836,6 +1183,7 @@ function SduiTabGroup({ node, pathPrefix }: { node: Extract<SduiNode, { type: 'T
           : renderPanelChildren(panelChildren, cur?.id ?? idx, idx)}
       </div>
     </div>
+    </SduiTabBarActionsContext.Provider>
   );
 }
 
@@ -939,18 +1287,6 @@ function SduiTaskTimelineStrip({ node }: { node: Extract<SduiNode, { type: 'Task
           <DateBox label="实际开始时间" value={node.actualStart} accent placeholder="上传项目信息收集表后更新" />
           <DateBox label="实际结束时间" value={node.actualEnd} accent placeholder={done ? '已完成' : '进行中'} />
         </Group>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 30, fontSize: 10, color: 'var(--text-tertiary)', flexShrink: 0 }}>进度</span>
-          <div style={{ flex: 1, height: 8, borderRadius: 999, background: 'var(--zinc-100)', overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${pct}%`, background: done ? '#10b981' : '#3551d8',
-              borderRadius: 999, transition: 'width .85s cubic-bezier(.22,.61,.36,1)',
-            }} />
-          </div>
-          <span style={{ width: 38, textAlign: 'right', fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)', flexShrink: 0 }}>{pct}%</span>
-        </div>
       </div>
     </div>
   );
@@ -1892,6 +2228,12 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       return <GoldenMetricsCards items={items} />;
     }
 
+    case 'ZhgkGoldenMetrics':
+      return <ZhgkGoldenMetricsView progress={node.progress} centerLabel={node.centerLabel} items={node.items} />;
+
+    case 'ZhgkAssessmentPanel':
+      return <ZhgkAssessmentPanelView node={node} />;
+
     // ── v1.1 display nodes ──
 
     case 'Alert': {
@@ -2482,69 +2824,14 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
     case 'FlowSteps':
       return <SduiFlowSteps node={node} />;
 
-    case 'InputSlotList': {
-      const slots = node.slots ?? [];
-      const btnGhost: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap' };
-      const btnPrimary: React.CSSProperties = { padding: '4px 11px', fontSize: 12, borderRadius: 5, border: '1px solid #3551d8', background: '#3551d8', color: '#fff', cursor: 'pointer', fontWeight: 500, whiteSpace: 'nowrap' };
-      return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {node.title && <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{node.title}</div>}
-          {slots.map((s, i) => {
-            const ready = !!s.ready;
-            const isAuto = s.source === 'auto';
-            // 缺件高亮：必需缺件红，自动检查中/可选缺件琥珀，就绪绿
-            const accent = ready ? '#10b981' : isAuto ? '#d97706' : s.required ? '#dc2626' : '#d97706';
-            return (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8,
-                border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`,
-                background: !ready && !isAuto ? 'var(--c-surface-2)' : 'var(--surface)',
-                animation: `sdui-stagger .18s ease-out ${Math.min(i, 8) * 0.04}s both`,
-              }}>
-                <span style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: accent,
-                  boxShadow: ready ? '0 0 0 3px rgba(16,185,129,.14)' : 'none',
-                  animation: !ready && isAuto ? 'clawStepperPulse 1.4s ease-in-out infinite' : 'none',
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{s.label}</span>
-                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: s.required ? '#b45309' : 'var(--text-tertiary)', background: s.required ? '#fdf2dd' : 'var(--c-bg-soft, #eef2f7)' }}>
-                      {s.required ? '必需' : '可选'}
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 500, borderRadius: 4, padding: '1px 6px', color: isAuto ? 'var(--c-brand-text, #1e34a8)' : 'var(--text-tertiary)', background: isAuto ? 'var(--c-brand-soft, #eef1fc)' : 'var(--c-bg-soft, #eef2f7)' }}>
-                      {isAuto ? '自动 · 仿真' : '手动 · 上传'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 3, fontFamily: ready ? 'var(--font-mono)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ready ? (s.fileName ?? '已就绪') : isAuto ? '检查中…（等待仿真产出）' : '缺失 · 待上传'}
-                  </div>
-                </div>
-                <div style={{ flexShrink: 0 }}>
-                  {ready ? (
-                    s.previewPath ? (
-                      <button onClick={() => { const p = s.previewPath; if (p) onAction({ kind: 'open_preview', path: p }); }} style={btnGhost}>预览</button>
-                    ) : (
-                      <span style={{ fontSize: 11, color: '#0a7350', fontWeight: 600 }}>✓ 就绪</span>
-                    )
-                  ) : isAuto ? (
-                    <span style={{ fontSize: 11, color: '#b45309', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                      <i style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid var(--zinc-100)', borderTopColor: '#d97706', display: 'block', animation: 'spin .8s linear infinite' }} />
-                      检查中
-                    </span>
-                  ) : (
-                    <button onClick={() => onAction({ kind: 'post_user_message', text: `上传${s.label}` })} style={btnPrimary}>上传</button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      );
-    }
+    case 'InputSlotList':
+      return <SduiInputSlotList node={node} />;
 
     case 'TaskTimelineStrip':
       return <SduiTaskTimelineStrip node={node} />;
+
+    case 'GanttChart':
+      return <SduiGanttChart rows={node.rows ?? []} title={node.title} />;
 
     case 'MacroStepRail': {
       const steps = node.steps ?? [];

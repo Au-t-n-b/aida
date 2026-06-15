@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 66 个节点类型 · 41 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 67 个节点类型 · 42 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -112,6 +112,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#TabGroup">TabGroup</a>
 <a href="#InputSlotList">InputSlotList</a>
 <a href="#TaskTimelineStrip">TaskTimelineStrip</a>
+<a href="#GanttChart">GanttChart</a>
 <a href="#ContextBar">ContextBar</a>
 <a href="#FlowSteps">FlowSteps</a>
 <a href="#MacroStepRail">MacroStepRail</a>
@@ -153,6 +154,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#SduiImageItem">ImageItem</a>
 <a href="#SduiTabPanel">TabPanel</a>
 <a href="#SduiInputSlot">InputSlot</a>
+<a href="#SduiGanttRow">GanttRow</a>
 <a href="#SduiContextBarGroup">ContextBarGroup</a>
 <a href="#SduiFlowStepCard">FlowStepCard</a>
 <a href="#SduiFlowStepChip">FlowStepChip</a>
@@ -588,6 +590,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>backStepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>groupKey</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>groupAsTabs</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>filterKeys</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>pageSize</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>requiredKeys</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>dualMode</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
@@ -764,16 +767,10 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>side</b></td><td><code>SduiNode[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;DashboardLayout&quot;,
   &quot;main&quot;: [
-    {
-      &quot;type&quot;: &quot;Text&quot;,
-      &quot;content&quot;: &quot;示例&quot;
-    }
+    &quot;...&quot;
   ],
   &quot;side&quot;: [
-    {
-      &quot;type&quot;: &quot;Text&quot;,
-      &quot;content&quot;: &quot;示例&quot;
-    }
+    &quot;...&quot;
   ]
 }</pre></section>
 <section id="Drawer"><h3><code>Drawer</code> SduiDrawerNode<span class="tag">Other</span></h3><p class="desc">侧滑详情面板 · 标题 + 递归子节点（此处内嵌展示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Drawer</code></td><td class='req'>—</td><td><code>Drawer</code></td></tr>
@@ -824,6 +821,20 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;TaskTimelineStrip&quot;,
   &quot;plannedStart&quot;: &quot;示例&quot;,
   &quot;plannedEnd&quot;: &quot;示例&quot;
+}</pre></section>
+<section id="GanttChart"><h3><code>GanttChart</code> SduiGanttChartNode<span class="tag">Other</span></h3><p class="desc">多行甘特图 · 按 group 分组展示计划条（只读；编辑走 DataTable 页签）。     rows 每行 start/end 为 ISO 日期字符串（YYYY-MM-DD）；status 可选用于着色（如待下发/已下发）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: GanttChart</code></td><td class='req'>—</td><td><code>GanttChart</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>rows</b></td><td><code>GanttRow[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;GanttChart&quot;,
+  &quot;rows&quot;: [
+    {
+      &quot;id&quot;: &quot;示例&quot;,
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;start&quot;: &quot;示例&quot;,
+      &quot;end&quot;: &quot;示例&quot;
+    }
+  ]
 }</pre></section>
 <section id="ContextBar"><h3><code>ContextBar</code> SduiContextBarNode<span class="tag">Other</span></h3><p class="desc">项目元信息条 · 批次 / 起止 / 负责人 / 规模（对齐交付台 ctx-bar）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ContextBar</code></td><td class='req'>—</td><td><code>ContextBar</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
@@ -1004,8 +1015,10 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>body</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
 <section id="SduiDataTableColumn"><h3><code>DataTableColumn</code></h3><p class="desc">类型化列：key 取行 dict 字段，type 决定单元格渲染（文本 / 状态徽标 / 进度条）。      editable=True 的列在可编辑表里渲染为输入框（如 ESN 列）；其余列只读。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>type</b></td><td><code>enum: text | status | progress</code></td><td class='req'>—</td><td><code>text</code></td></tr>
+<tr><td><b>type</b></td><td><code>enum: text | status | progress | date</code></td><td class='req'>—</td><td><code>text</code></td></tr>
 <tr><td><b>width</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>paddingLeft</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>nowrap</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
 <tr><td><b>editable</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
 <tr><td><b>placeholder</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiTabbedTableTab"><h3><code>TabbedTableTab</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
@@ -1043,6 +1056,12 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>fileName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>previewPath</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>slotTag</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiGanttRow"><h3><code>GanttRow</code></h3><p class="desc">GanttChart 的一行任务条：id + label + 可选 group（管理单元）+ start/end + 可选 status。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>group</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>start</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>end</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>status</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiContextBarGroup"><h3><code>ContextBarGroup</code></h3><p class="desc">ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>badge</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
@@ -1064,7 +1083,8 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>fullName</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>category</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>tag</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>desc</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<tr><td><b>desc</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>path</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiOutputDocCategory"><h3><code>OutputDocCategory</code></h3><p class="desc">OutputDocsGrid 的一个分类：key 匹配 doc.category，label 为分组标题。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>key</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
 <section id="SduiChoiceOption"><h3><code>ChoiceOption</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>

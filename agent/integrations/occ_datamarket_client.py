@@ -4,12 +4,35 @@ from __future__ import annotations
 import logging
 import os
 import re
+import json
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
+from pathlib import Path
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "5609cc",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-5609cc.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
+
 
 # v3 文档写 http，但网关已强制 https；走系统代理常会 504（HIS Proxy）
 _DEFAULT_APIGW_BASE = (
@@ -126,6 +149,16 @@ def _post_json(endpoint: str, body: dict[str, Any]) -> dict[str, Any] | None:
             payload = resp.json()
     except httpx.HTTPStatusError as exc:
         detail = exc.response.text[:200]
+        _debug_log(
+            "H3",
+            "agent/integrations/occ_datamarket_client.py:152",
+            "occ endpoint http status error",
+            {
+                "endpoint": endpoint.rsplit("/", 1)[-1],
+                "statusCode": exc.response.status_code,
+                "detail": detail,
+            },
+        )
         logger.warning(
             "OCC request failed status=%s endpoint=%s body=%s detail=%s",
             exc.response.status_code,
@@ -135,6 +168,15 @@ def _post_json(endpoint: str, body: dict[str, Any]) -> dict[str, Any] | None:
         )
         return None
     except (httpx.HTTPError, ValueError) as exc:
+        _debug_log(
+            "H3",
+            "agent/integrations/occ_datamarket_client.py:167",
+            "occ endpoint request exception",
+            {
+                "endpoint": endpoint.rsplit("/", 1)[-1],
+                "error": str(exc),
+            },
+        )
         logger.warning(
             "OCC request error endpoint=%s body=%s err=%s",
             endpoint.rsplit("/", 1)[-1],

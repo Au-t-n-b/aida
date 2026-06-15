@@ -2,12 +2,13 @@
 
 > **读者**：负责服务器部署的工程师 + 与 frontagent 团队联调的对接人。
 > 契约真相源：[back-agent-development-guide_ch.md](back-agent-development-guide_ch.md)；
+> 配置变量清单：[GKCLAW配置变量清单.md](GKCLAW配置变量清单.md)；
 > 实现与字段映射：[GKCLAW邮件链路.md](GKCLAW邮件链路.md)。本文只管「怎么部署、怎么联调、出问题怎么查」。
 
 ```text
 zhgk(backagent·内网服务器) ──mailgw(同机:8025)──→ 邮件[task.dispatch ZIP] ──→ frontagent(公网)
         ↑                                                                        ↓ App 现场工勘
-  wait_survey 检查时拉取 ←──mailgw 收件箱←── 邮件[import_ack / result / error ZIP]
+  Agent 自动通知/手动刷新检查 ←──mailgw POP3 收件箱←── 邮件[import_ack / result / error ZIP]
 ```
 
 ---
@@ -54,7 +55,7 @@ pop3:
   port: 995
   ssl: true
   username: aida@corp.com
-  poll_interval: 0             # 秒；0=仅按需拉取（wait_survey 刷新时触发），GKCLAW 推荐保持 0
+  poll_interval: 30            # 秒；演示自动回传建议 30~60；0=仅按需拉取（等待页手动刷新）
 policy:
   whitelist_domains: ["corp.com", "<frontagent 邮箱的域名>"]   # ★ 不加则每次下发卡审批队列
   whitelist_addresses: []      # 也可精确加单个地址
@@ -63,6 +64,10 @@ policy:
   max_attachment_mb: 25        # ★ 须 ≥ 任务包大小（当前几十 KB；启用示例图资产后调大）
   max_recipients: 20
 data_dir: ./data               # SQLite 与附件落盘目录
+agent_notify:
+  enabled: true                # 收到回传邮件后通知 AIDA Agent 继续检查
+  base_url: http://127.0.0.1:7401
+  skill: zhgk
 ```
 
 ### 2.3 .env 凭据（四项全要填）
@@ -105,8 +110,8 @@ curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/jso
 - `uvicorn agent.main:app --host 127.0.0.1 --port 7401 --workers 1`——**workers=1 是硬约束**
   （SSE 要求；GKCLAW 的状态文件单写者假设也依赖它）。
 - nginx 反代必须 `proxy_buffering off` + `proxy_http_version 1.1` + 300s 超时（SSE 踩坑表见 ROADMAP §3.4）。
-- 工作区初始化：`ZHGK_ROOT` 下 `ProjectData/{Template,Input,Output,RunTime,Images}`，
-  **三个模板文件人工放置**到 `Template/`（入场评估标准表.xlsx / 工勘常见高风险库.xlsx / 新版项目工勘报告模板.docx）。
+- 工作区初始化：`ZHGK_ROOT` 下 `ProjectData/{Template,Input,Output,RunTime,Images}`。
+  `Template/` 必须放置 `入场评估标准表.xlsx` 与 `工勘常见高风险库.xlsx`；`新版项目工勘报告模板.docx` 为可选，缺失时报告生成走内置演示模板/本地样例报告。
 - `agent/.env`：`ZHIPU_API_KEY` 必填（assess 等 LLM 步骤）。
 
 ## 4. GKCLAW 链路配置（agent/.env）
@@ -121,11 +126,13 @@ MAILGW_TOKEN=<§2 第 1 步签发的 MAILGW_TOKEN_AIDA 的值>    # 注意：AID
 GKCLAW_FRONTAGENT_MAILBOX=<对方提供的 frontagent 收件邮箱>
 ```
 
+如果使用 Docker Compose 演示编排，`MAILGW_BASE` 会被覆盖为 `http://mailgw:8025`，`AGENT_NOTIFY_BASE` 会覆盖 mailgw 的 `agent_notify.base_url` 为 `http://agent:7401`；两侧 token 仍必须一致。
+
 人员配置（任务分配人，App/Web 按姓名+工号校验身份）：
 - 方式 A：start 请求体带 `assignees`；
 - 方式 B：`ProjectData/RunTime/gkclaw/assignees.json`，内容
   `[{"surveyor_name":"张三","surveyor_code":"S001"}]`。
-- 两处都没有时，task_dispatch 会以文件型 HITL 阻断并提示上传。
+- 两处都没有时，本地页面在 `task_dispatch` 进入表单型 HITL，要求填写现场勘测人员的姓名和工号；提交后继续下发，并同步落盘到 `RunTime/gkclaw/assignees.json` 供旧链路兼容。
 
 ## 5. 部署后自验（联调前，无需对方参与）
 
@@ -146,19 +153,19 @@ GKCLAW_FRONTAGENT_MAILBOX=<对方提供的 frontagent 收件邮箱>
 
 ## 7. 联调十步（契约 §23 对照 · 每步验证点）
 
-> 我方的"刷新"动作 = 在 wait_survey 等待页提交一次 resume（拉取发生在 wait_survey 检查时，**无后台轮询**）。
+> 自动路径：`mailgw.config.yaml` 设置 `pop3.poll_interval=30~60` 且 `agent_notify.enabled=true` 后，mailgw 收到回传邮件会通知 AIDA Agent 检查并继续。手动路径：等待页点击「刷新检查回传」会主动拉取 mailgw/GKCLAW 回传；若暂无回传，应停留在等待页并提示暂未检测到回传结果。
 
 | # | 步骤 | 操作方 | 我方验证点 |
 |---|---|---|---|
 | 1 | 生成 task.dispatch ZIP | 我方（task_dispatch 选「下发」） | `RunTime/gkclaw/<task_id>/outbox/task-*.zip`；state.json `state=dispatched` |
 | 2 | 邮件发出 | 自动 | SDUI 卡 `mailgw: sent`；若 `pending_approval` → 白名单漏配，见 §8 |
 | 3 | frontagent 导入任务 | 对方 | — |
-| 4 | 收 task.import_ack | 我方刷新 | SDUI 卡变「对端已导入」+ 现场 Web 入口 URL；state=accepted |
+| 4 | 收 task.import_ack | 自动通知或我方刷新 | SDUI 卡变「对端已导入」+ 现场 Web 入口 URL；state=accepted |
 | 5 | App 用 assignees 姓名+工号登录 | 现场 | 对方确认任务过滤按 surveyor_code 生效 |
 | 6 | 任务卡片可见（项目名/编码/任务名/任务 ID/状态） | 现场 | — |
 | 7 | 现场完成若干工勘项 | 现场 | — |
-| 8 | 触发「回传结果」（阶段性） | 现场 → 我方刷新 | state=staged_returned；`results/result-001.json` 落档；**流程不推进、任务不关闭** |
-| 9 | 触发「结束任务」（final） | 现场 → 我方刷新 | `Input/已填写_全量勘测结果表.xlsx` 自动生成 → wait_survey 放行 → assess 继续；state=completed |
+| 8 | 触发「回传结果」（阶段性） | 现场 → 自动通知或我方刷新 | state=staged_returned；`results/result-001.json` 落档；**流程不推进、任务不关闭** |
+| 9 | 触发「结束任务」（final） | 现场 → 自动通知或我方刷新 | `Input/已填写_全量勘测结果表.xlsx` 自动生成 → wait_survey 放行 → assess 继续；state=completed |
 | 10 | 归档对账 | 我方 | `packages.json` 各包 disposition 正确；`to_back_备注`（规则自动"不涉及"原因）在 `result-notes.json` 留档 |
 
 补充联调用例（建议至少各做一次）：重复发送同一 final 包 → duplicate 幂等；final 后再发 staged → 隔离；
@@ -175,7 +182,7 @@ evidence/ / pending_results/）；隔离区 `RunTime/gkclaw/_quarantine/`；扫�
 | task_dispatch 报 `MAILGW_TOKEN 未配置` / `GKCLAW_FRONTAGENT_MAILBOX 未配置` | agent/.env 漏配 | 按 §4 补配，task_dispatch 支持单步重试 |
 | state=failed，`last_error` 有连接错误 | mailgw 服务未起 / 端口不通 | 起服务后单步重试 task_dispatch |
 | 一直等不到 ACK | 对方未收到或未导入 | 查 mailgw 发送记录与 `/admin`；和对方核对其收件箱；必要时重发（**新 task_id**，旧任务自动 superseded） |
-| 回传"不生效" | 没有刷新（拉取只在 wait_survey 检查时发生）/ MAILGW_TOKEN 漏配 | 在等待页提交一次 resume；查 `mail_scan.json` 的 verdict |
+| 回传"不生效" | `pop3.poll_interval=0` 或 `agent_notify` 未开导致无法自动触发；或 MAILGW_TOKEN 漏配 | 在等待页点击「刷新检查回传」；查 mailgw 日志、Agent `/gkclaw/inbound` 日志与 `mail_scan.json` 的 verdict |
 | 包进 `_quarantine/` | checksum 篡改 / 路径逃逸 / 未知 task_id / payload 不合契约 / 冲突 | 看 packages.json 对应 disposition 与 note，按契约 §19-20 处置 |
 | state.json 出现 `merge_blocked=true` | 表指纹不一致（下发后表被改）或双源冲突（Input/ 已有人工表） | 看 `merge_blocked_reason`；转写结果在 `pending_results/`，人工裁决后手动放入 Input/ |
 | 邮件发了但显示 dry-run | `AIDA_SEND_EMAIL≠1` | 按 §4 设置后重发（新 task_id） |
@@ -190,5 +197,5 @@ GKCLAW 是增量能力，回退不影响 zhgk 存量流程：
 
 ## 10. 后续增强（已在 ROADMAP 技术债登记）
 
-supplement 意图开放下发 · 复勘轮自动重发 · cron 自动拉取（替代手动刷新）· 对账页面 ·
+supplement 意图开放下发 · 复勘轮自动重发 · 对账页面 ·
 mailbox 守门 lint · 示例图资产 · 依赖规则编排器。

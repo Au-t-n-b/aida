@@ -107,6 +107,8 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
     };
 
     const getDrawerWidth = () => Math.min(520, Math.round(W * 0.52));
+    /* compact（概览半屏）随容器放大：以 620×460 为基准等比放大，上限 1.6 倍 */
+    const compactZoom = () => Math.max(1, Math.min(1.6, Math.min(W / 620, H / 460)));
     const getLayout = () => layoutRef.current || {};
     const getGraphFit = () => {
       const drawerOpen = !compact && drawerRef.current;
@@ -114,7 +116,7 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
       const drawerW = drawerOpen ? (drawerWRef.current || getDrawerWidth()) : 0;
       const areaW = Math.max(320, W - drawerW);
       const band = getGraphBand();
-      if (compact) return { drawerOpen, drawerW, areaW, scale: 1, spread: 1 };
+      if (compact) return { drawerOpen, drawerW, areaW, scale: compactZoom(), spread: 1 };
       if (!drawerOpen) {
         return {
           drawerOpen, drawerW, areaW: W,
@@ -158,10 +160,11 @@ function useOntologyEngine(containerRef, canvasRef, { compact, drawerRef, drawer
           y: yBase + yExtraOpen,
         };
       }
-      const nodeW = 168, nodeH = 76, gutter = 28;
+      const z = compactZoom();
+      const nodeW = 168 * z, nodeH = 76 * z, gutter = 28;
       return {
-        x: Math.max(82, Math.min(176, (W - nodeW - gutter) / 2)),
-        y: Math.max(96, Math.min(168, (H - nodeH - gutter) / 2)),
+        x: Math.max(82, Math.min(176 * z, (W - nodeW - gutter) / 2)),
+        y: Math.max(96, Math.min(168 * z, (H - nodeH - gutter) / 2)),
       };
     };
     const baseOffset = (node: any) => { const f = offFactor(); return { x: node.pos.x * f.x, y: node.pos.y * f.y }; };

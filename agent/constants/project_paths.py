@@ -46,17 +46,15 @@ class ProposalPaths(TypedDict):
     proposal_draft_dir: str
     proposal_draft_manifest: str
     proposal_versions_out: str
-    version_info_out: str
+    version_info_records_out: str
+    version_info_xlsx_out: str
     contract_project_basic_out: str
     device_boq_parse: str
+    contract_service_boq_parse: str
     product_basic_info: str
     device_table_out: str
     service_boq_parse: str
     maint_proposal_parse: str
-    service_delivery_ui_out: str
-    service_content_out: str
-    maint_strategy_out: str
-    maint_sla_out: str
 
 
 def proposal_paths(project_root: str) -> ProposalPaths:
@@ -69,17 +67,17 @@ def proposal_paths(project_root: str) -> ProposalPaths:
         "proposal_draft_dir": draft_dir,
         "proposal_draft_manifest": _join_path(draft_dir, "manifest.json"),
         "proposal_versions_out": versions_dir,
-        "version_info_out": _join_path(triple["out"], "预案版本信息表"),
+        "version_info_records_out": _join_path(triple["out"], "预案版本信息表.records.json"),
+        "version_info_xlsx_out": _join_path(triple["out"], "预案版本信息表.xlsx"),
         "contract_project_basic_out": _join_path(contract_root, IPO_OUTPUT, "项目基础信息表"),
-        "device_boq_parse": _join_path(triple["parse"], "设备BOQ解析结果"),
+        # BOQ 原始解析结果统一归档在合同模块，交付预案只读取不重复落盘。
+        "device_boq_parse": _join_path(contract_root, IPO_PARSE, "BOQ设备解析原始结果"),
+        "contract_service_boq_parse": _join_path(contract_root, IPO_PARSE, "服务BOQ解析结果"),
         "product_basic_info": "组织资产/产品基本信息表",
-        "device_table_out": _join_path(triple["out"], "设备信息表"),
-        "service_boq_parse": _join_path(triple["parse"], "服务BOQ解析结果"),
-        "maint_proposal_parse": _join_path(triple["parse"], "维保建议书"),
-        "service_delivery_ui_out": _join_path(triple["out"], "服务配置.xlsx"),
-        "service_content_out": _join_path(triple["out"], "服务内容.xlsx"),
-        "maint_strategy_out": _join_path(triple["out"], "维保策略.xlsx"),
-        "maint_sla_out": _join_path(triple["out"], "维保SLA.xlsx"),
+        "device_table_out": _join_path(triple["out"], "设备信息表.xlsx"),
+        # Keep key for backward compatibility with current assemblers/readers.
+        "service_boq_parse": _join_path(contract_root, IPO_PARSE, "服务BOQ解析结果"),
+        "maint_proposal_parse": _join_path(triple["parse"], "维保建议书解析结果"),
     }
 
 

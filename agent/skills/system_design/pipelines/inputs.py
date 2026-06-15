@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .path_manifest import INPUT_TAGS, read_scan_dir_for_tag, read_scan_dirs
+from .path_manifest import INPUT_TAGS, abs_upload_dir, read_scan_dir_for_tag, read_scan_dirs
 
 INPUT_DIR_CANDIDATES = [str(p) for p in read_scan_dirs()]
 
@@ -17,6 +17,7 @@ FILE_CONFIG: dict[str, dict[str, Any]] = {
         "label": "项目信息收集表",
         "keywords": ["项目信息收集", "资源需求", "资源表"],
         "from_simulation": False,
+        "extensions": [".xlsx", ".xls", ".xlsm"],
     },
     "Interconnection_Relationship": {
         "label": "端口连线表(007)",
@@ -78,13 +79,21 @@ def _scan_tag_in_dir(tag: str, directory: Path) -> InputFoundEntry | None:
 
 
 def collect_inputs(work_root: Any = None) -> dict[str, InputFoundEntry]:
-    """按 tag 扫描各自目录，返回 {tag: InputFoundEntry}（只含已找到的）。"""
+    """按 tag 扫描各自目录，返回 {tag: InputFoundEntry}（只含已找到的）。
+
+    仿真三表(007/001/004)/测试用例正常由建模仿真落 jmfz/ht；但用户在「输入件准备」
+    HITL 槽位手动补传时统一落 upload 目录(input)。故每个 tag 在其主扫描目录未命中时，
+    再回扫 upload 目录——保证手动补传的任意输入件都能被识别、刷新交付流程状态。"""
     _ = work_root
     found: dict[str, InputFoundEntry] = {}
+    upload_dir = abs_upload_dir()
     for tag in INPUT_TAGS:
         if tag not in FILE_CONFIG:
             continue
-        entry = _scan_tag_in_dir(tag, read_scan_dir_for_tag(tag))
+        scan_dir = read_scan_dir_for_tag(tag)
+        entry = _scan_tag_in_dir(tag, scan_dir)
+        if entry is None and upload_dir != scan_dir:
+            entry = _scan_tag_in_dir(tag, upload_dir)
         if entry is not None:
             found[tag] = entry
     return found

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * SkillAgentScreen · 通用作业界面（SDUI 驱动）— 双模式
  * ─────────────────────────────────────────────────────────
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
@@ -24,9 +24,11 @@ import {
   startRun,
   resumeRun,
   uploadBatch,
+  overrideOutputArtifact,
   runPatchRun,
   resetWorkspace,
   isIdleLikeSduiDoc,
+  isRunUnavailableDoc,
   fetchUiSnapshot,
   fetchRunStatus,
   runStepOutcome,
@@ -49,7 +51,7 @@ import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
-import { setSkillHitl, clearSkillHitl } from '@/lib/skillHitlStore';
+import { setSkillHitl, clearSkillHitl, getSkillHitl } from '@/lib/skillHitlStore';
 import { dispatchRailSend } from '@/lib/claw-send';
 // system_design 交付台专用（仅 skillId==='system_design' 路径使用）
 import { resolveUploadSlotTag } from '@/lib/systemDesignUpload';
@@ -57,6 +59,71 @@ import { ensureAgentBase, staleSystemDesignUploadMessage } from '@/lib/agentBase
 import { setSkillConversation, clearSkillConversation } from '@/lib/skillConversationStore';
 import { Button } from '@/components/primitives';
 import type { SduiAction, SduiDocument, SduiNode } from '@/lib/sdui';
+
+/** 与后端 delivery.is_lld_delivery_intent 对齐 */
+function isLldDeliveryIntent(text: string): boolean {
+  const t = text.trim().replace(/\s/g, '');
+  if (!t) return false;
+  if (t === '生成完整LLD设计' || t === '融合完整LLD设计') return true;
+  return (/完整/i.test(t) && /LLD/i.test(t)) || (/生成/.test(t) && /LLD/i.test(t));
+}
+
+/** LLD 融合续跑：显式 from_step 避免 hitl 快照丢失时 route_to 未命中（仅 system_design 交付台） */
+function resolveDeliveryResumeFromStep(text: string): string | undefined {
+  const t = text.trim();
+  if (isLldDeliveryIntent(text)) return 'plane_planning';
+  if ([
+    'confirm', '确认发布', '确认',
+    'request_test_check', '检查测试用例',
+    'check', 'confirm_test_check', '已检查测试用例',
+  ].includes(t)) {
+    return 'publish_confirm';
+  }
+  return undefined;
+}
+
+/**
+ * ChoiceCard / IoConfirm 提交时的 from_step。
+ * - system_design：优先 SDUI stepId；无 stepId 时走 NL 专用映射（LLD / publish_confirm 等）。
+ * - guihua / zhgk / device_install / software_deployment：仅传 stepId，否则省略 from_step 由后端读 hitl.step。
+ *   禁止把通用 value「confirm」映射成 publish_confirm，否则会破坏 guihua 等确认门。
+ */
+function resolveChoiceResumeFromStep(
+  skillId: string,
+  value: string,
+  stepId?: string,
+): string | undefined {
+  const sid = stepId?.trim();
+  if (skillId === 'system_design') {
+    if (sid) return sid;
+    return resolveDeliveryResumeFromStep(value);
+  }
+  return sid || undefined;
+}
+
+/** MacroStepRail「发布完成」(bp_publish) 是否已 done */
+function isMacroPublishDone(doc: SduiDocument): boolean {
+  let done = false;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'MacroStepRail') return;
+    const st = (node.steps ?? []).find(s => s.id === 'bp_publish');
+    if (st?.status === 'done') done = true;
+  });
+  return done;
+}
+
+function resolveSkillRunId(
+  skillId: string,
+  activeRunId: string | null,
+  storeRun: { skillId: string; runId: string | null } | null,
+): string | null {
+  if (activeRunId) return activeRunId;
+  const fromStore = storeRun?.skillId === skillId ? storeRun.runId : null;
+  if (fromStore && fromStore !== '__starting__') return fromStore;
+  const hitl = getSkillHitl();
+  if (hitl?.skillId === skillId && hitl.runId) return hitl.runId;
+  return null;
+}
 
 export interface SkillAgentScreenProps {
   /** 后端 skill_id，决定 /agent/<skillId>/* 端点（如 zhgk / guihua）。 */
@@ -118,13 +185,28 @@ export interface SkillAgentScreenProps {
       font-size:12.5px; color:#64748b; text-align:center;
       line-height:1.6; max-width:300px; margin-bottom:28px;
     }
-    /* ── 横向步骤条 ── */
+    /* ── 横向步骤条（网格：圆点与标题同列居中） ── */
     .skill-idle-steps {
-      display:flex; align-items:flex-start; width:100%; max-width:420px;
+      display:grid;
+      width:100%; max-width:420px;
       margin-bottom:22px;
+      position:relative;
+      gap:0;
     }
-    .skill-idle-step { display:flex; flex-direction:column; align-items:center; flex:1; min-width:0; }
-    .skill-idle-step-row { display:flex; align-items:center; width:100%; }
+    .skill-idle-track {
+      position:absolute;
+      top:14px;
+      left:calc(50% / var(--step-count, 5));
+      right:calc(50% / var(--step-count, 5));
+      height:1.5px;
+      background:#dde3ef;
+      z-index:0;
+      pointer-events:none;
+    }
+    .skill-idle-step {
+      display:flex; flex-direction:column; align-items:center;
+      position:relative; z-index:1; min-width:0;
+    }
     .skill-idle-dot {
       width:28px; height:28px; border-radius:50%; flex-shrink:0;
       background:#fff; border:1.5px solid #c8d1e6;
@@ -133,16 +215,29 @@ export interface SkillAgentScreenProps {
       transition:border-color .2s;
       box-shadow:0 1px 3px rgba(15,23,42,.06);
     }
-    .skill-idle-conn { flex:1; height:1.5px; background:#dde3ef; }
     .skill-idle-step-label {
+      width:100%;
       font-size:10px; color:#64748b; font-weight:500;
-      margin-top:7px; text-align:center; white-space:nowrap;
-      max-width:56px; overflow:hidden; text-overflow:ellipsis;
+      margin-top:7px; text-align:center;
+      line-height:1.35;
+      padding:0 2px;
     }
     .skill-idle-step-sub {
+      width:100%;
       font-size:9.5px; color:#94a3b8; margin-top:2px;
-      text-align:center; max-width:60px; line-height:1.35;
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+      text-align:center; line-height:1.35;
+      padding:0 2px;
+    }
+    .skill-idle-root[data-wide] .skill-idle-steps,
+    .skill-idle-root[data-wide] .skill-idle-files,
+    .skill-idle-root[data-wide] .skill-idle-btn {
+      max-width:640px;
+    }
+    .skill-idle-root[data-wide] .skill-idle-step-label {
+      font-size:10px;
+    }
+    .skill-idle-root[data-wide] .skill-idle-step-sub {
+      font-size:9.5px;
     }
     /* ── 文件提示 ── */
     .skill-idle-files {
@@ -206,6 +301,7 @@ export interface SkillAgentScreenProps {
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
   files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
+  filesHint?: string;
   icon: React.ReactNode;
 }> = {
   zhgk: {
@@ -249,6 +345,30 @@ const SKILL_META: Record<string, {
       { name: '建模仿真设备信息表.md', ext: 'md' },
     ],
   },
+  device_install: {
+    icon: (
+      <svg width={34} height={34} viewBox="0 0 34 34" fill="none">
+        <rect x="7" y="5" width="18" height="22" rx="2.5" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M12 11h10M12 15h10M12 19h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+        <circle cx="23" cy="11" r="5" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M23 9v4M21 11h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    ),
+    steps: [
+      { key: 'preflight',      name: '环境预检',     sub: '校验输入文件' },
+      { key: 'principal_fill', name: '生成责任矩阵', sub: '在线编辑信息' },
+      { key: 'tasks_generate', name: '生成实施计划', sub: '在线编辑计划' },
+      { key: 'task_dispatch',  name: '计划下发',     sub: '勾选计划下发' },
+      { key: 'sn_generate',    name: 'SN扫码表',     sub: '按单元生成' },
+      { key: 'esn_fill',       name: 'ESN填写',      sub: '完工清单' },
+    ],
+    files: [
+      { name: '交付计划表.xlsx', ext: 'xlsx' },
+      { name: '{批次}_{机房}_{设备型号}到货表_{日期}.xlsx', ext: 'xlsx' },
+      { name: '建模仿真输出文档004-设备位置表.xlsx', ext: 'xlsx' },
+    ],
+    filesHint: '启动前确认文件 · ProjectData/Input/',
+  },
 };
 
 function IdleScreen({ skillId, title, description, onStart, onCommissionStart, loading }: {
@@ -260,9 +380,11 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
   const meta = SKILL_META[skillId];
   const steps = meta?.steps ?? [];
   const files = meta?.files ?? [];
+  const filesHint = meta?.filesHint ?? '启动前确认文件 · ProjectData/Template/ · Input/';
+  const isWide = steps.length >= 6;
 
   return (
-    <div className="skill-idle-root">
+    <div className="skill-idle-root" {...(isWide ? { 'data-wide': '' } : {})}>
 
       {/* ── 动画徽章 ── */}
       <div className="skill-idle-emblem">
@@ -275,19 +397,20 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
 
       {/* ── 横向步骤条 ── */}
       {steps.length > 0 && (
-        <div className="skill-idle-steps">
+        <div
+          className="skill-idle-steps"
+          style={{
+            gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))`,
+            ['--step-count' as string]: String(steps.length),
+          }}
+        >
+          <div className="skill-idle-track" aria-hidden="true" />
           {steps.map((s, i) => (
-            <React.Fragment key={s.key}>
-              <div className="skill-idle-step">
-                <div className="skill-idle-step-row">
-                  {i > 0 && <div className="skill-idle-conn" />}
-                  <div className="skill-idle-dot">{i + 1}</div>
-                  {i < steps.length - 1 && <div className="skill-idle-conn" />}
-                </div>
-                <div className="skill-idle-step-label">{s.name}</div>
-                <div className="skill-idle-step-sub">{s.sub}</div>
-              </div>
-            </React.Fragment>
+            <div key={s.key} className="skill-idle-step">
+              <div className="skill-idle-dot">{i + 1}</div>
+              <div className="skill-idle-step-label">{s.name}</div>
+              <div className="skill-idle-step-sub">{s.sub}</div>
+            </div>
           ))}
         </div>
       )}
@@ -297,7 +420,7 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
         <div className="skill-idle-files">
           <div className="skill-idle-files-ic">📂</div>
           <div className="skill-idle-files-body">
-            <div className="skill-idle-files-title">启动前确认文件 · ProjectData/Template/ · Input/</div>
+            <div className="skill-idle-files-title">{filesHint}</div>
             {files.map(f => (
               <div key={f.name} className="skill-idle-file-row">
                 <span className={`skill-idle-file-ext ${f.ext}`}>{f.ext.toUpperCase()}</span>
@@ -346,6 +469,29 @@ function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   if (Array.isArray(c)) c.forEach(child => walkSduiNodes(child, visit));
 }
 
+/** 统计 SDUI 中 InputSlotList 已就绪槽位数（上传后对比 SSE 是否追上）。 */
+function countReadyInputSlots(doc: SduiDocument | null): number {
+  if (!doc?.root) return 0;
+  let n = 0;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'InputSlotList') return;
+    for (const s of node.slots ?? []) {
+      if (s.ready) n++;
+    }
+  });
+  return n;
+}
+
+/** 统计 ArtifactGrid 产物数（判断 output/ 扫描是否已反映到 UI）。 */
+function countOutputArtifacts(doc: SduiDocument | null): number {
+  if (!doc?.root) return 0;
+  let n = 0;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'ArtifactGrid') n += (node.artifacts ?? []).length;
+  });
+  return n;
+}
+
 /** 按 id 查找节点（用于定位 hitl-card）。*/
 function findNodeById(root: SduiNode, id: string): SduiNode | null {
   let found: SduiNode | null = null;
@@ -353,6 +499,94 @@ function findNodeById(root: SduiNode, id: string): SduiNode | null {
     if (!found && (n as { id?: string }).id === id) found = n;
   });
   return found;
+}
+
+/** need_edit 在线编辑 HITL 的 step key（如 tasks_generate / task_dispatch）。*/
+function findEditableHitlStepKey(doc: SduiDocument | null): string | null {
+  if (!doc) return null;
+  let key: string | null = null;
+  walkSduiNodes(doc.root, (node) => {
+    if (key) return;
+    if (node.type !== 'DataTable' || !(node as { editable?: boolean }).editable) return;
+    const stepId = (node as { stepId?: string }).stepId;
+    if (stepId) {
+      key = stepId;
+      return;
+    }
+    const id = (node as { id?: string }).id ?? '';
+    if (id.startsWith('edit-')) key = id.slice(5);
+  });
+  return key;
+}
+
+/** Stepper 已完成步数（设备安装主建设流水线推进检测）。*/
+function stepperDoneCount(doc: SduiDocument | null): number {
+  if (!doc) return 0;
+  let best = 0;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'Stepper' && Array.isArray(node.steps)) {
+      const n = node.steps.filter(s => s.status === 'done').length;
+      if (n > best) best = n;
+    }
+  });
+  return best;
+}
+
+/** 从 Stepper 提取步骤 id 顺序（与后端 DI_STEP_ORDER 一致）。*/
+function getStepperStepIds(doc: SduiDocument | null): string[] {
+  if (!doc) return [];
+  let ids: string[] = [];
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type === 'Stepper' && Array.isArray(node.steps) && node.steps.length > ids.length) {
+      ids = node.steps.map(s => s.id);
+    }
+  });
+  return ids;
+}
+
+function stepOrderIndex(order: string[], key: string | null): number {
+  if (!key) return -1;
+  return order.indexOf(key);
+}
+
+/** 设备安装完工态（ESN 提交后任务进展 / 完成横幅）。*/
+function hasDiCompletionSurface(doc: SduiDocument): boolean {
+  let found = false;
+  walkSduiNodes(doc.root, (node) => {
+    const id = (node as { id?: string }).id ?? '';
+    if (id === 'di-completion-alert' || id === 'task-table-dt') found = true;
+  });
+  return found;
+}
+
+/** 冻结基准 vs 最新快照：仅前向推进才解冻（拒绝 full_restart 重放中间态）。*/
+function hasWorkbenchAdvanced(frozen: SduiDocument, live: SduiDocument): boolean {
+  if (isIdleLikeSduiDoc(live)) return false;
+
+  const frozenDone = stepperDoneCount(frozen);
+  const liveDone = stepperDoneCount(live);
+  // full_restart 重放时步骤条 done 数会短暂回落，不算推进
+  if (liveDone < frozenDone) return false;
+
+  const order = getStepperStepIds(frozen).length ? getStepperStepIds(frozen) : getStepperStepIds(live);
+  const frozenEdit = findEditableHitlStepKey(frozen);
+  const liveEdit = findEditableHitlStepKey(live);
+
+  // 在线编辑完成：编辑区消失 + 步骤条未回退（或出现完工视图）
+  if (frozenEdit && !liveEdit) {
+    return liveDone > frozenDone || hasDiCompletionSurface(live);
+  }
+
+  // 在线编辑步切换：仅接受流水线前向（如 tasks_generate → task_dispatch）
+  if (frozenEdit && liveEdit && liveEdit !== frozenEdit) {
+    const fi = stepOrderIndex(order, frozenEdit);
+    const li = stepOrderIndex(order, liveEdit);
+    return fi >= 0 && li > fi;
+  }
+
+  if (liveDone > frozenDone) return true;
+  if (hasDiCompletionSurface(live) && frozenEdit) return true;
+  return false;
 }
 
 /** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
@@ -465,6 +699,15 @@ function sduiHasInputCheckDone(doc: SduiDocument): boolean {
   return found;
 }
 
+function isSoftSkipError(raw: string): boolean {
+  const s = String(raw || '').trim();
+  if (!s) return false;
+  if (s.includes('007 缺少对应 sheet')) return true;
+  if (s.includes('007 中无') && s.includes('跳过')) return true;
+  if (s.includes('已跳过') && (s.includes('007') || s.toLowerCase().includes('sheet'))) return true;
+  return false;
+}
+
 function sanitizeErrorText(raw: string): string {
   const lines = raw.split('\n').filter((line) => {
     const l = line.toLowerCase();
@@ -475,7 +718,7 @@ function sanitizeErrorText(raw: string): string {
 
 function ensureConversationErrorBubble(conv: SduiNode, doc: SduiDocument): SduiNode {
   const err = sanitizeErrorText(String(doc.meta?.error ?? '').trim());
-  if (!err || conversationHasDangerBubble(conv)) return conv;
+  if (!err || isSoftSkipError(err) || conversationHasDangerBubble(conv)) return conv;
   const logHint = String(doc.meta?.exec_log_path ?? '').trim();
   let body = err;
   if (logHint && !body.includes(logHint)) body += `\n\n详细日志：${logHint}`;
@@ -529,11 +772,31 @@ function extractProgressFromSdui(doc: SduiDocument): {
     errorMsg?: string;
   } = {};
 
+  const meta = (doc.meta ?? {}) as Record<string, unknown>;
+  const metaPhase = meta.phase;
+  if (metaPhase === 'running' || metaPhase === 'hitl' || metaPhase === 'done' || metaPhase === 'error') {
+    r.phase = metaPhase;
+  }
+  if (typeof meta.progress === 'number' && !isNaN(meta.progress)) {
+    r.progress = Math.max(0, Math.min(100, meta.progress));
+  }
+  if (typeof meta.error === 'string' && meta.error.trim()) {
+    const errText = meta.error.trim();
+    if (!isSoftSkipError(errText)) {
+      r.phase = 'error';
+      r.errorMsg = errText;
+    }
+  }
+
   walkSduiNodes(doc.root, (node) => {
+    const nodeId = (node as { id?: string }).id ?? '';
     // DonutChart 中心值 → 整体进度百分比
     if (node.type === 'DonutChart' && node.centerValue) {
       const p = parseInt(node.centerValue);
       if (!isNaN(p)) r.progress = p;
+    }
+    if (node.type === 'TaskTimelineStrip' && typeof node.progressPct === 'number') {
+      r.progress = node.progressPct;
     }
     if (node.type === 'StatisticRow') {
       const total = node.items.find(i => i.title === '总进度');
@@ -562,6 +825,25 @@ function extractProgressFromSdui(doc: SduiDocument): {
         r.currentStepName = runStep.title;
       }
     }
+    if (node.type === 'MacroStepRail' && r.phase !== 'hitl' && r.phase !== 'done') {
+      const steps = node.steps ?? [];
+      const allDone = steps.length > 0 && steps.every(s => s.status === 'done');
+      const runStep = steps.find(s => s.status === 'running');
+      if (allDone) {
+        r.phase = 'done';
+        r.progress = 100;
+        r.currentStepName = '';
+      } else if (runStep) {
+        r.phase = 'running';
+        r.currentStepName = runStep.title;
+      } else if (node.currentId) {
+        const cur = steps.find(s => s.id === node.currentId);
+        if (cur) {
+          r.phase = 'running';
+          r.currentStepName = cur.title;
+        }
+      }
+    }
     if (node.type === 'FlowSteps' && r.phase !== 'hitl') {
       const steps = node.steps ?? [];
       const current = steps.find(s => s.status === 'current');
@@ -582,10 +864,12 @@ function extractProgressFromSdui(doc: SduiDocument): {
     if (node.type === 'DataTable' && node.editable && (node.submitMode ?? 'resume') === 'resume') {
       r.phase = 'hitl'; r.hitlType = 'edit';
     }
-    // 侧边路由式 HITL（guihua 等用 Button 交互而非 ChoiceCard 的卡片）：
-    // hitl-card → 待操作；completion-card → 已完成。
-    const nodeId = (node as { id?: string }).id;
-    if (nodeId === 'hitl-card' && r.phase !== 'hitl') { r.phase = 'hitl'; r.hitlType = 'choice'; }
+    // 侧边路由式 HITL：hitl-card（guihua Button 交互 / system_design）、hitl-edit-card（在线编辑）
+    // → 待操作；completion-card（guihua 询问是否输出文件）→ 已完成。nodeId 见函数顶部声明。
+    if (nodeId === 'hitl-card' || nodeId === 'hitl-edit-card') {
+      r.phase = 'hitl';
+      if (!r.hitlType) r.hitlType = 'choice';
+    }
     if (nodeId === 'completion-card') { r.phase = 'done'; r.progress = 100; }
   });
 
@@ -599,6 +883,11 @@ function extractProgressFromSdui(doc: SduiDocument): {
         r.currentStepName = '调测完成';
       }
     });
+  }
+
+  if (findNodeById(doc.root, 'hitl-card') || findNodeById(doc.root, 'hitl-edit-card')) {
+    r.phase = 'hitl';
+    if (!r.hitlType) r.hitlType = 'choice';
   }
 
   return r;
@@ -635,10 +924,13 @@ export default function SkillAgentScreen({
   const commissionPollGenRef = useRef(0);
   // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
   const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
-  // system_design 交付台：上传/续跑后主动拉 /ui 快照，避免 SSE 未及时推送时槽位仍显示「缺失」
+  // system_design 交付台：SSE + 冻结窗口（进度/HITL 丝滑）；磁盘真值由后端 project() 投影前 sync
   const usesDeliveryWorkbench = DELIVERY_WORKBENCH_SKILLS.has(skillId);
   const [postUploadDoc, setPostUploadDoc] = useState<SduiDocument | null>(null);
   const postUploadEpochRef = useRef(0);
+  /** 非交付台 skill：定时拉 /ui 对齐 output/ 磁盘 */
+  const [diskPollDoc, setDiskPollDoc] = useState<SduiDocument | null>(null);
+  const diskPollGenRef = useRef(0);
 
   // ── 左右同步：聊天侧 ZhgkProgressCard 启动 run 后自动接入（本地模式）────────
   // store 里有匹配的 skillId + runId 且本地尚未启动 → 直接接入，跳过 IdleScreen
@@ -670,21 +962,32 @@ export default function SkillAgentScreen({
   const clawTask = useClawTaskSdui(useClawMode ? taskId : null, session?.accessToken ?? '');
   const directDoc = useSduiStream(skillId, useClawMode ? null : runId, streamEpoch);
   const sduiDoc = useClawMode ? clawTask.doc : directDoc;
+  // 重连间隙后端可能短暂投影 idle 空树；显示层忽略，继续用 bootDoc 兜底
+  const liveSduiDoc = sduiDoc && !isIdleLikeSduiDoc(sduiDoc) ? sduiDoc : null;
 
   useEffect(() => {
-    if (sduiDoc) {
+    if (liveSduiDoc) {
       setBootDoc(null);
       setLoadError(null);
     }
-  }, [sduiDoc]);
+  }, [liveSduiDoc]);
 
   useEffect(() => {
-    if (!runId || sduiDoc || bootDoc || starting) return;
+    if (useClawMode || !isRunUnavailableDoc(sduiDoc)) return;
+    clearPersistedSkillRun(skillId);
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    clearSkillConversation(skillId);
+    setSavedRunStale(true);
+  }, [sduiDoc, useClawMode, skillId, runId]);
+
+  useEffect(() => {
+    if (!runId || liveSduiDoc || bootDoc || starting) return;
     const timer = window.setTimeout(() => {
       setLoadError('工作台加载超时，请重新启动或刷新页面。');
     }, 12000);
     return () => window.clearTimeout(timer);
-  }, [runId, sduiDoc, bootDoc, starting]);
+  }, [runId, liveSduiDoc, bootDoc, starting]);
   // 容器模式：用容器内 aida/agent 的 run_id 做文件上传（clawTask.runId 由 payload 携带）
   const activeRunId = useClawMode ? (clawTask.runId ?? null) : runId;
 
@@ -694,27 +997,53 @@ export default function SkillAgentScreen({
   const frozenSnapshotRef = useRef<SduiDocument | null>(null);
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
   const frozenProgressRef = useRef(0);
+  const progressFloorRef = useRef(0);
   useEffect(() => {
     frozenSnapshotRef.current = null;
     setFrozenDoc(null);
+    progressFloorRef.current = 0;
+    frozenProgressRef.current = 0;
   }, [runId, taskId]);
   useEffect(() => {
     if (!frozenDoc && !frozenSnapshotRef.current) return;
     if (!sduiDoc) return;
     // doResume 刚设置冻结时，sduiDoc 与 frozenSnapshotRef 是同一引用，尚无新数据 → 不解冻。
     if (sduiDoc === frozenSnapshotRef.current) return;
-    const { progress = 0 } = extractProgressFromSdui(sduiDoc);
+    const patch = extractProgressFromSdui(sduiDoc);
+    const { progress = 0 } = patch;
     const frozenTarget = frozenProgressRef.current;
-    // 有进度指标的 skill（zhgk 等）：进度追上冻结水位且已脱离 idle → 解冻。
-    if (frozenTarget > 0 && progress >= frozenTarget && !isIdleLikeSduiDoc(sduiDoc)) {
+    const hasHitl = !!findNodeById(sduiDoc.root, 'hitl-card');
+    const frozenDocSnap = frozenSnapshotRef.current ?? frozenDoc;
+    const hadHitl = frozenDocSnap ? !!findNodeById(frozenDocSnap.root, 'hitl-card') : false;
+    const hitlResolved = hadHitl && !hasHitl;
+    const publishDone = usesDeliveryWorkbench && isMacroPublishDone(sduiDoc);
+    // HITL 出现/消解即解冻：仅对有进度指标（zhgk / system_design）或交付台 skill 生效。
+    // 不加 idle 守卫 —— system_design 的对话框流程依赖该即时解冻语义；
+    // guihua（frozenTarget===0 且非交付台）不在此列，仍走下方「只前向推进才解冻」护栏。
+    const hitlUnfreeze =
+      (frozenTarget > 0 || usesDeliveryWorkbench)
+      && (hasHitl || hitlResolved);
+    // 有进度指标的 skill（zhgk / system_design）：进度追上冻结水位且已脱离 idle；
+    // HITL 消解 / 失败 / 完成 / 发布蓝图步 done → 解冻（error 态 progress 常为 0）。
+    if (
+      (frozenTarget > 0 && progress >= frozenTarget && !isIdleLikeSduiDoc(sduiDoc))
+      || hitlUnfreeze
+      || patch.phase === 'error'
+      || patch.phase === 'done'
+      || publishDone
+    ) {
       frozenSnapshotRef.current = null;
       setFrozenDoc(null);
       return;
     }
-    // 无进度指标的 skill（guihua，frozenTarget===0）：
-    // 仅当新状态携带 hitl-card 或 completion-card 时才解冻；
-    // 运行态（只有 TabGroup，无交互卡）继续保持冻结，避免左侧 HITL 内容消失。
+    // 无进度指标的 skill（guihua / device_install 在线编辑表，frozenTarget===0）：
+    // 仅前向推进才解冻（拒绝 full_restart 重放中间态导致步骤条回退）。
     if (frozenTarget === 0) {
+      if (frozenDocSnap && hasWorkbenchAdvanced(frozenDocSnap, sduiDoc)) {
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        return;
+      }
       let hasInteraction = false;
       walkSduiNodes(sduiDoc.root, (node) => {
         const id = (node as { id?: string }).id ?? '';
@@ -725,14 +1054,65 @@ export default function SkillAgentScreen({
         setFrozenDoc(null);
       }
     }
-  }, [sduiDoc, frozenDoc]);
-  // system_design 上传后快照（postUploadDoc）优先级低于冻结/轮询，sduiDoc 到达后由下方 effect 清除
-  const displayDoc = commissionPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? postUploadDoc ?? sduiDoc ?? bootDoc;
+  }, [sduiDoc, frozenDoc, usesDeliveryWorkbench]);
+  // 交付台（system_design）：对齐已跑通的参照版，仅「冻结快照 ?? 实时 SSE」两层。
+  // 不再叠加 frozenSnapshotRef.current / postUploadDoc 覆盖层 —— 这两层在 LLD 生成 /
+  // 上传 / 完成后不会及时清空，会把已更新的实时 sduiDoc 永久挡住，导致「输出件不刷新、
+  // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
+  // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
+  const displayDoc = usesDeliveryWorkbench
+    ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
+    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
+  const displayDocRef = useRef<SduiDocument | null>(null);
+  useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
     if (!sduiDoc || postUploadEpochRef.current === 0) return;
+    const post = postUploadDoc;
+    if (!post) return;
+    const postReady = countReadyInputSlots(post);
+    const liveReady = countReadyInputSlots(sduiDoc);
+    if (liveReady >= postReady && postReady > 0) {
+      postUploadEpochRef.current = 0;
+      setPostUploadDoc(null);
+    }
+  }, [sduiDoc, postUploadDoc]);
+  useEffect(() => {
+    if (usesDeliveryWorkbench) return;
+    if (!sduiDoc || !diskPollDoc) return;
+    if (countOutputArtifacts(sduiDoc) >= countOutputArtifacts(diskPollDoc)) {
+      setDiskPollDoc(null);
+    }
+  }, [sduiDoc, diskPollDoc, usesDeliveryWorkbench]);
+  useEffect(() => {
+    if (usesDeliveryWorkbench || useClawMode) return;
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+    if (!rid) return;
+    let cancelled = false;
+    const tick = async () => {
+      if (cancelled) return;
+      const snap = await fetchUiSnapshot(skillId, rid);
+      if (!snap || cancelled) return;
+      const outs = countOutputArtifacts(snap);
+      if (outs > 0) {
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        diskPollGenRef.current += 1;
+        setDiskPollDoc(snap);
+      }
+    };
+    void tick();
+    const timer = window.setInterval(() => { void tick(); }, 8000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [usesDeliveryWorkbench, useClawMode, skillId, activeRunId, storeRun]);
+  useEffect(() => {
+    diskPollGenRef.current = 0;
+    setDiskPollDoc(null);
     postUploadEpochRef.current = 0;
     setPostUploadDoc(null);
-  }, [sduiDoc]);
+  }, [runId, taskId]);
   useEffect(() => {
     if (usesDeliveryWorkbench) void ensureAgentBase(skillId);
   }, [usesDeliveryWorkbench, skillId]);
@@ -744,14 +1124,28 @@ export default function SkillAgentScreen({
   const routeHitlEdit: 'workbench' | 'chat' = docMeta.route_hitl_edit === 'chat' ? 'chat' : 'workbench';
   const workbenchClass = typeof docMeta.workbench_class === 'string' ? docMeta.workbench_class : '';
 
-  // Sync SDUI doc → skillRunStore（与 displayDoc 同步，冻结期间左侧进度不闪回 0%）
+  // Sync SDUI doc → skillRunStore（进度单调递增 · full_restart 重放期间不回退）
   useEffect(() => {
     if (!displayDoc || !activeRunId) return;
-    const extracted = extractProgressFromSdui(displayDoc);
+    const patch = extractProgressFromSdui(displayDoc);
     // 有实质内容但无进度指标（如 guihua 三页签工作台）：至少标记 running，防止停留在 starting
-    if (!extracted.phase && !isIdleLikeSduiDoc(displayDoc)) extracted.phase = 'running';
-    updateSkillRun(extracted);
-  }, [displayDoc, activeRunId]);
+    if (!patch.phase && !isIdleLikeSduiDoc(displayDoc)) patch.phase = 'running';
+    // 进度单调递增（full_restart 重放期间不回退）；冻结期间取冻结水位 / 历史地板的较大值
+    let progress = patch.progress ?? 0;
+    const frozen = frozenDoc || frozenSnapshotRef.current;
+    if (frozen) {
+      progress = Math.max(progress, frozenProgressRef.current, progressFloorRef.current);
+    } else {
+      progress = Math.max(progress, progressFloorRef.current);
+    }
+    if (patch.phase === 'done') {
+      progress = 100;
+      progressFloorRef.current = 100;
+    } else {
+      progressFloorRef.current = progress;
+    }
+    updateSkillRun({ ...patch, progress });
+  }, [displayDoc, activeRunId, frozenDoc]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
@@ -811,6 +1205,14 @@ export default function SkillAgentScreen({
     setSearchParams(next, { replace: true });
   }, [searchParams, useClawMode, taskId, runId, starting, handleStart, setSearchParams]);
 
+  const handleNextModule = useCallback(() => {
+    if (!nextModule) return;
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    clearSkillConversation(skillId);
+    navigate(nextModule.to);
+  }, [nextModule, skillId, navigate]);
+
   // ── resume（两种模式统一入口）────────────────────────────────────────────
   const doResume = useCallback(async (payload: Record<string, unknown>, fromStep?: string) => {
     if (useClawMode && session && taskId) {
@@ -820,26 +1222,48 @@ export default function SkillAgentScreen({
         taskId,
         payload: { ...payload, ...(fromStep ? { from_step: fromStep } : {}) },
       });
-    } else if (activeRunId) {
-      // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
-      const curDoc = sduiDocRef.current;
-      if (curDoc) {
-        const frozenProgress = extractProgressFromSdui(curDoc).progress ?? 0;
-        frozenProgressRef.current = frozenProgress;
-        frozenSnapshotRef.current = curDoc;
-        setFrozenDoc(curDoc);
-        if (frozenProgress > 0) {
-          // 有进度指标（zhgk 等）：立即切到 running，隐藏 HITL 卡
-          updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
-        }
-        // frozenProgress===0（guihua 等无进度指标）：不改 phase，保持 'hitl' 让 HITL 卡继续
-        // 显示已提交态，直到下一个 hitl-card / completion-card 到来才由解冻 effect 触发更新。
-      }
-      await resumeRun(skillId, activeRunId, payload, fromStep);
-      // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
-      setStreamEpoch(e => e + 1);
+      return;
     }
-  }, [useClawMode, session, taskId, activeRunId, skillId]);
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+    if (!rid) {
+      console.warn('[SDUI] resume skipped: no active run_id');
+      return;
+    }
+    // 冻结当前 SDUI 快照，避免 full_restart 重放期间闪回 0% 预检状态
+    const curDoc = displayDocRef.current ?? sduiDocRef.current;
+    if (curDoc) {
+      const curProgress = extractProgressFromSdui(curDoc).progress ?? 0;
+      frozenProgressRef.current = Math.max(curProgress, progressFloorRef.current);
+      progressFloorRef.current = frozenProgressRef.current;
+      frozenSnapshotRef.current = curDoc;
+      setFrozenDoc(curDoc);
+      // 有进度指标（zhgk / system_design）：立即切 running 隐藏 HITL 卡；
+      // frozenProgress===0（guihua 无进度指标）：不改 phase，保持 'hitl' 让 completion-card / hitl-card 继续显示。
+      if (frozenProgressRef.current > 0) {
+        updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+      }
+    }
+    await resumeRun(skillId, rid, payload, fromStep);
+    // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
+    setStreamEpoch(e => e + 1);
+    // device_install：full_restart 耗时较长，SSE 可能晚于冻结层；轮询 /ui 推进界面
+    if (skillId === 'device_install' && curDoc) {
+      const baseline = curDoc;
+      void (async () => {
+        for (let i = 0; i < 24; i++) {
+          await new Promise(r => setTimeout(r, 500));
+          const snap = await fetchUiSnapshot(skillId, rid);
+          if (!snap || isIdleLikeSduiDoc(snap)) continue;
+          if (!hasWorkbenchAdvanced(baseline, snap)) continue;
+          frozenSnapshotRef.current = null;
+          setFrozenDoc(null);
+          setBootDoc(snap);
+          setStreamEpoch(e => e + 1);
+          return;
+        }
+      })();
+    }
+  }, [useClawMode, session, taskId, activeRunId, skillId, storeRun]);
 
   const resolveCommissionScope = useCallback((explicit?: string): string => {
     if (explicit?.trim()) return explicit.trim().toLowerCase();
@@ -1114,19 +1538,21 @@ export default function SkillAgentScreen({
         setViewMode('overview');
       } else if (usesDeliveryWorkbench) {
         // system_design：根据当前态路由自由文本（启动 / 重试 / HITL 续跑 / full_restart 携带指令）
-        const isIdleNow = useClawMode ? !taskId : !runId;
-        const prog = sduiDocRef.current ? extractProgressFromSdui(sduiDocRef.current) : {};
-        const hasHitl = sduiDocRef.current ? !!findNodeById(sduiDocRef.current.root, 'hitl-card') : false;
+        const liveDoc = sduiDocRef.current ?? displayDocRef.current;
+        const doc = liveDoc;
+        const isIdleNow = useClawMode ? !taskId : !resolveSkillRunId(skillId, activeRunId, storeRun);
+        const prog = doc ? extractProgressFromSdui(doc) : {};
+        const hasHitl = doc ? !!findNodeById(doc.root, 'hitl-card') : false;
         if (isIdleNow) {
           await handleStart();
         } else if (prog.phase === 'error') {
-          await doResume({ text, choice: text });
+          await doResume({ text, choice: text }, resolveDeliveryResumeFromStep(text));
         } else if (hasHitl) {
-          await doResume({ choice: text, text });
+          await doResume({ choice: text, text }, resolveDeliveryResumeFromStep(text));
         } else {
           // input_check 完成后无 HITL 卡（step_retry 仅重跑检查步）· 仍须 full_restart 携带用户指令
-          await doResume({ text, choice: text });
-          const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
+          await doResume({ text, choice: text }, resolveDeliveryResumeFromStep(text));
+          const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
           if (rid) {
             void (async () => {
               for (let i = 0; i < 12; i++) {
@@ -1172,12 +1598,43 @@ export default function SkillAgentScreen({
 
   const handleUpload = useCallback(async (
     files: FileList,
-    _purpose?: string,
+    purpose?: string,
     _stepId?: string,
     slotTag?: string,
     slotLabel?: string,
   ) => {
     const arr = Array.from(files);
+    // system_design 输出件覆盖：写入 output/ 原 path · 不 resume · 不走 upload/batch
+    if (skillId === 'system_design' && purpose?.startsWith('override:')) {
+      const targetPath = purpose.slice('override:'.length);
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      if (!rid) {
+        throw new Error('尚未启动作业 run，请先从左侧启动系统设计后再上传');
+      }
+      if (!arr.length) {
+        throw new Error('未选择文件');
+      }
+      try {
+        const result = await overrideOutputArtifact(skillId, arr[0]!, targetPath, rid);
+        if (result.ok === false) {
+          throw new Error(String(result.error || '覆盖上传失败'));
+        }
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+        const snap = await fetchUiSnapshot(skillId, rid);
+        if (snap) {
+          postUploadEpochRef.current = Date.now();
+          setPostUploadDoc(snap);
+        }
+        setError(null);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : '覆盖上传失败，请检查文件格式或网络连接';
+        console.error('[SDUI] override upload error:', e);
+        setError(msg);
+        throw e instanceof Error ? e : new Error(msg);
+      }
+      return;
+    }
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
       try {
@@ -1195,7 +1652,10 @@ export default function SkillAgentScreen({
     if (kinds.some(k => !k)) {
       throw new Error('无法识别输入件类型，请从对应槽位（如「项目信息收集表」）点击「上传」');
     }
-    const rid = activeRunId ?? (storeRun?.skillId === skillId ? storeRun.runId : null);
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+    if (!rid) {
+      throw new Error('尚未启动作业 run，请先从左侧启动系统设计后再上传');
+    }
     try {
       const result = await uploadBatch(skillId, arr, [], kinds, rid, labels);
       const staleMsg = staleSystemDesignUploadMessage(result);
@@ -1215,11 +1675,17 @@ export default function SkillAgentScreen({
         } catch {
           // upload/batch 可能已 sync；忽略
         }
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
         const snap = await fetchUiSnapshot(skillId, rid);
         if (snap) {
           postUploadEpochRef.current = Date.now();
           setPostUploadDoc(snap);
         }
+        // 强制重订阅 SSE：sync_inputs 只改磁盘/状态、不推 SSE，而 system_design 左栏弹框/HITL
+        // 读实时 sduiDoc、右栏读 displayDoc→liveSduiDoc（均不含 postUploadDoc 兜底）；
+        // 不重订阅则上传后界面停在旧态（无后续弹框 / 状态不更新）。
+        setStreamEpoch(e => e + 1);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '上传失败，请检查文件格式或网络连接';
@@ -1248,29 +1714,58 @@ export default function SkillAgentScreen({
     }
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
-  const handleChoiceSubmit = useCallback(async (value: string) => {
-    await doResume({ choice: value });
-  }, [doResume]);
+  const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    await doResume(
+      { choice: value },
+      resolveChoiceResumeFromStep(skillId, value, stepId),
+    );
+  }, [doResume, skillId]);
+
+  // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
+  const handleActionRef = useRef(handleAction);
+  const handleUploadRef = useRef(handleUpload);
+  const handleChoiceSubmitRef = useRef(handleChoiceSubmit);
+  handleActionRef.current = handleAction;
+  handleUploadRef.current = handleUpload;
+  handleChoiceSubmitRef.current = handleChoiceSubmit;
+
+  const railRuntimeCallbacks = useRef({
+    onAction: (action: SduiAction) => { void handleActionRef.current(action); },
+    onUpload: (
+      files: FileList,
+      purpose?: string,
+      stepId?: string,
+      slotTag?: string,
+      slotLabel?: string,
+    ) => handleUploadRef.current(files, purpose, stepId, slotTag, slotLabel),
+    onChoiceSubmit: (value: string, stepId?: string) => {
+      void handleChoiceSubmitRef.current(value, stepId);
+    },
+  }).current;
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
   // sduiDoc 出现 hitl-card → 连同 resume 回调写入 skillHitlStore；
   // 左侧 SkillRunBanner 据此渲染可交互卡。无 HITL / 卸载时清除。
   // 在线编辑卡（hitl-edit-card）默认留在右侧大盘，仅 meta.route_hitl_edit==='chat' 才移交。
+  // HITL / 左栏弹框始终读 SSE 实时态（reconcile 后的 /ui 快照会清掉 stage_select HITL）
   useEffect(() => {
-    if (!displayDoc || !activeRunId) { clearSkillHitl(skillId); return; }
-    const card = findNodeById(displayDoc.root, 'hitl-card')
-      ?? findNodeById(displayDoc.root, 'completion-card')
-      ?? (routeHitlEdit === 'chat' ? findNodeById(displayDoc.root, 'hitl-edit-card') : null);
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+    const hitlDoc = usesDeliveryWorkbench ? sduiDoc : displayDoc;
+    if (!hitlDoc || !rid) { clearSkillHitl(skillId); return; }
+    const card = findNodeById(hitlDoc.root, 'hitl-card')
+      ?? findNodeById(hitlDoc.root, 'completion-card')
+      ?? (routeHitlEdit === 'chat' ? findNodeById(hitlDoc.root, 'hitl-edit-card') : null);
     if (card) {
       setSkillHitl({
-        skillId, runId: activeRunId, node: card,
-        onChoiceSubmit: handleChoiceSubmit, onUpload: handleUpload,
-        onAction: (action) => { void handleAction(action); },
+        skillId, runId: rid, node: card,
+        onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+        onUpload: railRuntimeCallbacks.onUpload,
+        onAction: railRuntimeCallbacks.onAction,
       });
-    } else if (!frozenDoc && !frozenSnapshotRef.current) {
+    } else {
       clearSkillHitl(skillId);
     }
-  }, [displayDoc, frozenDoc, activeRunId, skillId, handleChoiceSubmit, handleUpload, handleAction, routeHitlEdit]);
+  }, [usesDeliveryWorkbench, sduiDoc, displayDoc, activeRunId, storeRun, skillId, routeHitlEdit, railRuntimeCallbacks]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
   useEffect(() => () => clearSkillRun(skillId), [skillId]);  // 卸载清理，避免左栏残留上一模块进度
@@ -1278,24 +1773,26 @@ export default function SkillAgentScreen({
   // ── 会话流（AIDA 助手）提升到左侧会话框（仅 system_design 交付台）────────────
   useEffect(() => {
     if (!usesDeliveryWorkbench) { clearSkillConversation(skillId); return; }
-    if (!displayDoc || !activeRunId) { clearSkillConversation(skillId); return; }
-    const conv = findNodeById(displayDoc.root, 'sd-conversation');
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+    const convDoc = sduiDoc ?? displayDoc;
+    if (!convDoc || !rid) { clearSkillConversation(skillId); return; }
+    const conv = findNodeById(convDoc.root, 'sd-conversation');
     if (conv) {
       setSkillConversation({
-        skillId, runId: activeRunId,
-        node: ensureConversationErrorBubble(conv, displayDoc),
+        skillId, runId: rid,
+        node: ensureConversationErrorBubble(conv, convDoc),
         runtime: {
-          runId: activeRunId,
+          runId: rid,
           skillId,
-          onAction: (action) => { void handleAction(action); },
-          onUpload: handleUpload,
-          onChoiceSubmit: handleChoiceSubmit,
+          onAction: railRuntimeCallbacks.onAction,
+          onUpload: railRuntimeCallbacks.onUpload,
+          onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
         },
       });
     } else {
       clearSkillConversation(skillId);
     }
-  }, [usesDeliveryWorkbench, displayDoc, activeRunId, skillId, handleAction, handleUpload, handleChoiceSubmit]);
+  }, [usesDeliveryWorkbench, sduiDoc, displayDoc, activeRunId, storeRun, skillId, railRuntimeCallbacks]);
 
   useEffect(() => () => clearSkillConversation(skillId), [skillId]);
 
@@ -1303,9 +1800,9 @@ export default function SkillAgentScreen({
   const runtime: SduiRuntime = {
     runId: activeRunId,
     skillId,
-    onAction: (action) => { void handleAction(action); },
-    onUpload: (files, purpose, stepId, slotTag, slotLabel) => { void handleUpload(files, purpose, stepId, slotTag, slotLabel); },
-    onChoiceSubmit: (value) => { void handleChoiceSubmit(value); },
+    onAction: railRuntimeCallbacks.onAction,
+    onUpload: railRuntimeCallbacks.onUpload,
+    onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
     onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
     onRunPatch: handleRunPatch,
     streamEpoch,
@@ -1326,7 +1823,7 @@ export default function SkillAgentScreen({
           loading={starting}
         />
         {nextModule && (
-          <NextModuleButton label={nextModule.label} onClick={() => navigate(nextModule.to)} />
+          <NextModuleButton label={nextModule.label} onClick={handleNextModule} />
         )}
         {error && (
           <div style={{ margin: '0 auto', maxWidth: 320, padding: 12, background: 'var(--red-50)', borderRadius: 'var(--radius-md)', color: 'var(--red-700)', fontSize: 'var(--text-sm)', textAlign: 'center' }}>
@@ -1432,7 +1929,7 @@ export default function SkillAgentScreen({
         </Suspense>
       )}
       {nextModule && (
-        <NextModuleButton label={nextModule.label} onClick={() => navigate(nextModule.to)} />
+        <NextModuleButton label={nextModule.label} onClick={handleNextModule} />
       )}
     </SduiRuntimeContext.Provider>
   );

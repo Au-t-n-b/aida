@@ -16,6 +16,13 @@ from typing import Any
 
 _MANIFEST_PATH = Path(__file__).resolve().parent.parent / "project_paths.json"
 
+# 工程根（aida 仓库根）= project_paths.json 的 parents[3]
+#   project_paths.json → system_design → skills → agent → aida
+# project_paths.json 里的相对路径一律相对工程根解析（与进程 CWD 无关 ——
+# a3_bridge 执行子 pipeline 时会 os.chdir 到 data_root，CWD 不稳定，
+# 故不能用 Path(raw).resolve() 的 CWD 锚定）。
+_PROJECT_ROOT = _MANIFEST_PATH.parents[3]
+
 
 
 INPUT_TAGS = (
@@ -78,7 +85,17 @@ def _section(key: str) -> dict[str, Any]:
 
 def _path(raw: str) -> Path:
 
-    return Path(str(raw or "").strip()).resolve()
+    s = str(raw or "").strip()
+
+    p = Path(s) if s else Path(".")
+
+    # 绝对路径原样 resolve；相对路径锚定工程根（CWD 无关）。
+
+    if not p.is_absolute():
+
+        p = _PROJECT_ROOT / p
+
+    return p.resolve()
 
 
 
@@ -149,6 +166,30 @@ def abs_input_dir() -> Path:
 def abs_artifacts_dir() -> Path:
 
     return _path(str(_section("output").get("artifacts_dir") or ""))
+
+
+def scan_artifacts_rel_paths() -> list[str]:
+    """扫描 output/artifacts_dir 磁盘 → 相对 data_root 路径（唯一真相 · 不读 run state）。"""
+    root = resolve_data_root()
+    out_dir = abs_artifacts_dir()
+    if not out_dir.is_dir():
+        return []
+    keep_ext = (".xlsx", ".xls", ".docx", ".doc", ".pdf", ".zip")
+    skip_meta = {"run_meta.csv", "layer_detection.txt", "scenario_detection.txt"}
+    skip_name_fragments = ("计算参数面网段规划",)
+    res: list[str] = []
+    for p in sorted(out_dir.rglob("*")):
+        if not p.is_file() or p.name.startswith("~$") or p.name in skip_meta:
+            continue
+        if any(frag in p.name for frag in skip_name_fragments):
+            continue
+        if p.suffix.lower() not in keep_ext:
+            continue
+        try:
+            res.append(str(p.relative_to(root)).replace("\\", "/"))
+        except ValueError:
+            pass
+    return res
 
 
 

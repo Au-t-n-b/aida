@@ -1,0 +1,106 @@
+{
+  "draft": {
+    "changeDescription": "",
+    "documentSummary": "56A0TXN项目交付预案",
+    "manualChangeLog": [],
+    "projectId": "56A0TXN",
+    "projectName": "56A0TXN项目",
+    "proposalVersion": "草稿",
+    "createdBy": "何博",
+    "createdAt": "2026-06-13T08:27:16.364558+00:00",
+    "updatedBy": "何博",
+    "updatedAt": "2026-06-13T09:39:33.191190+00:00"
+  },
+  "snapshots": [
+    {
+      "proposalVersion": "V1.0_20260613162723_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.1_20260613162743_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.2_20260613163548_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.3_20260613165304_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.4_20260613165312_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.5_20260613165348_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.6_20260613165546_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.7_20260613170405_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    },
+    {
+      "proposalVersion": "V1.8_20260613173932_DRB",
+      "status": "published",
+      "createdBy": null,
+      "createdAt": null,
+      "updatedBy": null,
+      "updatedAt": null,
+      "changeDescription": "",
+      "changeRecords": []
+    }
+  ]
+}

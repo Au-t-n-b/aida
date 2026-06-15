@@ -73,6 +73,7 @@ export const BASE_CHAPTERS_DTRB = [
   { name: '5. 组网配置信息',      state: 'ok'      as const },
   { name: '5.1 网络平面配置',     state: 'ok'      as const },
   { name: '5.2 服务器配置',       state: 'partial'  as const, note: '字段待与田杨敏确认' },
+  { name: '5.3 集群设备配置',     state: 'partial'  as const, note: '集群 ID / 命名区间待 TD 确认' },
   { name: '6. 集成验证需求',      state: 'ok'      as const },
   { name: '7. 机房信息',          state: 'miss'    as const, note: '机柜归位 / 桥架路由待补' },
   { name: '8. 服务&维保信息',     state: 'ok'      as const },

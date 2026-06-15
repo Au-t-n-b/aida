@@ -63,7 +63,7 @@ def load_config(config_path: str = "config.yaml", env_path: str = ".env") -> App
         smtp=SmtpConfig(password=os.environ["MAILGW_SMTP_PASSWORD"], **raw["smtp"]),
         pop3=Pop3Config(password=os.environ["MAILGW_POP3_PASSWORD"], **raw["pop3"]),
         policy=PolicyConfig(**raw.get("policy", {})),
-        data_dir=Path(raw.get("data_dir", "./data")),
+        data_dir=Path(os.environ.get("MAILGW_DATA_DIR") or raw.get("data_dir", "./data")),
         tokens=tokens,
         admin_password=os.environ["MAILGW_ADMIN_PASSWORD"],
 

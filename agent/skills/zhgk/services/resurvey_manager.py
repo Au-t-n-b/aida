@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+from datetime import datetime
 from typing import Optional
 
 import openpyxl
@@ -89,6 +90,9 @@ def write_survey_results(
     survey_table_path: str,
     results: dict[int, str],
     round_number: int,
+    *,
+    source_label: str | None = None,
+    survey_time: str | None = None,
 ) -> None:
     """
     写入本轮勘测结果。
@@ -97,11 +101,14 @@ def write_survey_results(
         survey_table_path: 全量勘测结果表路径
         results: {序号(1-based): 勘测结果文本} 字典
         round_number: 当前轮次号
+        source_label: 本次结果来源，如“第1次视频工勘”或“第1次手动上传”
+        survey_time: 本次上传/更新时间；为空时使用当前本地时间
 
     副作用:
         1. 覆盖 "最新检查结果" 列
         2. 存档到 "第{round_number}轮勘测结果" 列
-        3. 如果该轮次列不存在则动态新增
+        3. 可选记录 "最新结果来源" / "最新勘测时间" 以及本轮来源/时间
+        4. 如果该轮次列不存在则动态新增
 
     返回:
         匹配统计 {requested, matched, skipped, skipped_seqs} —— 供上层回显，
@@ -126,6 +133,20 @@ def write_survey_results(
     if latest_col is None:
         wb.close()
         raise ResurveyError("SS-RM-E-001", "表格缺少'最新检查结果'列")
+
+    should_write_meta = bool(source_label or survey_time)
+    if should_write_meta:
+        source_label = source_label or ""
+        survey_time = survey_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        latest_source_col = _ensure_col(ws, headers, "最新结果来源", after_col=latest_col)
+        headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        latest_col = headers.index("最新检查结果") + 1
+        latest_time_col = _ensure_col(ws, headers, "最新勘测时间", after_col=latest_source_col)
+        headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        latest_col = headers.index("最新检查结果") + 1
+    else:
+        latest_source_col = None
+        latest_time_col = None
 
     # 确定轮次列名
     round_col_name = f"第{to_chinese_number(round_number)}轮勘测结果"
@@ -163,6 +184,27 @@ def write_survey_results(
                 latest_col = idx + 1
                 break
 
+    if should_write_meta:
+        headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        latest_source_col = headers.index("最新结果来源") + 1
+        latest_time_col = headers.index("最新勘测时间") + 1
+        round_col = headers.index(round_col_name) + 1
+        round_source_col_name = f"第{to_chinese_number(round_number)}轮结果来源"
+        round_time_col_name = f"第{to_chinese_number(round_number)}轮勘测时间"
+        round_source_col = _ensure_col(ws, headers, round_source_col_name, after_col=round_col)
+        headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        round_time_col = _ensure_col(ws, headers, round_time_col_name, after_col=round_source_col)
+        headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
+        latest_col = headers.index("最新检查结果") + 1
+        latest_source_col = headers.index("最新结果来源") + 1
+        latest_time_col = headers.index("最新勘测时间") + 1
+        round_col = headers.index(round_col_name) + 1
+        round_source_col = headers.index(round_source_col_name) + 1
+        round_time_col = headers.index(round_time_col_name) + 1
+    else:
+        round_source_col = None
+        round_time_col = None
+
     # 建立序号→行号映射
     seq_to_row = {}
     for row_idx in range(2, ws.max_row + 1):
@@ -185,6 +227,11 @@ def write_survey_results(
             continue
         ws.cell(row_idx, latest_col, value=value)
         ws.cell(row_idx, round_col, value=value)
+        if should_write_meta:
+            ws.cell(row_idx, latest_source_col, value=source_label)
+            ws.cell(row_idx, latest_time_col, value=survey_time)
+            ws.cell(row_idx, round_source_col, value=source_label)
+            ws.cell(row_idx, round_time_col, value=survey_time)
         matched += 1
 
     wb.save(survey_table_path)
@@ -295,3 +342,13 @@ def _find_last_round_col(headers: list[str]) -> Optional[int]:
         if ROUND_PATTERN.match(h):
             last = idx
     return last + 1 if last is not None else None  # 转为 1-based
+
+
+def _ensure_col(ws, headers: list[str], name: str, *, after_col: int | None = None) -> int:
+    """确保表头列存在，返回 1-based 列号。"""
+    if name in headers:
+        return headers.index(name) + 1
+    insert_pos = (after_col + 1) if after_col else ws.max_column + 1
+    ws.insert_cols(insert_pos)
+    ws.cell(1, insert_pos, value=name)
+    return insert_pos

@@ -15,7 +15,9 @@ from ._command_guard import should_skip
 from ._io import refresh_task_metrics, tasks_state_path, staged_cold_start_pace, SN_GENERATE_PACE_SEC
 from ..path_config import get_output_dir, output_rel
 from ..services._common import as_str
-from ..services.dispatch_plan_parser import load_sn_pool, group_sn_rows_to_tables
+from ..services.dispatch_plan_parser import (
+    load_sn_pool, group_sn_rows_to_tables, filter_sn_pool_by_dispatch, plan_row_ids_for_task,
+)
 from ..services.sn_builder import generate_sn_xlsx
 from ..services.task_store import load_tasks_state
 
@@ -33,7 +35,7 @@ class SnGenerateStep(BaseStep):
             return {
                 "ok": False,
                 "missing": ["ProjectData/RunTime/sn_pool.json"],
-                "note": "缺少 SN 全量池，请先完成「接收实施计划」。",
+                "note": "缺少 SN 全量池，请先完成「生成设备安装实施计划」。",
             }
         return {"ok": True, "missing": []}
 
@@ -64,32 +66,17 @@ class SnGenerateStep(BaseStep):
             metrics.update(refresh_task_metrics(ctx))
             return {"metrics": metrics}
 
+        pool_path = ctx.runtime_dir / "sn_pool.json"
+        all_sn = load_sn_pool(pool_path)
+        filtered, used_task_level = filter_sn_pool_by_dispatch(dispatch_tasks, all_sn)
         dispatched_units = {
             as_str(t.get("unit")) for t in dispatch_tasks if as_str(t.get("unit"))
         }
-        # 任务级范围：勾选任务的计划行ID（= 管理单元::活动ID）
-        selected_plan_ids = {
-            as_str(t.get("id")) for t in dispatch_tasks if as_str(t.get("id"))
-        }
-        pool_path = ctx.runtime_dir / "sn_pool.json"
-        all_sn = load_sn_pool(pool_path)
-
-        def _row_plan_ids(r: dict) -> set[str]:
-            return {p for p in as_str(r.get("关联计划行ID")).split(";") if p}
-
-        # 优先按「关联计划行ID」做任务级过滤；旧版文件无此列时回退到管理单元级
-        filtered = []
-        used_task_level = False
-        for r in all_sn:
-            pids = _row_plan_ids(r)
-            if pids:
-                used_task_level = True
-                if pids & selected_plan_ids:
-                    filtered.append(r)
-            elif as_str(r.get("所属管理单元")) in dispatched_units:
-                filtered.append(r)
 
         if not filtered:
+            selected_plan_ids: set[str] = set()
+            for t in dispatch_tasks:
+                selected_plan_ids |= plan_row_ids_for_task(t)
             scope_label = (
                 f"勾选下发任务（{', '.join(sorted(selected_plan_ids)[:4])}"
                 f"{'…' if len(selected_plan_ids) > 4 else ''}）"

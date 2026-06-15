@@ -11,6 +11,12 @@
       { "label": "📚 全部文档（图书馆）", "href": "index.html" },
       { "label": "开发者地图", "path": "docs/00_开发者地图.md" },
       { "label": "提交红线 AGENTS.md", "path": "AGENTS.md" }
+    ],
+    "usage": [
+      "这是一页交互式离线页：克隆仓库后双击 docs/site/portal.html 在浏览器打开（在 GitHub/Gitea 仓库里直接点开看到的是源码、不是活页面）。",
+      "每步勾「完成」会记在本地浏览器，下次打开自动续上；换机器或清缓存会重置。",
+      "「读什么」里的文档链接指向团队内网 Gitea，需在公司网络打开。",
+      "提示词整段可「复制」喂给 AI；命令支持逐行复制——长驻服务（uvicorn/npm dev）请各自单开一个终端。"
     ]
   },
   "glossary": [
@@ -19,7 +25,8 @@
     { "term": "HITL（人在环中）", "plain": "流程跑到一半需要你补文件或点确认时会「软中断」停下等你，补完自动接着跑。" },
     { "term": "SDUI（服务端驱动界面）", "plain": "后端吐一棵「界面树」、前端照着渲染；新模块不写前端就自动有作业界面。" },
     { "term": "守门（lint）", "plain": "一组提交前必跑的检查脚本，自动拦住违反规范的代码——没有守门的规范会退化成 PPT。" },
-    { "term": "Claw · 四层", "plain": "模块跑在「前端 / Manager / 数据中心 / Claw 执行引擎」四层里；Claw 是真正执行你 Skill 的那一层。" }
+    { "term": "Claw · 四层", "plain": "模块跑在「前端 / Manager / 数据中心 / Claw 执行引擎」四层里；Claw 是真正执行你 Skill 的那一层。" },
+    { "term": "@ 引用 / 提示词", "plain": "每步「给 AI 的提示词」用 @文件 语法把仓库文件喂给 AI——前提是先把仓库克隆到本地、并用 Cursor 或 Claude Code 这类认 @ 引用的工具打开；没有这类工具就把对应文件内容手动贴给 AI。" }
   ],
   "doors": [
     {
@@ -66,6 +73,7 @@
           "title": "把它跑起来",
           "goal": "本地起后端 + 前端，curl 看到 skills 列表，浏览器打开作业界面。",
           "read": [
+            { "label": "SETUP（环境前置 · 建 venv / 装依赖，先做这个）", "path": "docs/10_快速开始/SETUP.md" },
             { "label": "AGENT_QUICKSTART §0（环境就绪）", "path": "docs/10_快速开始/AGENT_QUICKSTART.md" }
           ],
           "prompt": [
@@ -74,11 +82,15 @@
             "特别提醒我那个坑：没在 agent/.venv 下跑时，契约类 lint 会显示 SKIP 而不是真校验，别把 SKIP 误判成「绿了」。"
           ],
           "commands": [
+            "# 终端 1（长驻·不会返回）：起后端",
             "uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload",
+            "# 终端 2（另开一个）：起前端",
             "cd frontend && npm run dev   # http://localhost:5173",
+            "# 终端 3：验证后端已注册 skill",
             "curl http://127.0.0.1:7401/agent/skills   # 看到 zhgk/guihua/xtsj = 成功"
           ],
-          "done": "前端能打开、curl 能列出已注册的 skill。"
+          "done": "前端能打开、curl 能列出已注册的 skill。",
+          "note": "🔴 先按 SETUP 建好 agent/.venv 并装依赖再跑——没 venv 直接 uvicorn 会 ModuleNotFound；且契约类 lint 不在 venv 下会显 SKIP（别把 SKIP 当「绿了」）。"
         },
         {
           "title": "你的第一课：读懂样板 zhgk",
@@ -362,6 +374,148 @@
           ],
           "done": "全套 lint + eval + typecheck 全绿，端到端 run 到 done，产物落 Output/。",
           "note": "缺一个别的模块/底座没提供的接口？别伪造——用 Mock 占位 + 写 RFC（开发者 SOP D2），继续干本模块其余部分，不要空等。"
+        }
+      ]
+    },
+    {
+      "id": "merge",
+      "icon": "🔀",
+      "title": "我要合并代码",
+      "subtitle": "把你的改动安全合进 feature_new——不强推、不覆盖别人、冲突两边都保留",
+      "intro": "铁律：只在自己的 feat/ 分支干活，feature_new 只接受 PR 合入；push 被拒永远是 fetch + rebase，绝不 --force。历史上强推丢过提交，这条路就是让它不再发生。",
+      "accent": "amber",
+      "steps": [
+        {
+          "title": "① 一次性设置（每台机器做一次）",
+          "goal": "加 gitea 远端 + 对 gitea 关掉公司代理（免 504）+ 记住登录。做完后所有 gitea 命令都不用再加 -c http.proxy= 或改环境变量。",
+          "read": [
+            { "label": "合并 SOP（可打印贴墙）", "path": "docs/10_快速开始/MERGE_SOP.md" }
+          ],
+          "commands": [
+            "git remote add gitea http://10.143.2.109:3010/jintao/aida.git",
+            "git config --global http.http://10.143.2.109:3010/.proxy \"\"",
+            "git config --global credential.helper store",
+            "git ls-remote gitea HEAD   # 不报错、不卡代理 = 成功"
+          ],
+          "done": "git ls-remote gitea HEAD 能列出分支，不卡代理。",
+          "note": "🔴 跳过这步直连 gitea 会 504 / fetch 失败。"
+        },
+        {
+          "title": "② 平时合并 · 7 步流程",
+          "goal": "永远在自己的 feat/ 分支干活；合前先 rebase 到最新 feature_new（在自己这边解冲突）；--force-with-lease 只推自己分支；PR 合入用 Squash。分支别养超过 2 天。",
+          "read": [
+            { "label": "合并 SOP · 平时合并 7 步", "path": "docs/10_快速开始/MERGE_SOP.md" }
+          ],
+          "commands": [
+            "git switch feature_new && git fetch gitea feature_new   # 只更新本地指针，别在这分支开发",
+            "git switch -c feat/我的模块-简述                          # 开自己的分支干活",
+            "git fetch gitea feature_new && git rebase gitea/feature_new   # 合前追到最新",
+            "git push --force-with-lease gitea feat/我的模块-简述      # 只推自己分支，绝不 --force",
+            "# 然后在 Gitea 发 PR（base=feature_new）→ 审核人复核 → Squash 合入 → 删个人分支"
+          ],
+          "done": "PR 已发起（base=feature_new），守门全绿，等审核人复核。",
+          "next": "rebase 出冲突？→ 下一步把 Agent 提示词丢给 Cursor 帮你解。"
+        },
+        {
+          "title": "③ 解冲突 · 把提示词丢给 Cursor",
+          "goal": "rebase 出冲突时，别整块选一边（= 删同事代码）。复制下面整段提示词，在 Cursor 开新会话粘贴并说「开始」，它会带你逐处解、两边意图都保留、推送前停下等你确认。",
+          "prompt_summary": "把这段整段复制到 Cursor 新会话、粘贴后说「开始」即可。它会：体检分支与工作区 → fetch + rebase 到最新 feature_new → 逐处解冲突（两边意图都保留、拿不准就停下问你）→ 跑全套守门 → 停在「是否推送」等你确认。全程不强推、不碰框架共享文件、不擅自提交。",
+          "prompt": [
+            "你现在的唯一任务是：把我当前的个人 feature 分支，安全地同步到最新 gitea/feature_new",
+            "并完成本地验证，为合入主仓做准备。这是一个多人 vibecoding 协作仓（主集成分支 feature_new），",
+            "代码托管在内网 Gitea，历史上发生过强推导致他人提交丢失的事故。你必须把",
+            "「不破坏任何人的工作」放在最高优先级，严格按下面的流程和红线执行。",
+            "",
+            "【环境事实】",
+            "- 仓库根：本项目根目录",
+            "- 集成主分支：feature_new（大家的合入目标，不是 master）",
+            "- 协作远端：gitea → http://10.143.2.109:3010/jintao/aida.git",
+            "- 参考远端：origin → https://github.com/Au-t-n-b/aida.git（只读对照，默认不向它推送）",
+            "- 个人分支命名：feat/<模块>-<简述>（例：feat/zhgk-sdui-3d）",
+            "- 代理：gitea 的免代理已在「一次性设置」里通过 git 配置永久关闭，",
+            "  所以本会话所有 git 命令直接写即可，不需要加 -c http.proxy= 或改环境变量。",
+            "  （若 git ls-remote gitea HEAD 卡住或 504，说明没做一次性设置 → 停下提醒我先做。）",
+            "- 守门/评测命令见 AGENTS.md §6",
+            "- Python 虚拟环境：agent/.venv（Windows: agent/.venv/Scripts/python.exe；其它系统：agent/.venv/bin/python）",
+            "- 端口：以 frontend/.env.local 为准——VITE_AGENT_BASE（后端，常见 7401）、VITE_CLAWMANAGER_BASE（Manager，常见 8000）；不要硬编码端口。",
+            "",
+            "【红线 · 违反即停】",
+            "1. 绝不在 feature_new 上直接做功能开发或提交；绝不对 feature_new 执行 git push --force / --force-with-lease。",
+            "2. 绝不使用 git push --force。个人分支需要更新远端时，只能用 git push --force-with-lease gitea <我的分支>。",
+            "3. 解冲突时绝不整块采用一边而丢弃另一边。每个冲突都要先读懂双方各自想做什么，合并双方意图；",
+            "   只要无法确定某段是否该保留，立刻停下问我，绝不替我猜。",
+            "4. 不碰与本任务无关的文件；尤其不准动框架/共享文件（agent/main.py, agent/graph.py, agent/sdui/builder.py,",
+            "   frontend 的 SduiNodeView.tsx / claw-seeds.ts / module.tsx 等），也不准对无关代码做「顺手」的重格式化。",
+            "   如果本任务确实必须改这些，先停下告诉我。",
+            "5. 不手改任何衍生制品（docs/site/*.html 等）；它们由 agent/scripts/gen_*.py 生成。",
+            "6. 到「推送」这一步必须停下，把验证证据给我看，等我明确说「推」再推。",
+            "7. 不擅自 git commit；若我未要求提交，验证通过后只汇报，等我确认再提交/推送。",
+            "",
+            "【执行步骤】",
+            "第0步 体检",
+            "  - 确认 gitea 远端存在：git remote -v | findstr gitea（或 grep gitea）。没有就停下提醒我做「一次性设置」，不要自己乱加。",
+            "  - 运行：git status 和 git branch --show-current",
+            "  - 若当前在 feature_new：停下告诉我「你在集成主分支上」，等我切到个人分支再继续。",
+            "  - 若有未提交改动：停下告诉我，等我处理干净（stash / commit）再继续。",
+            "",
+            "第1步 同步到最新 feature_new（用 rebase，不要用 pull，避免多余 merge commit）",
+            "    git fetch gitea feature_new",
+            "    git rebase gitea/feature_new",
+            "  - 若提示冲突，进入第2步；无冲突直接到第3步。任何时候都不要用 git push --force 去「绕过」被拒。",
+            "",
+            "第2步 解冲突（最关键）",
+            "  - 逐个文件打开冲突，对每一处：说明 <<<我方 与 >>>对方 各自改了什么、意图是什么，然后给出「两边意图都保留」的合并方案。",
+            "  - 不确定就停下问我。解完 git add <file>，git rebase --continue。",
+            "  - 解完后简述：这次 rebase 一共动了哪些文件、有没有可能影响别人的模块。",
+            "",
+            "第3步 衍生制品（仅当我明确要求提交时才执行提交）",
+            "  - 改了 SDUI builder → python agent/scripts/gen_sdui_gallery.py；改了 docs/*.md → gen_docs_site.py；改了 portal.json → gen_team_portal.py",
+            "  - 重新生成的产物单独提交一个 commit：chore: regen derived",
+            "",
+            "第4步 本地预检（全部要绿，贴出每条输出做证据）",
+            "  - 后端守门（逐个跑，任一非零即停并报告）：lint_no_naked_llm / lint_no_naked_send / lint_skill_contract / lint_tools /",
+            "    lint_sdui_contract / lint_sdui_gallery / lint_docs_site / lint_team_portal / lint_runtime_contract / lint_module_boundaries",
+            "  - 评测回归：eval_zhgk.py --fixture（涉及 tools 再跑 eval_tools.py --fixture）",
+            "  - 前端：cd frontend && npm run typecheck && npm run lint:no-ts-nocheck && npm run build",
+            "  - 任一红：先修，别推。修完重跑。",
+            "",
+            "第5步 汇报并等待",
+            "  - 给我一张清单：个人分支相对 gitea/feature_new 领先几个 commit、改了哪些文件（按模块归类）、",
+            "    每条守门/评测/前端的结果（绿/红 + 关键输出）、rebase 是否动过别人模块 / 共享框架文件。",
+            "  - 然后停下，问我：「是否推送 <分支名> 并发起合入 feature_new？」我说「推」后你才执行：",
+            "    git push --force-with-lease gitea <分支名>",
+            "  - 推完后提示我：在 Gitea 对 feature_new 发 Pull Request（base=feature_new, head=<我的分支>）→ 审核人重跑守门 → Squash 合入 → 删个人分支。",
+            "",
+            "现在开始第0步。"
+          ],
+          "done": "冲突逐处解完（两边意图都在），守门全绿，Cursor 停在「是否推送」等你确认。",
+          "note": "⚠️ 解冲突最忌「整块选一边」——会把同事的代码删掉，和强推一样毁数据。"
+        },
+        {
+          "title": "④ 三条铁律（记不住别的，记这三条）",
+          "goal": "1）push 被拒 → fetch + rebase，绝不 --force（--force 推 feature_new = 抹掉别人提交，就是上次的事故）；2）只动自己 agent/skills/<我的模块>/ 的文件（碰框架共享文件必和别人撞）；3）「完成」= 守门全绿 + build 过 + 审核人复核，不是「我本地能跑」。",
+          "read": [
+            { "label": "合并 SOP · 三条铁律 + 永远不要做", "path": "docs/10_快速开始/MERGE_SOP.md" }
+          ],
+          "done": "能复述三条铁律，知道哪些事永远不做。",
+          "note": "🔴 永远不要：git push --force（任何时候）· 直接推 feature_new / 在 feature_new 上开发 · 解冲突整块选一边 · 让 AI「顺手」重格式化无关文件 / 改框架共享文件 · 手改 docs/site/*.html（要用 gen_*.py 重生成）· 把「我本地能跑」当验证通过。"
+        },
+        {
+          "title": "⑤ 出事了怎么办（贴在最显眼处）",
+          "goal": "push 被拒 = fetch + rebase 再 push --force-with-lease 自己分支。发现 feature_new 被误强推、提交不见了 = 立刻在群里喊停，按下面命令找回（24 小时内基本都能救）。",
+          "commands": [
+            "# 情况 A：push 被拒（non-fast-forward）",
+            "git fetch gitea feature_new && git rebase gitea/feature_new",
+            "git push --force-with-lease gitea <我的分支>",
+            "",
+            "# 情况 B：feature_new 被误强推、提交不见了",
+            "git reflog                      # 任何 fetch 过的人本地都有强推前的 SHA",
+            "git reflog gitea/feature_new",
+            "git fsck --lost-found           # 都查不到 → 找管理员在服务器裸库上跑",
+            "git branch rescue/日期 <旧SHA>   # 拿到旧 SHA → 建分支 → 走正常 PR 合回 feature_new"
+          ],
+          "done": "知道 push 被拒怎么办、提交丢了怎么用 reflog 找回。",
+          "note": "🟢 找回后交给负责人统一合，别自己硬推。"
         }
       ]
     }

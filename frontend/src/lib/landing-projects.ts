@@ -1,5 +1,15 @@
 /** 数据中心 projects/my → 落地页卡片模型映射 */
 
+import type { DcProjectDetail } from '@/lib/claw-manager-client';
+
+export const CONTRACT_PRESALE = '预销售合同';
+export const CONTRACT_STANDARD = '标准合同';
+
+export const LANDING_STATUS_LABEL = {
+  approved: '已审批',
+  draft: '草稿',
+} as const;
+
 export type LandingProjectCard = {
   /** 数据中心 projectId（UUID32） */
   id: string;
@@ -75,6 +85,13 @@ export function isPendingProject(p: Pick<LandingProjectCard, 'status'>): boolean
   return p.status === 'PENDING_APPROVAL';
 }
 
+/** 落地页状态徽章：已审批 / 草稿（待审批等） */
+export function landingStatusKey(
+  p: Pick<LandingProjectCard, 'status' | 'canEnter'>,
+): keyof typeof LANDING_STATUS_LABEL {
+  return p.status === 'APPROVED' || p.canEnter ? 'approved' : 'draft';
+}
+
 /** 已审批在前，待审批在后 */
 export function sortLandingProjects(items: LandingProjectCard[]): LandingProjectCard[] {
   return [...items].sort((a, b) => {
@@ -90,6 +107,25 @@ export function visibleLandingProjects(items: LandingProjectCard[]): LandingProj
   return sortLandingProjects(
     items.filter((p) => p.status === 'APPROVED' || p.status === 'PENDING_APPROVAL'),
   );
+}
+
+/** 从「姓名 / 用户名」文本解析账号用户名（PUT /projects 用） */
+function parsePersonUsername(raw: string | undefined): string | undefined {
+  const s = (raw || '').trim();
+  if (!s) return undefined;
+  const slash = s.lastIndexOf('/');
+  if (slash >= 0) {
+    const tail = s.slice(slash + 1).trim();
+    return tail || undefined;
+  }
+  return s;
+}
+
+function sceneCsvToDeliveryTraits(scene: string | undefined): string[] {
+  return (scene || '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean);
 }
 
 /** 从「姓名 / 工号」文本解析可选用户 ID（数据中心 tdUserId 等） */
@@ -113,6 +149,7 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
   tdUserId?: number;
   pdUserId?: number;
   pcmUserId?: number;
+  deliveryTraits?: string[];
 } {
   const projectName = (fields.name || '').trim();
   const code = (fields.code || '').trim();
@@ -124,38 +161,133 @@ export function formToCreateProjectBody(fields: Record<string, string>): {
     tdUserId?: number;
     pdUserId?: number;
     pcmUserId?: number;
+    deliveryTraits?: string[];
   } = { projectName };
-  if (code) body.projectCode = code;
-  if (proposal) body.bidCode = proposal;
+  if (fields.contractType === CONTRACT_STANDARD) {
+    if (proposal) body.bidCode = proposal;
+  } else {
+    if (code) body.projectCode = code;
+  }
   const pdUserId = parseOptionalUserId(fields.pd);
   const tdUserId = parseOptionalUserId(fields.td);
   const pcmUserId = parseOptionalUserId(fields.pcm);
   if (pdUserId) body.pdUserId = pdUserId;
   if (tdUserId) body.tdUserId = tdUserId;
   if (pcmUserId) body.pcmUserId = pcmUserId;
+  const traits = sceneCsvToDeliveryTraits(fields.scene);
+  if (traits.length) body.deliveryTraits = traits;
+  return body;
+}
+
+/** 编辑项目表单 → 数据中心 PUT /projects/{uuid} body */
+export function formToUpdateProjectBody(fields: Record<string, string>): {
+  projectName?: string;
+  tdUsername?: string;
+  pdUsername?: string;
+  pcmUsername?: string;
+  deliveryTraits?: string[];
+} {
+  const body: {
+    projectName?: string;
+    tdUsername?: string;
+    pdUsername?: string;
+    pcmUsername?: string;
+    deliveryTraits?: string[];
+  } = {};
+  const projectName = (fields.name || '').trim();
+  if (projectName) body.projectName = projectName;
+  const pdUsername = parsePersonUsername(fields.pd);
+  const tdUsername = parsePersonUsername(fields.td);
+  const pcmUsername = parsePersonUsername(fields.pcm);
+  if (pdUsername) body.pdUsername = pdUsername;
+  if (tdUsername) body.tdUsername = tdUsername;
+  if (pcmUsername) body.pcmUsername = pcmUsername;
+  const traits = sceneCsvToDeliveryTraits(fields.scene);
+  if (traits.length) body.deliveryTraits = traits;
   return body;
 }
 
 /** 编辑弹窗字段预填（与新建项目表单一致） */
 export function projectToFormPreset(p: LandingProjectCard): Record<string, string> {
-  const code = p.code || '';
-  const bid = p.bidCode || '';
-  return {
+  return contractFieldsToFormPreset({
     name: p.name || '',
-    code,
-    proposal: bid && bid !== code ? bid : code,
-    scene: '',
-    pd: p.pdName || '',
-    td: p.tdName || '',
-    pcm: p.pcmName || '',
+    projectCode: p.code,
+    bidCode: p.bidCode,
+    pdName: p.pdName,
+    tdName: p.tdName,
+    pcmName: p.pcmName,
+    deliveryTraits: null,
+  });
+}
+
+function contractFieldsToFormPreset(input: {
+  name: string;
+  projectCode?: string | null;
+  bidCode?: string | null;
+  pdName?: string | null;
+  tdName?: string | null;
+  pcmName?: string | null;
+  deliveryTraits?: unknown[] | null;
+}): Record<string, string> {
+  const code = (input.projectCode || '').trim();
+  const bid = (input.bidCode || '').trim();
+  const proposal = bid && bid !== code ? bid : '';
+  const contractType = code && !proposal
+    ? CONTRACT_PRESALE
+    : (proposal && !code ? CONTRACT_STANDARD : CONTRACT_PRESALE);
+  return {
+    name: input.name || '',
+    contractType,
+    code: contractType === CONTRACT_PRESALE ? code : '',
+    proposal: contractType === CONTRACT_STANDARD ? (proposal || bid || code) : '',
+    scene: deliveryTraitsToSceneCsv(input.deliveryTraits),
+    pd: input.pdName || '',
+    td: input.tdName || '',
+    pcm: input.pcmName || '',
   };
+}
+
+/** GET /projects/{uuid} 详情 → 编辑表单预填 */
+export function dcProjectDetailToFormPreset(d: DcProjectDetail): Record<string, string> {
+  const members = d.members || [];
+  const byRole = (code: string) =>
+    members.find((m) => (m.roleCode || '').toUpperCase() === code);
+  const fmtMember = (m: { username?: string; roleName?: string } | undefined, fallback?: string | null) => {
+    if (fallback?.trim()) return fallback.trim();
+    if (!m) return '';
+    const u = (m.username || '').trim();
+    const rn = (m.roleName || '').trim();
+    if (rn && u) return `${rn} / ${u}`;
+    return u || rn;
+  };
+  return contractFieldsToFormPreset({
+    name: d.projectName || '',
+    projectCode: d.projectCode,
+    bidCode: d.bidCode,
+    pdName: fmtMember(byRole('PD'), d.pdName),
+    tdName: fmtMember(byRole('TD'), d.tdName),
+    pcmName: fmtMember(byRole('PCM'), d.pcmName),
+    deliveryTraits: d.deliveryTraits,
+  });
+}
+
+function deliveryTraitsToSceneCsv(traits: unknown[] | null | undefined): string {
+  if (!Array.isArray(traits) || traits.length === 0) return '';
+  const parts = traits.map((t) => {
+    if (typeof t === 'string') return t.trim();
+    if (t && typeof t === 'object') {
+      const o = t as Record<string, unknown>;
+      return String(o.label ?? o.name ?? o.value ?? o.trait ?? '').trim();
+    }
+    return '';
+  }).filter(Boolean);
+  return parts.join(',');
 }
 
 export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {
   const roles = (item.myRoles || [])
     .map((r) => r.roleCode)
     .filter(Boolean);
-  const approved = item.status === 'APPROVED';
   const stage4 = mapStage4(item.stage, item.progress);
   const overdueCount = item.risk === 'high' ? 1 : 0;
 
@@ -169,7 +301,7 @@ export function mapDcProjectToCard(item: DcMyProject): LandingProjectCard {
     todoCount: item.progress > 0 ? Math.max(1, Math.round(item.progress / 25)) : 0,
     overdueCount,
     blocker: item.canEnter ? null : (item.disabledReason || '项目暂不可进入'),
-    canEdit: approved,
+    canEdit: item.status === 'APPROVED' || item.status === 'PENDING_APPROVAL',
     updated: formatRelativeTime(item.updatedAt),
     canEnter: item.canEnter,
     disabledReason: item.disabledReason || undefined,

@@ -1,7 +1,7 @@
 """
 docs-site · 开发者文档站 HTML 新鲜度守门（规范 0：没有守门的规范会退化成 PPT）
 
-docs/site/index.html 是派生制品——gen_docs_site.py 把 docs/ + agent/docs/ 的 Markdown
+docs/site/index.html 是派生制品——gen_docs_site.py 把 docs/ 的 Markdown
 内嵌生成。改了 MD 但没重生成 → 站点与文档漂移（又一份会过期的副本）。本 lint 在内存里重跑
 生成器、与磁盘 HTML 比对：不一致 → 过期 → fail（附一键重生成命令）。归一行尾避免 autocrlf
 假阳性；输出近乎单行巨串，故只定位首处分歧的字符偏移 + 小窗口，不打印整行（防刷屏）。

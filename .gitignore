@@ -50,6 +50,7 @@ typecheck*.log
 
 # ── 工勘孪生 SOG 大文件（本地部署，不入库）──
 data/sog-assets/**/scene.sog
+data/sog-probe-events.json
 # data/sog-assets/ 目录骨架（hotspots.json / meta.json）入库，scene.sog 不入库
 
 # ── 文档站派生资产：mermaid 运行时 3.3MB 不入库（gen_docs_site 优雅降级为源码块）──

@@ -1,7 +1,7 @@
 """
 sdui-gallery · SDUI 组件目录 HTML 新鲜度守门（规范 0：没有守门的规范会退化成 PPT）
 
-agent/docs/sdui-gallery.html 是派生制品——gen_sdui_gallery.py 从 agent/sdui/builder.py
+docs/site/sdui-gallery.html 是派生制品——gen_sdui_gallery.py 从 agent/sdui/builder.py
 内省生成。契约一改、画廊不重生成 → HTML 与代码漂移，正是「单一真相」要消灭的第 4 份副本
 （前端 sdui.ts、NodeView 之外又一份）。本 lint 在内存里重跑生成器、与磁盘上的 HTML 比对：
 不一致 → 过期 → fail（附一键重生成命令）。
