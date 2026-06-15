@@ -102,18 +102,20 @@ pipeline {
                         configFileProvider([
                             configFile(fileId: "${env.CF_AGENT_ENV}", targetLocation: 'agent.env'),
                         ]) {
-                            sh """
-                                set -e
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
-                                    'mkdir -p ${DEPLOY_DIR}/agent ${DEPLOY_DIR}/logs/agent'
-                                scp -o StrictHostKeyChecking=no docker-compose.yml \\
-                                    root@${DEPLOY_HOST}:${DEPLOY_DIR}/
-                                scp -o StrictHostKeyChecking=no agent.env \\
-                                    root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
-                                printf '%s' "\$HARBOR_PASS" | ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
-                                    docker login ${DOCKER_REGISTRY} -u '${env.HARBOR_USER}' --password-stdin
-                                ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} bash -s <<'EOS'
+                            script {
+                                def harborUser = env.HARBOR_USER.replace("'", "'\\''")
+                                def harborPass = env.HARBOR_PASS.replace("'", "'\\''")
+                                sh """
+                                    set -e
+                                    ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} \\
+                                        'mkdir -p ${DEPLOY_DIR}/agent ${DEPLOY_DIR}/logs/agent'
+                                    scp -o StrictHostKeyChecking=no docker-compose.yml \\
+                                        root@${DEPLOY_HOST}:${DEPLOY_DIR}/
+                                    scp -o StrictHostKeyChecking=no agent.env \\
+                                        root@${DEPLOY_HOST}:${DEPLOY_DIR}/agent/.env
+                                    ssh -o StrictHostKeyChecking=no root@${DEPLOY_HOST} bash -s <<'EOS'
 set -euo pipefail
+printf '%s' '${harborPass}' | docker login ${DOCKER_REGISTRY} -u '${harborUser}' --password-stdin
 cd ${DEPLOY_DIR}
 mkdir -p logs/agent
 docker compose pull
@@ -127,8 +129,9 @@ docker logout ${DOCKER_REGISTRY} || true
 echo '=== Container Status ==='
 docker compose ps
 EOS
-                                rm -f agent.env
-                            """
+                                    rm -f agent.env
+                                """
+                            }
                         }
                     }
                 }
