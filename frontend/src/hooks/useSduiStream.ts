@@ -161,6 +161,9 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
   const lastDocJsonRef = useRef<string | null>(null);
   // close 后的轻量快照轮询定时器（替代 EventSource 自动重连，避免重连风暴打断交互）
   const pollTimerRef = useRef<number | null>(null);
+  // 连续命中 run_unavailable（/ui 404）的次数：resume 重订阅 / 后端重建 run 的瞬时 404
+  // 不应立刻摧毁正在进行的对话与步骤条，需连续多次（≥阈值）确认是真失效才上抛。
+  const unavailableHitsRef = useRef(0);
 
   const useRunLog = RUN_LOG_SKILLS.has(skillId);
 
@@ -196,6 +199,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
     // 每次重订阅（runId / epoch 变化）重置内容门控与遗留轮询
     lastDocJsonRef.current = null;
+    unavailableHitsRef.current = 0;
     if (pollTimerRef.current != null) {
       window.clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
@@ -208,6 +212,16 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
       const base = await ensureAgentBase(skillId);
 
       if (cancelled) return;
+
+      // run_unavailable（/ui 404）防抖：连续 < 阈值 且当前已有有效（非 idle / 非 error）文档时
+      // 视为 resume 重订阅 / 后端重建 run 的瞬时 404，保留旧文档；连续 ≥ 阈值才上抛失效态。
+      const RUN_UNAVAILABLE_THRESHOLD = 2;
+      const applyUnavailable = (prev: SduiDocument | null, snap: SduiDocument): SduiDocument | null => {
+        unavailableHitsRef.current += 1;
+        const hasGoodPrev = !!prev && !prev.meta?.error && !isIdleLikeSduiDoc(prev);
+        if (unavailableHitsRef.current < RUN_UNAVAILABLE_THRESHOLD && hasGoodPrev) return prev;
+        return snap;
+      };
 
 
 
@@ -222,7 +236,8 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
             if (sseReceived || prev?.meta?.error) return prev;
 
-            return null;
+            // 网络/非 404 失败：保留已渲染文档（resume 重订阅间隙不清空），无则维持 null
+            return prev;
 
           });
 
@@ -236,6 +251,8 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
           if (sseReceived) return prev;
 
           if (prev?.meta?.error && !snap.meta?.error) return prev;
+
+          if (isRunUnavailableDoc(snap)) return applyUnavailable(prev, snap);
 
           return useRunLog ? snap : mergeSduiDoc(prev, snap);
 
@@ -262,6 +279,7 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
           if (result.ok) {
 
             sseReceived = true;
+            unavailableHitsRef.current = 0;
 
             // 内容门控：与上次应用的树相同则跳过（避免重发/快照导致整树重渲染、握碎交互）
             const json = JSON.stringify(result.doc);
@@ -344,6 +362,12 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
           if (cancelled) return;
           fetchUiSnapshot(skillId, runId, base).then(snap => {
             if (cancelled || !snap) return;
+            // run_unavailable 走防抖：不进内容门控（否则同一 404 序列化会被去重、计数停滞）
+            if (isRunUnavailableDoc(snap)) {
+              setDoc(prev => applyUnavailable(prev, snap));
+              return;
+            }
+            unavailableHitsRef.current = 0;
             const json = JSON.stringify(snap);
             if (json === lastDocJsonRef.current) return;  // 无变化：不触发重渲染
             lastDocJsonRef.current = json;
