@@ -137,6 +137,31 @@ def device_stats(rows: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def build_commission_failure_record(
+    step_key: str,
+    error_message: str,
+    *,
+    started_at: str = "",
+    ended_at: str = "",
+) -> dict[str, Any]:
+    """命令调测失败时写入任务记录（无 result_dir）。"""
+    err = str(error_message or "执行失败").strip()
+    return {
+        "stepKey": step_key,
+        "taskType": _COMMISSION_LABELS.get(step_key, step_key),
+        "taskName": step_key,
+        "description": _COMMISSION_LABELS.get(step_key, step_key),
+        "deviceCount": "—",
+        "startedAt": _fmt_ts(started_at),
+        "endedAt": _fmt_ts(ended_at),
+        "executor": "driver.py",
+        "status": "失败",
+        "resultDir": "",
+        "errorMessage": err,
+        "summaryRows": [],
+    }
+
+
 def build_commission_record(
     step_key: str,
     result: dict[str, Any],
@@ -186,6 +211,7 @@ def build_commission_record(
         "executor": str(detail.get("executor") or detail.get("operator") or "driver.py"),
         "status": "已完成" if result.get("ok") else "失败",
         "resultDir": str(result.get("result_dir") or ""),
+        "errorMessage": "" if result.get("ok") else str(result.get("error") or result.get("message") or ""),
         "summaryRows": summary_rows[:8],
     }
 

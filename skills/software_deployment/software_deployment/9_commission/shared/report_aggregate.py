@@ -103,14 +103,23 @@ def _device_rows_from_receipt(receipt: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
-def build_aggregate(skill_dir: str | Path) -> dict[str, Any]:
-    """生成汇总 xlsx，返回路径与统计。"""
+def build_aggregate(skill_dir: str | Path, *, task_types: list[str] | None = None) -> dict[str, Any]:
+    """生成汇总 xlsx，返回路径与统计。
+
+    task_types: 若指定，仅汇总这些命令（AIDA 接入的四条 init_install）；
+                默认遍历 TASKS 全表（与 nanobot driver report_aggregate 一致）。
+    """
     latest = _latest_run_by_type(skill_dir)
     overview_rows: list[dict[str, Any]] = []
     detail_sheets: list[tuple[str, list[dict[str, Any]]]] = []
     tested = 0
 
-    for task_type, spec in TASKS.items():
+    if task_types:
+        pairs = [(t, TASKS[t]) for t in task_types if t in TASKS]
+    else:
+        pairs = list(TASKS.items())
+
+    for task_type, spec in pairs:
         label = spec.labels[0] if spec.labels else task_type
         module_title = MODULE_TITLES.get(spec.module, spec.module)
         run = latest.get(task_type)
@@ -177,8 +186,8 @@ def build_aggregate(skill_dir: str | Path) -> dict[str, Any]:
         "latestPath": str(latest_path.resolve()),
         "fileName": out_path.name,
         "latestName": AGGREGATE_LATEST,
-        "totalCommands": len(TASKS),
+        "totalCommands": len(pairs),
         "testedCommands": tested,
-        "untestedCommands": len(TASKS) - tested,
+        "untestedCommands": len(pairs) - tested,
         "detailSheets": len(detail_sheets),
     }

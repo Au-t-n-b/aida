@@ -583,6 +583,7 @@ class SduiDataTableNode(BaseModel):
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
     dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
+    dualModeEditable: bool | None = None   # dualMode 时是否显示「编辑」；默认 True
     patchAction: str | None = None         # dualMode 保存时 run-patch action（默认 task_progress）
 
 
@@ -899,11 +900,12 @@ class SduiGanttChartNode(BaseModel):
 
 
 class SduiContextBarGroup(BaseModel):
-    """ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。"""
+    """ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）+ 可选行内按钮。"""
     model_config = ConfigDict(extra="ignore")
     label: str
     value: str
     badge: str | None = None
+    inlineAction: SduiCardHeaderAction | None = None
 
 
 class SduiContextBarNode(BaseModel):
@@ -913,6 +915,7 @@ class SduiContextBarNode(BaseModel):
     id: str | None = None
     groups: list[SduiContextBarGroup]
     showTimelineArrow: bool | None = None
+    trailingAction: SduiCardHeaderAction | None = None
 
 
 class SduiFlowStepChip(BaseModel):
@@ -940,6 +943,7 @@ class SduiFlowStepsNode(BaseModel):
     id: str | None = None
     steps: list[SduiFlowStepCard]
     currentId: str | None = None
+    headerAction: SduiCardHeaderAction | None = None
 
 
 class SduiMacroStep(BaseModel):

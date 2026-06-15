@@ -6,6 +6,7 @@ from .cloudops_supplement import CloudopsSupplementStep
 from .cloudops_full import CloudopsFullStep
 from .toolkit_executor import ToolkitExecutorStep
 from .toolkit_import import ToolkitImportStep
+from .commission_scope import CommissionScopeStep
 from .connection import ConnectionStep
 from .lq_connection import LqConnectionStep
 from .weak_light import WeakLightStep
@@ -21,6 +22,7 @@ __all__ = [
     "CloudopsFullStep",
     "ToolkitExecutorStep",
     "ToolkitImportStep",
+    "CommissionScopeStep",
     "ConnectionStep",
     "LqConnectionStep",
     "WeakLightStep",

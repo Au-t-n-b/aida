@@ -29,6 +29,7 @@ class ToolkitImportStep(BaseStep):
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         emit(f"[{self.key}] 导入 Toolkit…")
+        emit(f"[{self.key}] 正在上传 CloudOps 完整配置到执行机（大文件可能需数分钟，请稍候）…")
         result = op_toolkit_import(ctx.work_root)
         if not result.get("ok"):
             for line in result.get("logs") or []:

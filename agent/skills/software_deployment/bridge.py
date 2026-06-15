@@ -29,9 +29,13 @@ _load_agent_env()
 
 
 def get_sd_root() -> Path:
-    """skill 工作区根：runtime/ + data/ + ProjectData/ 均在此目录下。"""
+    """skill 工作区根：runtime/ + data/ + ProjectData/ 均在此目录下。
+
+    仅认 SOFTWARE_DEPLOYMENT_ROOT 或仓库内 skills/software_deployment/，
+    不回落 ~/.nanobot（AIDA 与 nanobot 工作区应分离）。
+    """
     raw = os.environ.get("SOFTWARE_DEPLOYMENT_ROOT", "").strip()
-    root = Path(raw) if raw else _REPO_DEFAULT
+    root = Path(raw).expanduser() if raw else _REPO_DEFAULT
     root.mkdir(parents=True, exist_ok=True)
     return root.resolve()
 
@@ -44,6 +48,52 @@ def ensure_runtime(root: Path) -> Path:
     if str(rt) not in sys.path:
         sys.path.insert(0, str(rt))
     return rt
+
+
+def _gateway_has_creds(data: dict) -> bool:
+    apigw = str(data.get("apigw_url") or os.environ.get("CLOUDOPS_APIGW_URL") or "").strip()
+    key = str(data.get("gateway_key") or os.environ.get("CLOUDOPS_GATEWAY_KEY") or "").strip()
+    app_id = str(data.get("hw_app_id") or os.environ.get("CLOUDOPS_HW_APP_ID") or "").strip()
+    return bool(apigw and key and app_id)
+
+
+def ensure_gateway_config(root: Path) -> bool:
+    """确保步骤 8 可读 APIGW 凭证：优先环境变量，其次 gateway.json；缺失时尝试从 nanobot 工作区补齐。"""
+    import json
+    import shutil
+
+    if _gateway_has_creds({}):
+        return True
+
+    gw_path = root / "ProjectData" / "plan" / "RunTime" / "gateway.json"
+    if gw_path.is_file():
+        try:
+            raw = json.loads(gw_path.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and _gateway_has_creds(raw):
+                return True
+        except Exception:
+            pass
+
+    nb_gw = (
+        Path.home()
+        / ".nanobot"
+        / "workspace"
+        / "skills"
+        / "software_deployment"
+        / "ProjectData"
+        / "plan"
+        / "RunTime"
+        / "gateway.json"
+    )
+    if nb_gw.is_file():
+        gw_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(nb_gw, gw_path)
+        try:
+            raw = json.loads(gw_path.read_text(encoding="utf-8"))
+            return isinstance(raw, dict) and _gateway_has_creds(raw)
+        except Exception:
+            return False
+    return False
 
 
 def import_sd_script(root: Path, step_folder: str, module_stem: str) -> ModuleType:

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
-from ._sd_ops import _chain, op_plan_split, scene_is_multi_pods, slot_missing
+from ._sd_ops import _chain, op_plan_split, scene_is_multi_pods, slot_missing, scene_summary_text
 from ._hitl import confirm_gate
 
 
@@ -23,12 +23,16 @@ class PlanSplitStep(BaseStep):
             missing.extend(slot_missing(ctx.work_root, "pod_map"))
         if missing:
             return {"ok": False, "missing": missing, "found": [], "note": "需验收用例 Word；多 Pod 场景需 Pod 映射表"}
+        scene_hint = scene_summary_text(ctx.work_root)
         return confirm_gate(
             ctx.project,
             self.key,
             "确认拆分调测计划",
             note="材料已齐备，请确认执行拆分调测计划。",
-            description="将生成 third_level_tasks.json 与 plan_display_tree.json。",
+            description=(
+                f"将按场景规格拆分三级计划：{scene_hint}。"
+                "输出 third_level_tasks.json 与 plan_display_tree.json。"
+            ),
         )
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
