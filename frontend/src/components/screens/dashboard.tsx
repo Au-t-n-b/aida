@@ -1612,7 +1612,7 @@ export default function DashboardScreen() {
 
   const view = searchParams.get('view');
   if (view === '底座' || view === 'foundation') {
-    return <Navigate to="/twin/survey" replace />;
+    return <Navigate to="/twin" replace />;
   }
 
   const [drill, setDrill] = useState(null); // null | milestone | workorder | risk | agent | doa

@@ -15,14 +15,8 @@ export type NavLeafItem = {
 };
 
 export const NAV_TWIN: NavSubItem[] = [
-  {
-    name: '算力底座孪生',
-    children: [
-      { name: '实景孪生', href: '/twin/survey' },
-      { name: '3D建模', href: '/twin/physical' },
-      { name: '数字孪生', href: '/twin/digital' },
-    ],
-  },
+  { name: '算力底座孪生', href: '/twin' },
+  { name: '实景孪生', href: '/twin/survey' },
   { name: '项目孪生', href: '/cockpit' },
 ];
 
@@ -69,6 +63,8 @@ export function isNavSubActive(navPath: string, s: NavSubItem, hrefPrefix?: stri
   }
   if (s.href) {
     if (s.href === '/cockpit') return navPath === '/cockpit' || navPath.startsWith('/cockpit?');
+    // 算力底座孪生(/twin) 只匹配自身，勿把 /twin/survey（实景孪生）也点亮
+    if (s.href === '/twin') return navPath === '/twin' || navPath.startsWith('/twin?');
     if (s.href.includes('?')) return navPath === s.href;
     return navPath === s.href || navPath.startsWith(`${s.href}/`) || navPath.startsWith(`${s.href}?`);
   }
