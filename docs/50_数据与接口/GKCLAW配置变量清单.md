@@ -195,7 +195,15 @@ Set-Location D:\.cursor_workplace\aida\aida_6.15
 agent\.venv\Scripts\python.exe -m uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload
 ```
 
-或使用一键脚本：`powershell -ExecutionPolicy Bypass -File scripts/reset_local_dev.ps1`
+或使用一键脚本：
+
+```powershell
+# 只清工勘运行态（保留底表/风险库，不重启服务）
+powershell -ExecutionPolicy Bypass -File scripts/reset_zhgk.ps1
+
+# 停服 + 清运行态 + 重新拉起全套本地联调
+powershell -ExecutionPolicy Bypass -File scripts/reset_local_dev.ps1
+```
 
 ### 8.3 部署后自检
 

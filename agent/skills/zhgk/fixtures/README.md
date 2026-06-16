@@ -32,4 +32,13 @@ python agent/scripts/sync_zhgk_mock_report.py --dest-workspace
 - 写入项目演示路径并更新 `manifest.json`
 - `--dest-workspace` 会同时复制到当前 `ZHGK_ROOT` 工作区
 
-`init_zhgk_workspace.py` 与 `scripts/reset_local_dev.ps1` 会从项目演示资产自动 seed 到 `Input/`。
+`init_zhgk_workspace.py`、`reset_zhgk_workspace.py` 与 `scripts/reset_local_dev.ps1` 会从项目演示资产自动 seed 到 `Input/`。
+
+## 重置工勘流程
+
+```bash
+# 清 Output/RunTime/Images，保留 Template（底表+风险库）
+python agent/scripts/reset_zhgk_workspace.py
+```
+
+`--clear-template` 才会删除风险库；换底表后只想重建勘测项时用默认命令即可。

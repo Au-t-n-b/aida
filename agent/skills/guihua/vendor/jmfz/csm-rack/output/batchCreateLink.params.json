@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T06:51:57.297674+00:00",
+  "generated_at": "2026-06-14T11:24:18.249237+00:00",
   "endpoint": "POST http://100.102.191.17:9091/wapi/v1/ai/link/batchCreateLink",
   "topo_endpoint": "batchCreateLink",
   "api": "createTopoLink",

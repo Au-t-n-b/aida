@@ -117,8 +117,10 @@ ProjectData/
 | `SS-BP-E-003` 无法推断代际制冷 | HITL ChoiceCard 手动指定 |
 | `SS-AE-E-001` LLM 评估超时 | 检查网络，重试 |
 | `SS-RB-E-001` 报告模板不存在 | 提供 `ProjectData/Template/新版项目工勘报告模板.docx` |
+| 换了底表仍下发旧勘测项 | `Output/` 旧表被 `filter_build` 幂等复用 → 执行 `python agent/scripts/reset_zhgk_workspace.py`（默认保留 Template/风险库），刷新后重跑 |
+| `filter_build` HITL 只传一张底表后卡住 | 须齐备两张底表；补传 `工勘常见高风险库.xlsx` 或一次选两个文件 |
 
----
+重置脚本：`agent/scripts/reset_zhgk_workspace.py` · `scripts/reset_zhgk.ps1` · `scripts/reset_demo.sh`（Docker）。
 
 ## H. HITL 续跑 · `route_to` 语义
 

@@ -69,7 +69,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
   const switchProject = (p: (typeof PROJECT_LIST_MINI)[number]) => {
     selectProject({ id: p.id, name: p.name, code: p.code ?? p.id });
     setProjOpen(false);
-    navigate('/cockpit');
+    navigate('/preview');
   };
 
   return (

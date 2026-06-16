@@ -12,6 +12,9 @@ v4 目录结构：Template/（底表/模板）· Input/（BOQ/人员）· Output
 
   # 完整复制整个 ProjectData（不触发缺文件 HITL）
   python agent/scripts/init_zhgk_workspace.py --dest "%USERPROFILE%\\Desktop\\zhgk-desktop" --copy-all
+
+  # 换底表后清运行态、保留 Template（见 reset_zhgk_workspace.py）
+  python agent/scripts/reset_zhgk_workspace.py
 """
 from __future__ import annotations
 
