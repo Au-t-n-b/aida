@@ -24,6 +24,7 @@ from agent.schedule.contracts.inputs import (
     Team,
     WorkloadRule,
 )
+from agent.schedule.settings import get_as_of_date
 
 
 PLAN_SHEET = "集群集成 + A3液冷场景活动&依赖&工时(1014）"
@@ -356,7 +357,7 @@ def _load_dependencies(
 def _load_arrivals(data_root: Path) -> list[ArrivalItem]:
     rows = _read_table(data_root / "06_到货表" / "04 JD三期_A3液冷到货表_260309.xlsx", "JD三期")
     arrivals: list[ArrivalItem] = []
-    today = date.today()
+    as_of_date = get_as_of_date()
     for excel_row, row in enumerate(rows, start=2):
         arrival_date = _to_date(row.get("到货日期"), f"到货表第{excel_row}行《到货日期》")
         arrivals.append(
@@ -368,7 +369,7 @@ def _load_arrivals(data_root: Path) -> list[ArrivalItem]:
                 unit=_blank_to_none(row.get("单位")),
                 quantity=_to_float(_required(row, "数量", f"到货表第{excel_row}行"), f"到货表第{excel_row}行《数量》"),
                 arrival_date=arrival_date,
-                arrival_status=_arrival_status(arrival_date, today),
+                arrival_status=_arrival_status(arrival_date, as_of_date),
                 note=_blank_to_none(row.get("备注")),
             )
         )

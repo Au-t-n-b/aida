@@ -8,8 +8,6 @@ SCHEDULE_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = SCHEDULE_ROOT.parents[1]
 sys.path.insert(0, str(REPO_ROOT))
 
-from agent.schedule.engine import ScheduleResult, build_adjustment_options, generate_plan, select_shadow_recommendation  # noqa: E402
-from agent.schedule.engine.adjustments import _DemandTarget, _gap_summary  # noqa: E402
 from agent.schedule.contracts.api import ChangeSet  # noqa: E402
 from agent.schedule.contracts.common import DateRange, TargetRef  # noqa: E402
 from agent.schedule.contracts.inputs import (  # noqa: E402
@@ -30,6 +28,8 @@ from agent.schedule.contracts.inputs import (  # noqa: E402
     WorkloadRule,
 )
 from agent.schedule.contracts.outputs import PlanKpis, PlanResult, StrategyPlan  # noqa: E402
+from agent.schedule.engine import ScheduleResult, build_adjustment_options, generate_plan, select_shadow_recommendation  # noqa: E402
+from agent.schedule.engine.adjustments import _DemandTarget, _gap_summary, _target_end as _engine_target_end  # noqa: E402
 
 
 def test_shadow_recommendation_prefers_achievable_option_before_other_scores():
@@ -208,8 +208,9 @@ def test_concentrated_strategy_uses_configured_top_k():
     assert activities["project/done"].end_date == deadline
 
 
-def test_pull_inputs_returns_unlocked_room_and_arrival_but_skips_locked_predecessors():
-    future_start = date.today() + timedelta(days=30)
+def test_pull_inputs_returns_unlocked_room_and_arrival_but_skips_locked_predecessors(monkeypatch):
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", "2025-10-01")
+    future_start = date(2026, 1, 1)
     unlocked = _room_arrival_bundle(
         start=future_start,
         room_ready=future_start,
@@ -228,12 +229,13 @@ def test_pull_inputs_returns_unlocked_room_and_arrival_but_skips_locked_predeces
     pulled_targets = {item.target_desc for item in _option(unlocked_adjustment.options, "C").pulled_inputs}
     assert pulled_targets == {"机房就位(R1)", "到货(P1)"}
 
-    past_start = date.today() - timedelta(days=60)
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", "2026-06-16")
+    past_start = date(2026, 1, 1)
     locked = _room_arrival_bundle(
         start=past_start,
         room_ready=past_start,
         arrival_date=past_start + timedelta(days=1),
-        arrival_status="已到货",
+        arrival_status="在途",
     )
     locked_seed = _seed(locked)
     locked_deadline = _target_end(locked_seed.plan, "B1/online") - timedelta(days=2)
@@ -247,6 +249,80 @@ def test_pull_inputs_returns_unlocked_room_and_arrival_but_skips_locked_predeces
     assert _option(locked_adjustment.options, "C").pulled_inputs == []
     assert locked_adjustment.unmet
     assert "已锁定" in locked_adjustment.unmet[-1].reason
+
+
+def test_pull_inputs_replans_real_bundle_to_meet_tightened_batch_target(monkeypatch):
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", "2025-10-01")
+    inputs = _load_golden_bundle()
+    seed = generate_plan(inputs, include_risks=True)
+    assert isinstance(seed, ScheduleResult)
+    batch = inputs.batches[0]
+    target = TargetRef(kind="批次上线", ref_id=batch.batch_id)
+    baseline_end = _engine_target_end(seed.plan, target)
+    deadline = baseline_end - timedelta(days=14)
+
+    adjustment = build_adjustment_options(
+        inputs,
+        _deadline_change_for_target(target, deadline),
+        seed.plan,
+        list(seed.risks),
+    )
+
+    option = _option(adjustment.options, "C")
+    assert {item.target_desc.split("(", maxsplit=1)[0] for item in option.pulled_inputs} == {"到货", "机房就位"}
+    assert _engine_target_end(option.plan, target) <= deadline
+    assert option.kpis.gap_days <= 0
+    assert inputs.batches[0].online_target_date == baseline_end
+
+
+def test_pull_inputs_clamps_real_bundle_suggestions_to_day_after_as_of(monkeypatch):
+    as_of = date(2025, 10, 1)
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", as_of.isoformat())
+    inputs = _load_golden_bundle()
+    seed = generate_plan(inputs, include_risks=True)
+    assert isinstance(seed, ScheduleResult)
+    batch = inputs.batches[0]
+    target = TargetRef(kind="批次上线", ref_id=batch.batch_id)
+    baseline_end = _engine_target_end(seed.plan, target)
+    deadline = baseline_end - timedelta(days=120)
+
+    adjustment = build_adjustment_options(
+        inputs,
+        _deadline_change_for_target(target, deadline),
+        seed.plan,
+        list(seed.risks),
+    )
+
+    option = _option(adjustment.options, "C")
+    assert option.pulled_inputs
+    assert {item.suggested_date for item in option.pulled_inputs} == {as_of + timedelta(days=1)}
+    assert option.kpis.gap_days <= 0
+
+
+def test_pull_inputs_keeps_c_with_unmet_when_real_bundle_station_goods_locked(monkeypatch):
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", "2026-06-16")
+    inputs = _load_golden_bundle()
+    seed = generate_plan(inputs, include_risks=True)
+    assert isinstance(seed, ScheduleResult)
+    batch = inputs.batches[0]
+    target = TargetRef(kind="批次上线", ref_id=batch.batch_id)
+    baseline_end = _engine_target_end(seed.plan, target)
+    deadline = baseline_end - timedelta(days=14)
+
+    adjustment = build_adjustment_options(
+        inputs,
+        _deadline_change_for_target(target, deadline),
+        seed.plan,
+        list(seed.risks),
+    )
+
+    option = _option(adjustment.options, "C")
+    assert option.pulled_inputs == []
+    assert option.kpis.gap_days == 14
+    assert any(
+        item.target_desc == f"批次上线({batch.batch_id})" and "已锁定" in item.reason and item.gap_days == 14
+        for item in adjustment.unmet
+    )
 
 
 def test_compression_only_touches_critical_path_and_stops_at_minimum_with_risk():
@@ -562,6 +638,78 @@ def test_buffer_extension_reports_activity_risk_when_duration_exceeds_standard()
     assert risk.severity == "高"
     assert "buffer施工风险" in risk.message
     assert "较标准 SLA 2 天超出 3 天" in risk.message
+
+
+def _load_golden_bundle() -> InputBundle:
+    """真盘子（golden 70 活动·真实活动目录）——回归 T-064，避开 2 活动玩具盘子的覆盖盲区。"""
+    golden = SCHEDULE_ROOT / "tests" / "fixtures" / "input_bundle.golden.json"
+    return InputBundle.model_validate_json(golden.read_text(encoding="utf-8"))
+
+
+def test_postpone_batch_target_is_met_not_runaway_buffer_on_real_bundle():
+    # 回归 T-064（demo-breaker「超 511 天」）：真盘子（golden 70 活动）下把某批次上线目标往后挪。
+    # 旧逻辑：gap<0 一律进 buffer 延长 → 延长「不在该批前置链上」的活动推不动目标 → 撞 guard=500、
+    #         把某活动拉长约 500 天（实测「集群验收方案设计」25→525）、项目完成日崩到次年。
+    # 新逻辑：把目标往后拖 = 放宽要求 = 达标，给单张稳定方案、不动活动、不失控。
+    inputs = _load_golden_bundle()
+    seed = generate_plan(inputs, include_risks=True)
+    assert isinstance(seed, ScheduleResult)
+    batch = inputs.batches[1]
+    online_end = _engine_target_end(seed.plan, TargetRef(kind="批次上线", ref_id=batch.batch_id))
+    later_deadline = online_end + timedelta(days=15)
+    changes = ChangeSet(
+        demands=[
+            DemandRequest(
+                demand_id="D-postpone",
+                target=TargetRef(kind="批次上线", ref_id=batch.batch_id),
+                direction="某日期前完成",
+                deadline=later_deadline,
+            )
+        ]
+    )
+
+    adjustment = build_adjustment_options(inputs, changes, seed.plan, list(seed.risks))
+
+    # 达标：单张方案、绝不是 buffer 延长
+    assert [option.option_id for option in adjustment.options] == ["A"]
+    assert adjustment.options[0].strategy != "buffer延长"
+    # 不失控：项目完成日原样不动；没有任何活动被拉长（旧 bug 会把某活动 +500 天）
+    assert adjustment.options[0].plan.project_finish_date == seed.plan.project_finish_date
+    base_sla = {activity.instance_id: activity.actual_sla_days for activity in seed.plan.activities}
+    assert all(
+        activity.actual_sla_days <= base_sla.get(activity.instance_id, activity.actual_sla_days)
+        for activity in adjustment.options[0].plan.activities
+    )
+    # 缺口口径自洽：该批次上线已满足 → 卡 gap_days ≤ 0、banner 同号 ≤ 0
+    # （不再「banner 说超期·需压缩」却配「buffer/达标」方案自相矛盾）
+    assert adjustment.options[0].kpis.gap_days <= 0
+    assert adjustment.gap is not None and adjustment.gap.gap_days <= 0
+    assert adjustment.unmet == []
+
+
+def test_explicit_postpone_still_buffers_but_stays_bounded_on_real_bundle():
+    # 显式「延后 N 天」仍走 buffer 延长（用户明确要留缓冲）；非进展护栏保证真盘子下也不失控。
+    inputs = _load_golden_bundle()
+    seed = generate_plan(inputs, include_risks=True)
+    assert isinstance(seed, ScheduleResult)
+    changes = ChangeSet(
+        demands=[
+            DemandRequest(
+                demand_id="D-buffer",
+                target=TargetRef(kind="项目移交", ref_id=None),
+                direction="延后",
+                amount_days=10,
+            )
+        ]
+    )
+
+    adjustment = build_adjustment_options(inputs, changes, seed.plan, list(seed.risks))
+
+    option = adjustment.options[0]
+    assert option.option_id == "BUFFER"
+    # 不失控：完成日最多往后约 amount_days，绝不暴涨数百天（旧 bug 会 +500）
+    grew = (option.plan.project_finish_date - seed.plan.project_finish_date).days
+    assert 0 <= grew <= 15
 
 
 def test_adjustment_options_preserve_incident_window_effect():

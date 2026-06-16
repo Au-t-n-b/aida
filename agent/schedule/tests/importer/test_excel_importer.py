@@ -16,6 +16,7 @@ from agent.schedule.contracts.inputs import Pod  # noqa: E402
 
 from agent.schedule.importer.excel import (  # noqa: E402
     DataImportError,
+    _load_arrivals,
     _load_batches,
     _load_project,
     _load_rooms_and_pods,
@@ -127,6 +128,21 @@ def test_real_excel_files_build_valid_input_bundle(bundle):
 
     imported_pod_ids = {pod_id for batch in bundle.batches for pod_id in batch.pod_ids}
     assert imported_pod_ids == {pod.pod_id for pod in bundle.pods}
+
+
+def test_load_arrivals_uses_configured_as_of_date_for_status(tmp_path, monkeypatch):
+    _write_workbook(
+        tmp_path / "06_到货表" / "04 JD三期_A3液冷到货表_260309.xlsx",
+        ["ID", "管理单元", "设备类型", "型号", "单位", "数量", "到货日期", "备注"],
+        [["A1", "P1", "计算柜", "M1", "柜", 1, "2026-07-10", None]],
+        sheet_name="JD三期",
+    )
+
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", "2026-07-09")
+    assert _load_arrivals(tmp_path)[0].arrival_status == "在途"
+
+    monkeypatch.setenv("SCHEDULE_AS_OF_DATE", "2026-07-10")
+    assert _load_arrivals(tmp_path)[0].arrival_status == "已到货"
 
 
 def test_project_metadata_reads_project_name_and_card_count_from_scenario_table(tmp_path):
