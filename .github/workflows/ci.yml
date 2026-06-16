@@ -56,6 +56,8 @@ jobs:
         run: python agent/evals/eval_zhgk.py --fixture
       - name: 单元测试（工勘孪生 SOG 资产）
         run: python -m unittest agent.tests.test_sog_assets -v
+      - name: 单元测试（skill 运行时热插拔 hotreload）
+        run: python -m unittest agent.tests.test_hotreload -v
 
   frontend-build:
     name: 前端 typecheck + build

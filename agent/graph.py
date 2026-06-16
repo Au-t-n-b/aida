@@ -69,6 +69,16 @@ async def get_graph_async(skill_id: str = "zhgk"):
     return _compiled_async[skill_id]
 
 
+def invalidate(skill_id: str) -> None:
+    """热重载用：清掉某 skill 的编译图缓存，使下次 get_graph(_async) 用新代码重建。
+
+    在跑的 run 已持有旧编译图引用（_run_graph_streaming 里的局部 graph），不受影响、跑完为止；
+    只影响后续新 run。配合 agent/skills/hotreload.py 实现零重启热插拔。
+    """
+    _compiled.pop(skill_id, None)
+    _compiled_async.pop(skill_id, None)
+
+
 async def close_graph_async():
     """FastAPI shutdown 时关闭 aiosqlite 连接"""
     global _async_conn, _async_saver, _compiled_async

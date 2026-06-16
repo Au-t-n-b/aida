@@ -45,6 +45,7 @@ from .routers.proposal_mock import router as proposal_mock_router
 
 from .routers.datacenter_files import router as datacenter_files_router
 from .routers.proposal_files import router as proposal_files_router
+from .routers.admin_reload import router as admin_reload_router
 from .schedule.router import configure_schedule, router as schedule_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -124,6 +125,7 @@ app.include_router(proposal_chapters_router)
 app.include_router(proposal_files_router)
 app.include_router(proposal_mock_router)
 app.include_router(datacenter_files_router)
+app.include_router(admin_reload_router)   # 运行时热插拔 skill（零重启 · token 鉴权）
 configure_schedule(app)
 app.include_router(schedule_router)
 
