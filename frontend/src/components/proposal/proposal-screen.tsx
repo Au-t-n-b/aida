@@ -270,9 +270,14 @@ export default function ProposalScreen() {
         const fresh = await fetchDraft(projectId, headers);
         const freshEtag = fresh.manifest?.etag;
         if (freshEtag) setEtag(freshEtag);
-        return attempt(freshEtag);
+        try {
+          return await attempt(freshEtag);
+        } catch {
+          // pass through to force-save fallback below
+        }
       }
-      throw err;
+      // 异常兜底：直接释放锁（不带 If-Match）执行一次强制保存。
+      return attempt(undefined);
     }
   }, [draftChapters, etag, headers, manualChangeLog, projectId]);
 
