@@ -1038,6 +1038,11 @@ export default function SkillAgentScreen({
   // 部署调测 · 线性长步骤（toolkit_import 等）轮询兜底，避免 frozenDoc 挡住进度
   const [deployLinearPollDoc, setDeployLinearPollDoc] = useState<SduiDocument | null>(null);
   const deployLinearPollGenRef = useRef(0);
+  const pollDeployLinearUntilSettledRef = useRef<(
+    rid: string,
+    stepKey: string,
+    gen: number,
+  ) => Promise<void>>(async () => {});
   const lastFeedStepKeyRef = useRef<string | null>(null);
   const lastFeedPhaseRef = useRef<string | null>(null);
   const commissionBusyState = useCommissionBusy();
@@ -1190,6 +1195,15 @@ export default function SkillAgentScreen({
       }
     }
   }, [sduiDoc, frozenDoc, usesDeliveryWorkbench]);
+  // 部署调测：SSE 已含命令调测工作台时立即解冻，并释放轮询兜底快照
+  useEffect(() => {
+    if (skillId !== 'software_deployment' || !liveSduiDoc) return;
+    if (!isToolkitHubReadyInDoc(liveSduiDoc)) return;
+    frozenSnapshotRef.current = null;
+    setFrozenDoc(null);
+    setDeployLinearPollDoc(null);
+    clearSkillHitl(skillId);
+  }, [skillId, liveSduiDoc]);
   // 交付台（system_design）：对齐已跑通的参照版，仅「冻结快照 ?? 实时 SSE」两层。
   // 不再叠加 frozenSnapshotRef.current / postUploadDoc 覆盖层 —— 这两层在 LLD 生成 /
   // 上传 / 完成后不会及时清空，会把已更新的实时 sduiDoc 永久挡住，导致「输出件不刷新、
@@ -1207,8 +1221,15 @@ export default function SkillAgentScreen({
         const frozen = frozenSnapshotRef.current ?? frozenDoc;
         // HITL 交互中：右侧大盘读实时 SSE，避免冻结快照把进度环/VHS 卡在旧水位
         if (live && frozen && hasLeftRailHitl(live)) return live;
-        return diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
+        const layered = diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
           ?? frozen ?? live ?? bootDoc;
+        // 步骤 8 导入完成后须展示「命令调测 · 调度」；冻结层可能仍停在 HITL，优先带 panel 的快照
+        if (skillId === 'software_deployment') {
+          const hubDoc = [deployLinearPollDoc, commissionPollDoc, live, postUploadDoc, diskPollDoc, frozen, bootDoc]
+            .find((d): d is SduiDocument => !!d && isToolkitHubReadyInDoc(d));
+          if (hubDoc) return hubDoc;
+        }
+        return layered;
       })();
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
@@ -1466,6 +1487,17 @@ export default function SkillAgentScreen({
     await resumeRun(skillId, rid, payload, fromStep);
     // 强制重订阅 SSE：full_restart 会新建队列，旧 EventSource 追不上（见 useSduiStream epoch 注释）
     setStreamEpoch(e => e + 1);
+    // 部署调测 · 步骤 8：右侧 HITL 确认等路径也走轮询，等 /ui 出现命令调测调度区
+    if (
+      skillId === 'software_deployment'
+      && fromStep === 'toolkit_import'
+      && (payload.choice === 'confirm' || payload.choice === '确认执行')
+    ) {
+      setCommissionBusy(true, 'Toolkit 导入', 'import');
+      const gen = deployLinearPollGenRef.current + 1;
+      deployLinearPollGenRef.current = gen;
+      void pollDeployLinearUntilSettledRef.current(rid, 'toolkit_import', gen);
+    }
     // device_install：full_restart 耗时较长，SSE 可能晚于冻结层；轮询 /ui 推进界面
     if (skillId === 'device_install' && curDoc) {
       const baseline = curDoc;
@@ -1706,7 +1738,14 @@ export default function SkillAgentScreen({
         return;
       }
       if (settled) {
-        setDeployLinearPollDoc(null);
+        // 保留含 sd-commission-panel 的 /ui 快照，直到 SSE 追上（避免清空后右侧仍卡在步骤 8 HITL）
+        if (snap && isToolkitHubReadyInDoc(snap)) {
+          setDeployLinearPollDoc(snap);
+          frozenSnapshotRef.current = null;
+          setFrozenDoc(null);
+        } else {
+          setDeployLinearPollDoc(null);
+        }
         clearCommissionBusy();
         clearSkillHitl(skillId);
         emitSkillStepDone(skillId, stepKey);
@@ -1725,6 +1764,8 @@ export default function SkillAgentScreen({
       `「${label}」等待超过 30 分钟仍未返回；可能仍在执行，请查右侧日志或刷新页面。`,
     );
   }, [skillId]);
+
+  pollDeployLinearUntilSettledRef.current = pollDeployLinearUntilSettled;
 
   const executeCommissionStep = useCallback(async (
     stepKey: string,
@@ -2245,19 +2286,9 @@ export default function SkillAgentScreen({
       setCommissionBusy(true, 'Toolkit 导入', 'import');
       clearSkillHitl(skillId);
       updateSkillRun({ phase: 'running', currentStepName: 'Toolkit 导入', hitlType: null });
+      emitCommissionProgress('Toolkit 导入已开始（大文件可能需数分钟），右侧会同步更新进度…');
+      lastFeedPhaseRef.current = 'toolkit_import:running';
       await doResume({ choice: 'confirm' }, effectiveFrom);
-      setStreamEpoch(e => e + 1);
-      const ridAfter = resolveSkillRunId(skillId, activeRunId, storeRun);
-      if (ridAfter) {
-        emitCommissionProgress('Toolkit 导入已开始（大文件可能需数分钟），右侧会同步更新进度…');
-        const gen = deployLinearPollGenRef.current + 1;
-        deployLinearPollGenRef.current = gen;
-        setDeployLinearPollDoc(null);
-        lastFeedPhaseRef.current = 'toolkit_import:running';
-        void pollDeployLinearUntilSettled(ridAfter, 'toolkit_import', gen);
-      } else {
-        clearCommissionBusy();
-      }
       return;
     }
 
@@ -2265,7 +2296,7 @@ export default function SkillAgentScreen({
       { choice: value },
       fromStep,
     );
-  }, [doResume, skillId, activeRunId, storeRun, pollDeployLinearUntilSettled, beginCommandPoll, pollScopeParseUntilSettled, resolveCommissionScope]);
+  }, [doResume, skillId, activeRunId, storeRun, beginCommandPoll, pollScopeParseUntilSettled, resolveCommissionScope]);
 
   // 部署调测：HitlForm（如步骤 7 调测设备 IP/SK「保存并继续」）提交 → resume 续跑。
   // HitlForm 负载形如 { [formId]: { base_url_ip, secret_key } }，需扁平化后再续跑。
@@ -2383,7 +2414,6 @@ export default function SkillAgentScreen({
         onFormSubmit: railRuntimeCallbacks.onFormSubmit,
         onUpload: railRuntimeCallbacks.onUpload,
         onAction: railRuntimeCallbacks.onAction,
-        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
       });
     } else {
       clearSkillHitl(skillId);

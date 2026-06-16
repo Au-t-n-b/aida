@@ -2829,6 +2829,21 @@ async def evals_refresh(
 
 # ─── SDUI 快照（前端首屏或断线重连时拉取完整 UI 树） ───
 
+@app.get("/agent/{skill}/devices")
+def list_device_tasks(
+    skill: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    pod: str = Query(""),
+):
+    """设备底表分页（不经过 SDUI 主文档，避免 /ui 体积过大）。"""
+    if skill != "software_deployment":
+        raise HTTPException(404, "only software_deployment")
+    from agent.skills.software_deployment.sdui_tabs import build_device_table_page
+
+    return build_device_table_page(page=page, page_size=page_size, pod=pod.strip())
+
+
 @app.get("/agent/{skill}/ui/{run_id}")
 def get_ui_snapshot(skill: str, run_id: str):
     """返回指定 run 的当前 SDUI 文档（JSON）。前端断线重连或初始化时调用。"""
