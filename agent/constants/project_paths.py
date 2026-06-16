@@ -38,6 +38,41 @@ def _ipo_triple(root: str, domain: str, module: str) -> IpoTriple:
     }
 
 
+class ContractPaths(TypedDict):
+    base: str
+    in_: str
+    parse: str
+    out: str
+    boq_list_in: str
+    boq_info_in: str
+    boq_upload_in: str
+    boq_device_parse: str
+    service_boq_parse: str
+    delivery_scenario_parse: str
+    project_basic_out: str
+    contract_device_table_out: str
+    simulation_device_out: str
+
+
+def contract_paths(project_root: str) -> ContractPaths:
+    triple = _ipo_triple(project_root, "早期介入", "合同")
+    in_base = triple["in_"]
+    parse_base = triple["parse"]
+    out_base = triple["out"]
+    return {
+        **triple,
+        "boq_list_in": _join_path(in_base, "合同BOQ列表.xlsx"),
+        "boq_info_in": _join_path(in_base, "BOQ信息表"),
+        "boq_upload_in": _join_path(in_base, "BOQ"),
+        "boq_device_parse": _join_path(parse_base, "BOQ设备解析原始结果"),
+        "service_boq_parse": _join_path(parse_base, "服务BOQ解析结果"),
+        "delivery_scenario_parse": _join_path(parse_base, "项目交付场景信息表"),
+        "project_basic_out": _join_path(out_base, "项目基础信息表"),
+        "contract_device_table_out": _join_path(out_base, "设备信息表"),
+        "simulation_device_out": _join_path(out_base, "建模仿真设备信息表"),
+    }
+
+
 class ProposalPaths(TypedDict):
     base: str
     in_: str
@@ -61,7 +96,7 @@ def proposal_paths(project_root: str) -> ProposalPaths:
     triple = _ipo_triple(project_root, "早期介入", "交付预案")
     draft_dir = _join_path(triple["parse"], "预案草稿")
     versions_dir = _join_path(triple["out"], "预案版本")
-    contract_root = _join_path(project_root, "早期介入", "合同")
+    contract = contract_paths(project_root)
     return {
         **triple,
         "proposal_draft_dir": draft_dir,
@@ -69,14 +104,14 @@ def proposal_paths(project_root: str) -> ProposalPaths:
         "proposal_versions_out": versions_dir,
         "version_info_records_out": _join_path(triple["out"], "预案版本信息表.records.json"),
         "version_info_xlsx_out": _join_path(triple["out"], "预案版本信息表.xlsx"),
-        "contract_project_basic_out": _join_path(contract_root, IPO_OUTPUT, "项目基础信息表"),
+        "contract_project_basic_out": contract["project_basic_out"],
         # BOQ 原始解析结果统一归档在合同模块，交付预案只读取不重复落盘。
-        "device_boq_parse": _join_path(contract_root, IPO_PARSE, "BOQ设备解析原始结果"),
-        "contract_service_boq_parse": _join_path(contract_root, IPO_PARSE, "服务BOQ解析结果"),
+        "device_boq_parse": contract["boq_device_parse"],
+        "contract_service_boq_parse": contract["service_boq_parse"],
         "product_basic_info": "组织资产/产品基本信息表",
         "device_table_out": _join_path(triple["out"], "设备信息表.xlsx"),
         # Keep key for backward compatibility with current assemblers/readers.
-        "service_boq_parse": _join_path(contract_root, IPO_PARSE, "服务BOQ解析结果"),
+        "service_boq_parse": contract["service_boq_parse"],
         "maint_proposal_parse": _join_path(triple["parse"], "维保建议书解析结果"),
     }
 

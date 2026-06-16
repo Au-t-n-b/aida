@@ -250,6 +250,43 @@ class SogScenesTest(unittest.TestCase):
 
             self.assertEqual(store.list_scenes(), [])
 
+    def test_update_scene_camera_persists_to_scenes_json(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            scenes_path = root / "scenes.json"
+            scenes_path.write_text(
+                json.dumps(
+                    [
+                        {
+                            "id": "channel1",
+                            "name": "通道1",
+                            "status": "ready",
+                            "uploadedAt": "2026-06-05T15:57:31+08:00",
+                            "assetId": "channel1",
+                            "sourceVideoName": "通道1.mp4",
+                            "camera": {
+                                "position": [0, 1.6, -8],
+                                "target": [0, 1, 0],
+                                "fov": 60,
+                            },
+                        }
+                    ],
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            store = SogSceneStore(asset_root=root, scenes_path=scenes_path)
+            updated = store.update_scene_camera(
+                "channel1",
+                {"position": [1.5, 0.8, -2.0], "target": [3.0, 0.2, 4.0], "fov": 55},
+            )
+
+            self.assertEqual(updated["camera"]["position"], [1.5, 0.8, -2.0])
+            raw = json.loads(scenes_path.read_text(encoding="utf-8"))
+            self.assertEqual(raw[0]["camera"]["target"], [3.0, 0.2, 4.0])
+
 
 if __name__ == "__main__":
     unittest.main()

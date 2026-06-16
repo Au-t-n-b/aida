@@ -30,12 +30,24 @@ import {
   type Team,
 } from '@/features/schedule/contracts/schedule.gen';
 import { BATCH_COLORS, type BatchRow, type RoomRow, type TeamRow } from '@/features/schedule/components/plan-board/data/plan';
+import { agentBase } from '@/lib/runtimeBase';
 
 const FORCE_MOCK_FLAG = '1';
-const CHANGE_TEMPLATE_DOWNLOAD_PATH = `${API_PREFIX}/change-template`;
+const CHANGE_TEMPLATE_PATH = `${API_PREFIX}/change-template`;
 const CHANGE_TEMPLATE_FILENAME = '变更表模板.xlsx';
 const DELIVERY_PLAN_FILENAME = '交付计划表.xlsx';
 const REPORT_SNAPSHOT_STORAGE_KEY = 'aida:schedule-risk-report:last';
+
+function scheduleApiUrl(path: string): string {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${agentBase()}${path}`;
+}
+
+function scheduleApiUrlWithQuery(path: string, params: URLSearchParams): string {
+  const query = params.toString();
+  const url = scheduleApiUrl(path);
+  return query ? `${url}?${query}` : url;
+}
 
 export type GenerateScheduleInput = {
   rooms: RoomRow[];
@@ -141,7 +153,7 @@ export async function loadProjectData(input: LoadProjectDataInput = {}): Promise
   }
 
   try {
-    const response = await fetch(projectDataPath(input.totalCardCount), {
+    const response = await fetch(scheduleApiUrl(projectDataPath(input.totalCardCount)), {
       method: 'GET',
       signal: input.signal,
     });
@@ -168,7 +180,7 @@ export async function generateInitialSchedule(input: GenerateScheduleInput): Pro
   }
 
   try {
-    const response = await fetch(GENERATE_PATH, {
+    const response = await fetch(scheduleApiUrl(GENERATE_PATH), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -216,7 +228,7 @@ export async function adjustSchedule(input: AdjustScheduleInput): Promise<Adjust
   };
 
   try {
-    const response = await fetch(ADJUST_PATH, {
+    const response = await fetch(scheduleApiUrl(ADJUST_PATH), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -254,7 +266,7 @@ export async function commitSchedule(input: CommitScheduleInput): Promise<Commit
   }
 
   try {
-    const response = await fetch(COMMIT_PATH, {
+    const response = await fetch(scheduleApiUrl(COMMIT_PATH), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),
@@ -302,7 +314,7 @@ export async function parseChangeTemplate(input: ParseChangeTemplateInput): Prom
   );
 
   try {
-    const response = await fetch(PARSE_CHANGES_PATH, {
+    const response = await fetch(scheduleApiUrl(PARSE_CHANGES_PATH), {
       method: 'POST',
       body: form,
       signal: input.signal,
@@ -317,7 +329,7 @@ export async function parseChangeTemplate(input: ParseChangeTemplateInput): Prom
 }
 
 export async function downloadChangeTemplate(): Promise<void> {
-  const response = await fetch(CHANGE_TEMPLATE_DOWNLOAD_PATH);
+  const response = await fetch(scheduleApiUrl(CHANGE_TEMPLATE_PATH));
   if (!response.ok) {
     throw await readError(response);
   }
@@ -340,8 +352,7 @@ export async function downloadDeliveryPlan(input: { planId?: string; version?: n
   if (input.version != null) {
     params.set('version', String(input.version));
   }
-  const query = params.toString();
-  const response = await fetch(query ? `${EXPORT_PLAN_PATH}?${query}` : EXPORT_PLAN_PATH);
+  const response = await fetch(scheduleApiUrlWithQuery(EXPORT_PLAN_PATH, params));
   if (!response.ok) {
     throw await readError(response);
   }
@@ -365,7 +376,7 @@ export async function generateReportSummary(
   }
 
   try {
-    const response = await fetch(REPORT_SUMMARY_PATH, {
+    const response = await fetch(scheduleApiUrl(REPORT_SUMMARY_PATH), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(request),

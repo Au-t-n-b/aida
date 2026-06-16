@@ -18,6 +18,7 @@ import {
 import { WorkspaceNavLink } from '@/lib/workspace-nav-link';
 import { useNavPath } from '@/compat/navigation';
 import { MODULE_STATUS } from '../data/journey-data';
+import { NAV_TWIN, type NavSubItem as SharedNavSubItem } from '../data/left-nav-items';
 import { getLeftNavScrollTop, setLeftNavScrollTop } from '@/lib/left-nav-scroll';
 import {
   type NavExpandedState,
@@ -30,10 +31,7 @@ import brandLogoUrl from '@/assets/brand-logo.svg';
 import brandLogoLightUrl from '@/assets/brand-logo-light.svg';
 import wordmarkUrl from '@/assets/aida-wordmark.svg';
 
-type FdySubItem = {
-  name: string;
-  href?: string;
-  key?: string;
+type FdySubItem = SharedNavSubItem & {
   status?: string;
   statusLabel?: string;
   disabled?: boolean;
@@ -100,6 +98,9 @@ function NavCollapseIcon({ collapsed }: { collapsed: boolean }) {
 }
 
 function isSubActive(navPath: string, s: FdySubItem, hrefPrefix?: string): boolean {
+  if (s.children?.length) {
+    return s.children.some((c) => isSubActive(navPath, c as FdySubItem, hrefPrefix));
+  }
   if (s.href) {
     if (s.href === '/cockpit') return navPath === '/cockpit' || navPath.startsWith('/cockpit?');
     if (s.href.includes('?')) return navPath === s.href;
@@ -117,13 +118,56 @@ function FdySubMenu({
   hrefPrefix,
   collapsed,
   scrollRef,
+  nestedExpanded,
+  onToggleNested,
 }: {
   sub: FdySubItem[];
   hrefPrefix?: string;
   collapsed: boolean;
   scrollRef: RefObject<HTMLDivElement | null>;
+  nestedExpanded?: boolean;
+  onToggleNested?: () => void;
 }) {
   const navPath = useNavPath();
+
+  const renderLeaf = (s: FdySubItem, i: number, nested = false) => {
+    const active = isSubActive(navPath, s, hrefPrefix);
+    const disabled = s.disabled;
+    const href = s.href || (hrefPrefix && s.key ? `${hrefPrefix}/${s.key}` : null);
+
+    const row = (
+      <motion.div
+        className={`fdy-sub-item${nested ? ' fdy-sub-sub-item' : ''}${active ? ' active' : ''}${disabled ? ' disabled' : ''}`}
+        whileHover={disabled ? undefined : { x: 6 }}
+        whileTap={disabled ? undefined : { scale: 0.98 }}
+        transition={{ duration: 0.2 }}
+        title={disabled ? '一期暂不开放' : undefined}
+        onClick={(e) => disabled && e.preventDefault()}
+      >
+        {active && (
+          <span
+            className="fdy-sub-active-dot"
+            aria-hidden
+          />
+        )}
+        <span className="n">{s.name}</span>
+        {s.n && <span className="c">{s.n}</span>}
+      </motion.div>
+    );
+
+    if (disabled || !href) {
+      return <div key={`${s.name}-${i}`}>{row}</div>;
+    }
+    return (
+      <WorkspaceNavLink
+        key={`${s.name}-${i}`}
+        href={href}
+        style={{ textDecoration: 'none' }}
+      >
+        {row}
+      </WorkspaceNavLink>
+    );
+  };
 
   return (
     <div className="fdy-sub-panel" onClick={(e) => e.stopPropagation()}>
@@ -131,42 +175,33 @@ function FdySubMenu({
         <div className="fdy-sub-line" aria-hidden />
         <div className="fdy-sub-list">
           {sub.map((s, i) => {
-            const active = isSubActive(navPath, s, hrefPrefix);
-            const disabled = s.disabled;
-            const href = s.href || (hrefPrefix && s.key ? `${hrefPrefix}/${s.key}` : null);
-
-            const row = (
-              <motion.div
-                className={`fdy-sub-item${active ? ' active' : ''}${disabled ? ' disabled' : ''}`}
-                whileHover={disabled ? undefined : { x: 6 }}
-                whileTap={disabled ? undefined : { scale: 0.98 }}
-                transition={{ duration: 0.2 }}
-                title={disabled ? '一期暂不开放' : undefined}
-                onClick={(e) => disabled && e.preventDefault()}
-              >
-                {active && (
-                  <span
-                    className="fdy-sub-active-dot"
-                    aria-hidden
-                  />
-                )}
-                <span className="n">{s.name}</span>
-                {s.n && <span className="c">{s.n}</span>}
-              </motion.div>
-            );
-
-            if (disabled || !href) {
-              return <div key={i}>{row}</div>;
+            if (s.children?.length) {
+              const childActive = isSubActive(navPath, s, hrefPrefix);
+              const expanded = nestedExpanded ?? childActive;
+              return (
+                <div key={`${s.name}-${i}`} className="fdy-sub-group">
+                  <button
+                    type="button"
+                    className={`fdy-sub-item fdy-sub-parent${childActive ? ' active' : ''}${expanded ? ' expanded' : ''}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleNested?.();
+                    }}
+                  >
+                    <span className="n">{s.name}</span>
+                    <span className="fdy-sub-parent-caret" aria-hidden>
+                      {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </span>
+                  </button>
+                  {expanded && (
+                    <div className="fdy-sub-sub-list">
+                      {s.children.map((child, j) => renderLeaf(child as FdySubItem, j, true))}
+                    </div>
+                  )}
+                </div>
+              );
             }
-            return (
-              <WorkspaceNavLink
-                key={i}
-                href={href}
-                style={{ textDecoration: 'none' }}
-              >
-                {row}
-              </WorkspaceNavLink>
-            );
+            return renderLeaf(s, i);
           })}
         </div>
       </div>
@@ -181,6 +216,8 @@ function FdyNavGroup({
   onToggle,
   onExpandFromCollapsed,
   scrollRef,
+  nestedExpanded,
+  onToggleNested,
 }: {
   config: NavGroupConfig;
   expanded: boolean;
@@ -188,6 +225,8 @@ function FdyNavGroup({
   onToggle: () => void;
   onExpandFromCollapsed: () => void;
   scrollRef: RefObject<HTMLDivElement | null>;
+  nestedExpanded?: boolean;
+  onToggleNested?: () => void;
 }) {
   const navPath = useNavPath();
   const { icon: Icon, label, sub, tone, active, hrefPrefix, disabled } = config;
@@ -245,6 +284,8 @@ function FdyNavGroup({
           hrefPrefix={hrefPrefix}
           collapsed={collapsed}
           scrollRef={scrollRef}
+          nestedExpanded={nestedExpanded}
+          onToggleNested={onToggleNested}
         />
       )}
     </div>
@@ -377,8 +418,12 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const isEvals = pathname.startsWith('/evals');
 
   const navTwin: FdySubItem[] = [
-    { name: '算力底座孪生', href: '/twin', status: 'live', statusLabel: '物理 ⇄ 数字' },
-    { name: '项目孪生', href: '/cockpit', status: MODULE_STATUS.cockpit?.state, statusLabel: '看板' },
+    NAV_TWIN[0]!,
+    {
+      ...NAV_TWIN[1]!,
+      status: MODULE_STATUS.cockpit?.state,
+      statusLabel: '看板',
+    },
   ];
   const navEarly: FdySubItem[] = [
     { name: '合同', href: '/preview', status: 'ok', statusLabel: '在线' },
@@ -500,6 +545,8 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
               onToggle={() => toggle(key)}
               onExpandFromCollapsed={expandNav}
               scrollRef={scrollRef}
+              nestedExpanded={key === 'twin' ? expanded.twinBase : undefined}
+              onToggleNested={key === 'twin' ? () => toggle('twinBase') : undefined}
             />
           ))}
 

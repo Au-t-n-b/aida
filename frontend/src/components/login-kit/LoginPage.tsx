@@ -1,21 +1,12 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { ParticleLogin } from './ParticleLogin';
+import { GatewayLogin } from './GatewayLogin';
 import { GlassLogin } from './GlassLogin';
 import { StyleSwitch, type LoginStyle } from './StyleSwitch';
 import { useAidaSession } from '@/lib/aida-session';
 import { ApiRequestError } from '@/lib/api-error';
 
-/* ──────────────────────────────────────────────────────────────────────────
-   LoginPage — 双风格登录页容器（由 aida-auth-kit / DS-X 迁移）
-   ----------------------------------------------------------------------------
-   · 默认 3D 粒子风格，底部段控件可切到玻璃拟态。
-   · 任一风格登录成功 → 跳转项目选择落地页 /landing（沿用原登录的去向）。
-   · 粒子页右上「管理员入口」→ /admin?role=admin。
-   切换 key 强制重新挂载，确保每次切到玻璃都完整重播入场动画。
-   ────────────────────────────────────────────────────────────────────────── */
-
-const DEFAULT_STYLE: LoginStyle = 'glass';
+const DEFAULT_STYLE: LoginStyle = 'gateway';
 
 export function LoginPage() {
   const [style, setStyle] = useState<LoginStyle>(DEFAULT_STYLE);
@@ -44,12 +35,8 @@ export function LoginPage() {
 
   return (
     <>
-      {style === 'particle' ? (
-        <ParticleLogin
-          key="particle"
-          onSubmit={handleLogin}
-          onAdmin={() => navigate('/admin?role=admin')}
-        />
+      {style === 'gateway' ? (
+        <GatewayLogin key="gateway" onSubmit={handleLogin} />
       ) : (
         <GlassLogin key="glass" onSubmit={handleLogin} />
       )}

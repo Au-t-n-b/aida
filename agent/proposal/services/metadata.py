@@ -3,12 +3,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 from openpyxl import load_workbook
 
-from agent.proposal.auth import ProposalSession, proposal_operator_display_name
+from agent.proposal.auth import (
+    PROPOSAL_MOCK_OPERATOR_NAME,
+    ProposalSession,
+    proposal_operator_display_name,
+)
 from agent.proposal.draft_store import (
     format_display_datetime,
     load_chapter_02,
@@ -50,6 +55,26 @@ CHAPTER_LOADERS: dict[str, Any] = {
     "8.3": lambda pid, ver: load_chapter_83(pid, ver),
     "8.4": lambda pid, ver: load_chapter_84(pid, ver),
 }
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "f94a50",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
 
 
 def _contract_basic_dir(project_id: str) -> Path:
@@ -307,13 +332,53 @@ def _hydrate_draft_row(
             and manifest.get("dirty") is False
             and manifest.get("baseProposalVersion") == manifest.get("latestReleaseVersion")
         ):
-            aligned_updated_at = latest_release_updated_at or manifest_updated_at
-            if aligned_updated_at:
-                draft["updatedAt"] = aligned_updated_at
-            if latest_release_updated_by:
-                draft["updatedBy"] = latest_release_updated_by
-            elif manifest.get("updatedBy"):
-                draft["updatedBy"] = manifest.get("updatedBy")
+            # region agent log
+            _debug_log(
+                "H10",
+                "agent/proposal/services/metadata.py:_hydrate_draft_row",
+                "before clean-draft alignment branch",
+                {
+                    "projectId": project_id,
+                    "touch": touch,
+                    "draftUpdatedByBefore": draft.get("updatedBy"),
+                    "manifestDirty": manifest.get("dirty"),
+                    "manifestUpdatedBy": manifest.get("updatedBy"),
+                    "baseProposalVersion": manifest.get("baseProposalVersion"),
+                    "latestReleaseVersion": manifest.get("latestReleaseVersion"),
+                    "latestReleaseUpdatedBy": latest_release_updated_by,
+                },
+            )
+            # endregion
+            current_updated_by = str(draft.get("updatedBy") or "").strip()
+            # 仅在草稿尚无可信修改人时，才对齐到最新发布版本，避免覆盖用户刚保存后的 updatedBy/updatedAt。
+            should_align_to_release = current_updated_by in {
+                "",
+                "frontend",
+                "dev",
+                PROPOSAL_MOCK_OPERATOR_NAME,
+            }
+            if should_align_to_release:
+                aligned_updated_at = latest_release_updated_at or manifest_updated_at
+                if aligned_updated_at:
+                    draft["updatedAt"] = aligned_updated_at
+                if latest_release_updated_by:
+                    draft["updatedBy"] = latest_release_updated_by
+                elif manifest.get("updatedBy"):
+                    draft["updatedBy"] = manifest.get("updatedBy")
+            # region agent log
+            _debug_log(
+                "H10",
+                "agent/proposal/services/metadata.py:_hydrate_draft_row",
+                "after clean-draft alignment branch",
+                {
+                    "projectId": project_id,
+                    "shouldAlignToRelease": should_align_to_release,
+                    "draftUpdatedByBeforeAlign": current_updated_by or None,
+                    "draftUpdatedByAfter": draft.get("updatedBy"),
+                    "draftUpdatedAtAfter": draft.get("updatedAt"),
+                },
+            )
+            # endregion
         if (
             not draft.get("createdBy")
             or draft.get("createdBy") == "frontend"
@@ -338,6 +403,21 @@ def ensure_metadata_draft(
     import_legacy_version_info(project_id)
     basic, deps = read_project_basic_info(project_id)
     draft = load_draft_row(project_id)
+    # region agent log
+    _debug_log(
+        "H11",
+        "agent/proposal/services/metadata.py:ensure_metadata_draft",
+        "ensure metadata draft entry",
+        {
+            "projectId": project_id,
+            "touch": touch,
+            "operator": operator,
+            "draftExists": draft is not None,
+            "draftUpdatedByBefore": (draft or {}).get("updatedBy") if isinstance(draft, dict) else None,
+            "draftCreatedByBefore": (draft or {}).get("createdBy") if isinstance(draft, dict) else None,
+        },
+    )
+    # endregion
 
     if draft is None:
         draft = _hydrate_draft_row(
@@ -357,6 +437,21 @@ def ensure_metadata_draft(
         )
 
     save_draft_row(project_id, draft)
+    # region agent log
+    _debug_log(
+        "H11",
+        "agent/proposal/services/metadata.py:ensure_metadata_draft",
+        "ensure metadata draft exit",
+        {
+            "projectId": project_id,
+            "touch": touch,
+            "operator": operator,
+            "draftUpdatedByAfter": draft.get("updatedBy"),
+            "draftCreatedByAfter": draft.get("createdBy"),
+            "draftUpdatedAtAfter": draft.get("updatedAt"),
+        },
+    )
+    # endregion
     return _serialize_row(draft), deps
 
 
@@ -385,11 +480,38 @@ def get_metadata(
             legacy["documentSummary"] = _auto_document_summary(basic["projectName"])
         return _serialize_row(legacy), deps
 
+    # region agent log
+    _debug_log(
+        "H16",
+        "agent/proposal/services/metadata.py:get_metadata",
+        "published metadata version not found",
+        {
+            "projectId": project_id,
+            "version": version,
+            "hasSnapshot": bool(snap),
+            "legacyProposalVersion": legacy.get("proposalVersion"),
+        },
+    )
+    # endregion
     raise ProposalApiError(404, "VERSION_NOT_FOUND", f"版本 {version} 不存在")
 
 
 def touch_metadata_on_save(project_id: str, operator: str) -> dict[str, Any]:
     row, _ = ensure_metadata_draft(project_id, operator, touch=True)
+    # region agent log
+    _debug_log(
+        "H12",
+        "agent/proposal/services/metadata.py:touch_metadata_on_save",
+        "touch metadata on save result",
+        {
+            "projectId": project_id,
+            "operator": operator,
+            "rowUpdatedBy": row.get("updatedBy"),
+            "rowCreatedBy": row.get("createdBy"),
+            "rowUpdatedAt": row.get("updatedAt"),
+        },
+    )
+    # endregion
     sync_xlsx(project_id)
     return row
 

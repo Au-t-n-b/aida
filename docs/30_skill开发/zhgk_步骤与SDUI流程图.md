@@ -14,15 +14,16 @@ flowchart TD
 
     PF --> IS
 
-    IS -->|scene_suggest| SSR["③ scene_suggest_run 场景建议<br/>仅 scene_suggest<br/>📤 摘要卡(scene_suggestion)"]
-    IS -->|survey_work / supplement / report_gen| DG
+    IS -->|全 4 意图| DG
 
-    SSR --> DG{"④ determine_gen 代际制冷识别<br/>全 4 意图<br/>🙋 HITL ChoiceCard 4选1<br/>(BOQ 推不出制冷时)<br/>📤 KPI 代际制冷 + 摘要"}
+    DG{"③ determine_gen 代际制冷识别<br/>全 4 意图<br/>🙋 HITL ChoiceCard 4选1<br/>(BOQ 推不出制冷时)<br/>📤 KPI 代际制冷 + 摘要"}
 
-    DG -->|scene_suggest 到此结束| ENDsc(["END · 场景建议产出"])
+    DG -->|scene_suggest| SSR["④ scene_suggest_run 场景建议<br/>仅 scene_suggest<br/>📤 摘要卡(scene_suggestion)"]
     DG -->|survey_work| FB
     DG -->|report_gen| ASS
     DG -->|supplement| SUP
+
+    SSR --> ENDsc(["END · 场景建议产出"])
 
     FB["⑤ filter_build 底表过滤建表<br/>仅 survey_work<br/>📤 KPI 条目/场景 + 🆕条目预览表"]
     MS["⑥ method_split 勘测方法分流<br/>仅 survey_work<br/>📧 客户反馈自动邮件(A1)<br/>📤 KPI 客户反馈项·已通知"]
@@ -60,7 +61,7 @@ flowchart TD
 flowchart LR
     subgraph SC["scene_suggest 场景建议"]
         direction TB
-        sc1[preflight] --> sc2[intent_select] --> sc3[scene_suggest_run] --> sc4[determine_gen] --> scE([END])
+        sc1[preflight] --> sc2[intent_select] --> sc3[determine_gen] --> sc4[scene_suggest_run] --> scE([END])
     end
     subgraph SW["survey_work 全流程工勘（主入口）"]
         direction TB
@@ -86,8 +87,8 @@ flowchart LR
 |---|------|------|------|-------------------|--------------|
 | ① | preflight 环境预检 | 全 | — | `ai_summary` | 阶段摘要卡 |
 | ② | intent_select 意图选择 | 全 | ChoiceCard 4选1 | `project.intent` | KPI 意图徽标 · HITL 卡 |
-| ③ | scene_suggest_run 场景建议 | scene_suggest | — | `scene_suggestion` | 摘要卡 |
-| ④ | determine_gen 代际制冷识别 | 全 4 意图 | ChoiceCard 4选1（BOQ 推不出时）★ | `generation_cooling` · `gen_cooling_source` | KPI 代际制冷 · 摘要 · HITL 卡 |
+| ③ | determine_gen 代际制冷识别 | 全 4 意图 | ChoiceCard 4选1（BOQ 推不出时）★ | `generation_cooling` · `gen_cooling_source` | KPI 代际制冷 · 摘要 · HITL 卡 |
+| ④ | scene_suggest_run 场景建议 | scene_suggest | — | `scene_suggestion` | 摘要卡 |
 | ⑤ | filter_build 底表过滤建表 | survey_work | — | `filtered_count` · `sub_scenes` · **`preview_rows`** | KPI 条目/场景 · **🆕条目预览表(DataTable)** |
 | ⑥ | method_split 勘测方法分流 | survey_work | —（自动发邮件 A1） | `customer_feedback_count` · `customer_feedback_emailed` | KPI 客户反馈项·已通知/待通知 |
 | ⑦ | data_append 数据条目追加 | survey_work | ChoiceCard 追加/跳过 | `data_append_choice` | HITL 卡 · KPI 追加数 |
@@ -100,7 +101,7 @@ flowchart LR
 | ⑭ | report_gen_run 报告生成 | report_gen | — | `risk_hit` · `risks[]` · `report_path` | 风险告警表(RiskList) · 四件套 ArtifactGrid |
 | ⑮ | report_distribute 审批与分发 | report_gen | ChoiceCard 通过/驳回/暂存 ★A3 | `approval_status` · `email_sent` · `recipients` · `attachments` · `project_name` | 审批闭环卡(B6) · 分发摘要 · HITL 卡 |
 
-> ★ = 本会话引擎修复点：④ determine_gen 的 run() 返回 HITL 现已被 base.py 正确识别（原先被吞，导致死在 ⑤）；⑮ 三选一审批闭环为 A3 新增。
+> ★ = 本会话引擎修复点：③ determine_gen 的 run() 返回 HITL 现已被 base.py 正确识别（原先被吞，导致死在 ⑤）；**2026-06-15** 起 `determine_gen` 顺序提前至 `scene_suggest_run` 之前，续跑 `route_to` 见 `skills/zhgk/SKILL.md` §H；⑮ 三选一审批闭环为 A3 新增。
 
 ---
 

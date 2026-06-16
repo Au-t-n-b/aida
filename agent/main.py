@@ -72,15 +72,48 @@ def _list_has_prefix(items: list[Any], prefix: list[Any]) -> bool:
     return len(items) >= len(prefix) and items[: len(prefix)] == prefix
 
 
+def _merge_steps_by_key(existing: list[Any], incoming: list[Any]) -> list[Any]:
+    """按 step key 合并 steps：同 key 保留最后一次记录，防死循环时 steps 爆炸。"""
+    if _list_has_prefix(incoming, existing):
+        return list(incoming)
+    by_key: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for s in existing:
+        if not isinstance(s, dict):
+            continue
+        key = str(s.get("key") or "")
+        if not key:
+            continue
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = s
+    for s in incoming:
+        if not isinstance(s, dict):
+            continue
+        key = str(s.get("key") or "")
+        if not key:
+            continue
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = s
+    return [by_key[k] for k in order]
+
+
 def _merge_langgraph_diff_into_state(state: dict[str, Any], diff: dict[str, Any]) -> None:
     """Merge LangGraph streamed diffs without double-appending reducer lists."""
     for k, v in diff.items():
-        if k in ("logs", "steps") and isinstance(v, list):
-            existing = state.get(k)
-            if isinstance(existing, list) and _list_has_prefix(v, existing):
-                state[k] = list(v)
+        if k == "steps" and isinstance(v, list):
+            existing = state.get("steps")
+            if isinstance(existing, list):
+                state["steps"] = _merge_steps_by_key(existing, v)
             else:
-                state.setdefault(k, []).extend(v)
+                state["steps"] = list(v)
+        elif k == "logs" and isinstance(v, list):
+            existing = state.get("logs")
+            if isinstance(existing, list) and _list_has_prefix(v, existing):
+                state["logs"] = list(v)
+            else:
+                state.setdefault("logs", []).extend(v)
         else:
             state[k] = v
 

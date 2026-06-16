@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const read = (path) => readFileSync(join(root, path), 'utf8');
 const exists = (path) => existsSync(join(root, path));
+const scheduleService = read('frontend/src/features/schedule/services/schedule.ts');
 
 const checks = [
   {
@@ -18,6 +19,12 @@ const checks = [
   {
     name: 'ontology calls do not fall back to browser localhost',
     ok: !/VITE_ONTOLOGY_BASE\s*\|\|\s*['"]http:\/\/127\.0\.0\.1:8011['"]/.test(read('frontend/src/lib/ontology-api.ts')),
+  },
+  {
+    name: 'schedule API uses runtime agent base in static demo',
+    ok: scheduleService.includes("from '@/lib/runtimeBase'")
+      && /agentBase\(\)/.test(scheduleService)
+      && !/fetch\(\s*(GENERATE_PATH|ADJUST_PATH|COMMIT_PATH|PARSE_CHANGES_PATH|REPORT_SUMMARY_PATH|EXPORT_PLAN_PATH|PROJECT_DATA_PATH|API_PREFIX)/.test(scheduleService),
   },
   {
     name: 'nginx proxies SOG APIs to agent',

@@ -321,7 +321,7 @@ export interface SkillAgentScreenProps {
 
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
-  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
+  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md' | 'pdf'; optional?: boolean; hint?: string }>;
   filesHint?: string;
   icon: React.ReactNode;
 }> = {
@@ -343,7 +343,9 @@ const SKILL_META: Record<string, {
     ],
     files: [
       { name: 'BOQ.xlsx',                   ext: 'xlsx' },
-      { name: '入场评估标准表.xlsx',         ext: 'xlsx' },
+      { name: '入场评估标准表.xlsx',         ext: 'xlsx', optional: true, hint: 'filter_build HITL 自行上传' },
+      { name: '工勘常见高风险库.xlsx',       ext: 'xlsx', optional: true, hint: 'filter_build HITL 自行上传' },
+      { name: '本地工勘报告.pdf',            ext: 'pdf',  hint: '演示资产，随项目 demo 数据' },
       { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
     ],
   },
@@ -490,6 +492,22 @@ function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   if (Array.isArray(c)) c.forEach(child => walkSduiNodes(child, visit));
 }
 
+/** 从 HITL FilePicker.helpText 解析 need_files（与 build_hitl 格式对齐）。 */
+function extractNeedFilesFromHitlDoc(doc: SduiDocument | null): string[] {
+  if (!doc?.root) return [];
+  const card = findNodeById(doc.root, 'hitl-card');
+  if (!card) return [];
+  let paths: string[] = [];
+  walkSduiNodes(card, (node) => {
+    if (node.type !== 'FilePicker' || !node.helpText) return;
+    paths = node.helpText
+      .split('\n')
+      .map(line => line.replace(/^[·•]\s*/, '').trim())
+      .filter(Boolean);
+  });
+  return paths;
+}
+
 /** 统计 SDUI 中 InputSlotList 已就绪槽位数（上传后对比 SSE 是否追上）。 */
 function countReadyInputSlots(doc: SduiDocument | null): number {
   if (!doc?.root) return 0;
@@ -511,6 +529,43 @@ function countOutputArtifacts(doc: SduiDocument | null): number {
     if (node.type === 'ArtifactGrid') n += (node.artifacts ?? []).length;
   });
   return n;
+}
+
+/** 从 hitl-card 内 ChoiceCard 解析 stepId 与可选 value 集合。*/
+function findHitlChoiceContext(
+  doc: SduiDocument | null,
+): { stepId: string; values: Set<string> } | null {
+  if (!doc) return null;
+  const card = findNodeById(doc.root, 'hitl-card');
+  if (!card) return null;
+  let ctx: { stepId: string; values: Set<string> } | null = null;
+  walkSduiNodes(card, (node) => {
+    if (node.type !== 'ChoiceCard') return;
+    const stepId = (node as { stepId?: string }).stepId?.trim();
+    if (!stepId) return;
+    const values = new Set<string>();
+    for (const opt of (node as { options?: Array<{ value?: string }> }).options ?? []) {
+      const v = String(opt?.value ?? '').trim();
+      if (v) values.add(v);
+    }
+    ctx = { stepId, values };
+  });
+  return ctx;
+}
+
+/** MacroStepRail 是否处于「环境准备 / 方案识别」阶段（3D 意图入口应对齐 intent HITL）。*/
+function isPrepOrIdentifyMacroPhase(doc: SduiDocument | null): boolean {
+  if (!doc) return false;
+  let match = false;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'MacroStepRail') return;
+    const ids = new Set(['prep', 'identify']);
+    const cur = node.currentId;
+    if (cur && ids.has(cur)) match = true;
+    const run = (node.steps ?? []).find(s => s.status === 'running');
+    if (run?.id && ids.has(run.id)) match = true;
+  });
+  return match;
 }
 
 /** 按 id 查找节点（用于定位 hitl-card）。*/
@@ -908,6 +963,7 @@ function extractProgressFromSdui(doc: SduiDocument): {
     // HITL 节点优先级最高（覆盖 Stepper / FlowSteps 的阶段判断）
     if (node.type === 'ChoiceCard') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     if (node.type === 'FilePicker') { r.phase = 'hitl'; r.hitlType = 'file';   }
+    if (node.type === 'HitlForm') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     // 在线编辑型 HITL：editable DataTable 且提交走 resume（run-patch 表非 HITL，不算）
     if (node.type === 'DataTable' && node.editable && (node.submitMode ?? 'resume') === 'resume') {
       r.phase = 'hitl'; r.hitlType = 'edit';
@@ -1146,7 +1202,14 @@ export default function SkillAgentScreen({
       : null;
   const displayDoc = usesDeliveryWorkbench
     ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
-    : (diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
+    : (() => {
+        const live = liveSduiDoc;
+        const frozen = frozenSnapshotRef.current ?? frozenDoc;
+        // HITL 交互中：右侧大盘读实时 SSE，避免冻结快照把进度环/VHS 卡在旧水位
+        if (live && frozen && hasLeftRailHitl(live)) return live;
+        return diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
+          ?? frozen ?? live ?? bootDoc;
+      })();
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
@@ -1214,6 +1277,17 @@ export default function SkillAgentScreen({
   useEffect(() => {
     if (!displayDoc || !activeRunId) return;
     const patch = extractProgressFromSdui(displayDoc);
+    // 冻结层可能挡住较新进度；HITL 态以实时 SSE 为准取较大值
+    if (sduiDoc && !usesDeliveryWorkbench) {
+      const livePatch = extractProgressFromSdui(sduiDoc);
+      if ((livePatch.progress ?? 0) > (patch.progress ?? 0)) {
+        patch.progress = livePatch.progress;
+      }
+      if (livePatch.phase === 'hitl') {
+        patch.phase = 'hitl';
+        patch.hitlType = livePatch.hitlType ?? patch.hitlType;
+      }
+    }
     // 有实质内容但无进度指标（如 guihua 三页签工作台）：至少标记 running，防止停留在 starting
     if (!patch.phase && !isIdleLikeSduiDoc(displayDoc)) patch.phase = 'running';
     // 进度单调递增（full_restart 重放期间不回退）；冻结期间取冻结水位 / 历史地板的较大值
@@ -1231,7 +1305,7 @@ export default function SkillAgentScreen({
       progressFloorRef.current = progress;
     }
     updateSkillRun({ ...patch, progress });
-  }, [displayDoc, activeRunId, frozenDoc]);
+  }, [displayDoc, sduiDoc, activeRunId, frozenDoc, usesDeliveryWorkbench]);
 
   // 部署调测：右侧 FlowSteps/HITL 变化只向 deploy 左侧扩展发节点事件。
   useEffect(() => {
@@ -1380,9 +1454,13 @@ export default function SkillAgentScreen({
         diSubmitDocRef.current = transitional;
         updateSkillRun({ ...extractProgressFromSdui(transitional), phase: 'running', hitlType: null });
       } else if (frozenProgressRef.current > 0) {
+        const hadHitl = !!findNodeById(curDoc.root, 'hitl-card');
         // 有进度指标（zhgk / system_design）：立即切 running 隐藏 HITL 卡；
+        // 若冻结快照仍含 hitl-card，保持 hitl 态直至 SSE 更新，避免假卡死。
         // frozenProgress===0（guihua 无进度指标）：不改 phase，保持 'hitl' 让 completion-card / hitl-card 继续显示。
-        updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+        if (!hadHitl) {
+          updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+        }
       }
     }
     await resumeRun(skillId, rid, payload, fromStep);
@@ -1810,11 +1888,21 @@ export default function SkillAgentScreen({
 
   // 3D 机房入口「下钻→意图」：在意图 HITL 处用所选意图续跑同一 run；否则以该意图启动 run
   const handleIntent = useCallback(async (intent: string) => {
-    const card = sduiDocRef.current ? findNodeById(sduiDocRef.current.root, 'hitl-card') : null;
-    const atIntentHitl = !!card && JSON.stringify(card).includes(`"${intent}"`);
+    const liveDoc = sduiDocRef.current ?? displayDocRef.current;
+    const hitlCtx = findHitlChoiceContext(liveDoc);
+    const hasHitlCard = liveDoc ? hasLeftRailHitl(liveDoc) : false;
+    const atIntentHitl =
+      hitlCtx?.stepId === 'intent_select' &&
+      (hitlCtx.values.size === 0 || hitlCtx.values.has(intent));
+    const prepIdentifyIntentResume =
+      !!activeRunId &&
+      hasHitlCard &&
+      isPrepOrIdentifyMacroPhase(liveDoc) &&
+      hitlCtx?.stepId === 'intent_select';
+
     setViewMode('work');
-    if (activeRunId && atIntentHitl) {
-      await doResume({ choice: intent });
+    if (activeRunId && (atIntentHitl || prepIdentifyIntentResume)) {
+      await doResume({ choice: intent }, 'intent_select');
     } else if (activeRunId) {
       // 已在跑且非意图 HITL：只切作业台，避免误触发新开 run
     } else {
@@ -1993,13 +2081,44 @@ export default function SkillAgentScreen({
     }
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      const needFiles = extractNeedFilesFromHitlDoc(displayDocRef.current ?? sduiDocRef.current);
       try {
-        await uploadBatch(skillId, arr);
+        const result = await uploadBatch(skillId, arr, needFiles, [], rid);
+        const failed = (result.uploaded ?? []).filter(u => u.ok === false);
+        if (failed.length) {
+          const msg = failed.map(f => String(f.error || f.filename || '未知文件')).join('；');
+          throw new Error(`上传失败：${msg}`);
+        }
+        const check = result.check as {
+          ok?: boolean;
+          items?: Array<{ found?: boolean; label?: string; path?: string }>;
+        } | undefined;
+        if (check && check.ok === false) {
+          if (rid) {
+            frozenSnapshotRef.current = null;
+            setFrozenDoc(null);
+            const snap = await fetchUiSnapshot(skillId, rid);
+            if (snap) {
+              postUploadEpochRef.current = Date.now();
+              setPostUploadDoc(snap);
+            }
+          }
+          const missing = (check.items ?? [])
+            .filter(i => !i.found)
+            .map(i => i.label || i.path)
+            .filter(Boolean);
+          throw new Error(
+            missing.length
+              ? `还须上传：${missing.join('、')}（可一次选多个文件）`
+              : '前置文件尚未齐备，请继续上传',
+          );
+        }
       } catch (e) {
         console.error('[SDUI] upload error:', e);
         throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
       }
-      await doResume({ uploaded: arr.map(f => f.name) });
+      await doResume({ uploaded: arr.map(f => f.name) }, _stepId);
       return;
     }
     // system_design 交付台：按槽位标签上传 → sync_inputs → 拉快照；仅「输入件准备」HITL 内续跑
@@ -2071,6 +2190,7 @@ export default function SkillAgentScreen({
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
   const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    setViewMode('work');
     const fromStep = resolveChoiceResumeFromStep(skillId, value, stepId);
     const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
 
@@ -2150,29 +2270,36 @@ export default function SkillAgentScreen({
   // 部署调测：HitlForm（如步骤 7 调测设备 IP/SK「保存并继续」）提交 → resume 续跑。
   // HitlForm 负载形如 { [formId]: { base_url_ip, secret_key } }，需扁平化后再续跑。
   const handleFormSubmit = useCallback(async (payload: Record<string, unknown>, stepId?: string) => {
+    setViewMode('work');
     const fromStep = stepId?.trim() || undefined;
-    let flat: Record<string, unknown> = { ...payload };
-    for (const v of Object.values(payload)) {
-      if (v && typeof v === 'object' && !Array.isArray(v)) {
-        const row = v as Record<string, unknown>;
-        if ('base_url_ip' in row || 'secret_key' in row) {
-          flat = { ...flat, ...row };
-          break;
+
+    if (skillId === 'software_deployment') {
+      let flat: Record<string, unknown> = { ...payload };
+      for (const v of Object.values(payload)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const row = v as Record<string, unknown>;
+          if ('base_url_ip' in row || 'secret_key' in row) {
+            flat = { ...flat, ...row };
+            break;
+          }
         }
       }
+      const resumePayload = fromStep === 'toolkit_executor'
+        ? {
+            choice: 'confirm',
+            base_url_ip: String(flat.base_url_ip ?? '').trim(),
+            secret_key: String(flat.secret_key ?? '').trim(),
+            base_url_port: '28880',
+          }
+        : payload;
+      await doResume(resumePayload, fromStep);
+      if (activeRunId && fromStep) {
+        setStreamEpoch(e => e + 1);  // 重订阅 SSE，推动界面前进到步骤 8
+      }
+      return;
     }
-    const resumePayload = fromStep === 'toolkit_executor'
-      ? {
-          choice: 'confirm',
-          base_url_ip: String(flat.base_url_ip ?? '').trim(),
-          secret_key: String(flat.secret_key ?? '').trim(),
-          base_url_port: '28880',
-        }
-      : payload;
-    await doResume(resumePayload, fromStep);
-    if (activeRunId && skillId === 'software_deployment' && fromStep) {
-      setStreamEpoch(e => e + 1);  // 重订阅 SSE，推动界面前进到步骤 8
-    }
+
+    await doResume(payload, fromStep || 'task_dispatch');
   }, [doResume, activeRunId, skillId]);
 
   // 「配置执行机」按钮：读取当前 HITL 表单预填，弹出 IP/SK 小窗
@@ -2229,8 +2356,8 @@ export default function SkillAgentScreen({
     onChoiceSubmit: (value: string, stepId?: string) => {
       void handleChoiceSubmitRef.current(value, stepId);
     },
-    onFormSubmit: (p: Record<string, unknown>, stepId?: string) => {
-      void handleFormSubmitRef.current(p, stepId);
+    onFormSubmit: (payload: Record<string, unknown>, stepId?: string) => {
+      void handleFormSubmitRef.current(payload, stepId);
     },
   }).current;
 
@@ -2241,7 +2368,7 @@ export default function SkillAgentScreen({
   // HITL / 左栏弹框始终读 SSE 实时态（reconcile 后的 /ui 快照会清掉 stage_select HITL）
   useEffect(() => {
     const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
-    const hitlDoc = usesDeliveryWorkbench ? sduiDoc : displayDoc;
+    const hitlDoc = usesDeliveryWorkbench ? sduiDoc : (sduiDoc ?? displayDoc);
     if (!hitlDoc || !rid) { clearSkillHitl(skillId); return; }
     // 处理中勿从冻结快照把 HITL 投回左栏（否则确认后仍显示「等待处理中」）
     if (skillId === 'software_deployment' && commissionBusyState.active) return;
@@ -2253,6 +2380,7 @@ export default function SkillAgentScreen({
         skillId, runId: rid, node: card,
         stepKey: extractHitlStepKey(card) || undefined,
         onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
         onUpload: railRuntimeCallbacks.onUpload,
         onAction: railRuntimeCallbacks.onAction,
         onFormSubmit: railRuntimeCallbacks.onFormSubmit,

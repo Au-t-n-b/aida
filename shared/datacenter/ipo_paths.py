@@ -14,6 +14,15 @@ SUFFIX_TESTCASES_TEMPLATE = "早期介入/交付预案/输入文件/测试用例
 SUFFIX_TECH_PROPOSAL_DIR = "早期介入/交付预案/输入文件/技术建议书"
 SUFFIX_PLAN_SCHEDULE = "项目管理/计划/输入文件/交付计划表.xlsx"
 SUFFIX_SIMULATION_MD = "早期介入/合同/输出结果/建模仿真/建模仿真设备信息表.md"
+SUFFIX_BOQ_UPLOAD_DIR = "早期介入/合同/输入文件/BOQ"
+SUFFIX_BOQ_DEVICE_PARSE_DIR = "早期介入/合同/解析结果/BOQ设备解析原始结果"
+SUFFIX_SERVICE_BOQ_PARSE_DIR = "早期介入/合同/解析结果/服务BOQ解析结果"
+SUFFIX_DELIVERY_SCENARIO = "早期介入/合同/解析结果/项目交付场景信息表"
+SUFFIX_PROJECT_BASIC_OUT = "早期介入/合同/输出结果/项目基础信息表"
+SUFFIX_PROPOSAL_DEVICE_TABLE_OUT = "早期介入/交付预案/输出结果/设备信息表.xlsx"
+SUFFIX_HLD_PARSE_DIR = "早期介入/交付预案/解析结果/HLD解析结果"
+SUFFIX_TECH_PROPOSAL_PARSE_DIR = "早期介入/交付预案/解析结果/服务建议书解析结果"
+SUFFIX_TESTCASE_PARSE_DIR = "早期介入/交付预案/解析结果/测试用例解析结果"
 
 
 def mock_logical_path(project_folder: str, suffix: str) -> str:
@@ -90,6 +99,78 @@ def card_scale_md_ref(project_id: str) -> SemanticFileRef:
         file_stage="输出结果",
         folder_sub_path="建模仿真",
         file_name="建模仿真设备信息表.md",
+    )
+
+
+def boq_upload_dir_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="contract",
+        file_stage="输入文件",
+        folder_sub_path="BOQ",
+    )
+
+
+def boq_device_parse_dir_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="contract",
+        file_stage="解析结果",
+        folder_sub_path="BOQ设备解析原始结果",
+    )
+
+
+def service_boq_parse_dir_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="contract",
+        file_stage="解析结果",
+        folder_sub_path="服务BOQ解析结果",
+    )
+
+
+def delivery_scenario_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="contract",
+        file_stage="解析结果",
+        file_name="项目交付场景信息表.xlsx",
+    )
+
+
+def project_basic_out_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="contract",
+        file_stage="输出结果",
+        file_name="项目基础信息表",
+    )
+
+
+def proposal_device_table_out_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="proposal",
+        file_stage="输出结果",
+        file_name="设备信息表.xlsx",
+    )
+
+
+def tech_proposal_parse_dir_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="proposal",
+        file_stage="解析结果",
+        folder_sub_path="服务建议书解析结果",
+    )
+
+
+def testcase_parse_dir_ref(project_id: str) -> SemanticFileRef:
+    return SemanticFileRef(
+        project_id=project_id,
+        module_code="proposal",
+        file_stage="解析结果",
+        folder_sub_path="测试用例解析结果",
     )
 
 

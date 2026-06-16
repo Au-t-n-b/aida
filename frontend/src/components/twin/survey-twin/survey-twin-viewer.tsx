@@ -50,11 +50,38 @@ type SogAsset = {
   hotspotsUrl: string;
 };
 
+type SogCamera = {
+  position: [number, number, number];
+  target: [number, number, number];
+  fov: number;
+};
+
+function roundCamera(camera: SogCamera): SogCamera {
+  const r = (n: number) => Math.round(n * 100) / 100;
+  return {
+    position: [r(camera.position[0]), r(camera.position[1]), r(camera.position[2])],
+    target: [r(camera.target[0]), r(camera.target[1]), r(camera.target[2])],
+    fov: Math.round(camera.fov * 10) / 10,
+  };
+}
+
 async function requestJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, options);
-  const json = (await response.json().catch(() => ({}))) as { error?: string; detail?: string };
+  const json = (await response.json().catch(() => ({}))) as {
+    error?: string;
+    detail?: string | Array<{ msg?: string } | string>;
+  };
   if (!response.ok) {
-    throw new Error(json.error || json.detail || '请求失败');
+    const detail = json.detail;
+    const detailText = Array.isArray(detail)
+      ? detail.map((item) => (typeof item === 'string' ? item : item.msg || '')).filter(Boolean).join('；')
+      : typeof detail === 'string'
+        ? detail
+        : '';
+    if (response.status === 404 && detailText === 'Not Found') {
+      throw new Error('保存接口不可用，请重启 Agent 服务（端口 7401）后重试');
+    }
+    throw new Error(json.error || detailText || `请求失败（HTTP ${response.status}）`);
   }
   return json as T;
 }
@@ -142,6 +169,7 @@ export function SurveyTwinViewer() {
   const [useWebgl, setUseWebgl] = useState(
     () => localStorage.getItem('sog-viewer-renderer') === 'webgl',
   );
+  const [isSavingCamera, setIsSavingCamera] = useState(false);
   const [dialogTitle, setDialogTitle] = useState('新增标签');
   const [hotspotTitle, setHotspotTitle] = useState('');
   const [hotspotText, setHotspotText] = useState('');
@@ -190,6 +218,82 @@ export function SurveyTwinViewer() {
       targetOrigin,
     );
   }, []);
+
+  const setInitialCamera = useCallback(async () => {
+    const frame = viewerFrameRef.current;
+    const targetWindow = frame?.contentWindow;
+    if (!targetWindow || !selectedScene || !currentAsset) {
+      setFileStatus('查看器未就绪，无法设为初始视角');
+      return;
+    }
+    let targetOrigin = window.location.origin;
+    try {
+      targetOrigin = new URL(frame?.src || VIEWER_BASE, window.location.href).origin;
+    } catch {
+      targetOrigin = window.location.origin;
+    }
+
+    setIsSavingCamera(true);
+    setFileStatus('正在读取当前视角…');
+    try {
+      const camera = await new Promise<SogCamera>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          window.removeEventListener('message', onMsg);
+          reject(new Error('读取超时，请确认场景已加载完成'));
+        }, 8000);
+        const onMsg = (event: MessageEvent) => {
+          if (event.source !== targetWindow) return;
+          const data = event.data as {
+            type?: string;
+            payload?: { camera?: SogCamera; message?: string };
+          };
+          if (data?.type === 'sog-camera:captured' && data.payload?.camera) {
+            window.clearTimeout(timer);
+            window.removeEventListener('message', onMsg);
+            resolve(data.payload.camera);
+          }
+          if (data?.type === 'sog-camera:capture-error') {
+            window.clearTimeout(timer);
+            window.removeEventListener('message', onMsg);
+            reject(new Error(data.payload?.message || '读取视角失败'));
+          }
+        };
+        window.addEventListener('message', onMsg);
+        targetWindow.postMessage(
+          { type: 'sog-camera:capture', sceneId: selectedScene.id },
+          targetOrigin,
+        );
+      });
+
+      const normalized = roundCamera(camera);
+      const updated = await requestJson<SogScene>(
+        `${AGENT_BASE}/api/sog/scenes/${selectedScene.id}/camera`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(normalized),
+        },
+      );
+      setScenes((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      applyViewerSrc(currentAsset, useWebgl);
+      setFileStatus('已设为入场第一视角，刷新或下次进入将从此处开始');
+    } catch (error) {
+      setFileStatus(error instanceof Error ? error.message : '设置初始视角失败');
+    } finally {
+      setIsSavingCamera(false);
+    }
+  }, [applyViewerSrc, currentAsset, selectedScene, useWebgl]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'i')) return;
+      if (!selectedScene || selectedScene.status !== 'ready' || !selectedScene.sceneExists) return;
+      event.preventDefault();
+      void setInitialCamera();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [setInitialCamera, selectedScene]);
 
   const watchViewerLoad = useCallback(
     (asset: SogAsset) => {
@@ -650,6 +754,16 @@ export function SurveyTwinViewer() {
           </div>
           {selectedScene?.status === 'ready' && selectedScene.sceneExists && currentAsset && (
             <div className="st-actions">
+              <button
+                type="button"
+                className={`st-button ${isSavingCamera ? 'st-active' : ''}`}
+                disabled={isSavingCamera}
+                title="将当前的视角保存为该场景的入场第一视角"
+                onClick={() => void setInitialCamera()}
+              >
+                <IconCheck size={14} />
+                设为初始视角
+              </button>
               <button
                 type="button"
                 className={`st-button ${!isHotspotEditing ? 'st-active' : ''}`}

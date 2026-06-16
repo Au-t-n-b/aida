@@ -35,6 +35,8 @@ def _register_all():
         ("system_design",       ".system_design.skill:get_system_design_skill"),
         ("device_install",      ".device_install.skill:get_device_install_skill"),
         ("software_deployment", ".software_deployment.skill:get_software_deployment_skill"),
+        ("contract_boq",        ".contract_boq.skill:get_contract_boq_skill"),
+        ("proposal_gen",        ".proposal_gen.skill:get_proposal_gen_skill"),
     ]
     for name, target in _specs:
         mod_path, factory_name = target.split(":")

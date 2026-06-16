@@ -16,6 +16,7 @@ from typing import Any
 
 from ..base import BaseSkill
 from ... import zhgk_files as _zhgk_files
+from .pipelines.resume import resolve_resume_route_to
 from .sdui import project as _sdui_project
 from .steps import (
     PreflightStep,
@@ -113,8 +114,8 @@ class ZhgkSkill(BaseSkill):
     steps = [
         PreflightStep(),        # internal=True，不受契约约束
         IntentSelectStep(),     # 意图选择（HITL ChoiceCard）
+        DetermineGenStep(),     # 代际制冷识别（须在 scene_suggest_run 之前）
         SceneSuggestRunStep(),  # scene_suggest 专属
-        DetermineGenStep(),     # 代际制冷识别
         SupplementRunStep(),    # 补充入口准备（supplement 专属）
         FilterBuildStep(),      # 底表过滤 + 建全量勘测结果表
         MethodSplitStep(),      # 现场/数据分流
@@ -221,6 +222,10 @@ class ZhgkSkill(BaseSkill):
             # 文件型 HITL；复勘标记由 wait_survey 成功合并后清理，避免续跑前误判已有旧结果。
             pass
 
+        elif hitl_step == "filter_build":
+            # 文件型 HITL：底表上传后由 check_inputs 复检，齐备才放行 filter_build.run
+            pass
+
         elif hitl_step == "resurvey_gate" and choice:
             if choice in {"resurvey", "skip_resurvey"}:
                 project["resurvey_decision"] = choice
@@ -239,14 +244,18 @@ class ZhgkSkill(BaseSkill):
         hitl_step: str,
         payload: dict[str, Any],
     ) -> tuple[dict[str, Any], dict[str, Any]]:
-        choice = str((payload or {}).get("choice") or "")
-        if hitl_step == "resurvey_gate":
-            if choice == "resurvey":
-                return {"route_to": "resurvey_gate"}, project
-            if choice == "dispatch":
-                return {"route_to": "task_dispatch"}, project
-            if choice == "skip":
-                return {"route_to": "wait_survey"}, project
+        route = resolve_resume_route_to(
+            hitl_step=hitl_step,
+            project=project,
+            payload=payload or {},
+            prev_state=prev,
+        )
+        if route:
+            return {"route_to": route}, project
+
+        # 有 HITL 续跑上下文时禁止走兜底，避免 route_to 指回已完成/当前 HITL 步
+        if hitl_step:
+            return {}, project
 
         route_to = _resume_route_from_previous_state(prev, [s.key for s in self.steps])
         if route_to:

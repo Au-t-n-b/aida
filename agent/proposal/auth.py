@@ -1,6 +1,10 @@
 """RBAC for proposal module — align 00-第8章 §6."""
 from __future__ import annotations
 
+import json
+import time
+from pathlib import Path
+
 from fastapi import Header
 
 from agent.config import PROPOSAL_READ_ROLES, PROPOSAL_WRITE_ROLES
@@ -10,7 +14,42 @@ from agent.proposal.errors import ProposalApiError
 PROPOSAL_MOCK_OPERATOR_NAME = "何博"
 
 
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "f94a50",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
+
+
 def proposal_operator_display_name(_session: ProposalSession | None = None) -> str:
+    session = _session
+    account = (session.account if session else "") or ""
+    account = account.strip()
+    _debug_log(
+        "H3",
+        "agent/proposal/auth.py:proposal_operator_display_name",
+        "resolve operator display name",
+        {
+            "sessionRole": session.role if session else None,
+            "sessionAccount": account or None,
+            "fallbackName": PROPOSAL_MOCK_OPERATOR_NAME,
+        },
+    )
+    if account and account != "frontend":
+        return account
     return PROPOSAL_MOCK_OPERATOR_NAME
 
 
@@ -24,6 +63,15 @@ def _parse_session(
     x_user_role: str | None,
     x_user_account: str | None,
 ) -> ProposalSession | None:
+    _debug_log(
+        "H2",
+        "agent/proposal/auth.py:_parse_session",
+        "parse proposal session from headers",
+        {
+            "xUserRole": x_user_role,
+            "xUserAccount": x_user_account,
+        },
+    )
     if not x_user_role:
         return None
     return ProposalSession(role=x_user_role, account=x_user_account or "dev")

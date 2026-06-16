@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 1248 408" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">AIDA full logo</title>
+  <desc id="desc">AIDA logo mark with English and Chinese brand text.</desc>
+  <defs>
+    <linearGradient id="aida-accent" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F87BE"/>
+      <stop offset="100%" stop-color="#19C1D2"/>
+    </linearGradient>
+  </defs>
+
+  <g id="logo-mark" transform="translate(33 0) scale(4.08)">
+    <path fill="#09245F" d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"/>
+    <path fill="url(#aida-accent)" d="M 36.0855 92 L 53.0855 92 L 59.248 80.7375 L 50 80.7375 Z"/>
+  </g>
+
+  <g id="aida-wordmark" transform="translate(504 30) scale(1.69)" fill="#09245F">
+    <polygon points="0,120 42.658,36.574 57.342,36.574 100,120 86.522,120 50,48.574 13.478,120"/>
+    <rect x="135.502" y="36.574" width="12" height="83.426"/>
+    <g transform="translate(183.004, 36.574) scale(0.05212822)">
+      <path fill-rule="evenodd" d="M 0 0 H 1262.4 A 800.2 800.2 0 0 1 1262.4 1600.4 H 0 Z M 230.202 230.202 V 1370.198 H 1262.4 A 569.998 569.998 0 0 0 1262.4 230.202 H 230.202 Z"/>
+    </g>
+    <polygon transform="translate(310.524, 0)" points="0,120 42.658,36.574 57.342,36.574 100,120 86.522,120 50,48.574 13.478,120"/>
+  </g>
+
+  <text
+    x="504"
+    y="306"
+    fill="#2F3E5D"
+    font-family="Segoe UI, Arial, sans-serif"
+    font-size="35"
+    font-weight="300"
+    letter-spacing="0.8"
+    textLength="699"
+    lengthAdjust="spacingAndGlyphs">Agentic Integrated Delivery Architecture</text>
+
+  <line x1="504" y1="354" x2="610" y2="354" stroke="#D5DBE6" stroke-width="2"/>
+  <text
+    x="637"
+    y="363"
+    fill="#7F8CA3"
+    font-family="PingFang SC, Microsoft YaHei, SimHei, sans-serif"
+    font-size="27"
+    font-weight="500"
+    letter-spacing="20">智能体集成交付架构</text>
+  <line x1="1096" y1="354" x2="1202" y2="354" stroke="#D5DBE6" stroke-width="2"/>
+</svg>

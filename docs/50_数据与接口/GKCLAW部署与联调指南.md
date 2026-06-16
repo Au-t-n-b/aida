@@ -55,7 +55,7 @@ pop3:
   port: 995
   ssl: true
   username: aida@corp.com
-  poll_interval: 30            # 秒；演示自动回传建议 30~60；0=仅按需拉取（等待页手动刷新）
+  poll_interval: 10            # 秒；建议值 10（见 GKCLAW配置变量清单.md）；0=仅按需拉取（等待页手动刷新）
 policy:
   whitelist_domains: ["corp.com", "<frontagent 邮箱的域名>"]   # ★ 不加则每次下发卡审批队列
   whitelist_addresses: []      # 也可精确加单个地址
@@ -153,7 +153,7 @@ GKCLAW_FRONTAGENT_MAILBOX=<对方提供的 frontagent 收件邮箱>
 
 ## 7. 联调十步（契约 §23 对照 · 每步验证点）
 
-> 自动路径：`mailgw.config.yaml` 设置 `pop3.poll_interval=30~60` 且 `agent_notify.enabled=true` 后，mailgw 收到回传邮件会通知 AIDA Agent 检查并继续。手动路径：等待页点击「刷新检查回传」会主动拉取 mailgw/GKCLAW 回传；若暂无回传，应停留在等待页并提示暂未检测到回传结果。
+> 自动路径：`mailgw.config.yaml` 设置 `pop3.poll_interval=10`（建议值，见 [GKCLAW配置变量清单.md](GKCLAW配置变量清单.md)）且 `agent_notify.enabled=true` 后，mailgw 收到回传邮件会通知 AIDA Agent 检查并继续。手动路径：等待页点击「刷新检查回传」会主动拉取 mailgw/GKCLAW 回传；若暂无回传，应停留在等待页并提示暂未检测到回传结果。
 
 | # | 步骤 | 操作方 | 我方验证点 |
 |---|---|---|---|
