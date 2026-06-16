@@ -12,6 +12,7 @@ import {
 import VersionBar, { bumpVersion } from '../version-bar';
 import { useCurrentProject } from '@/lib/current-project';
 import { agentBase } from '@/lib/runtimeBase';
+import { getCurrentProjectBusinessPath } from '@/lib/project-business-path';
 
 /* 读 URL 参数 — 不用 useSearchParams 避免静态导出后 Suspense fallback=null 空白 */
 function readUrlParam(key) {
@@ -37,7 +38,7 @@ function boqAttachments(b) {
 }
 
 const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+const AGENT_BASE = agentBase();
 const DEFAULT_PREVIEW_PROJECT = {
   proposalId: 'PROP-2026-K1903',
   projectName: '京东三期',
@@ -53,6 +54,18 @@ function fileExt(name) {
 
 function previewBoqFileUrl(path) {
   return `${AGENT_BASE}/agent/preview/boq/file?path=${encodeURIComponent(path)}`;
+}
+
+function previewProjectInfoUrl(path) {
+  return `${AGENT_BASE}/agent/preview/project-info?path=${encodeURIComponent(path)}`;
+}
+
+function normalizePreviewProjectInfo(data) {
+  return {
+    proposalId: data?.proposal_id || data?.proposalId || '',
+    projectCode: data?.project_code || data?.projectCode || '',
+    projectName: data?.project_name || data?.projectName || '',
+  };
 }
 
 function PreviewAssetPane({ asset }) {
@@ -239,7 +252,7 @@ function PreviewFocus({ tab }) {
 
 /* ── 合同 / BOQ tab（5.27 重做：合同列表 + 小三角下拉 + BOQ 默认全选 + 上传按钮） ── */
 function ContractTab({ projectInfo }) {
-  const proposalId = projectInfo.proposalId || DEFAULT_PREVIEW_PROJECT.proposalId;
+  const proposalId = projectInfo.proposalId ?? DEFAULT_PREVIEW_PROJECT.proposalId;
   const boqUploadInputRef = useRef(null);
   const [openContracts, setOpenContracts] = useState({});
   /* BOQ 选中状态：默认全选 (AM-27) */
@@ -1087,22 +1100,62 @@ function LLDTab() {
 export default function PreviewScreen() {
   const { project } = useCurrentProject();
   const navigate = useNavigate();
-  const proposalId =
+  const fallbackProposalId =
     readUrlParam('proposal_id') ||
     readUrlParam('proposalId') ||
     readUrlParam('proposal') ||
     project?.proposalId ||
     (project?.code && String(project.code).startsWith('PROP-') ? project.code : null) ||
     DEFAULT_PREVIEW_PROJECT.proposalId;
-  const projectName =
+  const fallbackProjectName =
     readUrlParam('project_name') ||
     readUrlParam('projectName') ||
     project?.name ||
     DEFAULT_PREVIEW_PROJECT.projectName;
-  const projectCode =
+  const fallbackProjectCode =
     readUrlParam('project_code') ||
     readUrlParam('projectCode') ||
-    derivePreviewProjectCode(proposalId, project);
+    derivePreviewProjectCode(fallbackProposalId, project);
+  const [projectInfoFromFile, setProjectInfoFromFile] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let businessPath = '';
+    try {
+      businessPath = getCurrentProjectBusinessPath();
+    } catch {
+      setProjectInfoFromFile(null);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    fetch(previewProjectInfoUrl(businessPath))
+      .then(async (resp) => {
+        if (!resp.ok) throw new Error(await errorMessage(resp));
+        return resp.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const parsed = normalizePreviewProjectInfo(data);
+        setProjectInfoFromFile(
+          parsed.proposalId || parsed.projectCode || parsed.projectName
+            ? parsed
+            : null,
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setProjectInfoFromFile(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [project?.id]);
+
+  const proposalId = projectInfoFromFile ? projectInfoFromFile.proposalId : fallbackProposalId;
+  const projectName = projectInfoFromFile ? (projectInfoFromFile.projectName || fallbackProjectName) : fallbackProjectName;
+  const projectCode = projectInfoFromFile ? projectInfoFromFile.projectCode : fallbackProjectCode;
 
   const goProposal = () => workspaceNavigate(navigate, '/proposal', '/preview');
 

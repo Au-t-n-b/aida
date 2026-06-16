@@ -1527,6 +1527,15 @@ class PreviewContractListResp(BaseModel):
     contracts: list[dict[str, Any]]
 
 
+class PreviewProjectInfoResp(BaseModel):
+    ok: bool
+    path: str
+    source_file: str
+    proposal_id: str
+    project_code: str
+    project_name: str = ""
+
+
 # ─── 健康检查 ───
 
 @app.get("/healthz")
@@ -2257,6 +2266,15 @@ PREVIEW_BOQ_DIR = ASSETS_ROOT / "boq"
 PREVIEW_BOQ_MAP = ASSETS_ROOT / "boq-map.json"
 PREVIEW_CONTRACT_MAP = ASSETS_ROOT / "contract-map.json"
 ALLOWED_PREVIEW_BOQ_EXTS = {".xlsx", ".xls", ".csv"}
+PREVIEW_PROJECT_INFO_REL_PATH = Path("早期介入") / "合同" / "输出结果" / "项目基础信息表.xlsx"
+PREVIEW_PROJECT_INFO_HEADERS = {
+    "proposal_id": ("proposalid", "proposal id", "proposal号", "proposal"),
+    "project_code": ("项目编码", "projectcode", "project code"),
+    "project_name": ("项目名称", "projectname", "project name"),
+}
+PREVIEW_WINDOWS_BUSINESS_ROOT = Path(
+    os.environ.get("AIDA_WINDOWS_BUSINESS_ROOT", "C:/aida-data/business")
+)
 
 
 def _safe_upload_filename(raw_name: str | None, fallback: str) -> str:
@@ -2310,6 +2328,125 @@ def _read_preview_contract_map() -> dict[str, list[dict[str, Any]]]:
 def _write_preview_boq_map(data: dict[str, list[dict[str, Any]]]) -> None:
     PREVIEW_BOQ_MAP.parent.mkdir(parents=True, exist_ok=True)
     PREVIEW_BOQ_MAP.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _normalize_project_info_key(value: Any) -> str:
+    return re.sub(r"\s+", " ", str(value or "").replace("\ufeff", "").strip()).lower()
+
+
+def _project_info_cell(value: Any) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _extract_project_id_from_business_path(project_path: str) -> str:
+    parts = [p for p in project_path.replace("\\", "/").split("/") if p]
+    for idx, part in enumerate(parts):
+        if part == "projects" and idx + 1 < len(parts):
+            candidate = parts[idx + 1].strip()
+            if candidate and "/" not in candidate and "\\" not in candidate and candidate != "..":
+                return candidate
+    return ""
+
+
+def _resolve_preview_project_info_file(project_path: str) -> Path:
+    raw = (project_path or "").strip().strip("\"'")
+    if not raw:
+        raise HTTPException(status_code=400, detail="path 不能为空")
+    if "\x00" in raw:
+        raise HTTPException(status_code=400, detail="path 非法")
+
+    root = Path(raw.replace("\\", "/")).expanduser().resolve()
+    roots = [root]
+    if os.name == "nt":
+        project_id = _extract_project_id_from_business_path(raw)
+        if project_id:
+            roots.append((PREVIEW_WINDOWS_BUSINESS_ROOT / "projects" / project_id).resolve())
+
+    seen: set[Path] = set()
+    checked: list[str] = []
+    for candidate_root in roots:
+        if candidate_root in seen:
+            continue
+        seen.add(candidate_root)
+        full = (candidate_root / PREVIEW_PROJECT_INFO_REL_PATH).resolve()
+        try:
+            full.relative_to(candidate_root)
+        except ValueError:
+            raise HTTPException(status_code=403, detail="项目基础信息表路径越界")
+        checked.append(str(full))
+        if full.is_file():
+            return full
+    raise HTTPException(
+        status_code=404,
+        detail={
+            "message": f"项目基础信息表不存在：{PREVIEW_PROJECT_INFO_REL_PATH.as_posix()}",
+            "checked": checked,
+        },
+    )
+
+
+def _pick_project_info(record: dict[str, str], field: str) -> str:
+    aliases = PREVIEW_PROJECT_INFO_HEADERS[field]
+    for alias in aliases:
+        if alias in record and record[alias]:
+            return record[alias]
+    return ""
+
+
+def _parse_preview_project_info_xlsx(path: Path) -> dict[str, str]:
+    try:
+        from openpyxl import load_workbook
+    except ImportError as exc:
+        raise HTTPException(status_code=503, detail="缺少依赖 openpyxl，无法解析项目基础信息表") from exc
+
+    try:
+        wb = load_workbook(path, read_only=True, data_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+    except Exception as exc:  # noqa: BLE001 - openpyxl parse errors are mixed exception types.
+        raise HTTPException(status_code=422, detail=f"无法解析项目基础信息表：{exc}") from exc
+
+    if not rows:
+        raise HTTPException(status_code=422, detail="项目基础信息表为空")
+
+    for idx, row in enumerate(rows):
+        headers = [_normalize_project_info_key(v) for v in row]
+        if not any(alias in headers for alias in PREVIEW_PROJECT_INFO_HEADERS["proposal_id"]):
+            continue
+        values = rows[idx + 1] if idx + 1 < len(rows) else ()
+        record = {
+            header: _project_info_cell(values[col] if col < len(values) else "")
+            for col, header in enumerate(headers)
+            if header
+        }
+        return {
+            "proposal_id": _pick_project_info(record, "proposal_id"),
+            "project_code": _pick_project_info(record, "project_code"),
+            "project_name": _pick_project_info(record, "project_name"),
+        }
+
+    # 兼容少量“字段名/值”竖排表：A 列是字段名，B 列是值。
+    record: dict[str, str] = {}
+    for row in rows:
+        for col, cell in enumerate(row):
+            key = _normalize_project_info_key(cell)
+            if not key:
+                continue
+            next_value = row[col + 1] if col + 1 < len(row) else ""
+            if next_value is not None:
+                record[key] = _project_info_cell(next_value)
+
+    parsed = {
+        "proposal_id": _pick_project_info(record, "proposal_id"),
+        "project_code": _pick_project_info(record, "project_code"),
+        "project_name": _pick_project_info(record, "project_name"),
+    }
+    if parsed["proposal_id"] or parsed["project_code"]:
+        return parsed
+    raise HTTPException(status_code=422, detail="项目基础信息表缺少 Proposal ID / 项目编码")
 
 
 def _preview_boq_asset_path(path: str) -> Path:
@@ -2376,6 +2513,32 @@ async def upload_preview_boq(
         "size": first["size"],
         "uploaded": uploaded,
         "boq_files": files,
+    }
+
+
+@app.get("/agent/preview/project-info", response_model=PreviewProjectInfoResp)
+async def get_preview_project_info(path: str = Query(..., description="当前项目业务根路径")):
+    """读取当前项目的项目基础信息表，返回 Preview 页面需要的 Proposal ID / 项目编码。"""
+    xlsx = _resolve_preview_project_info_file(path)
+    info = _parse_preview_project_info_xlsx(xlsx)
+    if info["proposal_id"] and not info["project_code"]:
+        from .integrations.occ_assumption_client import fetch_project_number_by_bid_code
+
+        project_code = await asyncio.to_thread(
+            fetch_project_number_by_bid_code,
+            info["proposal_id"],
+        )
+        if project_code:
+            info["project_code"] = project_code
+    if not info["proposal_id"] and not info["project_code"]:
+        raise HTTPException(status_code=422, detail="项目基础信息表缺少 Proposal ID / 项目编码")
+    return {
+        "ok": True,
+        "path": path,
+        "source_file": str(xlsx),
+        "proposal_id": info["proposal_id"],
+        "project_code": info["project_code"],
+        "project_name": info["project_name"],
     }
 
 
