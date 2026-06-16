@@ -1,7 +1,7 @@
 """Proposal module HTTP routes."""
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.responses import Response
 from starlette.concurrency import run_in_threadpool
 
@@ -50,16 +50,71 @@ router = APIRouter(
 @router.get("/draft")
 async def get_draft(
     project_id: str,
+    request: Request,
     _session: ProposalSession = Depends(require_proposal_read),
 ):
     from agent.proposal.auth import proposal_operator_display_name
 
+    # region agent log
+    try:
+        import json, time
+        from pathlib import Path
+
+        Path(".cursor/debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(
+                {
+                    "sessionId": "f94a50",
+                    "runId": "pre-fix",
+                    "hypothesisId": "H9",
+                    "location": "agent/proposal/router.py:get_draft",
+                    "message": "get_draft request/session snapshot",
+                    "data": {
+                        "xUserRoleHeader": request.headers.get("X-User-Role"),
+                        "xUserAccountHeader": request.headers.get("X-User-Account"),
+                        "sessionRole": getattr(_session, "role", None),
+                        "sessionAccount": getattr(_session, "account", None),
+                    },
+                    "timestamp": int(time.time() * 1000),
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
     data = await run_in_threadpool(
         draft_service.get_draft,
         project_id,
         operator=proposal_operator_display_name(_session),
         session=_session,
     )
+    # region agent log
+    try:
+        import json, time
+        from pathlib import Path
+
+        Path(".cursor/debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(
+                {
+                    "sessionId": "f94a50",
+                    "runId": "pre-fix",
+                    "hypothesisId": "H9",
+                    "location": "agent/proposal/router.py:get_draft",
+                    "message": "get_draft response metadata snapshot",
+                    "data": {
+                        "manifestUpdatedBy": ((data.get("manifest") or {}).get("updatedBy") if isinstance(data, dict) else None),
+                        "metadataUpdatedBy": ((data.get("metadata") or {}).get("updatedBy") if isinstance(data, dict) else None),
+                    },
+                    "timestamp": int(time.time() * 1000),
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
     return success(
         data,
         proposal_meta(project_id, proposal_version="draft", source_layer="draft"),
@@ -70,10 +125,42 @@ async def get_draft(
 def put_draft(
     project_id: str,
     body: PutDraftBody,
+    request: Request,
     session: ProposalSession = Depends(require_proposal_write),
     if_match: str | None = Header(default=None, alias="If-Match"),
 ):
+    # region agent log
+    try:
+        import json, time
+        from pathlib import Path
+
+        Path(".cursor/debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(
+                {
+                    "sessionId": "f94a50",
+                    "runId": "pre-fix",
+                    "hypothesisId": "H6",
+                    "location": "agent/proposal/router.py:put_draft",
+                    "message": "put_draft request/session snapshot",
+                    "data": {
+                        "xUserRoleHeader": request.headers.get("X-User-Role"),
+                        "xUserAccountHeader": request.headers.get("X-User-Account"),
+                        "sessionRole": getattr(session, "role", None),
+                        "sessionAccount": getattr(session, "account", None),
+                    },
+                    "timestamp": int(time.time() * 1000),
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
     data = draft_service.save_draft(project_id, body, session, if_match=if_match)
+    if isinstance(data, dict):
+        data["_debugSessionAccount"] = getattr(session, "account", None)
+        data["_debugSessionRole"] = getattr(session, "role", None)
     return success(
         data,
         proposal_meta(project_id, proposal_version="draft", source_layer="draft"),
@@ -148,7 +235,12 @@ def get_versions(
     project_id: str,
     _session: ProposalSession = Depends(require_proposal_read),
 ):
-    versions = versions_service.list_versions(project_id)
+    from agent.proposal.auth import proposal_operator_display_name
+
+    versions = versions_service.list_versions(
+        project_id,
+        operator=proposal_operator_display_name(_session),
+    )
     return success(
         {"versions": versions},
         proposal_meta(project_id),

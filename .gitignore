@@ -55,6 +55,9 @@ data/sog-assets/**/scene.sog
 data/sog-probe-events.json
 # data/sog-assets/ 目录骨架（hotspots.json / meta.json）入库，scene.sog 不入库
 
+# ── 项目运行产物（本地数据，不入库）──
+data/projects/*
+
 # ── 文档站派生资产：mermaid 运行时 3.3MB 不入库（gen_docs_site 优雅降级为源码块）──
 # 要本地看真图，拉一次即可：
 #   curl -sL -o docs/site/assets/mermaid.min.js https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js

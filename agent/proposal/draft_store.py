@@ -5,6 +5,7 @@ import hashlib
 import json
 import re
 import shutil
+import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -22,6 +23,26 @@ CHAPTER_82_FILE = "8.2服务配置.json"
 CHAPTER_83_FILE = "8.3维保策略.json"
 CHAPTER_84_FILE = "8.4维保SLA.json"
 VERSION_MANIFEST_FILE = "version-info.json"
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "f94a50",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
 
 
 def physical_project_root(project_id: str) -> Path:
@@ -259,6 +280,12 @@ def load_chapter_02(project_id: str, version: str = "draft") -> dict[str, Any]:
         return load_json(chapter_02_draft_path(project_id), {"rows": []})
     path = chapter_02_output_path(project_id, version)
     if not path.exists():
+        _debug_log(
+            "H15",
+            "agent/proposal/draft_store.py:load_chapter_02",
+            "published chapter payload file missing",
+            {"projectId": project_id, "chapter": "2", "version": version, "path": str(path)},
+        )
         return {"rows": []}
     return load_json(path, {"rows": []})
 
@@ -276,6 +303,12 @@ def load_chapter_81(project_id: str, version: str = "draft") -> dict[str, Any]:
         return load_json(chapter_81_draft_path(project_id), {"rows": []})
     path = chapter_81_output_path(project_id, version)
     if not path.exists():
+        _debug_log(
+            "H15",
+            "agent/proposal/draft_store.py:load_chapter_81",
+            "published chapter payload file missing",
+            {"projectId": project_id, "chapter": "8.1", "version": version, "path": str(path)},
+        )
         return {"rows": []}
     return load_json(path, {"rows": []})
 
@@ -293,6 +326,12 @@ def load_chapter_82(project_id: str, version: str = "draft") -> dict[str, Any]:
         return load_json(chapter_82_draft_path(project_id), {"rows": []})
     path = chapter_82_output_path(project_id, version)
     if not path.exists():
+        _debug_log(
+            "H15",
+            "agent/proposal/draft_store.py:load_chapter_82",
+            "published chapter payload file missing",
+            {"projectId": project_id, "chapter": "8.2", "version": version, "path": str(path)},
+        )
         return {"rows": []}
     return load_json(path, {"rows": []})
 
@@ -310,6 +349,12 @@ def load_chapter_83(project_id: str, version: str = "draft") -> dict[str, Any]:
         return load_json(chapter_83_draft_path(project_id), {"rows": []})
     path = chapter_83_output_path(project_id, version)
     if not path.exists():
+        _debug_log(
+            "H15",
+            "agent/proposal/draft_store.py:load_chapter_83",
+            "published chapter payload file missing",
+            {"projectId": project_id, "chapter": "8.3", "version": version, "path": str(path)},
+        )
         return {"rows": []}
     return load_json(path, {"rows": []})
 
@@ -331,6 +376,12 @@ def load_chapter_84(project_id: str, version: str = "draft") -> dict[str, Any]:
         return load_json(chapter_84_draft_path(project_id), _default_chapter_84())
     path = chapter_84_output_path(project_id, version)
     if not path.exists():
+        _debug_log(
+            "H15",
+            "agent/proposal/draft_store.py:load_chapter_84",
+            "published chapter payload file missing",
+            {"projectId": project_id, "chapter": "8.4", "version": version, "path": str(path)},
+        )
         return _default_chapter_84()
     return load_json(path, _default_chapter_84())
 

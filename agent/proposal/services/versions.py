@@ -1,9 +1,11 @@
 """Version history and read-only snapshots."""
 from __future__ import annotations
 
+import json
+import time
+from pathlib import Path
 from typing import Any
 
-from agent.proposal.auth import proposal_operator_display_name
 from agent.proposal.chapter_files import load_chapter_payload
 from agent.proposal.chapter_registry import LEAF_CHAPTERS
 from agent.proposal.draft_store import (
@@ -14,6 +16,26 @@ from agent.proposal.draft_store import (
 )
 from agent.proposal.services import metadata as metadata_service
 from agent.proposal.version_info_store import find_snapshot
+
+
+def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, Any]) -> None:
+    # region agent log
+    try:
+        payload = {
+            "sessionId": "f94a50",
+            "runId": "pre-fix",
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(time.time() * 1000),
+        }
+        Path("debug-f94a50.log").open("a", encoding="utf-8").write(
+            json.dumps(payload, ensure_ascii=False) + "\n"
+        )
+    except Exception:
+        pass
+    # endregion
 
 
 def _format_dt(iso: str | None) -> str | None:
@@ -28,11 +50,12 @@ def _tone_for_version(version: str) -> str:
     return "green"
 
 
-def list_versions(project_id: str) -> list[dict[str, Any]]:
+def list_versions(project_id: str, *, operator: str | None = None) -> list[dict[str, Any]]:
     manifest = load_manifest(project_id)
     published = list_published_versions(project_id)
     latest = manifest.get("latestReleaseVersion") or (published[0] if published else None)
     versions: list[dict[str, Any]] = []
+    fallback_operator = operator or manifest.get("updatedBy") or manifest.get("createdBy") or "system"
 
     for idx, ver in enumerate(published):
         snap = find_snapshot(project_id, ver)
@@ -43,18 +66,30 @@ def list_versions(project_id: str) -> list[dict[str, Any]]:
                 "status": "published",
                 "label": ver,
                 "tone": _tone_for_version(ver),
-                "createdBy": info.get("createdBy") or proposal_operator_display_name(),
+                "createdBy": info.get("createdBy") or fallback_operator,
                 "createdAt": _format_dt(info.get("createdAt")),
-                "updatedBy": info.get("updatedBy") or proposal_operator_display_name(),
+                "updatedBy": info.get("updatedBy") or fallback_operator,
                 "updatedAt": _format_dt(info.get("updatedAt")),
                 "isLatest": ver == latest,
                 "isEditable": False,
             }
         )
 
-    meta_row, _ = metadata_service.ensure_metadata_draft(
-        project_id, proposal_operator_display_name()
+    meta_row, _ = metadata_service.ensure_metadata_draft(project_id, fallback_operator)
+    # region agent log
+    _debug_log(
+        "H14",
+        "agent/proposal/services/versions.py:list_versions",
+        "draft row used in versions response",
+        {
+            "projectId": project_id,
+            "fallbackOperator": fallback_operator,
+            "metaUpdatedBy": meta_row.get("updatedBy"),
+            "metaCreatedBy": meta_row.get("createdBy"),
+            "metaProposalVersion": meta_row.get("proposalVersion"),
+        },
     )
+    # endregion
     versions.insert(
         0,
         {

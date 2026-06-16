@@ -15,6 +15,7 @@ import {
   parseDeviceBoq,
   patchDeviceInfoRow,
   ProposalApiError,
+  shouldSilenceNoDataError,
   useProposalApiHeaders,
   type DeviceInfoRow,
   type ManifestActivity,
@@ -102,6 +103,11 @@ export function DeviceChapter({
         void runEnrichment(data.rows);
       }
     } catch (err) {
+      if (shouldSilenceNoDataError(err)) {
+        setRows([]);
+        setError(null);
+        return;
+      }
       const msg =
         err instanceof ProposalApiError
           ? err.message

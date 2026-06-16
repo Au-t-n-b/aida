@@ -135,6 +135,21 @@ def save_draft(
         merge_draft_chapters(project_id, body.chapters)
 
     operator = proposal_operator_display_name(session)
+    # region agent log
+    try:
+        _debug_log(
+            "H7",
+            "agent/proposal/services/draft.py:save_draft",
+            "resolved operator during save_draft",
+            {
+                "sessionRole": session.role,
+                "sessionAccount": session.account,
+                "resolvedOperator": operator,
+            },
+        )
+    except Exception:
+        pass
+    # endregion
 
     if body.manual_change_log is not None:
         metadata_service.save_manual_change_log(
@@ -161,6 +176,20 @@ def save_draft(
     saved = save_manifest(project_id, manifest)
 
     meta_row = metadata_service.touch_metadata_on_save(project_id, operator)
+    # region agent log
+    try:
+        _debug_log(
+            "H7",
+            "agent/proposal/services/draft.py:save_draft",
+            "metadata after touch_metadata_on_save",
+            {
+                "metaUpdatedBy": meta_row.get("updatedBy"),
+                "metaCreatedBy": meta_row.get("createdBy"),
+            },
+        )
+    except Exception:
+        pass
+    # endregion
     output_written = sync_output_chapter_excels(
         project_id,
         proposal_version=saved.get("workingVersionLabel") or "草稿",
