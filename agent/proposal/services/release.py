@@ -8,6 +8,7 @@ from typing import Any
 from agent.integrations.occ_review_client import resolve_review_tag
 from agent.proposal.auth import ProposalSession, proposal_operator_display_name
 from agent.proposal.chapter_files import (
+    promote_draft_chapters_to_version,
     sync_output_chapter_excels,
 )
 from agent.proposal.draft_store import (
@@ -127,6 +128,9 @@ def release_and_decide(
         manifest["changeRecords"] = pending_manual_records
         save_manifest(project_id, manifest)
     _validate_release_inputs(project_id)
+    # Persist published chapter JSON artifacts into version folder first.
+    # Without this, read-only chapter APIs for published versions can miss payload files.
+    promote_draft_chapters_to_version(project_id, new_version)
     written_xlsx = sync_output_chapter_excels(
         project_id,
         proposal_version=new_version,
