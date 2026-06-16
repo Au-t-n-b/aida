@@ -59,25 +59,17 @@ export function getWorkspaceMeta(
     return { breadcrumbs: ['早期接入 · 合同 + 预案三快照'], clawProps: PREVIEW_CLAW };
   }
 
+  if (pathname === '/twin') {
+    return {
+      breadcrumbs: ['孪生世界', '算力底座孪生'],
+      clawProps: DEFAULT_CLAW,
+      clawCollapsedDefault: true,
+    };
+  }
+
   if (pathname === '/twin/survey') {
     return {
-      breadcrumbs: ['孪生世界', '算力底座孪生', '实景孪生'],
-      clawProps: DEFAULT_CLAW,
-      clawCollapsedDefault: true,
-    };
-  }
-
-  if (pathname === '/twin/physical') {
-    return {
-      breadcrumbs: ['孪生世界', '算力底座孪生', '3D建模'],
-      clawProps: DEFAULT_CLAW,
-      clawCollapsedDefault: true,
-    };
-  }
-
-  if (pathname === '/twin/digital') {
-    return {
-      breadcrumbs: ['孪生世界', '算力底座孪生', '数字孪生'],
+      breadcrumbs: ['孪生世界', '实景孪生'],
       clawProps: DEFAULT_CLAW,
       clawCollapsedDefault: true,
     };

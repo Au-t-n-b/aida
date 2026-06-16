@@ -6,7 +6,7 @@ import { StyleSwitch, type LoginStyle } from './StyleSwitch';
 import { useAidaSession } from '@/lib/aida-session';
 import { ApiRequestError } from '@/lib/api-error';
 
-const DEFAULT_STYLE: LoginStyle = 'gateway';
+const DEFAULT_STYLE: LoginStyle = 'glass';
 
 export function LoginPage() {
   const [style, setStyle] = useState<LoginStyle>(DEFAULT_STYLE);
