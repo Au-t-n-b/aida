@@ -690,17 +690,6 @@ async function proposalFetch<T>(
       withNoCache({ ...rest, headers, signal: fetchTimeoutSignal() }),
     );
 
-  if ((rest.method ?? 'GET').toUpperCase() === 'PUT' && path === '/draft') {
-    // #region agent log
-    fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/lib/proposal-api.ts:proposalFetch',message:'save draft request headers before fetch',data:{projectId,path,method:(rest.method ?? 'GET').toUpperCase(),xUserRole:headers.get('X-User-Role'),xUserAccount:headers.get('X-User-Account'),proposalApiBase:PROPOSAL_API_BASE || null,targetUrl:proposalUrl(projectId, path, { ...query })},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }
-  if ((rest.method ?? 'GET').toUpperCase() === 'GET' && path === '/draft') {
-    // #region agent log
-    fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H8',location:'frontend/src/lib/proposal-api.ts:proposalFetch',message:'fetch draft request headers before fetch',data:{projectId,path,method:(rest.method ?? 'GET').toUpperCase(),xUserRole:headers.get('X-User-Role'),xUserAccount:headers.get('X-User-Account'),proposalApiBase:PROPOSAL_API_BASE || null,targetUrl:proposalUrl(projectId, path, { ...query })},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  }
-
   let resp = await doFetch();
   if (resp.status === 304) {
     console.warn('[proposal-api] 304 Not Modified, retry with cache buster', path);
@@ -718,11 +707,6 @@ async function proposalFetch<T>(
   }
 
   if (!resp.ok) {
-    if (path.startsWith('/chapters/')) {
-      // #region agent log
-      fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H17',location:'frontend/src/lib/proposal-api.ts:proposalFetch',message:'chapter request failed',data:{projectId,path,method:(rest.method ?? 'GET').toUpperCase(),query:query ?? null,status:resp.status,errorCode:json?.error?.code ?? null,errorMessage:json?.error?.message ?? null,targetUrl:proposalUrl(projectId, path, { ...query })},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-    }
     throw new ProposalApiError(
       resp.status,
       json?.error?.code ?? 'HTTP_ERROR',
@@ -1326,9 +1310,6 @@ export function useProposalApiHeaders(): HeadersInit {
     if (displayName) return displayName;
     return undefined;
   }, [session?.user?.display_name, session?.user?.username]);
-  // #region agent log
-  fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H4',location:'frontend/src/lib/proposal-api.ts:useProposalApiHeaders',message:'derive proposal api user account',data:{hasSession:Boolean(session),role:session?.role ?? null,username:session?.user?.username ?? null,displayName:session?.user?.display_name ?? null,resolvedUserAccount:userAccount ?? null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   return useMemo(
     () => buildProposalHeaders(session?.role ?? 'td', userAccount),
     [session?.role, userAccount],

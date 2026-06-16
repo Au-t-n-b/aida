@@ -125,11 +125,26 @@ printf '%s' '${harborPass}' | docker login ${DOCKER_REGISTRY} -u '${harborUser}'
 cd ${DEPLOY_DIR}
 mkdir -p logs/agent
 docker compose pull
-docker compose up -d --remove-orphans
+docker compose up -d --remove-orphans --force-recreate
 docker compose ps
-docker compose ps --status running | grep -q aida-agent
-docker compose ps --status running | grep -q aida-manager
-docker compose ps --status running | grep -q aida-frontend
+ok=0
+for i in {1..12}; do
+  if docker compose ps --status running | grep -q aida-agent \
+    && docker compose ps --status running | grep -q aida-manager \
+    && docker compose ps --status running | grep -q aida-frontend; then
+    ok=1
+    break
+  fi
+  echo "Waiting for containers to be running... (\$i/12)"
+  sleep 5
+done
+if [ "\$ok" -ne 1 ]; then
+  echo '=== Container Status (debug) ==='
+  docker compose ps
+  echo '=== Container Logs (tail) ==='
+  docker compose logs --no-color --tail=200 || true
+  exit 1
+fi
 echo '=== Prune aida dangling images (231) ==='
 docker image prune -f
 docker logout ${DOCKER_REGISTRY} || true

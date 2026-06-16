@@ -766,6 +766,8 @@ def _commission_hub_ready(state: dict[str, Any]) -> bool:
     if sm.get("toolkit_import") == "completed":
         return True
     m = collect_metrics(state)
+    if m.get("toolkit_imported"):
+        return True
     return bool(m.get("refreshed_devices"))
 
 

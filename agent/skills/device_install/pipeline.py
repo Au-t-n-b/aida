@@ -2,8 +2,8 @@
 
 DI_STEP_NAMES: dict[str, str] = {
     "preflight":      "环境预检",
-    "principal_fill": "生成责任矩阵",
-    "tasks_generate": "生成实施计划",
+    "principal_fill": "指派责任人",
+    "tasks_generate": "确认实施计划",
     "task_dispatch":  "计划下发",
     "sn_generate":    "SN扫码表生成",
     "esn_fill":       "ESN信息填写",

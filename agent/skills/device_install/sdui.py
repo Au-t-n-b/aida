@@ -291,7 +291,7 @@ def _build_back_toolbar_dt() -> SduiDataTableNode:
 
 
 def _flatten_edit_card(card: SduiCardNode) -> SduiNode:
-    """去掉外层 Card（如 card_title「生成责任矩阵」），保留 Alert 提示 + DataTable 单层。"""
+    """去掉外层 Card（如 card_title「指派责任人」），保留 Alert 提示 + DataTable 单层。"""
     hints: list[SduiNode] = []
     table: SduiNode | None = None
     for c in card.children or []:

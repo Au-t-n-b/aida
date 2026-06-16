@@ -24,6 +24,10 @@ from agent.sdui.projector_base import collect_metrics
 
 _COMMISSION_KEYS = ("connection", "lq_connection", "weak_light", "hccs_weak_light")
 
+# /ui 与 SSE 每次投影都会带上设备表；全量 1.2 万行会导致 JSON ~6MB+、服务器 500。
+SDUI_DEVICE_ROWS_CAP = 500
+SDUI_DEVICE_PAGE_SIZE = 50
+
 SD_STEP_NAMES: dict[str, str] = {
     "plan_receive": "接收二级任务",
     "plan_split": "拆分调测计划",
@@ -256,6 +260,50 @@ def _merge_scene_spec(m: dict[str, Any]) -> dict[str, Any]:
 
 def _commission_flags(sm: dict[str, str]) -> dict[str, bool]:
     return {k: sm.get(k) == "completed" for k in _COMMISSION_KEYS}
+
+
+def _load_device_tasks_raw() -> list[dict[str, Any]]:
+    """设备底表全量（投影时读盘，避免 metrics 只保留前 N 行预览）。"""
+    path = _work_root() / "ProjectData/plan/Output/device_base_table.json"
+    if not path.is_file():
+        return []
+    try:
+        import json
+
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        tasks = raw.get("tasks") if isinstance(raw, dict) else raw
+        return [t for t in (tasks or []) if isinstance(t, dict)]
+    except Exception:
+        return []
+
+
+def _resolve_device_preview(
+    state: dict[str, Any],
+    flags: dict[str, bool],
+) -> tuple[list[dict[str, Any]], dict[str, Any], int]:
+    from .steps._preview_metrics import device_stats, slim_device_tasks
+
+    disk_rows = _load_device_tasks_raw()
+    if disk_rows:
+        total = len(disk_rows)
+        stats = device_stats(disk_rows)
+        preview = slim_device_tasks(
+            disk_rows,
+            commission_flags=flags,
+            limit=SDUI_DEVICE_ROWS_CAP,
+        )
+        return preview, stats, total
+
+    m = collect_metrics(state)
+    preview = _patch_device_commission_cols(m.get("device_tasks_preview") or [], flags)
+    stats = m.get("device_stats") if isinstance(m.get("device_stats"), dict) else {}
+    return preview, stats, len(preview)
+
+
+def _pod_label_from_id(pod_id: Any) -> str:
+    if pod_id in (None, "", 0, "0"):
+        return "超节点 —"
+    return f"超节点 {pod_id}"
 
 
 def _patch_device_commission_cols(rows: list[dict[str, Any]], flags: dict[str, bool]) -> list[dict[str, Any]]:
@@ -658,12 +706,63 @@ def build_task_log_tab(state: dict[str, Any]) -> list[SduiNode]:
     ]
 
 
+def build_device_table_page(
+    *,
+    page: int = 1,
+    page_size: int = SDUI_DEVICE_PAGE_SIZE,
+    pod: str = "",
+    commission_flags: dict[str, bool] | None = None,
+) -> dict[str, Any]:
+    """设备底表分页（供 /devices API；统计仍基于全量）。"""
+    from .steps._preview_metrics import device_stats, slim_device_tasks
+
+    disk_rows = _load_device_tasks_raw()
+    flags = commission_flags or {}
+    if not disk_rows:
+        return {"total": 0, "page": page, "pageSize": page_size, "rows": [], "stats": {}}
+
+    slimmed = slim_device_tasks(disk_rows, commission_flags=flags, limit=0)
+    if pod:
+        slimmed = [r for r in slimmed if str(r.get("pod") or "") == pod]
+    total = len(slimmed)
+    page = max(1, page)
+    page_size = max(1, min(page_size, 200))
+    start = (page - 1) * page_size
+    rows = slimmed[start : start + page_size]
+    return {
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+        "pageCount": max(1, (total + page_size - 1) // page_size) if total else 0,
+        "rows": rows,
+        "stats": device_stats(disk_rows),
+    }
+
+
 def build_devices_tab(state: dict[str, Any]) -> list[SduiNode]:
-    m = collect_metrics(state)
+    try:
+        return _build_devices_tab_inner(state)
+    except Exception as exc:
+        return [
+            SduiCardNode(
+                id="sd-tab-devices",
+                title="设备总览列表",
+                children=[
+                    SduiEmptyStateNode(
+                        id="sd-devices-error",
+                        title="设备总览暂不可用",
+                        subtitle=f"投影异常：{exc}",
+                        icon="⚠️",
+                    )
+                ],
+            )
+        ]
+
+
+def _build_devices_tab_inner(state: dict[str, Any]) -> list[SduiNode]:
     sm = _steps_map(state)
     flags = _commission_flags(sm)
-    preview = _patch_device_commission_cols(m.get("device_tasks_preview") or [], flags)
-    stats = m.get("device_stats") if isinstance(m.get("device_stats"), dict) else {}
+    preview, stats, total_rows = _resolve_device_preview(state, flags)
 
     if not preview:
         return [
@@ -681,41 +780,44 @@ def build_devices_tab(state: dict[str, Any]) -> list[SduiNode]:
             )
         ]
 
-    device_count = stats.get("device_count") or m.get("device_rows") or len(preview)
-    pod_count = stats.get("pod_count") or _metric(m, default="—")
+    device_count = stats.get("device_count") or len(preview)
+    task_rows = stats.get("task_rows") or len(preview)
+    pod_count = stats.get("pod_count") or "—"
     by_status = stats.get("by_status") if isinstance(stats.get("by_status"), dict) else {}
     done = by_status.get("已完成", 0)
     running = by_status.get("进行中", 0)
     pending = by_status.get("未初始化", 0)
+    by_pod = stats.get("by_pod") if isinstance(stats.get("by_pod"), dict) else {}
 
     kpi_items = [
-        SduiStatisticRowItem(title="设备行", value=str(device_count), color="accent"),
-        SduiStatisticRowItem(title="Pod", value=str(pod_count), color="accent"),
+        SduiStatisticRowItem(title="设备", value=str(device_count), color="accent"),
+        SduiStatisticRowItem(title="超节点", value=str(pod_count), color="accent"),
+        SduiStatisticRowItem(title="底表行", value=str(task_rows), color="subtle"),
         SduiStatisticRowItem(title="已初始化", value=str(done), color="success"),
         SduiStatisticRowItem(title="进行中", value=str(running), color="warning"),
         SduiStatisticRowItem(title="未初始化", value=str(pending), color="subtle"),
     ]
 
-    table_rows: list[list[str]] = []
-    for row in preview[:120]:
-        table_rows.append(
-            [
-                str(row.get("deviceIp") or "—"),
-                str(row.get("deviceName") or "—"),
-                str(row.get("pod") or "—"),
-                str(row.get("deviceType") or "—"),
-                str(row.get("thirdTaskName") or "—"),
-                str(row.get("taskStatus") or "—"),
-                str(row.get("connection") or "—"),
-                str(row.get("lqConnection") or "—"),
-                str(row.get("weakLight") or "—"),
-                str(row.get("hccsWeakLight") or "—"),
-            ]
-        )
+    page_size = SDUI_DEVICE_PAGE_SIZE
+    pod_summary = ""
+    if by_pod:
+        pod_bits = [f"{_pod_label_from_id(k)}×{v}" for k, v in list(by_pod.items())[:6]]
+        if len(by_pod) > 6:
+            pod_bits.append("…")
+        pod_summary = " · ".join(pod_bits)
 
-    meta = f"{device_count} 台 · {pod_count} Pod"
-    if len(preview) > 120:
-        meta += f" · 展示前 120 / {len(preview)} 行"
+    meta = f"{device_count} 台 · {pod_count} 个超节点 · 底表 {task_rows} 行"
+    if pod_summary:
+        meta += f" · {pod_summary}"
+    if total_rows > len(preview):
+        meta += f" · 界面展示前 {len(preview)} 行（分页 {page_size} 条/页）· 全量 GET /agent/software_deployment/devices"
+
+    table_subtitle = None
+    if total_rows > len(preview):
+        table_subtitle = (
+            f"共 {total_rows} 行 · 当前载入 {len(preview)} 行 · "
+            "翻页仅覆盖已载入部分；全量请调 devices 分页接口或导出 device_base_table.json"
+        )
 
     return [
         SduiCardNode(
@@ -727,19 +829,23 @@ def build_devices_tab(state: dict[str, Any]) -> list[SduiNode]:
                 SduiDataTableNode(
                     id="sd-devices-table",
                     title="设备总览列表",
+                    subtitle=table_subtitle,
                     columns=[
-                        "设备IP",
-                        "设备名称",
-                        "POD",
-                        "设备类型",
-                        "三级任务",
-                        "任务状态",
-                        "服务器连线",
-                        "灵衢连线",
-                        "弱光检查",
-                        "光链路检查",
+                        SduiDataTableColumn(key="deviceIp", label="设备IP", width=132, nowrap=True),
+                        SduiDataTableColumn(key="deviceName", label="设备名称", nowrap=True),
+                        SduiDataTableColumn(key="pod", label="超节点", width=96, nowrap=True),
+                        SduiDataTableColumn(key="deviceType", label="设备类型", width=108),
+                        SduiDataTableColumn(key="thirdTaskName", label="三级任务", width=120),
+                        SduiDataTableColumn(key="taskStatus", label="任务状态", type="status", width=88),
+                        SduiDataTableColumn(key="connection", label="服务器连线", type="status", width=96),
+                        SduiDataTableColumn(key="lqConnection", label="灵衢连线", type="status", width=88),
+                        SduiDataTableColumn(key="weakLight", label="弱光检查", type="status", width=88),
+                        SduiDataTableColumn(key="hccsWeakLight", label="光链路检查", type="status", width=96),
                     ],
-                    rows=table_rows,
+                    rows=preview,
+                    rowKey="id",
+                    filterKeys=["pod"],
+                    pageSize=page_size,
                 ),
             ],
         )

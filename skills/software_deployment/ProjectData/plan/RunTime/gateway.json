@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "apigw_url": "https://apigw-beta.huawei.com/api",
+  "gateway_key": "4k2HbznSwMYbuoOm+nFbTw==",
+  "hw_app_id": "S007628",
+  "note": "APIGW 网关凭证（≠ Toolkit SK）。已纳入仓库；改此文件即可。环境变量 CLOUDOPS_* 可覆盖。"
+}

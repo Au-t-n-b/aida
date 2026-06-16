@@ -76,10 +76,22 @@ def _task_status_label(status: str) -> str:
     return status or "—"
 
 
+def _pod_label(pod_id: Any) -> str:
+    if pod_id in (None, "", 0, "0"):
+        return "超节点 —"
+    return f"超节点 {pod_id}"
+
+
+def _device_row_id(row: dict[str, Any]) -> str:
+    ip = str(row.get("deviceIp") or "").strip()
+    third = str(row.get("thirdTaskId") or row.get("thirdTaskName") or "").strip()
+    return f"{ip}|{third}" if third else ip or "row"
+
+
 def slim_device_tasks(
     rows: list[dict[str, Any]],
     *,
-    limit: int = 150,
+    limit: int = 0,
     commission_flags: dict[str, bool] | None = None,
 ) -> list[dict[str, Any]]:
     flags = commission_flags or {}
@@ -87,19 +99,28 @@ def slim_device_tasks(
     lq = "已通过" if flags.get("lq_connection") else "未初始化"
     weak = "已通过" if flags.get("weak_light") else "未初始化"
     hccs = "已通过" if flags.get("hccs_weak_light") else "未初始化"
+    ordered = sorted(
+        (r for r in rows if isinstance(r, dict)),
+        key=lambda r: (
+            int(r.get("superpodId") or 0) if str(r.get("superpodId") or "").isdigit() else 999999,
+            str(r.get("deviceIp") or ""),
+            str(r.get("thirdTaskName") or ""),
+        ),
+    )
+    if limit > 0:
+        ordered = ordered[:limit]
     out: list[dict[str, Any]] = []
-    for row in rows[:limit]:
-        if not isinstance(row, dict):
-            continue
+    for row in ordered:
         pod_id = row.get("superpodId")
-        pod = f"Pod-{pod_id}" if pod_id not in (None, "", 0) else "Pod-1"
         dtype = str(row.get("deviceType") or "")
         out.append(
             {
+                "id": _device_row_id(row),
                 "deviceIp": str(row.get("deviceIp") or ""),
                 "deviceName": str(row.get("deviceName") or ""),
                 "deviceType": _DEVICE_TYPE_LABEL.get(dtype, dtype or "—"),
-                "pod": pod,
+                "pod": _pod_label(pod_id),
+                "superpodId": pod_id,
                 "thirdTaskName": str(row.get("thirdTaskName") or ""),
                 "taskStatus": _task_status_label(str(row.get("taskStatus") or "")),
                 "connection": conn,
@@ -111,11 +132,12 @@ def slim_device_tasks(
     return out
 
 
-def device_stats(rows: list[dict[str, Any]]) -> dict[str, int]:
+def device_stats(rows: list[dict[str, Any]]) -> dict[str, Any]:
     ips: set[str] = set()
     pods: set[str] = set()
     by_type: dict[str, int] = {}
     status_counts: dict[str, int] = {}
+    by_pod: dict[str, int] = {}
     for row in rows:
         if not isinstance(row, dict):
             continue
@@ -123,17 +145,21 @@ def device_stats(rows: list[dict[str, Any]]) -> dict[str, int]:
         if ip:
             ips.add(ip)
         pod_id = row.get("superpodId")
-        if pod_id not in (None, ""):
-            pods.add(str(pod_id))
+        if pod_id not in (None, "", 0, "0"):
+            pod_key = str(pod_id)
+            pods.add(pod_key)
+            by_pod[pod_key] = by_pod.get(pod_key, 0) + 1
         dtype = str(row.get("deviceType") or "OTHER")
         by_type[dtype] = by_type.get(dtype, 0) + 1
         label = _task_status_label(str(row.get("taskStatus") or ""))
         status_counts[label] = status_counts.get(label, 0) + 1
     return {
         "device_count": len(ips) or len(rows),
+        "task_rows": len(rows),
         "pod_count": len(pods),
         "by_type": by_type,
         "by_status": status_counts,
+        "by_pod": dict(sorted(by_pod.items(), key=lambda x: int(x[0]) if x[0].isdigit() else x[0])),
     }
 
 
