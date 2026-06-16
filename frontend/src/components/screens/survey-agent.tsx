@@ -2368,7 +2368,10 @@ export default function SkillAgentScreen({
   // HITL / 左栏弹框始终读 SSE 实时态（reconcile 后的 /ui 快照会清掉 stage_select HITL）
   useEffect(() => {
     const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
-    const hitlDoc = usesDeliveryWorkbench ? sduiDoc : (sduiDoc ?? displayDoc);
+    // guihua：resume 过渡期 sduiDoc 处于 running 态无 hitl-card，须取冻结快照 displayDoc 才能保持左栏交互卡
+    const hitlDoc = usesDeliveryWorkbench
+      ? sduiDoc
+      : (skillId === 'guihua' ? displayDoc : (sduiDoc ?? displayDoc));
     if (!hitlDoc || !rid) { clearSkillHitl(skillId); return; }
     // 处理中勿从冻结快照把 HITL 投回左栏（否则确认后仍显示「等待处理中」）
     if (skillId === 'software_deployment' && commissionBusyState.active) return;
@@ -2383,7 +2386,6 @@ export default function SkillAgentScreen({
         onFormSubmit: railRuntimeCallbacks.onFormSubmit,
         onUpload: railRuntimeCallbacks.onUpload,
         onAction: railRuntimeCallbacks.onAction,
-        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
       });
     } else {
       clearSkillHitl(skillId);
