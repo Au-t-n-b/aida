@@ -15,6 +15,10 @@
 // 远程部署：scp compose + agent.env，ssh 内联 bash；Harbor 凭据经 stdin 登录，无临时文件
 // 部署成功后清理 aida 悬空镜像：231（compose pull/up 遗留）+ Jenkins agent（构建遗留 tag/层）
 // Webhook 防抖：options.quietPeriod=1800（30 分钟）；手动 / 定时触发不受静默期影响
+//
+// 构建失败邮件（Email Extension Plugin · emailext）：
+//   - recipientProviders 自动解析 Git 提交作者 / 触发人邮箱
+//   - 需在 Jenkins「Extended E-mail Notification」配置 SMTP
 // ============================================================
 
 pipeline {
@@ -176,7 +180,30 @@ EOS
             """
         }
         failure {
-            echo "AIDA build failed, check logs"
+            script {
+                emailext(
+                    subject: "[AIDA 构建失败] ${env.JOB_NAME} #${env.BUILD_NUMBER} (${env.GIT_BRANCH ?: 'N/A'})",
+                    mimeType: 'text/html',
+                    body: """
+                        <h3>AIDA Jenkins 构建失败</h3>
+                        <ul>
+                            <li><b>任务</b>: ${env.JOB_NAME} #${env.BUILD_NUMBER}</li>
+                            <li><b>分支</b>: ${env.GIT_BRANCH ?: 'N/A'}</li>
+                            <li><b>提交</b>: ${env.GIT_COMMIT?.take(7) ?: 'N/A'}</li>
+                            <li><b>控制台</b>: <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></li>
+                        </ul>
+                        <p>构建日志已附在邮件中，请尽快修复。</p>
+                    """.stripIndent().trim(),
+                    recipientProviders: [
+                        culprits(),
+                        developers(),
+                        requestor(),
+                        brokenBuildSuspects(),
+                    ],
+                    attachLog: true,
+                    compressLog: true,
+                )
+            }
         }
         always {
             sh 'docker image prune -f || true'
