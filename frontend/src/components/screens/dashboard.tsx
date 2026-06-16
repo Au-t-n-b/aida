@@ -3,6 +3,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { Navigate, useSearchParams } from 'react-router-dom';
+import { agentBase } from '@/lib/runtimeBase';
 import Link from '@/compat/link';
 import { RISKS, MILESTONES, RISK_SOURCES } from '../../data/app-data';
 import { DispatchTracker } from '../dispatch-tracker';
@@ -118,10 +119,11 @@ const DELIVERY_PLAN_FALLBACK = {
 };
 
 async function fetchDeliveryPlan(projectId = 'K1903') {
+  const base = agentBase();
   const endpoint = import.meta.env.VITE_DELIVERY_PLAN_API
-    || `/api/v1/projects/${encodeURIComponent(projectId)}/delivery-plan/milestones`;
+    || `${base}/api/v1/projects/${encodeURIComponent(projectId)}/delivery-plan/milestones`;
   const excelEndpoint = import.meta.env.VITE_DELIVERY_PLAN_XLSX_URL
-    || `/api/v1/projects/${encodeURIComponent(projectId)}/delivery-plan.xlsx`;
+    || `${base}/api/v1/projects/${encodeURIComponent(projectId)}/delivery-plan.xlsx`;
   try {
     const response = await fetch(endpoint, { cache: 'no-store', headers: { Accept: 'application/json' } });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
