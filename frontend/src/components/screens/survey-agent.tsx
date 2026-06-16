@@ -379,8 +379,8 @@ const SKILL_META: Record<string, {
     ),
     steps: [
       { key: 'preflight',      name: '环境预检',     sub: '校验输入文件' },
-      { key: 'principal_fill', name: '生成责任矩阵', sub: '在线编辑信息' },
-      { key: 'tasks_generate', name: '生成实施计划', sub: '在线编辑计划' },
+      { key: 'principal_fill', name: '指派责任人', sub: '在线编辑信息' },
+      { key: 'tasks_generate', name: '确认实施计划', sub: '在线编辑计划' },
       { key: 'task_dispatch',  name: '计划下发',     sub: '勾选计划下发' },
       { key: 'sn_generate',    name: 'SN扫码表',     sub: '按单元生成' },
       { key: 'esn_fill',       name: 'ESN填写',      sub: '完工清单' },

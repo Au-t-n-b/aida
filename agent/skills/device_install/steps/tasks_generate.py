@@ -73,7 +73,7 @@ def _build_plan_file(tasks: list[dict], ctx: SkillContext) -> tuple[str | None, 
 
 class TasksGenerateStep(BaseStep):
     key = "tasks_generate"
-    name = "生成设备安装实施计划"
+    name = "确认实施计划"
     artifacts_pattern = [f"ProjectData/Output/{DISPATCH_PLAN_FILENAME}"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:

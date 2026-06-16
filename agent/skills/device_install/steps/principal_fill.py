@@ -76,7 +76,7 @@ def _write_principal_table(rows: list[dict], ctx: SkillContext, filename: str) -
 
 class PrincipalFillStep(BaseStep):
     key = "principal_fill"
-    name = "生成责任矩阵"
+    name = "指派责任人"
     artifacts_pattern = ["ProjectData/Output/责任人信息表.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
