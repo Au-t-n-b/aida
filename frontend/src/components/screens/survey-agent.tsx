@@ -2206,29 +2206,36 @@ export default function SkillAgentScreen({
   // 部署调测：HitlForm（如步骤 7 调测设备 IP/SK「保存并继续」）提交 → resume 续跑。
   // HitlForm 负载形如 { [formId]: { base_url_ip, secret_key } }，需扁平化后再续跑。
   const handleFormSubmit = useCallback(async (payload: Record<string, unknown>, stepId?: string) => {
+    setViewMode('work');
     const fromStep = stepId?.trim() || undefined;
-    let flat: Record<string, unknown> = { ...payload };
-    for (const v of Object.values(payload)) {
-      if (v && typeof v === 'object' && !Array.isArray(v)) {
-        const row = v as Record<string, unknown>;
-        if ('base_url_ip' in row || 'secret_key' in row) {
-          flat = { ...flat, ...row };
-          break;
+
+    if (skillId === 'software_deployment') {
+      let flat: Record<string, unknown> = { ...payload };
+      for (const v of Object.values(payload)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const row = v as Record<string, unknown>;
+          if ('base_url_ip' in row || 'secret_key' in row) {
+            flat = { ...flat, ...row };
+            break;
+          }
         }
       }
+      const resumePayload = fromStep === 'toolkit_executor'
+        ? {
+            choice: 'confirm',
+            base_url_ip: String(flat.base_url_ip ?? '').trim(),
+            secret_key: String(flat.secret_key ?? '').trim(),
+            base_url_port: '28880',
+          }
+        : payload;
+      await doResume(resumePayload, fromStep);
+      if (activeRunId && fromStep) {
+        setStreamEpoch(e => e + 1);  // 重订阅 SSE，推动界面前进到步骤 8
+      }
+      return;
     }
-    const resumePayload = fromStep === 'toolkit_executor'
-      ? {
-          choice: 'confirm',
-          base_url_ip: String(flat.base_url_ip ?? '').trim(),
-          secret_key: String(flat.secret_key ?? '').trim(),
-          base_url_port: '28880',
-        }
-      : payload;
-    await doResume(resumePayload, fromStep);
-    if (activeRunId && skillId === 'software_deployment' && fromStep) {
-      setStreamEpoch(e => e + 1);  // 重订阅 SSE，推动界面前进到步骤 8
-    }
+
+    await doResume(payload, fromStep || 'task_dispatch');
   }, [doResume, activeRunId, skillId]);
 
   // 「配置执行机」按钮：读取当前 HITL 表单预填，弹出 IP/SK 小窗
@@ -2262,11 +2269,6 @@ export default function SkillAgentScreen({
       setExecutorSaving(false);
     }
   }, [handleFormSubmit]);
-
-  const handleFormSubmit = useCallback(async (payload: Record<string, unknown>, stepId?: string) => {
-    setViewMode('work');
-    await doResume(payload, stepId?.trim() || 'task_dispatch');
-  }, [doResume]);
 
   // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
   const handleActionRef = useRef(handleAction);
