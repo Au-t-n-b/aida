@@ -17,9 +17,10 @@ DEFAULT_DEMO_PROJECT_ID = "70e5ca737ae5433e9f0f3134d216acf7"
 MOCK_REPORT_FILENAME = "本地工勘报告.pdf"
 ROOM_RACK_FILENAME = "机房机柜信息表.xlsx"
 SURVEY_INPUT_REL = Path("交付作业") / "智慧工勘" / "输入文件"
-TWIN_ROOM_RACK_REL = (
-    Path("孪生世界") / "算力底座孪生" / "输出结果" / "机房机柜信息表"
-)
+# 物理：{business}/projects/{id}/孪生世界/算力底座孪生/输出结果/机房机柜信息表.xlsx
+TWIN_ROOM_RACK_OUTPUT_REL = Path("孪生世界") / "算力底座孪生" / "输出结果"
+# 旧版嵌套目录（本地 demo 可能仍存在）
+TWIN_ROOM_RACK_LEGACY_DIR = TWIN_ROOM_RACK_OUTPUT_REL / "机房机柜信息表"
 SURVEY_OUTPUT_REL = Path("交付作业") / "智慧工勘" / "输出结果"
 
 LEGACY_FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / MOCK_REPORT_FILENAME
@@ -56,11 +57,17 @@ def room_rack_project_path(
     *,
     business_root: Path | None = None,
 ) -> Path:
-    return (
-        project_data_root(project_id, business_root=business_root)
-        / TWIN_ROOM_RACK_REL
-        / ROOM_RACK_FILENAME
-    )
+    base = project_data_root(project_id, business_root=business_root)
+    return base / TWIN_ROOM_RACK_OUTPUT_REL / ROOM_RACK_FILENAME
+
+
+def room_rack_legacy_project_path(
+    project_id: str = DEFAULT_DEMO_PROJECT_ID,
+    *,
+    business_root: Path | None = None,
+) -> Path:
+    base = project_data_root(project_id, business_root=business_root)
+    return base / TWIN_ROOM_RACK_LEGACY_DIR / ROOM_RACK_FILENAME
 
 
 def room_rack_manifest_path(
@@ -84,10 +91,13 @@ def resolve_room_rack_xlsx(
     *,
     business_root: Path | None = None,
 ) -> Path | None:
-    """项目孪生输出优先。"""
-    project_xlsx = room_rack_project_path(project_id, business_root=business_root)
-    if project_xlsx.is_file():
-        return project_xlsx
+    """项目孪生输出：输出结果/机房机柜信息表.xlsx；旧版嵌套子目录兜底。"""
+    for candidate in (
+        room_rack_project_path(project_id, business_root=business_root),
+        room_rack_legacy_project_path(project_id, business_root=business_root),
+    ):
+        if candidate.is_file():
+            return candidate
     return None
 
 

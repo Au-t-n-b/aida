@@ -25,8 +25,31 @@ def test_room_rack_project_path_layout() -> None:
     p = room_rack_project_path(DEFAULT_DEMO_PROJECT_ID, business_root=business)
     assert p == Path(
         "/opt/aida/aida-data/business/projects/70e5ca737ae5433e9f0f3134d216acf7/"
-        "孪生世界/算力底座孪生/输出结果/机房机柜信息表/机房机柜信息表.xlsx"
+        "孪生世界/算力底座孪生/输出结果/机房机柜信息表.xlsx"
     )
+
+
+def test_resolve_room_rack_xlsx_prefers_flat_output_path(tmp_path: Path) -> None:
+    from agent.skills.zhgk.demo_assets import resolve_room_rack_xlsx
+
+    business = tmp_path / "business"
+    flat = business / "projects" / "p1" / "孪生世界" / "算力底座孪生" / "输出结果" / "机房机柜信息表.xlsx"
+    flat.parent.mkdir(parents=True, exist_ok=True)
+    flat.write_bytes(b"xlsx")
+    assert resolve_room_rack_xlsx("p1", business_root=business) == flat
+
+
+def test_resolve_room_rack_xlsx_legacy_nested_fallback(tmp_path: Path) -> None:
+    from agent.skills.zhgk.demo_assets import resolve_room_rack_xlsx
+
+    business = tmp_path / "business"
+    nested = (
+        business / "projects" / "p1" / "孪生世界" / "算力底座孪生" / "输出结果"
+        / "机房机柜信息表" / "机房机柜信息表.xlsx"
+    )
+    nested.parent.mkdir(parents=True, exist_ok=True)
+    nested.write_bytes(b"xlsx")
+    assert resolve_room_rack_xlsx("p1", business_root=business) == nested
 
 
 def test_seed_mock_report_from_project_asset(tmp_path: Path) -> None:

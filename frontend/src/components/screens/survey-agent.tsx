@@ -1261,15 +1261,24 @@ export default function SkillAgentScreen({
     : (() => {
         const live = liveSduiDoc;
         const frozen = frozenSnapshotRef.current ?? frozenDoc;
-        // HITL 交互中：右侧大盘读实时 SSE，但须不低于冻结进度（防重放中间态闪回）
+        const layered = diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
+          ?? frozen ?? live ?? bootDoc;
+        if (!layered) return null;
+
+        // guihua：HITL 期间保持左栏对话卡；resume 过渡期 live 常无 hitl-card，须继续读冻结快照
+        if (skillId === 'guihua') {
+          if (live && hasLeftRailHitl(live)) return live;
+          if (frozen && hasLeftRailHitl(frozen)) return frozen;
+          return layered;
+        }
+
+        // zhgk 等：HITL 交互中读实时 SSE，但须不低于冻结进度（防重放中间态闪回）
         if (live && frozen && hasLeftRailHitl(live)) {
           const liveProgress = extractProgressFromSdui(live).progress ?? 0;
           if (liveProgress >= frozenProgressRef.current) return live;
         }
         const anchor = frozen ?? bootDoc;
-        const picked = diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
-          ?? frozen ?? live ?? bootDoc;
-        if (!picked) return null;
+        const picked = layered;
         // 步骤 8 导入完成后须展示「命令调测 · 调度」；冻结层可能仍停在 HITL，优先带 panel 的快照
         if (skillId === 'software_deployment') {
           const hubDoc = [deployLinearPollDoc, commissionPollDoc, live, postUploadDoc, diskPollDoc, frozen, bootDoc]

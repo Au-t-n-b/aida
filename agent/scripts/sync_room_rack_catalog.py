@@ -1,7 +1,7 @@
 """
 将机房机柜信息表同步到项目演示数据目录（孪生输出 · 规范路径）。
 
-物理路径：{AIDA_BUSINESS_ROOT}/projects/{project_id}/孪生世界/算力底座孪生/输出结果/机房机柜信息表/
+物理路径：{AIDA_BUSINESS_ROOT}/projects/{project_id}/孪生世界/算力底座孪生/输出结果/机房机柜信息表.xlsx
 
 用法（仓库根目录）：
   python agent/scripts/sync_room_rack_catalog.py
