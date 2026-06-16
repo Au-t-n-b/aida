@@ -196,13 +196,21 @@ def _commission_passed(m: dict[str, Any]) -> int:
     return sum(1 for k in _COMMISSION_KEYS if m.get(f"{k}_ok"))
 
 
+def _commission_step_done(sm: dict[str, str], m: dict[str, Any], key: str) -> bool:
+    """步骤 status 或 metrics 回执任一表明已完成（避免 running 卡住）。"""
+    if key not in _COMMISSION_KEYS:
+        return sm.get(key) == "completed"
+    return sm.get(key) == "completed" or bool(m.get(f"{key}_ok"))
+
+
 def _current_step_key(state: dict[str, Any]) -> str:
     sm = _steps_map(state)
+    m = collect_metrics(state)
     hitl_step = str((state.get("hitl") or {}).get("step") or "").strip()
     # 线性 1～8 已完成且不在 HITL：进入命令调测工作台（避免卡在 toolkit_import / commission_scope）
     if sm.get("toolkit_import") == "completed" and not hitl_step:
         for key in _COMMISSION_KEYS:
-            if sm.get(key) not in ("completed",):
+            if not _commission_step_done(sm, m, key):
                 return key
         explicit = str(state.get("current_step") or "").strip()
         if explicit in _LINEAR_STEP_KEYS or explicit in ("commission_scope", "toolkit_import", "toolkit_executor"):
@@ -223,6 +231,8 @@ def _chip_status(chip_key: str, sm: dict[str, str], m: dict[str, Any]) -> str:
         if m.get("requires_ztp") is False:
             return "idle"
         return "idle"
+    if chip_key in _COMMISSION_KEYS and _commission_step_done(sm, m, chip_key):
+        return "ok"
     st = sm.get(chip_key, "pending")
     if st == "completed":
         return "ok"
@@ -231,11 +241,24 @@ def _chip_status(chip_key: str, sm: dict[str, str], m: dict[str, Any]) -> str:
     return "idle"
 
 
-def _flow_card_status(keys: list[str], sm: dict[str, str], current_key: str) -> str:
-    statuses = [sm.get(k, "pending") for k in keys]
-    if current_key in keys or any(s in ("running", "hitl", "failed") for s in statuses):
+def _flow_card_status(
+    keys: list[str],
+    sm: dict[str, str],
+    current_key: str,
+    m: dict[str, Any] | None = None,
+) -> str:
+    metrics = m or {}
+
+    def _done(k: str) -> bool:
+        if k in _COMMISSION_KEYS:
+            return _commission_step_done(sm, metrics, k)
+        return sm.get(k, "pending") == "completed"
+
+    if current_key in keys and not _done(current_key):
         return "current"
-    if all(s == "completed" for s in statuses):
+    if any(sm.get(k) in ("running", "hitl", "failed") and not _done(k) for k in keys):
+        return "current"
+    if all(_done(k) for k in keys):
         return "done"
     return "future"
 
@@ -339,7 +362,7 @@ def _build_execution_progress(state: dict[str, Any]) -> SduiCardNode | None:
     cards: list[SduiFlowStepCard] = []
     for spec in _SD_FLOW_DEFS:
         keys: list[str] = list(spec["keys"])
-        status = _flow_card_status(keys, sm, current_key)
+        status = _flow_card_status(keys, sm, current_key, m)
         chips = [
             SduiFlowStepChip(
                 text=text,
@@ -580,9 +603,16 @@ def _build_input_slots(state: dict[str, Any]) -> SduiCardNode | None:
 
 def _build_timeline(state: dict[str, Any]) -> SduiCardNode | None:
     events: list[SduiTimelineEvent] = []
+    m = collect_metrics(state)
+    sm = _steps_map(state)
     for key in SD_STEP_ORDER:
         rec = _step_record(state, key)
-        if not rec or rec.get("status") != "completed":
+        if not rec:
+            continue
+        if key in _COMMISSION_KEYS:
+            if not _commission_step_done(sm, m, key):
+                continue
+        elif rec.get("status") != "completed":
             continue
         ended = str(rec.get("ended_at") or rec.get("started_at") or "")
         time_label = ended[:16].replace("T", " ") if ended else None

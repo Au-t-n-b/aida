@@ -321,6 +321,7 @@ class SoftwareDeploymentSkill(BaseSkill):
                     pass
 
         from ._preview_metrics import build_commission_record
+        from ._commission_report_loader import enrich_commission_record, resolve_task_run_dir
 
         _commission_cmds = (
             ("connection", "connection"),
@@ -340,7 +341,21 @@ class SoftwareDeploymentSkill(BaseSkill):
                 continue
             rec = by_key.get(step_key)
             if not rec:
-                rel = str(result_dir.relative_to(root)).replace("\\", "/")
+                run_dir = resolve_task_run_dir(root, {"stepKey": step_key})
+                rel = (
+                    str(run_dir.relative_to(root)).replace("\\", "/")
+                    if run_dir is not None
+                    else str(result_dir.relative_to(root)).replace("\\", "/")
+                )
+                base_rec = build_commission_record(
+                    step_key,
+                    {
+                        "ok": True,
+                        "message": "已从磁盘恢复",
+                        "result_dir": rel,
+                        "task_id": run_dir.name if run_dir is not None else "",
+                    },
+                )
                 steps_out.append({
                     "key": step_key,
                     "name": step_key,
@@ -349,27 +364,55 @@ class SoftwareDeploymentSkill(BaseSkill):
                         f"{cmd}_ok": True,
                         "command": cmd,
                         "result_dir": rel,
-                        "commission_record": build_commission_record(
-                            step_key,
-                            {"ok": True, "message": "已从磁盘恢复", "result_dir": rel},
-                        ),
+                        "commission_record": enrich_commission_record(base_rec, root),
                     },
                 })
                 by_key[step_key] = steps_out[-1]
                 continue
             metrics = rec.setdefault("metrics", {})
-            if not metrics.get(f"{cmd}_ok"):
+            run_dir = resolve_task_run_dir(
+                root,
+                {
+                    "stepKey": step_key,
+                    "taskName": str(metrics.get("task_id") or metrics.get("task_name") or ""),
+                    "resultDir": str(metrics.get("result_dir") or ""),
+                },
+            )
+            rel_run = (
+                str(run_dir.relative_to(root)).replace("\\", "/")
+                if run_dir is not None
+                else str(metrics.get("result_dir") or result_dir.relative_to(root)).replace("\\", "/")
+            )
+            receipt_path = (run_dir / "receipt.json") if run_dir is not None else None
+            if receipt_path is not None and receipt_path.is_file():
+                try:
+                    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                except Exception:
+                    receipt = {}
+                if str(receipt.get("reportPath") or "").strip() or receipt.get("finishedAt"):
+                    rec["status"] = "completed"
+                    metrics[f"{cmd}_ok"] = True
+                    metrics["result_dir"] = rel_run
+                    metrics["task_id"] = str(receipt.get("taskName") or run_dir.name if run_dir else "")
+            elif not metrics.get(f"{cmd}_ok"):
                 metrics[f"{cmd}_ok"] = True
             if not metrics.get("result_dir"):
-                metrics["result_dir"] = str(result_dir.relative_to(root)).replace("\\", "/")
+                metrics["result_dir"] = rel_run
             if not metrics.get("commission_record"):
-                metrics["commission_record"] = build_commission_record(
+                base_rec = build_commission_record(
                     step_key,
                     {
                         "ok": True,
                         "message": "已从磁盘恢复",
-                        "result_dir": metrics["result_dir"],
+                        "result_dir": rel_run,
+                        "task_id": run_dir.name if run_dir is not None else "",
                     },
+                )
+                metrics["commission_record"] = enrich_commission_record(base_rec, root)
+            elif run_dir is not None and rec.get("status") == "completed":
+                metrics["commission_record"] = enrich_commission_record(
+                    dict(metrics["commission_record"]) if isinstance(metrics.get("commission_record"), dict) else {},
+                    root,
                 )
 
     def _hydrate_step_artifacts(self, steps_out: list[dict[str, Any]]) -> None:

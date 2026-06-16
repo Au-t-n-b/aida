@@ -6,7 +6,7 @@ import { useSyncExternalStore } from 'react';
 export interface CommissionBusyState {
   active: boolean;
   label?: string;
-  kind?: 'scope' | 'command';
+  kind?: 'scope' | 'command' | 'import';
 }
 
 let _current: CommissionBusyState = { active: false };
@@ -19,7 +19,7 @@ function _notify(): void {
 export function setCommissionBusy(
   active: boolean,
   label?: string,
-  kind?: 'scope' | 'command',
+  kind?: 'scope' | 'command' | 'import',
 ): void {
   const next: CommissionBusyState = active
     ? { active: true, label, kind }

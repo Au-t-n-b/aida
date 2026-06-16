@@ -165,6 +165,7 @@ class SduiStatisticRowNode(BaseModel):
     id: str | None = None
     items: list[SduiStatisticRowItem]
     flex: float | None = None
+    density: Literal["default", "compact"] | None = None
 
 
 class SduiZhgkAssessmentDetail(BaseModel):

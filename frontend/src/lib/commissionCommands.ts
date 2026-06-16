@@ -163,6 +163,15 @@ export function isToolkitImportSettledInStatus(
   if (rec?.status === 'completed' || rec?.status === 'failed') return true;
   const m = rec?.metrics;
   if (m && m.toolkit_imported === true) return true;
+  if (m && m.refreshed_devices != null && Number(m.refreshed_devices) > 0) return true;
+  for (const s of state.steps ?? []) {
+    const sm = s.metrics;
+    if (!sm) continue;
+    if (sm.toolkit_imported === true) return true;
+    if (s.key === 'toolkit_import' && sm.refreshed_devices != null && Number(sm.refreshed_devices) > 0) {
+      return true;
+    }
+  }
   return false;
 }
 

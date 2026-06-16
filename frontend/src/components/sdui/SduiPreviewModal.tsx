@@ -3,7 +3,7 @@
  *
  * 接 SDUI 的 open_preview action：根据扩展名在浏览器侧渲染——
  *   xlsx/xls → SheetJS（多 sheet tab） · docx → mammoth → HTML
- *   pdf/png/jpg → blob <embed>/<img> · 其它 → 下载兜底
+ *   json → 格式化展示 · pdf/png/jpg → blob <embed>/<img> · 其它 → 下载兜底
  *
  * 文件经后端 GET /agent/{skillId}/artifact?path=<rel> 取（已限定 ProjectData/ 子树）。
  * xlsx / mammoth 走动态 import，不进主包；仅预览时按需加载。
@@ -55,6 +55,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
   const [sheets, setSheets] = useState<Array<{ name: string; html: string }>>([]);
   const [activeSheet, setActiveSheet] = useState(0);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [jsonText, setJsonText] = useState('');
   const [errMsg, setErrMsg] = useState('');
   const [agentBase, setAgentBase] = useState('');
 
@@ -72,6 +73,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
     setSheets([]);
     setActiveSheet(0);
     setBlobUrl(null);
+    setJsonText('');
     setErrMsg('');
 
     void (async () => {
@@ -94,6 +96,18 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
           const mammoth = (await import('mammoth')) as unknown as MammothLike;
           const r = await mammoth.convertToHtml({ arrayBuffer: buf });
           if (!cancelled) { setDocHtml(r.value); setStatus('ready'); }
+        } else if (ext === 'json') {
+          const text = await res.text();
+          let pretty = text;
+          try {
+            pretty = JSON.stringify(JSON.parse(text), null, 2);
+          } catch {
+            // 非严格 JSON 时原样展示
+          }
+          if (!cancelled) {
+            setJsonText(pretty);
+            setStatus('ready');
+          }
         } else if (ext === 'pdf' || isImage) {
           const blob = await res.blob();
           createdUrl = URL.createObjectURL(blob);
@@ -147,6 +161,13 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
         .sdui-docx-pane p { margin:6px 0; }
         .sdui-docx-pane table { width:100%; border-collapse:collapse; margin:10px 0; }
         .sdui-docx-pane td,.sdui-docx-pane th { border:1px solid var(--border); padding:5px 9px; }
+        .sdui-json-pane {
+          margin: 0; padding: 14px 16px; border-radius: 8px;
+          background: var(--c-surface-2,#f8fafc); border: 1px solid var(--border);
+          font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px;
+          line-height: 1.55; color: var(--text-primary); white-space: pre-wrap; word-break: break-word;
+          max-height: 100%; overflow: auto;
+        }
       `}</style>
 
       <div
@@ -167,7 +188,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
           <span style={{
             fontSize: '9px', fontWeight: 700, fontFamily: 'var(--font-mono)',
             padding: '2px 6px', borderRadius: 4, color: '#fff',
-            background: ext === 'docx' ? 'var(--blue-600)' : ext === 'xlsx' ? '#0a7d46' : 'var(--zinc-500)',
+            background: ext === 'docx' ? 'var(--blue-600)' : ext === 'xlsx' ? '#0a7d46' : ext === 'json' ? '#6366f1' : 'var(--zinc-500)',
             flexShrink: 0, letterSpacing: '.02em',
           }}>
             {(ext || 'file').toUpperCase()}
@@ -259,6 +280,10 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
 
           {status === 'ready' && docHtml && (
             <div className="sdui-docx-pane" dangerouslySetInnerHTML={{ __html: docHtml }} />
+          )}
+
+          {status === 'ready' && jsonText && (
+            <pre className="sdui-json-pane">{jsonText}</pre>
           )}
 
           {status === 'ready' && blobUrl && ext === 'pdf' && (

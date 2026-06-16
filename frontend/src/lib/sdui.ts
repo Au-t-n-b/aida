@@ -83,7 +83,11 @@ export type SduiMarkdownNode = OptId & { type: 'Markdown'; content: string };
 export type SduiBadgeNode    = OptId & { type: 'Badge';    text: string; tone?: 'default' | 'success' | 'warning' | 'danger'; label?: string };
 export type SduiStatisticNode= OptId & { type: 'Statistic'; title: string; value: string | number; color?: SduiSemanticColor };
 export type SduiStatisticRowItem = { title: string; value: string | number; color?: SduiSemanticColor };
-export type SduiStatisticRowNode = OptId & { type: 'StatisticRow'; items: SduiStatisticRowItem[] };
+export type SduiStatisticRowNode = OptId & {
+  type: 'StatisticRow';
+  items: SduiStatisticRowItem[];
+  density?: 'default' | 'compact';
+};
 
 export type SduiKeyValueItem = { key: string; value: string };
 export type SduiKeyValueListNode = OptId & { type: 'KeyValueList'; items: SduiKeyValueItem[] };

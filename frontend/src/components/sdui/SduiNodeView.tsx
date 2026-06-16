@@ -457,17 +457,17 @@ const STAT_ACCENT: Record<string, string> = {
   subtle:  '#94a3b8',
 };
 
-function StatRow({ items }: { items: SduiStatisticRowItem[] }) {
+function StatRow({ items, density = 'default' }: { items: SduiStatisticRowItem[]; density?: 'default' | 'compact' }) {
+  const compact = density === 'compact';
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))',
-      gap: '10px',
+      gridTemplateColumns: compact ? 'repeat(auto-fill, minmax(96px, 1fr))' : 'repeat(auto-fill, minmax(108px, 1fr))',
+      gap: compact ? '8px' : '10px',
       flex: 1,
     }}>
       {items.map((item, i) => {
         const accent = item.color ? (STAT_ACCENT[item.color] ?? '#94a3b8') : '#94a3b8';
-        // 错开入场：每个 KPI 卡延迟 50ms * i，让统计数字依次亮起而非整块跳出
         const staggerDelay = `${Math.min(i, 6) * 0.05}s`;
         return (
           <div key={i} style={{
@@ -476,25 +476,36 @@ function StatRow({ items }: { items: SduiStatisticRowItem[] }) {
             border: '1px solid var(--c-border)',
             borderRadius: 'var(--r-md)',
             boxShadow: 'var(--shadow-xs)',
-            padding: '12px 16px 12px 20px',
+            padding: compact ? '10px 12px 10px 16px' : '12px 16px 12px 20px',
             overflow: 'hidden',
             animation: `sdui-node-in .22s cubic-bezier(.2,.65,.4,1) ${staggerDelay} both`,
           }}>
-            {/* Left 3px accent bar — sole color outlet (inset + rounded, v4 .d-stat) */}
-            <div style={{ position: 'absolute', left: 0, top: 11, bottom: 11, width: 3, borderRadius: '0 999px 999px 0', background: accent }} />
+            <div style={{ position: 'absolute', left: 0, top: compact ? 9 : 11, bottom: compact ? 9 : 11, width: 3, borderRadius: '0 999px 999px 0', background: accent }} />
             <div style={{
-              fontSize: 'var(--fs-11)', color: 'var(--c-text-muted)',
-              textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 500,
-              lineHeight: 1.2, minHeight: 24, display: 'flex', alignItems: 'flex-start',
+              fontSize: compact ? '12px' : 'var(--fs-11)',
+              color: compact ? 'var(--c-text-secondary, var(--text-secondary))' : 'var(--c-text-muted)',
+              textTransform: compact ? 'none' : 'uppercase',
+              letterSpacing: compact ? '0' : '.05em',
+              fontWeight: compact ? 600 : 500,
+              lineHeight: 1.3,
+              minHeight: compact ? 16 : 24,
+              display: 'flex',
+              alignItems: 'flex-start',
             }}>
               {item.title}
             </div>
             <div style={{
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-24)', fontWeight: 600,
+              fontFamily: 'var(--font-sans)',
+              fontSize: compact ? '17px' : 'var(--fs-24)',
+              fontWeight: 600,
               color: 'var(--c-text)',
-              marginTop: 5, letterSpacing: '-.01em', lineHeight: 1.1,
+              marginTop: compact ? 4 : 5,
+              letterSpacing: '-.01em',
+              lineHeight: 1.2,
               fontVariantNumeric: 'tabular-nums',
-              display: 'flex', alignItems: 'baseline', gap: 3,
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 3,
             }}>
               {String(item.value)}
             </div>
@@ -2156,7 +2167,7 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
 
     case 'StatisticRow':
-      return <StatRow items={node.items} />;
+      return <StatRow items={node.items} density={node.density} />;
 
     case 'KeyValueList':
       return <SduiKeyValueList items={node.items} />;

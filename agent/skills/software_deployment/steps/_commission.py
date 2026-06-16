@@ -88,6 +88,7 @@ def commission_run(
     if result.get("result_dir"):
         emit(f"  报告目录：{result.get('result_dir')}")
     from ._preview_metrics import build_commission_record
+    from ._commission_report_loader import enrich_commission_record
 
     from ..sdui import SD_STEP_ORDER
 
@@ -99,6 +100,7 @@ def commission_run(
     rd = str(result.get("result_dir") or "").strip().replace("\\", "/")
     if rd and "ProjectData/" in rd:
         rd = rd[rd.index("ProjectData/") :]
+    base_rec = build_commission_record(step_key, result)
     return {
         "current_step": step_key,
         "overall_progress": pct,
@@ -108,6 +110,6 @@ def commission_run(
             "command": command,
             "task_id": result.get("task_id", ""),
             "result_dir": result.get("result_dir", ""),
-            "commission_record": build_commission_record(step_key, result),
+            "commission_record": enrich_commission_record(base_rec, get_sd_root()),
         },
     }
