@@ -1189,8 +1189,11 @@ export default function SkillAgentScreen({
     const hadHitl = frozenDocSnap ? !!findNodeById(frozenDocSnap.root, 'hitl-card') : false;
     const hitlResolved = hadHitl && !hasHitl;
     const publishDone = usesDeliveryWorkbench && isMacroPublishDone(sduiDoc);
-    // 上传续跑后 HITL 已消解：立即拆冻结，避免右栏卡在「等待现场上传」
-    if (hitlResolved && !hasHitl) {
+    // 上传续跑后 HITL 已消解：立即拆冻结，避免右栏卡在「等待现场上传」。
+    // guihua（frozenTarget===0 无进度指标）排除：点「是，开始创建超节点」后 combo_create 执行期
+    // 实时 doc 暂无 hitl-card 会令 hitlResolved=true，若立即拆冻结左栏会闪「执行中 0%」空卡；
+    // 其解冻交由下方 frozenTarget===0 护栏（出现新交互卡 / workbench 推进）处理，以保持对话卡片。
+    if (hitlResolved && !hasHitl && skillId !== 'guihua') {
       frozenSnapshotRef.current = null;
       setFrozenDoc(null);
       diskPollBaselineRef.current = 0;
