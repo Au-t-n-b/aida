@@ -1,8 +1,13 @@
 {
   "skill": "system_design",
-  "run_id": "run-98847e7cad",
+  "run_id": "run-00d981fe04",
   "execution": {
     "steps": [
+      {
+        "step": "input_check",
+        "name": "输入件检查",
+        "status": "completed"
+      },
       {
         "step": "plane_planning",
         "name": null,
@@ -21,11 +26,6 @@
       {
         "step": "exec_confirm",
         "name": null,
-        "status": "completed"
-      },
-      {
-        "step": "input_check",
-        "name": "输入件检查",
         "status": "completed"
       },
       {
