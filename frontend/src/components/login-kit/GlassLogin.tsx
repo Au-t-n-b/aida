@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { initDecisionGraph } from './anim/decisionGraph.ts';
 import { initGlassIntro } from './anim/glassIntro.ts';
 import { RegisterModal } from './RegisterModal';
-import { applyApiError, apiErrorDiagnosticLines, type ApiErrorDetail } from '@/lib/api-error';
+import { applyApiError } from '@/lib/api-error';
 import './glass-login.css';
 
 interface GlassLoginProps {
@@ -37,7 +37,6 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
-  const [errorDetail, setErrorDetail] = useState<ApiErrorDetail | null>(null);
   const [registerOpen, setRegisterOpen] = useState(false);
   const [prefillUser, setPrefillUser] = useState('');
 
@@ -73,14 +72,13 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
     }
 
     setError('');
-    setErrorDetail(null);
     setDone(false);
     setLoading(true);
     try {
       await onSubmit(account, password);
       setDone(true);
     } catch (err) {
-      applyApiError(err, setError, setErrorDetail, '登录失败，请重试');
+      applyApiError(err, setError, () => {}, '登录失败，请重试');
       setDone(false);
     } finally {
       setLoading(false);
@@ -161,18 +159,8 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
               </div>
 
               {error ? (
-                <div className="lg-error" role="alert">
-                  <div className="lg-error-title">{error}</div>
-                  {errorDetail && apiErrorDiagnosticLines(errorDetail).length > 0 && (
-                    <dl className="lg-error-detail">
-                      {apiErrorDiagnosticLines(errorDetail).map((row) => (
-                        <div key={row.label}>
-                          <dt>{row.label}</dt>
-                          <dd>{row.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
+                <div className="lg-error" role="alert" title={error}>
+                  {error}
                 </div>
               ) : null}
 
@@ -211,7 +199,6 @@ export function GlassLogin({ onSubmit }: GlassLoginProps) {
         onSuccess={(name) => {
           setPrefillUser(name);
           setError('');
-          setErrorDetail(null);
         }}
       />
     </div>

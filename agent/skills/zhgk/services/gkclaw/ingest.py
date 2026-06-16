@@ -12,6 +12,7 @@ final 合并三道闸（任一不过 → 暂存 pending_results/ + 告警，merg
 """
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from . import package, schema
 from .registry import TaskRegistry, decide_inbound
 
 FILLED_TABLE_NAME = "已填写_全量勘测结果表.xlsx"
+RESULT_META_NAME = "gkclaw_result_meta.json"
 
 
 class MailboxExhausted(RuntimeError):
@@ -145,6 +147,21 @@ def _apply_result(
     if dest.exists():
         return _stash("先到先得：Input/ 已有待合并的人工上传表，邮件结果暂存 pending_results/")
     written = write_filled_table(survey_table_path, results, dest)
+    meta = {
+        "source": "mailgw",
+        "task_id": tid,
+        "survey_round": (reg.task_payload(tid) or {}).get("metadata", {}).get("survey_round"),
+        "completed_at": str(
+            (payload.get("session") or {}).get("completed_at")
+            or payload.get("completed_at")
+            or payload.get("submitted_at")
+            or ""
+        ),
+    }
+    (Path(input_dir) / RESULT_META_NAME).write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     note = f"最终回传已转写 {written} 条到 Input/{FILLED_TABLE_NAME}（走 wait_survey 合并通道）"
     if skipped:
         note += f"；跳过未下发条目 {skipped}"

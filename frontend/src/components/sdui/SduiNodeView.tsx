@@ -9,8 +9,10 @@
  */
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom } from '@/lib/sdui';
+import { createPortal } from 'react-dom';
+import type { SduiNode, SduiStatisticRowItem, SduiMachineRoom3DNode, SduiMachineRoom, SduiZhgkAssessmentPanelNode } from '@/lib/sdui';
 import { stableChildKey } from '@/lib/sduiKeys';
+import { useCommissionBusy } from '@/lib/commissionBusyStore';
 import { Badge, Button, Panel } from '@/components/primitives';
 import { SduiGanttChart } from './SduiGanttChart';
 import { SduiTabBarActionsContext } from './SduiTabBarActionsContext';
@@ -26,6 +28,213 @@ import { SduiContextBar, SduiFlowSteps } from './SduiWorkbench';
 import { useSduiRuntime } from './SduiContext';
 
 // ── Sub-components (must be real components for hook rules) ────────────────────
+
+function ZhgkAssessmentPanelView({ node }: { node: SduiZhgkAssessmentPanelNode }) {
+  const [active, setActive] = useState<SduiZhgkAssessmentPanelNode['categories'][number] | null>(null);
+  const categories = node.categories ?? [];
+  const total = node.total || 0;
+  const toneColor: Record<string, string> = {
+    success: 'var(--c-success)',
+    warning: 'var(--c-warning)',
+    error: 'var(--c-danger)',
+    danger: 'var(--c-danger)',
+    accent: 'var(--c-brand)',
+    subtle: 'var(--c-border-strong)',
+  };
+  const radius = 58;
+  const circumference = 2 * Math.PI * radius;
+  const dash = circumference * Math.max(0, Math.min(100, node.rateValue || 0)) / 100;
+
+  return (
+    <div style={{ overflow: 'hidden', borderRadius: 'var(--radius-lg)', background: '#fffaf0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: 'var(--sp-3) var(--pad-panel)', borderBottom: '1px solid rgba(217,119,6,.18)' }}>
+        <span style={{ width: 3, height: 14, borderRadius: 2, background: '#d97706', flexShrink: 0 }} />
+        <span style={{ fontWeight: 600, fontSize: 'var(--text-sm)', color: 'var(--text-primary)' }}>
+          {node.title ?? 'AI 五值评估'}（共 {total} 项）
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: 18 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 12 }}>
+          {categories.map((cat) => {
+            const color = toneColor[cat.tone ?? 'subtle'] || toneColor.subtle || 'var(--c-border-strong)';
+            const details = cat.details ?? [];
+            const clickable = details.length > 0 && Number(cat.value || 0) > 0;
+            return (
+              <button
+                key={cat.label}
+                type="button"
+                aria-disabled={!clickable}
+                onClick={() => clickable && setActive(cat)}
+                style={{
+                  position: 'relative',
+                  minHeight: 86,
+                  padding: '14px 14px 12px',
+                  textAlign: 'left',
+                  borderRadius: 6,
+                  border: '1px solid var(--c-border)',
+                  background: 'var(--c-surface)',
+                  boxShadow: 'var(--shadow-xs)',
+                  cursor: clickable ? 'pointer' : 'default',
+                  overflow: 'hidden',
+                  transition: 'border-color .14s, box-shadow .14s, transform .14s',
+                }}
+                onMouseEnter={(event) => {
+                  if (!clickable) return;
+                  event.currentTarget.style.borderColor = color;
+                  event.currentTarget.style.boxShadow = '0 10px 24px rgba(15,23,42,.10)';
+                  event.currentTarget.style.transform = 'translateY(-1px)';
+                }}
+                onMouseLeave={(event) => {
+                  event.currentTarget.style.borderColor = 'var(--c-border)';
+                  event.currentTarget.style.boxShadow = 'var(--shadow-xs)';
+                  event.currentTarget.style.transform = 'none';
+                }}
+              >
+                <span style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 4, background: color }} />
+                <span style={{ display: 'block', color: 'var(--text-secondary)', fontSize: 13, lineHeight: 1.2, marginBottom: 11, whiteSpace: 'nowrap' }}>
+                  {cat.label}
+                </span>
+                <span style={{ display: 'block', color: 'var(--c-text)', fontFamily: 'var(--font-mono)', fontSize: 22, fontWeight: 800, lineHeight: 1 }}>
+                  {cat.value}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '220px minmax(0, 1fr)', gap: 28, alignItems: 'center' }}>
+          <div style={{ minHeight: 152, display: 'grid', placeItems: 'center' }}>
+            <svg width="136" height="136" viewBox="0 0 168 168" aria-label={node.rateLabel ?? '满足率'}>
+              <circle cx="84" cy="84" r={radius} fill="none" stroke="rgba(226,232,240,.9)" strokeWidth="20" />
+              <circle
+                cx="84"
+                cy="84"
+                r={radius}
+                fill="none"
+                stroke="var(--c-warning)"
+                strokeWidth="20"
+                strokeDasharray={`${dash} ${circumference - dash}`}
+                strokeLinecap="butt"
+                transform="rotate(-90 84 84)"
+              />
+              <text x="84" y="82" textAnchor="middle" fontSize="24" fontWeight="800" fill="var(--c-text)" fontFamily="var(--font-mono)">
+                {node.rateValue}%
+              </text>
+              <text x="84" y="105" textAnchor="middle" fontSize="13" fill="var(--text-secondary)">
+                {node.rateLabel ?? '满足率'}
+              </text>
+            </svg>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {categories.map((cat) => {
+              const value = Number(cat.value || 0);
+              const pct = total ? Math.round(value / total * 100) : 0;
+              const color = toneColor[cat.tone ?? 'subtle'] || toneColor.subtle || 'var(--c-border-strong)';
+              return (
+                <div key={cat.label}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '76px minmax(0, 1fr) 96px', alignItems: 'center', gap: 12, marginBottom: 6 }}>
+                    <span style={{ fontSize: 13, color: 'var(--c-text)', whiteSpace: 'nowrap' }}>{cat.label}</span>
+                    <div style={{ height: 9, borderRadius: 999, background: '#eef2f7', overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: color, borderRadius: 999 }} />
+                    </div>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12.5, fontWeight: 800, color: 'var(--c-text)', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {value} <span style={{ fontFamily: 'var(--font-sans)', fontWeight: 500 }}>项</span>
+                      <span style={{ color: 'var(--text-secondary)', fontWeight: 600 }}>（{pct}%）</span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {(node.alerts ?? []).length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {(node.alerts ?? []).map((alert, i) => {
+              const isError = alert.tone === 'error';
+              return (
+                <div key={i} style={{
+                  border: `1px solid ${isError ? 'rgba(220,38,38,.18)' : 'rgba(217,119,6,.22)'}`,
+                  background: isError ? 'rgba(254,242,242,.75)' : 'rgba(255,247,230,.65)',
+                  borderRadius: 6,
+                  padding: '11px 13px',
+                  color: isError ? 'var(--c-danger-text)' : '#9a5b05',
+                }}>
+                  {alert.title && <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>{alert.title}</div>}
+                  <div style={{ fontSize: 13, lineHeight: 1.6 }}>{alert.message}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {active && typeof document !== 'undefined' && createPortal((
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${active.label}明细`}
+          onClick={() => setActive(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,.38)', display: 'grid', placeItems: 'center', padding: 24 }}
+        >
+          <div onClick={(event) => event.stopPropagation()} style={{
+            width: 'min(1040px, calc(100vw - 48px))',
+            maxHeight: 'calc(100vh - 80px)',
+            overflow: 'hidden',
+            borderRadius: 8,
+            border: '1px solid var(--c-border)',
+            background: 'var(--c-surface)',
+            boxShadow: '0 24px 80px rgba(15,23,42,.26)',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '18px 20px', borderBottom: '1px solid var(--c-border)' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--c-text)' }}>{active.label}</div>
+                <div style={{ marginTop: 4, fontSize: 12, color: 'var(--c-text-muted)' }}>共 {(active.details ?? []).length} 项</div>
+              </div>
+              <button type="button" onClick={() => setActive(null)} aria-label="关闭" style={{ width: 32, height: 32, borderRadius: 6, border: '1px solid var(--c-border)', background: 'var(--c-surface-2)', color: 'var(--c-text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: 20, flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ border: '1px solid var(--c-border)', borderRadius: 6, overflow: 'auto', minHeight: 0 }}>
+                <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', tableLayout: 'fixed', fontSize: 13, fontFamily: 'var(--font-sans)' }}>
+                  <colgroup>
+                    <col style={{ width: '52%' }} />
+                    <col style={{ width: '10%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '14%' }} />
+                    <col style={{ width: '10%' }} />
+                  </colgroup>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', color: 'var(--c-text-muted)', fontWeight: 800 }}>
+                      <th style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>工勘项</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'center', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>工勘结果</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'center', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>结果来源</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'center', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>勘测时间</th>
+                      <th style={{ padding: '11px 12px', textAlign: 'left', borderBottom: '1px solid var(--c-border)', whiteSpace: 'nowrap' }}>风险</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(active.details ?? []).map((detail, index) => (
+                      <tr key={`${detail.item ?? 'item'}-${index}`}>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--c-text)', lineHeight: 1.45, wordBreak: 'break-word' }}>{detail.item || '未填写'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', lineHeight: 1.45, textAlign: 'center', wordBreak: 'break-word' }}>{detail.result || '未填写'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', lineHeight: 1.45, textAlign: 'center', wordBreak: 'break-word' }}>{detail.source || '未填写'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: 'var(--text-secondary)', lineHeight: 1.45, textAlign: 'center', wordBreak: 'break-word' }}>{detail.time || '未记录'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid var(--c-border)', color: detail.risk ? 'var(--c-warning-text)' : 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 400, lineHeight: 1.45, textAlign: 'left', wordBreak: 'break-word' }}>{detail.risk || '暂无'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
+    </div>
+  );
+}
 
 // EmbeddedWeb — iframe 承载外部 Web UI（nVisual 仿真软件）。保留「刷新」+「新页打开」。
 // 独立组件以满足 hook 规则（switch case 内不能用 useState/useRef）。
@@ -248,17 +457,17 @@ const STAT_ACCENT: Record<string, string> = {
   subtle:  '#94a3b8',
 };
 
-function StatRow({ items }: { items: SduiStatisticRowItem[] }) {
+function StatRow({ items, density = 'default' }: { items: SduiStatisticRowItem[]; density?: 'default' | 'compact' }) {
+  const compact = density === 'compact';
   return (
     <div style={{
       display: 'grid',
-      gridTemplateColumns: 'repeat(auto-fill, minmax(108px, 1fr))',
-      gap: '10px',
+      gridTemplateColumns: compact ? 'repeat(auto-fill, minmax(96px, 1fr))' : 'repeat(auto-fill, minmax(108px, 1fr))',
+      gap: compact ? '8px' : '10px',
       flex: 1,
     }}>
       {items.map((item, i) => {
         const accent = item.color ? (STAT_ACCENT[item.color] ?? '#94a3b8') : '#94a3b8';
-        // 错开入场：每个 KPI 卡延迟 50ms * i，让统计数字依次亮起而非整块跳出
         const staggerDelay = `${Math.min(i, 6) * 0.05}s`;
         return (
           <div key={i} style={{
@@ -267,25 +476,36 @@ function StatRow({ items }: { items: SduiStatisticRowItem[] }) {
             border: '1px solid var(--c-border)',
             borderRadius: 'var(--r-md)',
             boxShadow: 'var(--shadow-xs)',
-            padding: '12px 16px 12px 20px',
+            padding: compact ? '10px 12px 10px 16px' : '12px 16px 12px 20px',
             overflow: 'hidden',
             animation: `sdui-node-in .22s cubic-bezier(.2,.65,.4,1) ${staggerDelay} both`,
           }}>
-            {/* Left 3px accent bar — sole color outlet (inset + rounded, v4 .d-stat) */}
-            <div style={{ position: 'absolute', left: 0, top: 11, bottom: 11, width: 3, borderRadius: '0 999px 999px 0', background: accent }} />
+            <div style={{ position: 'absolute', left: 0, top: compact ? 9 : 11, bottom: compact ? 9 : 11, width: 3, borderRadius: '0 999px 999px 0', background: accent }} />
             <div style={{
-              fontSize: 'var(--fs-11)', color: 'var(--c-text-muted)',
-              textTransform: 'uppercase', letterSpacing: '.05em', fontWeight: 500,
-              lineHeight: 1.2, minHeight: 24, display: 'flex', alignItems: 'flex-start',
+              fontSize: compact ? '12px' : 'var(--fs-11)',
+              color: compact ? 'var(--c-text-secondary, var(--text-secondary))' : 'var(--c-text-muted)',
+              textTransform: compact ? 'none' : 'uppercase',
+              letterSpacing: compact ? '0' : '.05em',
+              fontWeight: compact ? 600 : 500,
+              lineHeight: 1.3,
+              minHeight: compact ? 16 : 24,
+              display: 'flex',
+              alignItems: 'flex-start',
             }}>
               {item.title}
             </div>
             <div style={{
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--fs-24)', fontWeight: 600,
+              fontFamily: 'var(--font-sans)',
+              fontSize: compact ? '17px' : 'var(--fs-24)',
+              fontWeight: 600,
               color: 'var(--c-text)',
-              marginTop: 5, letterSpacing: '-.01em', lineHeight: 1.1,
+              marginTop: compact ? 4 : 5,
+              letterSpacing: '-.01em',
+              lineHeight: 1.2,
               fontVariantNumeric: 'tabular-nums',
-              display: 'flex', alignItems: 'baseline', gap: 3,
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: 3,
             }}>
               {String(item.value)}
             </div>
@@ -334,6 +554,111 @@ function GoldenMetricsCards({ items }: { items: SduiStatisticRowItem[] }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function ZhgkGoldenMetricsView({
+  progress,
+  centerLabel,
+  items,
+}: {
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+}) {
+  const pct = Math.max(0, Math.min(100, Number(progress) || 0));
+  const size = 112;
+  const r = 42;
+  const circumference = 2 * Math.PI * r;
+  const dash = (pct / 100) * circumference;
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-start',
+      gap: '28px 34px',
+      flexWrap: 'wrap',
+      width: '100%',
+    }}>
+      <div style={{
+        width: 'min(112px, 28vw)',
+        minWidth: 88,
+        flex: '0 0 auto',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--zinc-100)" strokeWidth={12} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke="var(--c-brand,#3551d8)" strokeWidth={12}
+            strokeDasharray={`${dash} ${circumference - dash}`}
+            strokeLinecap="butt"
+            transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            style={{ transition: 'stroke-dasharray .22s ease' }}
+          />
+          <text x={size / 2} y={centerLabel ? 55 : 60} textAnchor="middle" fontSize="22" fontWeight={700}
+                fill="var(--text-primary)" fontFamily="var(--font-mono)">
+            {pct}%
+          </text>
+          {centerLabel && (
+            <text x={size / 2} y={73} textAnchor="middle" fontSize="11" fill="var(--text-tertiary)">
+              {centerLabel}
+            </text>
+          )}
+        </svg>
+      </div>
+      <div style={{
+        flex: '1 1 420px',
+        minWidth: 0,
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 240px))',
+        justifyContent: 'start',
+        gap: '12px',
+      }}>
+        {items.map((item, i) => {
+          const accent = item.color ? (STAT_ACCENT[item.color] ?? '#94a3b8') : '#94a3b8';
+          const value = String(item.value);
+          const isLong = value.length >= 6 || /[/·]/.test(value);
+          return (
+            <div key={i} style={{
+              position: 'relative',
+              minHeight: 116,
+              background: 'var(--c-surface)',
+              border: '1px solid var(--c-border)',
+              borderRadius: 'var(--r-md)',
+              boxShadow: 'var(--shadow-xs)',
+              padding: '16px 18px 16px 22px',
+              overflow: 'hidden',
+            }}>
+              <div style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: '0 999px 999px 0', background: accent }} />
+              <div style={{
+                fontSize: 'var(--fs-12)',
+                color: 'var(--c-text-muted)',
+                fontWeight: 500,
+                lineHeight: 1.25,
+              }}>
+                {item.title}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: isLong ? 24 : 28,
+                fontWeight: 640,
+                color: 'var(--c-text)',
+                marginTop: 14,
+                letterSpacing: 0,
+                lineHeight: 1.18,
+                fontVariantNumeric: 'tabular-nums',
+                wordBreak: 'keep-all',
+                overflowWrap: 'anywhere',
+              }}>
+                {value}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1664,6 +1989,7 @@ function MachineRoom3DView({ node }: { node: SduiMachineRoom3DNode }) {
 
 export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
   const { onAction, onChoiceSubmit, onFormSubmit, commissionExecuting = null } = useSduiRuntime();
+  const commissionBusy = useCommissionBusy();
 
   const renderChildren = (children: SduiNode[] | undefined) =>
     children?.map((child, i) => {
@@ -1841,7 +2167,7 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       );
 
     case 'StatisticRow':
-      return <StatRow items={node.items} />;
+      return <StatRow items={node.items} density={node.density} />;
 
     case 'KeyValueList':
       return <SduiKeyValueList items={node.items} />;
@@ -1860,13 +2186,18 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       const isThis = Boolean(
         commissionExecuting && stepKey && commissionExecuting.stepKey === stepKey,
       );
+      const isCommissionBtn = btnId.startsWith('sd-cmd-');
+      const blocked = Boolean(
+        (commissionExecuting && isCommissionBtn)
+        || (commissionBusy.active && isCommissionBtn),
+      );
       return (
         <Button
           variant={v}
           size="sm"
-          disabled={isThis}
+          disabled={isThis || blocked}
           onClick={() => onAction(node.action)}
-          style={isThis ? { minWidth: 120 } : undefined}
+          style={(isThis || blocked) ? { minWidth: 120, pointerEvents: isThis ? undefined : 'none' } : undefined}
         >
           {isThis ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
@@ -1914,6 +2245,12 @@ export function SduiNodeView({ node, pathPrefix = 'root' }: Props) {
       }));
       return <GoldenMetricsCards items={items} />;
     }
+
+    case 'ZhgkGoldenMetrics':
+      return <ZhgkGoldenMetricsView progress={node.progress} centerLabel={node.centerLabel} items={node.items} />;
+
+    case 'ZhgkAssessmentPanel':
+      return <ZhgkAssessmentPanelView node={node} />;
 
     // ── v1.1 display nodes ──
 

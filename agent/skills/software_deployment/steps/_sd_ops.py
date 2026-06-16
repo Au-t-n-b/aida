@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..bridge import ensure_runtime, import_sd_script
+from ..bridge import ensure_gateway_config, ensure_runtime, import_sd_script
 
 INIT_INSTALL_COMMANDS: tuple[str, ...] = (
     "connection",
@@ -48,6 +48,36 @@ def scene_is_multi_pods(root: Path) -> bool:
     scene = _load_scene(root)
     pod = str(scene.get("pod_info") or scene.get("podInfo") or "").strip().lower()
     return pod == "multi_pods"
+
+
+_SCENE_LABELS: dict[str, str] = {
+    "air_cooling": "风冷",
+    "liquid_cooling": "液冷",
+    "infer": "推理",
+    "train": "训练",
+    "train_infer": "训推",
+    "single_pod": "单 Pod",
+    "multi_pods": "多 Pod",
+}
+
+
+def scene_summary_text(root: Path) -> str:
+    """plan_split HITL 展示用：当前 scene.json 规格摘要。"""
+    scene = _load_scene(root)
+    if not scene:
+        return "场景待同步（将按 projects_registry 默认 infer/单Pod）"
+    parts: list[str] = []
+    for key, label in (
+        ("train_infer_scene", "训练/推理"),
+        ("pod_info", "Pod"),
+        ("cooling", "制冷"),
+        ("product_specification", "产品规格"),
+    ):
+        raw = scene.get(key) or scene.get(key.replace("_", "").title()) or ""
+        val = str(raw).strip()
+        if val:
+            parts.append(f"{label}={_SCENE_LABELS.get(val, val)}")
+    return " · ".join(parts) if parts else "默认场景"
 
 
 def _chain(root: Path) -> dict[str, Any]:
@@ -348,6 +378,46 @@ def op_cloudops_material_check(root: Path) -> dict[str, Any]:
     }
 
 
+def load_standalone_executor(root: Path) -> dict[str, Any]:
+    """大盘旁路读取执行机配置（不触发 LangGraph 步骤）。"""
+    ensure_runtime(root)
+    from toolkit_executor import load_executor_config  # noqa: WPS433
+
+    cfg = load_executor_config(root)
+    ip = str(cfg.get("base_url_ip") or "").strip()
+    sk = str(cfg.get("secret_key") or "").strip()
+    port = str(cfg.get("base_url_port") or "28880").strip() or "28880"
+    return {
+        "ok": True,
+        "base_url_ip": ip,
+        "secret_key": sk,
+        "base_url_port": port,
+        "configured": bool(ip and sk),
+    }
+
+
+def save_standalone_executor(
+    root: Path,
+    *,
+    base_url_ip: str,
+    secret_key: str,
+    base_url_port: str = "28880",
+) -> dict[str, Any]:
+    """大盘旁路写入 toolkit_executor.json（仅落盘 + chain 标记，不改 run 进度）。"""
+    ensure_runtime(root)
+    from toolkit_executor import save_executor_config  # noqa: WPS433
+
+    ip = str(base_url_ip or "").strip()
+    sk = str(secret_key or "").strip()
+    if not ip or not sk:
+        return {"ok": False, "error": "IP 与 SK 不能为空"}
+    port = str(base_url_port or "28880").strip() or "28880"
+    cfg = {"base_url_ip": ip, "secret_key": sk, "base_url_port": port}
+    save_executor_config(root, cfg)
+    _merge_chain(root, step7_executor_config_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    return {"ok": True, "base_url_ip": ip, "base_url_port": port}
+
+
 def op_toolkit_executor(root: Path, config: dict[str, str] | None = None) -> dict[str, Any]:
     ensure_runtime(root)
     from toolkit_executor import load_executor_config, save_executor_config  # noqa: WPS433
@@ -366,6 +436,7 @@ def op_toolkit_executor(root: Path, config: dict[str, str] | None = None) -> dic
 
 
 def op_toolkit_import(root: Path) -> dict[str, Any]:
+    ensure_gateway_config(root)
     mod = import_sd_script(root, "8_toolkit_import", "toolkit_import")
     result = mod.run_step8_import_and_refresh(skill_dir=str(root))
     if not result.ok:
@@ -385,12 +456,24 @@ def op_commission_command(
     command: str,
     *,
     scope: str = "all",
+    pod_ids: list[int] | None = None,
+    devices: list[str] | None = None,
+    task_no: str = "",
+    only_installed: bool = True,
     mark_init_install_complete: bool = False,
 ) -> dict[str, Any]:
     if command not in INIT_INSTALL_COMMANDS:
         return {"ok": False, "error": f"不支持的 init_install 命令: {command}"}
     mod = import_sd_script(root, "9_commission/shared/task_runner", "task_runner")
-    result = mod.run_command(str(root), command, scope=scope)
+    result = mod.run_command(
+        str(root),
+        command,
+        scope=scope,
+        pod_ids=pod_ids,
+        devices=devices,
+        task_no=task_no,
+        only_installed=only_installed,
+    )
     if not result.ok:
         return {"ok": False, "error": result.message, "detail": result.detail}
     if mark_init_install_complete:
@@ -406,9 +489,9 @@ def op_commission_command(
 
 
 def op_commission_report(root: Path) -> dict[str, Any]:
-    """生成 Raw Skill 的调测报告汇总 xlsx。"""
+    """生成 Raw Skill 的调测报告汇总 xlsx（对齐 driver._report_aggregate）。"""
     mod = import_sd_script(root, "9_commission/shared", "report_aggregate")
-    res = mod.build_aggregate(str(root))
+    res = mod.build_aggregate(str(root), task_types=list(INIT_INSTALL_COMMANDS))
     if isinstance(res, dict) and res.get("latestPath"):
         return {
             "ok": True,

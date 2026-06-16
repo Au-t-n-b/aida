@@ -12,6 +12,9 @@ v4 目录结构：Template/（底表/模板）· Input/（BOQ/人员）· Output
 
   # 完整复制整个 ProjectData（不触发缺文件 HITL）
   python agent/scripts/init_zhgk_workspace.py --dest "%USERPROFILE%\\Desktop\\zhgk-desktop" --copy-all
+
+  # 换底表后清运行态、保留 Template（见 reset_zhgk_workspace.py）
+  python agent/scripts/reset_zhgk_workspace.py
 """
 from __future__ import annotations
 
@@ -25,6 +28,8 @@ DEFAULT_SRC = Path(os.environ.get(
     "ZHGK_ROOT",
     Path.home() / ".nanobot" / "workspace" / "skills" / "zhgk",
 ))
+FIXTURES_DIR = Path(__file__).resolve().parent.parent / "skills" / "zhgk" / "fixtures"
+DEFAULT_DEMO_PROJECT_ID = "70e5ca737ae5433e9f0f3134d216acf7"
 # 若已指向桌面，回退到 nanobot 默认源
 if "Desktop" in str(DEFAULT_SRC) or "desktop" in str(DEFAULT_SRC).lower():
     DEFAULT_SRC = Path.home() / ".nanobot" / "workspace" / "skills" / "zhgk"
@@ -48,15 +53,16 @@ ZHGK_ROOT={dest}
 
 | 你想测什么 | 做法 |
 |-----------|------|
-| **缺底表（HITL 上传）** | 保持 `Template/` 为空 → 启动工勘 → `preflight` / `filter_build` HITL |
+| **缺底表（HITL 上传）** | 保持 `Template/` 为空 → 启动工勘 → `filter_build` HITL 自行上传两张底表 |
 | **缺 BOQ** | `--copy-template` 后，确保 `Input/` 里没有 `*BOQ*.xlsx` → HITL 提示补 BOQ |
 | **缺报告模板** | Template 有底表但缺 `新版项目工勘报告模板.docx` → report_gen 用内置模板降级 |
+| **演示工勘报告** | 随项目 demo 入库；init/reset 从 `data/projects/{project_id}/交付作业/智慧工勘/输入文件/` 复制到 `Input/` |
 | **补齐后续跑** | 把文件放进对应目录，或 `POST /agent/zhgk/upload` → `/resume` |
 
 ## 目录说明（v4）
 
-- `Template/` — 固定底表（入场评估标准表.xlsx / 工勘常见高风险库.xlsx / 新版项目工勘报告模板.docx）
-- `Input/`    — 项目输入（BOQ.xlsx / 远近一体化人员信息.xlsx / 勘测结果.xlsx）
+- `Template/` — 底表（入场评估标准表 / 工勘常见高风险库）由 filter_build HITL 自行上传，不随项目 demo 打包
+- `Input/`    — 项目输入（BOQ.xlsx / 远近一体化人员信息.xlsx / 勘测结果.xlsx / 本地工勘报告.pdf 演示件）
 - `RunTime/`  — 中间状态（project_info.json / 过滤底表）
 - `Output/`   — 产物（全量勘测结果表 / 问题清单 / 风险表 / 工勘报告）
 - `Images/`   — 勘测照片
@@ -74,6 +80,26 @@ curl -F "kind=template" -F "file=@D:\\path\\入场评估标准表.xlsx" http://1
 curl -F "kind=template" -F "file=@D:\\path\\工勘常见高风险库.xlsx" http://127.0.0.1:7401/agent/zhgk/upload
 ```
 """
+
+
+def seed_mock_report(input_dir: Path) -> bool:
+    """从项目 demo 数据预置 report_gen_run 所需的演示工勘报告。"""
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from agent.skills.zhgk.demo_assets import seed_mock_report_to_workspace
+
+        dest = seed_mock_report_to_workspace(
+            input_dir,
+            project_id=DEFAULT_DEMO_PROJECT_ID,
+        )
+    except Exception as exc:
+        print(f"[init] 跳过演示工勘报告：{exc}")
+        return False
+    if dest is None:
+        print("[init] 跳过演示工勘报告：项目 demo 资产不存在")
+        return False
+    print(f"[init] 已预置演示工勘报告: {dest}")
+    return True
 
 
 def main() -> int:
@@ -102,6 +128,8 @@ def main() -> int:
     for sub in SUBDIRS:
         (pd / sub).mkdir(parents=True, exist_ok=True)
 
+    seed_mock_report(pd / "Input")
+
     if args.copy_all:
         src_pd = src / "ProjectData"
         if not src_pd.is_dir():
@@ -118,8 +146,9 @@ def main() -> int:
         src_tpl = src / "ProjectData" / "Template"
         if not src_tpl.is_dir():
             print(f"[init] 源 Template 不存在: {src_tpl}")
-            print("       请先确认 ZHGK_ROOT 中有 v4 Template/ 目录，或手动放入三个底表文件：")
-            print("         入场评估标准表.xlsx / 工勘常见高风险库.xlsx / 新版项目工勘报告模板.docx")
+            print("       请先确认 ZHGK_ROOT 中有 v4 Template/ 目录，或手动放入底表文件：")
+            print("         入场评估标准表.xlsx / 工勘常见高风险库.xlsx")
+            print("       新版项目工勘报告模板.docx 可选，缺失时走内置演示模板/本地样例报告。")
             return 1
         for f in src_tpl.iterdir():
             if f.is_file():
@@ -139,10 +168,12 @@ def main() -> int:
     elif args.copy_template and not args.copy_all:
         print("       （已复制 Template，Input 无 BOQ → 适合测「缺 BOQ」HITL）")
     print()
-    print("必须手动放置的三个模板文件（若未使用 --copy-template）：")
+    print("底表文件（filter_build HITL 自行上传，不随项目 demo 打包）：")
     print("  Template/入场评估标准表.xlsx")
     print("  Template/工勘常见高风险库.xlsx")
     print("  Template/新版项目工勘报告模板.docx（可选）")
+    print("演示工勘报告（随项目 demo 入库，init/reset 自动复制到 Input/）：")
+    print(f"  data/projects/{DEFAULT_DEMO_PROJECT_ID}/交付作业/智慧工勘/输入文件/本地工勘报告.pdf")
     return 0
 
 

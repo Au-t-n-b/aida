@@ -1,0 +1,32 @@
+{
+  "projectId": "56A0TXN",
+  "baseProposalVersion": "V2.4_20260615171738_DRB",
+  "workingVersionLabel": "草稿",
+  "status": "draft",
+  "createdBy": "liwen",
+  "createdAt": "2026-06-13T08:27:16.364558+00:00",
+  "updatedBy": "何博",
+  "updatedAt": "2026-06-16T01:15:44.341167+00:00",
+  "dirty": false,
+  "changeDescription": "",
+  "changeRecords": [],
+  "latestReleaseVersion": "V2.4_20260615171738_DRB",
+  "publishedVersions": [
+    "V1.0_20260613162723_DRB",
+    "V1.1_20260613162743_DRB",
+    "V1.2_20260613163548_DRB",
+    "V1.3_20260613165304_DRB",
+    "V1.4_20260613165312_DRB",
+    "V1.5_20260613165348_DRB",
+    "V1.6_20260613165546_DRB",
+    "V1.7_20260613170405_DRB",
+    "V1.8_20260613173932_DRB",
+    "V1.9_20260613202048_DRB",
+    "V2.0_20260613205222_DRB",
+    "V2.1_20260613211416_DRB",
+    "V2.2_20260614213043_DRB",
+    "V2.3_20260614220356_DRB",
+    "V2.4_20260615171738_DRB"
+  ],
+  "etag": "W/\"0e18c1213c5b\""
+}

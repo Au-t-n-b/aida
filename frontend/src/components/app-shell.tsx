@@ -5,6 +5,13 @@ import { useNavigate } from 'react-router-dom';
 import Link from '@/compat/link';
 import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
+import { useSessionUser } from '@/hooks/useSessionUser';
+import {
+  PROJECT_LIST_MINI,
+  resolveTopBarProjectDisplayName,
+  type ProjectMini,
+  type ProjectRoleChip,
+} from '@/data/topbar-projects';
 import { LeftNavFdy } from './left-nav-fdy';
 type AppShellProps = {
   children: ReactNode;
@@ -39,50 +46,6 @@ const WELINK_TONE = {
   invite:   { tone: 'violet', label: '会议' },
 };
 
-/* TopBar 项目下拉数据 · 简化为「项目下拉 + 铃铛 + 头像」3 元素
- * G-3 · 每个项目展示 PD / TD / PCM 多角色 chip，让切换时一眼看到协作关系 */
-type ProjectRoleChip = { role: 'PD' | 'TD' | 'PCM' | 'TL' | 'OCC'; name: string };
-type ProjectMini = {
-  id: string;
-  name: string;
-  code?: string;
-  roles: ProjectRoleChip[];
-};
-const PROJECT_LIST_MINI: ProjectMini[] = [
-  {
-    id: 'K1903', name: '京东三期',
-    roles: [
-      { role: 'PD',  name: '李伟' },
-      { role: 'TD',  name: '何博' },
-      { role: 'PCM', name: '王婷' },
-      { role: 'OCC', name: '黎芳' },
-    ],
-  },
-  {
-    id: 'A1',    name: 'A1 智算集群一期',
-    roles: [
-      { role: 'PD',  name: '李伟' },
-      { role: 'TD',  name: '王明' },
-      { role: 'TL',  name: '调试组 K' },
-    ],
-  },
-  {
-    id: 'B2',    name: 'B2 智算中心',
-    roles: [
-      { role: 'PD',  name: '李伟' },
-      { role: 'TD',  name: '赵丹' },
-      { role: 'TL',  name: '施工队 07' },
-    ],
-  },
-  {
-    id: 'C3',    name: 'C3 算力底座扩容',
-    roles: [
-      { role: 'PD',  name: '周晗' },
-      { role: 'TD',  name: '王明' },
-    ],
-  },
-];
-
 const ROLE_CHIP_TONE: Record<ProjectRoleChip['role'], string> = {
   PD:  'amber',
   TD:  'blue',
@@ -95,19 +58,18 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
   const navigate = useNavigate();
   const doLogout = useLogout();
   const { project, selectProject } = useCurrentProject();
+  const sessionUser = useSessionUser();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const unread = WELINK_MSGS.length;
   const currentId = project?.id ?? PROJECT_LIST_MINI[0]!.id;
-  const currentName = project?.name
-    ?? PROJECT_LIST_MINI.find((p) => p.id === currentId)?.name
-    ?? PROJECT_LIST_MINI[0]!.name;
+  const currentName = resolveTopBarProjectDisplayName(project);
 
   const switchProject = (p: (typeof PROJECT_LIST_MINI)[number]) => {
     selectProject({ id: p.id, name: p.name, code: p.code ?? p.id });
     setProjOpen(false);
-    navigate('/cockpit');
+    navigate('/preview');
   };
 
   return (
@@ -153,8 +115,8 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
         </button>
         <div style={{ position: 'relative' }}>
           <div className="user-chip" onClick={() => setUserOpen(o => !o)}>
-            <div className="av">HE</div>
-            <span>何博</span>
+            <div className="av">{sessionUser.avatarInitials}</div>
+            <span>{sessionUser.displayName}</span>
             <span className="topbar-project-caret">▾</span>
           </div>
           {userOpen && (
@@ -163,7 +125,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
               style={{ left: 'auto', right: 0, minWidth: 200 }}
               onMouseLeave={() => setUserOpen(false)}
             >
-              <div className="topbar-project-pop-head">何博 · 交付经理 · 智算 Q3</div>
+              <div className="topbar-project-pop-head">{sessionUser.profileHeadline}</div>
               <button
                 type="button"
                 className="topbar-project-row"

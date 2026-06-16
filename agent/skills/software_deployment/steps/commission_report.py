@@ -14,10 +14,10 @@ class CommissionReportStep(BaseStep):
     ]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
-        if not _chain(ctx.work_root).get("step9_init_install_at"):
+        if not _chain(ctx.work_root).get("step8_toolkit_import_at"):
             return {
                 "ok": False,
-                "missing": ["init_install 四条命令未完成（需先 hccs_weak_light）"],
+                "missing": ["Toolkit 导入完成标记（需先 toolkit_import）"],
                 "found": [],
                 "note": "",
             }
@@ -25,8 +25,12 @@ class CommissionReportStep(BaseStep):
             ctx.project,
             self.key,
             "确认生成调测报告",
-            note="四条 init_install 检查已完成，请确认生成报告汇总。",
-            description="将汇总 connection / lq_connection / weak_light / hccs_weak_light 结果。",
+            note="Toolkit 已就绪，请确认生成调测报告汇总。",
+            description=(
+                "将汇总全部 init_install 调测命令（connection / lq_connection / "
+                "weak_light / hccs_weak_light）：已测命令写入结果与明细，"
+                "未测命令在总览中标「未测试」（与 Agent report_aggregate 一致）。"
+            ),
         )
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
@@ -47,6 +51,9 @@ class CommissionReportStep(BaseStep):
         return {
             "current_step": self.key,
             "overall_progress": pct,
+            "artifacts": [
+                str(result.get("report_path") or "").replace("\\", "/"),
+            ] if result.get("report_path") else [],
             "metrics": {
                 "report_generated": True,
                 "report_path": result.get("report_path", ""),

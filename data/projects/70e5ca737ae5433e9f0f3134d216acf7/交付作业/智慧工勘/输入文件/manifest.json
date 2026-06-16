@@ -1,0 +1,11 @@
+{
+  "artifact": "本地工勘报告.pdf",
+  "role": "zhgk report_gen_run 演示工勘报告（随项目 demo 数据入库）",
+  "scope": "project",
+  "project_id": "70e5ca737ae5433e9f0f3134d216acf7",
+  "project_path": "data/projects/70e5ca737ae5433e9f0f3134d216acf7/交付作业/智慧工勘/输入文件/本地工勘报告.pdf",
+  "runtime_path": "ProjectData/Input/本地工勘报告.pdf",
+  "project_name": "京东3期",
+  "sync_script": "agent/scripts/sync_zhgk_mock_report.py",
+  "note": "入场评估标准表、工勘常见高风险库为组织资产，不随项目打包，由 filter_build HITL 自行上传。"
+}

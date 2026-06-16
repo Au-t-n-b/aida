@@ -28,6 +28,7 @@ import {
   runPatchRun,
   resetWorkspace,
   isIdleLikeSduiDoc,
+  isRunUnavailableDoc,
   fetchUiSnapshot,
   fetchRunStatus,
   runStepOutcome,
@@ -41,17 +42,38 @@ import {
   emitCommissionProgress,
   formatCommissionScope,
   isCommissionStepSettledInDoc,
+  isCommissionStepSettledInStatus,
+  isStepFailedInDoc,
+  isToolkitHubReadyInDoc,
+  isToolkitImportSettledInDoc,
+  isToolkitImportSettledInStatus,
   readCommissionKpi,
   readReportArtifactPath,
+  readStepDetailError,
+  readCommissionProject,
+  readCommissionRecordFromStatus,
+  readCommissionRecordFromDoc,
+  formatCommissionResultChat,
+  isScopeConfirmInDoc,
 } from '@/lib/commissionCommands';
 import type { CommissionExecuting } from '@/components/sdui/SduiContext';
+import { setCommissionBusy, clearCommissionBusy, getCommissionBusy, useCommissionBusy } from '@/lib/commissionBusyStore';
 import { persistSkillRunId, readSkillRunId, clearPersistedSkillRun } from '@/lib/skillRunPersist';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl, getSkillHitl } from '@/lib/skillHitlStore';
+import {
+  emitSkillStep,
+  emitSkillStepDone,
+  emitSkillStepFailed,
+  extractHitlStepKey,
+  extractWorkflowStep,
+} from '@/lib/skillStepFeed';
 import { dispatchRailSend } from '@/lib/claw-send';
+// 部署调测：执行机配置弹窗（仅 skillId==='software_deployment'）
+import { ExecutorConfigDialog } from '@/components/sdui/ExecutorConfigDialog';
 // system_design 交付台专用（仅 skillId==='system_design' 路径使用）
 import { resolveUploadSlotTag } from '@/lib/systemDesignUpload';
 import { ensureAgentBase, staleSystemDesignUploadMessage } from '@/lib/agentBase';
@@ -299,7 +321,7 @@ export interface SkillAgentScreenProps {
 
 const SKILL_META: Record<string, {
   steps: Array<{ key: string; name: string; sub: string }>;
-  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md'; optional?: boolean }>;
+  files: Array<{ name: string; ext: 'xlsx' | 'docx' | 'md' | 'pdf'; optional?: boolean; hint?: string }>;
   filesHint?: string;
   icon: React.ReactNode;
 }> = {
@@ -321,7 +343,9 @@ const SKILL_META: Record<string, {
     ],
     files: [
       { name: 'BOQ.xlsx',                   ext: 'xlsx' },
-      { name: '入场评估标准表.xlsx',         ext: 'xlsx' },
+      { name: '入场评估标准表.xlsx',         ext: 'xlsx', optional: true, hint: 'filter_build HITL 自行上传' },
+      { name: '工勘常见高风险库.xlsx',       ext: 'xlsx', optional: true, hint: 'filter_build HITL 自行上传' },
+      { name: '本地工勘报告.pdf',            ext: 'pdf',  hint: '演示资产，随项目 demo 数据' },
       { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
     ],
   },
@@ -468,6 +492,22 @@ function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   if (Array.isArray(c)) c.forEach(child => walkSduiNodes(child, visit));
 }
 
+/** 从 HITL FilePicker.helpText 解析 need_files（与 build_hitl 格式对齐）。 */
+function extractNeedFilesFromHitlDoc(doc: SduiDocument | null): string[] {
+  if (!doc?.root) return [];
+  const card = findNodeById(doc.root, 'hitl-card');
+  if (!card) return [];
+  let paths: string[] = [];
+  walkSduiNodes(card, (node) => {
+    if (node.type !== 'FilePicker' || !node.helpText) return;
+    paths = node.helpText
+      .split('\n')
+      .map(line => line.replace(/^[·•]\s*/, '').trim())
+      .filter(Boolean);
+  });
+  return paths;
+}
+
 /** 统计 SDUI 中 InputSlotList 已就绪槽位数（上传后对比 SSE 是否追上）。 */
 function countReadyInputSlots(doc: SduiDocument | null): number {
   if (!doc?.root) return 0;
@@ -489,6 +529,43 @@ function countOutputArtifacts(doc: SduiDocument | null): number {
     if (node.type === 'ArtifactGrid') n += (node.artifacts ?? []).length;
   });
   return n;
+}
+
+/** 从 hitl-card 内 ChoiceCard 解析 stepId 与可选 value 集合。*/
+function findHitlChoiceContext(
+  doc: SduiDocument | null,
+): { stepId: string; values: Set<string> } | null {
+  if (!doc) return null;
+  const card = findNodeById(doc.root, 'hitl-card');
+  if (!card) return null;
+  let ctx: { stepId: string; values: Set<string> } | null = null;
+  walkSduiNodes(card, (node) => {
+    if (node.type !== 'ChoiceCard') return;
+    const stepId = (node as { stepId?: string }).stepId?.trim();
+    if (!stepId) return;
+    const values = new Set<string>();
+    for (const opt of (node as { options?: Array<{ value?: string }> }).options ?? []) {
+      const v = String(opt?.value ?? '').trim();
+      if (v) values.add(v);
+    }
+    ctx = { stepId, values };
+  });
+  return ctx;
+}
+
+/** MacroStepRail 是否处于「环境准备 / 方案识别」阶段（3D 意图入口应对齐 intent HITL）。*/
+function isPrepOrIdentifyMacroPhase(doc: SduiDocument | null): boolean {
+  if (!doc) return false;
+  let match = false;
+  walkSduiNodes(doc.root, (node) => {
+    if (node.type !== 'MacroStepRail') return;
+    const ids = new Set(['prep', 'identify']);
+    const cur = node.currentId;
+    if (cur && ids.has(cur)) match = true;
+    const run = (node.steps ?? []).find(s => s.status === 'running');
+    if (run?.id && ids.has(run.id)) match = true;
+  });
+  return match;
 }
 
 /** 按 id 查找节点（用于定位 hitl-card）。*/
@@ -586,6 +663,33 @@ function hasWorkbenchAdvanced(frozen: SduiDocument, live: SduiDocument): boolean
   if (liveDone > frozenDone) return true;
   if (hasDiCompletionSurface(live) && frozenEdit) return true;
   return false;
+}
+
+/** 设备安装 · HITL 提交后的过渡视图（仅 device_install）。
+ *  提交「保存并继续 / 确认并生成」后、后端 full_restart 重放尚未推进到下一步时，
+ *  剥离编辑表 / HITL 卡，保留步骤条并把当前 HITL 步置为 running（黄色转圈），
+ *  避免界面与步骤条停留在「待填表」假象（看起来像卡死）。
+ *  meta.phase=running 让 extractProgressFromSdui 直接判定为运行态。 */
+function buildDiSubmittingDoc(frozen: SduiDocument, stepKey: string | null): SduiDocument {
+  const transform = (node: SduiNode): SduiNode | null => {
+    const id = (node as { id?: string }).id ?? '';
+    if (id === 'hitl-card' || id.startsWith('edit-card-')) return null;
+    let next = node;
+    if (node.type === 'Stepper' && Array.isArray((node as { steps?: unknown[] }).steps)) {
+      const steps = (node as unknown as { steps: { id: string; status: string }[] }).steps.map((s) =>
+        stepKey && s.id === stepKey && s.status !== 'done' ? { ...s, status: 'running' } : s,
+      );
+      next = { ...next, steps } as SduiNode;
+    }
+    const children = (next as { children?: SduiNode[] }).children;
+    if (Array.isArray(children)) {
+      const mapped = children.map(transform).filter((c): c is SduiNode => c != null);
+      next = { ...next, children: mapped } as SduiNode;
+    }
+    return next;
+  };
+  const root = transform(frozen.root) ?? frozen.root;
+  return { ...frozen, root, meta: { ...(frozen.meta ?? {}), phase: 'running' } };
 }
 
 /** HITL 已移到左侧会话框后，右侧用这张只读指引卡占位。*/
@@ -859,6 +963,7 @@ function extractProgressFromSdui(doc: SduiDocument): {
     // HITL 节点优先级最高（覆盖 Stepper / FlowSteps 的阶段判断）
     if (node.type === 'ChoiceCard') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     if (node.type === 'FilePicker') { r.phase = 'hitl'; r.hitlType = 'file';   }
+    if (node.type === 'HitlForm') { r.phase = 'hitl'; r.hitlType = 'choice'; }
     // 在线编辑型 HITL：editable DataTable 且提交走 resume（run-patch 表非 HITL，不算）
     if (node.type === 'DataTable' && node.editable && (node.submitMode ?? 'resume') === 'resume') {
       r.phase = 'hitl'; r.hitlType = 'edit';
@@ -894,6 +999,11 @@ function extractProgressFromSdui(doc: SduiDocument): {
 
 // ── 主界面 ────────────────────────────────────────────────────────────────────
 
+/** 命令调测轮询：首 3 分钟 4s，之后 8s（长任务少打 /status+/ui）。 */
+function commissionPollIntervalMs(elapsedMs: number): number {
+  return elapsedMs < 3 * 60 * 1000 ? 4000 : 8000;
+}
+
 export default function SkillAgentScreen({
   skillId,
   title = '作业模块',
@@ -921,6 +1031,22 @@ export default function SkillAgentScreen({
   const [commissionPollDoc, setCommissionPollDoc] = useState<SduiDocument | null>(null);
   const commissionExecStartedAt = useRef(0);
   const commissionPollGenRef = useRef(0);
+  /** 同一步完成回调可能由 poll + SSE + displayDoc 三处触发，去重聊天汇报。 */
+  const commissionFinishDedupeRef = useRef<{ stepKey: string; gen: number } | null>(null);
+  const pendingCommissionCmdRef = useRef<string | null>(null);
+  const pendingScopeSummaryRef = useRef<string>('');
+  // 部署调测 · 线性长步骤（toolkit_import 等）轮询兜底，避免 frozenDoc 挡住进度
+  const [deployLinearPollDoc, setDeployLinearPollDoc] = useState<SduiDocument | null>(null);
+  const deployLinearPollGenRef = useRef(0);
+  const lastFeedStepKeyRef = useRef<string | null>(null);
+  const lastFeedPhaseRef = useRef<string | null>(null);
+  const commissionBusyState = useCommissionBusy();
+  // 部署调测 · 执行机配置弹窗（「配置执行机」按钮触发）
+  const [executorDialogOpen, setExecutorDialogOpen] = useState(false);
+  const [executorIp, setExecutorIp] = useState('');
+  const [executorSk, setExecutorSk] = useState('');
+  const [executorSaving, setExecutorSaving] = useState(false);
+  const [executorError, setExecutorError] = useState<string | null>(null);
   // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
   const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
   // system_design 交付台：SSE + 冻结窗口（进度/HITL 丝滑）；磁盘真值由后端 project() 投影前 sync
@@ -964,9 +1090,10 @@ export default function SkillAgentScreen({
   // 重连间隙后端可能短暂投影 idle 空树；显示层忽略，继续用 bootDoc 兜底
   const liveSduiDoc = sduiDoc && !isIdleLikeSduiDoc(sduiDoc) ? sduiDoc : null;
 
+  // 保留最近一次有效 SDUI 作兜底：重连 / 节点切换间隙后端可能短暂投影 idle 空树
   useEffect(() => {
     if (liveSduiDoc) {
-      setBootDoc(null);
+      setBootDoc(liveSduiDoc);
       setLoadError(null);
     }
   }, [liveSduiDoc]);
@@ -988,12 +1115,30 @@ export default function SkillAgentScreen({
   const [frozenDoc, setFrozenDoc] = useState<SduiDocument | null>(null);
   const frozenProgressRef = useRef(0);
   const progressFloorRef = useRef(0);
+  // 设备安装 · HITL 提交后的过渡文档（剥离编辑表 + 当前步 running）；仅 frozenDoc 存在期间生效。
+  const diSubmitDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => {
     frozenSnapshotRef.current = null;
     setFrozenDoc(null);
+    diSubmitDocRef.current = null;
     progressFloorRef.current = 0;
     frozenProgressRef.current = 0;
+    setBootDoc(null);
+    setLoadError(null);
   }, [runId, taskId]);
+
+  // run 真失效（Agent 重启 → /ui 持续 404）才清会话/HITL/run，让 auto-start 重评估。
+  // resume 冻结窗口（上传→resume 期间后端短暂重建 run 会瞬时 404）内不清——否则会误删
+  // 正在进行的对话弹框与步骤条进度。瞬时 404 已由 useSduiStream 防抖（连续 ≥ 阈值才上抛）。
+  useEffect(() => {
+    if (useClawMode || !isRunUnavailableDoc(sduiDoc)) return;
+    if (frozenDoc || frozenSnapshotRef.current) return;
+    clearPersistedSkillRun(skillId);
+    clearSkillRun(skillId);
+    clearSkillHitl(skillId);
+    clearSkillConversation(skillId);
+    setSavedRunStale(true);
+  }, [sduiDoc, useClawMode, skillId, runId, frozenDoc]);
   useEffect(() => {
     if (!frozenDoc && !frozenSnapshotRef.current) return;
     if (!sduiDoc) return;
@@ -1050,9 +1195,21 @@ export default function SkillAgentScreen({
   // 上传 / 完成后不会及时清空，会把已更新的实时 sduiDoc 永久挡住，导致「输出件不刷新、
   // 对话框无后续弹框」。frozenDoc（state）仍由 doResume 设置、unfreeze 副作用清除，
   // 防 full_restart 闪回的能力不变。其它 skill 分支保持原样（不受影响）。
+  // 设备安装 · 提交 HITL 后：过渡文档优先（步骤条当前步 running），盖住冻结的编辑表快照。
+  const diSubmitOverride =
+    !usesDeliveryWorkbench && skillId === 'device_install' && frozenDoc
+      ? diSubmitDocRef.current
+      : null;
   const displayDoc = usesDeliveryWorkbench
     ? (frozenDoc ?? liveSduiDoc ?? bootDoc)
-    : (commissionPollDoc ?? postUploadDoc ?? diskPollDoc ?? frozenSnapshotRef.current ?? frozenDoc ?? liveSduiDoc ?? bootDoc);
+    : (() => {
+        const live = liveSduiDoc;
+        const frozen = frozenSnapshotRef.current ?? frozenDoc;
+        // HITL 交互中：右侧大盘读实时 SSE，避免冻结快照把进度环/VHS 卡在旧水位
+        if (live && frozen && hasLeftRailHitl(live)) return live;
+        return diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
+          ?? frozen ?? live ?? bootDoc;
+      })();
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
   useEffect(() => {
@@ -1100,6 +1257,8 @@ export default function SkillAgentScreen({
   useEffect(() => {
     diskPollGenRef.current = 0;
     setDiskPollDoc(null);
+    deployLinearPollGenRef.current += 1;
+    setDeployLinearPollDoc(null);
     postUploadEpochRef.current = 0;
     setPostUploadDoc(null);
   }, [runId, taskId]);
@@ -1118,6 +1277,17 @@ export default function SkillAgentScreen({
   useEffect(() => {
     if (!displayDoc || !activeRunId) return;
     const patch = extractProgressFromSdui(displayDoc);
+    // 冻结层可能挡住较新进度；HITL 态以实时 SSE 为准取较大值
+    if (sduiDoc && !usesDeliveryWorkbench) {
+      const livePatch = extractProgressFromSdui(sduiDoc);
+      if ((livePatch.progress ?? 0) > (patch.progress ?? 0)) {
+        patch.progress = livePatch.progress;
+      }
+      if (livePatch.phase === 'hitl') {
+        patch.phase = 'hitl';
+        patch.hitlType = livePatch.hitlType ?? patch.hitlType;
+      }
+    }
     // 有实质内容但无进度指标（如 guihua 三页签工作台）：至少标记 running，防止停留在 starting
     if (!patch.phase && !isIdleLikeSduiDoc(displayDoc)) patch.phase = 'running';
     // 进度单调递增（full_restart 重放期间不回退）；冻结期间取冻结水位 / 历史地板的较大值
@@ -1135,7 +1305,56 @@ export default function SkillAgentScreen({
       progressFloorRef.current = progress;
     }
     updateSkillRun({ ...patch, progress });
-  }, [displayDoc, activeRunId, frozenDoc]);
+  }, [displayDoc, sduiDoc, activeRunId, frozenDoc, usesDeliveryWorkbench]);
+
+  // 部署调测：右侧 FlowSteps/HITL 变化只向 deploy 左侧扩展发节点事件。
+  useEffect(() => {
+    if (skillId !== 'software_deployment' || !displayDoc || !activeRunId) return;
+
+    if (isToolkitHubReadyInDoc(displayDoc) && lastFeedStepKeyRef.current === 'toolkit_import') {
+      clearSkillHitl(skillId);
+      emitSkillStepDone(skillId, 'toolkit_import');
+      emitCommissionProgress(
+        'Toolkit 导入完成！请在右侧「命令调测 · 调度」选择调测命令，或在左侧输入「开始命令调测」。',
+      );
+      lastFeedStepKeyRef.current = null;
+      lastFeedPhaseRef.current = null;
+    }
+
+    const snap = extractWorkflowStep(displayDoc);
+    const progress = extractProgressFromSdui(displayDoc);
+    if (progress.phase === 'done' && lastFeedStepKeyRef.current) {
+      emitSkillStepDone(skillId, lastFeedStepKeyRef.current);
+      lastFeedStepKeyRef.current = null;
+      lastFeedPhaseRef.current = null;
+      return;
+    }
+    if (!snap) return;
+
+    const busy = getCommissionBusy();
+    if (busy.active && busy.kind === 'command' && snap.stepKey === 'commission_scope') return;
+
+    const token = `${snap.stepKey}:${snap.phase}`;
+    if (token === lastFeedPhaseRef.current) return;
+    if (lastFeedStepKeyRef.current && lastFeedStepKeyRef.current !== snap.stepKey) {
+      emitSkillStepDone(skillId, lastFeedStepKeyRef.current);
+    }
+
+    emitSkillStep({
+      skillId,
+      runId: activeRunId,
+      stepKey: snap.stepKey,
+      stepTitle: snap.stepTitle,
+      stepNum: snap.stepNum,
+      phase: snap.phase,
+    });
+    lastFeedStepKeyRef.current = snap.stepKey;
+    lastFeedPhaseRef.current = token;
+
+    if (isStepFailedInDoc(displayDoc)) {
+      emitSkillStepFailed(skillId, snap.stepKey, readStepDetailError(displayDoc) || '本步执行失败');
+    }
+  }, [displayDoc, activeRunId, skillId]);
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
@@ -1227,10 +1446,21 @@ export default function SkillAgentScreen({
       progressFloorRef.current = frozenProgressRef.current;
       frozenSnapshotRef.current = curDoc;
       setFrozenDoc(curDoc);
-      // 有进度指标（zhgk / system_design）：立即切 running 隐藏 HITL 卡；
-      // frozenProgress===0（guihua 无进度指标）：不改 phase，保持 'hitl' 让 completion-card / hitl-card 继续显示。
-      if (frozenProgressRef.current > 0) {
-        updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+      // 设备安装：提交后后端 full_restart 重放期间，过渡文档（剥离编辑表 + 当前步 running）顶上，
+      // 让步骤条当前节点保持黄色转圈，而不是停留在「待填表」编辑界面假象（看起来卡死）。
+      if (skillId === 'device_install') {
+        const submittingStep = findEditableHitlStepKey(curDoc);
+        const transitional = buildDiSubmittingDoc(curDoc, submittingStep);
+        diSubmitDocRef.current = transitional;
+        updateSkillRun({ ...extractProgressFromSdui(transitional), phase: 'running', hitlType: null });
+      } else if (frozenProgressRef.current > 0) {
+        const hadHitl = !!findNodeById(curDoc.root, 'hitl-card');
+        // 有进度指标（zhgk / system_design）：立即切 running 隐藏 HITL 卡；
+        // 若冻结快照仍含 hitl-card，保持 hitl 态直至 SSE 更新，避免假卡死。
+        // frozenProgress===0（guihua 无进度指标）：不改 phase，保持 'hitl' 让 completion-card / hitl-card 继续显示。
+        if (!hadHitl) {
+          updateSkillRun({ ...extractProgressFromSdui(curDoc), phase: 'running', hitlType: null });
+        }
       }
     }
     await resumeRun(skillId, rid, payload, fromStep);
@@ -1267,20 +1497,45 @@ export default function SkillAgentScreen({
     label: string,
     doc: SduiDocument | null,
     isError: boolean,
+    statusSnap?: Awaited<ReturnType<typeof fetchRunStatus>> | null,
   ) => {
+    const gen = commissionPollGenRef.current;
+    const prev = commissionFinishDedupeRef.current;
+    if (prev && prev.stepKey === stepKey && prev.gen === gen) return;
+    commissionFinishDedupeRef.current = { stepKey, gen };
     setCommissionExecuting(null);
     setCommissionPollDoc(null);
+    clearCommissionBusy();
     const kpi = doc ? readCommissionKpi(doc) : null;
+    const scopeSummary = pendingScopeSummaryRef.current
+      || readCommissionProject(statusSnap ?? null).summary
+      || resolveCommissionScope();
+    const record = readCommissionRecordFromStatus(statusSnap ?? null, stepKey)
+      ?? readCommissionRecordFromDoc(doc, stepKey);
+    const errMsg = isError
+      ? ((doc ? readStepDetailError(doc) : null)
+        || statusSnap?.error
+        || record?.errorMessage
+        || `${label} 失败`)
+      : '';
+    const chatBody = formatCommissionResultChat(label, {
+      scopeSummary: scopeSummary || undefined,
+      record,
+      isError,
+      errorMessage: errMsg || undefined,
+      kpi,
+    });
     if (isError) {
-      emitCommissionProgress(`「${label}」执行失败，请查看右侧红色错误条。`);
+      emitCommissionProgress(chatBody);
+      emitSkillStepFailed(skillId, stepKey, errMsg || `${label} 失败`);
       updateSkillRun({ phase: 'error', errorMsg: `${label} 失败` });
       return;
     }
-    const kpiHint = kpi ? `命令调测 ${kpi}。` : '';
     if (stepKey === 'commission_report') {
       const rel = doc ? readReportArtifactPath(doc) : null;
       const dlHint = rel ? '请在右侧调度区「下载 · 调测报告」保存 xlsx。' : '报告已生成，请在右侧查看。';
-      emitCommissionProgress(`调测报告已生成。${dlHint}`);
+      emitCommissionProgress(`${chatBody}\n${dlHint}`);
+      emitSkillStepDone(skillId, stepKey);
       updateSkillRun({
         phase: 'done',
         progress: 100,
@@ -1292,8 +1547,9 @@ export default function SkillAgentScreen({
     }
     const allDone = kpi === '4/4';
     emitCommissionProgress(
-      `「${label}」已完成。${kpiHint}${allDone ? '四条命令均已执行，可点「生成调测报告」。' : '对应按钮应显示「重新执行」。'}`,
+      `${chatBody}${allDone ? '\n四条命令均已执行，可点「生成调测报告」。' : ''}`,
     );
+    emitSkillStepDone(skillId, stepKey);
     updateSkillRun({
       phase: allDone ? 'done' : 'running',
       progress: allDone ? 100 : undefined,
@@ -1301,7 +1557,7 @@ export default function SkillAgentScreen({
       hitlType: null,
       errorMsg: '',
     });
-  }, []);
+  }, [skillId, resolveCommissionScope]);
 
   const pollCommissionUntilSettled = useCallback(async (
     rid: string,
@@ -1310,9 +1566,12 @@ export default function SkillAgentScreen({
     gen: number,
   ) => {
     const deadline = Date.now() + 20 * 60 * 1000;
+    const started = Date.now();
     while (Date.now() < deadline) {
       if (commissionPollGenRef.current !== gen) return;
-      await new Promise<void>(resolve => { window.setTimeout(resolve, 2500); });
+      await new Promise<void>(resolve => {
+        window.setTimeout(resolve, commissionPollIntervalMs(Date.now() - started));
+      });
       const [st, snap] = await Promise.all([
         fetchRunStatus(skillId, rid),
         fetchUiSnapshot(skillId, rid),
@@ -1320,32 +1579,167 @@ export default function SkillAgentScreen({
       if (commissionPollGenRef.current !== gen) return;
       if (snap) setCommissionPollDoc(snap);
       const outcome = runStepOutcome(st, stepKey);
-      const settled = snap ? isCommissionStepSettledInDoc(snap, stepKey) : false;
-      if (settled || outcome === 'done' || outcome === 'error') {
-        finishCommissionExec(stepKey, label, snap, Boolean(st?.error || outcome === 'error'));
+      // 双通道判定：/status（metrics、steps）或 SDUI（按钮、任务记录表）任一落地即视为完成，
+      // 避免「后端已写完但 SDUI 按钮投影滞后」导致页面一直转圈。
+      const settledStatus = isCommissionStepSettledInStatus(st, stepKey);
+      const settledDoc = snap ? isCommissionStepSettledInDoc(snap, stepKey) : false;
+      if (settledStatus || settledDoc || outcome === 'done' || outcome === 'error') {
+        finishCommissionExec(
+          stepKey,
+          label,
+          snap,
+          Boolean(st?.error || outcome === 'error'),
+          st,
+        );
         return;
       }
     }
     if (commissionPollGenRef.current !== gen) return;
     setCommissionExecuting(null);
+    clearCommissionBusy();
     emitCommissionProgress(
       `「${label}」等待超过 20 分钟仍未返回；可能仍在 Toolkit 执行，请查右侧日志或稍后刷新。`,
     );
   }, [skillId, finishCommissionExec]);
 
+  const beginCommandPoll = useCallback((
+    rid: string,
+    stepKey: string,
+    label: string,
+    scope: string,
+  ) => {
+    const pollGen = commissionPollGenRef.current + 1;
+    commissionPollGenRef.current = pollGen;
+    commissionFinishDedupeRef.current = null;
+    setCommissionPollDoc(null);
+    setCommissionExecuting({ stepKey, label, scope });
+    commissionExecStartedAt.current = Date.now();
+    setCommissionBusy(true, label, 'command');
+    emitCommissionProgress(`正在执行 · ${label}…`);
+    updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
+    emitSkillStepDone(skillId, 'commission_scope');
+    emitSkillStep({
+      skillId,
+      runId: rid,
+      stepKey,
+      stepTitle: label,
+      stepNum: 9,
+      phase: 'running',
+    });
+    lastFeedStepKeyRef.current = stepKey;
+    lastFeedPhaseRef.current = `${stepKey}:running`;
+    void pollCommissionUntilSettled(rid, stepKey, label, pollGen);
+  }, [skillId, pollCommissionUntilSettled]);
+
+  const pollScopeParseUntilSettled = useCallback(async (rid: string, gen: number) => {
+    const deadline = Date.now() + 3 * 60 * 1000;
+    while (Date.now() < deadline) {
+      if (commissionPollGenRef.current !== gen) return;
+      await new Promise<void>(resolve => { window.setTimeout(resolve, 1200); });
+      const [st, snap] = await Promise.all([
+        fetchRunStatus(skillId, rid),
+        fetchUiSnapshot(skillId, rid),
+      ]);
+      if (commissionPollGenRef.current !== gen) return;
+      if (snap) setCommissionPollDoc(snap);
+      const proj = readCommissionProject(st);
+      if (proj.summary) pendingScopeSummaryRef.current = proj.summary;
+      if (snap && isScopeConfirmInDoc(snap)) {
+        clearCommissionBusy();
+        setStreamEpoch(e => e + 1);
+        emitCommissionProgress(
+          proj.summary
+            ? `范围已解析：${proj.summary}。请确认后执行。`
+            : '范围已解析，请确认设备范围与台数。',
+        );
+        return;
+      }
+      if (snap && isStepFailedInDoc(snap)) {
+        clearCommissionBusy();
+        emitCommissionProgress(readStepDetailError(snap) || '范围解析失败');
+        return;
+      }
+      if (st?.error) {
+        clearCommissionBusy();
+        emitCommissionProgress(String(st.error));
+        return;
+      }
+    }
+    clearCommissionBusy();
+    emitCommissionProgress('范围解析等待超时，请刷新页面后重试。');
+  }, [skillId]);
+
+  // 部署调测 · 线性长步骤轮询（toolkit_import 确认后 SSE/冻结层可能滞后）
+  const pollDeployLinearUntilSettled = useCallback(async (
+    rid: string,
+    stepKey: string,
+    gen: number,
+  ) => {
+    const deadline = Date.now() + 30 * 60 * 1000;
+    const label = stepKey === 'toolkit_import' ? 'Toolkit 导入' : stepKey;
+    while (Date.now() < deadline) {
+      if (deployLinearPollGenRef.current !== gen) return;
+      await new Promise<void>(resolve => { window.setTimeout(resolve, 2500); });
+      const [st, snap] = await Promise.all([
+        fetchRunStatus(skillId, rid),
+        fetchUiSnapshot(skillId, rid),
+      ]);
+      if (deployLinearPollGenRef.current !== gen) return;
+      if (snap) {
+        setDeployLinearPollDoc(snap);
+        frozenSnapshotRef.current = null;
+        setFrozenDoc(null);
+      }
+      const settled = stepKey === 'toolkit_import' && (
+        isToolkitImportSettledInStatus(st)
+        || (snap ? isToolkitImportSettledInDoc(snap) : false)
+        || runStepOutcome(st, stepKey) === 'done'
+      );
+      const failed = (snap && isStepFailedInDoc(snap)) || runStepOutcome(st, stepKey) === 'error';
+      if (failed) {
+        setDeployLinearPollDoc(null);
+        clearCommissionBusy();
+        const err = (snap ? readStepDetailError(snap) : null) || st?.error || '执行失败';
+        emitSkillStepFailed(skillId, stepKey, err);
+        emitCommissionProgress(`「${label}」失败：${err}`);
+        updateSkillRun({ phase: 'error', errorMsg: err });
+        return;
+      }
+      if (settled) {
+        setDeployLinearPollDoc(null);
+        clearCommissionBusy();
+        clearSkillHitl(skillId);
+        emitSkillStepDone(skillId, stepKey);
+        emitCommissionProgress(
+          'Toolkit 导入完成！请在右侧「命令调测 · 调度」选择调测命令，或在左侧输入「开始命令调测」。',
+        );
+        updateSkillRun({ phase: 'running', hitlType: null, currentStepName: '命令调测' });
+        setStreamEpoch(e => e + 1);
+        return;
+      }
+    }
+    if (deployLinearPollGenRef.current !== gen) return;
+    setDeployLinearPollDoc(null);
+    clearCommissionBusy();
+    emitCommissionProgress(
+      `「${label}」等待超过 30 分钟仍未返回；可能仍在执行，请查右侧日志或刷新页面。`,
+    );
+  }, [skillId]);
+
   const executeCommissionStep = useCallback(async (
     stepKey: string,
-    opts?: { rerun?: boolean; scope?: string },
+    opts?: { rerun?: boolean },
   ) => {
-    const scope = resolveCommissionScope(opts?.scope);
     const label = commissionStepLabel(stepKey);
     setLoadError(null);
     const pollGen = commissionPollGenRef.current + 1;
     commissionPollGenRef.current = pollGen;
+    commissionFinishDedupeRef.current = null;
     setCommissionPollDoc(null);
-    setCommissionExecuting({ stepKey, label, scope });
+    setCommissionExecuting({ stepKey, label, scope: 'all' });
     commissionExecStartedAt.current = Date.now();
-    emitCommissionProgress(`正在执行 · ${label}（范围：${formatCommissionScope(scope)}）…`);
+    setCommissionBusy(true, label, 'command');
+    emitCommissionProgress(`正在执行 · ${label}…`);
     updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
 
     try {
@@ -1357,7 +1751,6 @@ export default function SkillAgentScreen({
           payload: {
             choice: 'confirm',
             rerun: !!opts?.rerun,
-            ...(scope !== 'all' ? { scope } : {}),
             from_step: stepKey,
           },
         });
@@ -1373,7 +1766,7 @@ export default function SkillAgentScreen({
         await resumeRun(
           skillId,
           rid,
-          { choice: 'confirm', rerun: !!opts?.rerun, ...(scope !== 'all' ? { scope } : {}) },
+          { choice: 'confirm', rerun: !!opts?.rerun },
           stepKey,
         );
         setStreamEpoch(e => e + 1);
@@ -1382,11 +1775,11 @@ export default function SkillAgentScreen({
     } catch (e) {
       const msg = e instanceof Error ? e.message : '执行失败';
       setCommissionExecuting(null);
+      clearCommissionBusy();
       emitCommissionProgress(`「${label}」执行失败：${msg}`);
       setLoadError(msg);
     }
   }, [
-    resolveCommissionScope,
     useClawMode,
     session,
     taskId,
@@ -1396,48 +1789,90 @@ export default function SkillAgentScreen({
     pollCommissionUntilSettled,
   ]);
 
+  // 命令调测：走 LangGraph commission_scope 节点（解析 → 预览 → 确认 → chain 到命令步）。
+  const startCommissionScopeFlow = useCallback(async (
+    stepKey: string,
+    rerun: boolean,
+    scopeText?: string,
+  ) => {
+    const label = commissionStepLabel(stepKey);
+    pendingCommissionCmdRef.current = stepKey;
+    pendingScopeSummaryRef.current = '';
+    setLoadError(null);
+    emitCommissionProgress(
+      scopeText
+        ? `正在解析「${label}」设备范围…`
+        : `请选择「${label}」的设备范围（见左侧步骤卡）。`,
+    );
+    updateSkillRun({ phase: 'hitl', hitlType: 'choice', currentStepName: '设备范围' });
+
+    const payload: Record<string, unknown> = { command: stepKey, rerun: !!rerun };
+    if (scopeText?.trim()) payload.choice = scopeText.trim();
+
+    try {
+      if (useClawMode && session && taskId) {
+        await resumeClawTask({
+          accessToken: session.accessToken,
+          sessionId: session.sessionId,
+          taskId,
+          payload: { ...payload, from_step: 'commission_scope' },
+        });
+      } else {
+        let rid = activeRunId;
+        if (!rid) {
+          rid = await startRun(skillId, { entry_mode: 'commission' });
+          setRunId(rid);
+          setSkillRun(skillId, rid, 'ui');
+          persistSkillRunId(skillId, rid);
+        }
+        if (!rid) throw new Error('无法启动调测 run');
+        if (scopeText?.trim()) {
+          setCommissionBusy(true, '解析设备范围', 'scope');
+        }
+        await resumeRun(skillId, rid, payload, 'commission_scope');
+        setStreamEpoch(e => e + 1);
+        if (scopeText?.trim()) {
+          const gen = commissionPollGenRef.current + 1;
+          commissionPollGenRef.current = gen;
+          void pollScopeParseUntilSettled(rid, gen);
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '启动范围确认失败';
+      emitCommissionProgress(`「${label}」范围确认失败：${msg}`);
+      setLoadError(msg);
+      updateSkillRun({ phase: 'error', errorMsg: msg });
+    }
+  }, [skillId, activeRunId, storeRun, useClawMode, session, taskId, handleStart, pollScopeParseUntilSettled]);
+
   const runCommissionStep = useCallback(async (
     stepKey: string,
     rerun: boolean,
     scope?: string,
   ) => {
-    await executeCommissionStep(stepKey, { rerun, scope });
-  }, [executeCommissionStep]);
+    if (stepKey === 'commission_report') {
+      await executeCommissionStep(stepKey, { rerun });
+      return;
+    }
+    await startCommissionScopeFlow(stepKey, rerun, scope);
+  }, [executeCommissionStep, startCommissionScopeFlow]);
 
   const handleCommissionIntent = useCallback(async (intent: CommissionIntent) => {
     if (intent.kind === 'start_commission') {
       await handleStart({ entry_mode: 'commission' });
       return;
     }
-    await executeCommissionStep(intent.step, {
-      rerun: intent.rerun,
-      scope: intent.scope,
-    });
-  }, [handleStart, executeCommissionStep]);
+    // 经 runCommissionStep：带 scope 直接执行，无 scope 则弹左侧范围卡。
+    await runCommissionStep(intent.step, !!intent.rerun, intent.scope);
+  }, [handleStart, runCommissionStep]);
 
-  // SSE 推新 SDUI 且步骤已落地时结束「执行中」（running 中间态不会误停）
-  useEffect(() => {
-    if (!commissionExecuting || !sduiDoc) return;
-    if (Date.now() - commissionExecStartedAt.current < 400) return;
-    if (!isCommissionStepSettledInDoc(sduiDoc, commissionExecuting.stepKey)) return;
-    const { stepKey, label } = commissionExecuting;
-    const hasErr = Boolean(findNodeById(sduiDoc.root, 'sd-error-banner'));
-    commissionPollGenRef.current += 1;
-    finishCommissionExec(stepKey, label, sduiDoc, hasErr);
-  }, [sduiDoc, commissionExecuting, finishCommissionExec]);
-
-  // 刷新后若 UI 已落地但 executing 状态残留，自动解锁调度按钮
+  // SDUI 已显示完成时仅解锁遮罩；完成汇报由 pollCommissionUntilSettled 统一发出（单路径）
   useEffect(() => {
     if (!commissionExecuting || !displayDoc) return;
+    if (Date.now() - commissionExecStartedAt.current < 400) return;
     if (!isCommissionStepSettledInDoc(displayDoc, commissionExecuting.stepKey)) return;
-    commissionPollGenRef.current += 1;
-    finishCommissionExec(
-      commissionExecuting.stepKey,
-      commissionExecuting.label,
-      displayDoc,
-      Boolean(findNodeById(displayDoc.root, 'sd-error-banner')),
-    );
-  }, [displayDoc, commissionExecuting, finishCommissionExec]);
+    clearCommissionBusy();
+  }, [displayDoc, commissionExecuting]);
 
   useEffect(() => {
     if (skillId !== 'software_deployment') return;
@@ -1453,11 +1888,21 @@ export default function SkillAgentScreen({
 
   // 3D 机房入口「下钻→意图」：在意图 HITL 处用所选意图续跑同一 run；否则以该意图启动 run
   const handleIntent = useCallback(async (intent: string) => {
-    const card = sduiDocRef.current ? findNodeById(sduiDocRef.current.root, 'hitl-card') : null;
-    const atIntentHitl = !!card && JSON.stringify(card).includes(`"${intent}"`);
+    const liveDoc = sduiDocRef.current ?? displayDocRef.current;
+    const hitlCtx = findHitlChoiceContext(liveDoc);
+    const hasHitlCard = liveDoc ? hasLeftRailHitl(liveDoc) : false;
+    const atIntentHitl =
+      hitlCtx?.stepId === 'intent_select' &&
+      (hitlCtx.values.size === 0 || hitlCtx.values.has(intent));
+    const prepIdentifyIntentResume =
+      !!activeRunId &&
+      hasHitlCard &&
+      isPrepOrIdentifyMacroPhase(liveDoc) &&
+      hitlCtx?.stepId === 'intent_select';
+
     setViewMode('work');
-    if (activeRunId && atIntentHitl) {
-      await doResume({ choice: intent });
+    if (activeRunId && (atIntentHitl || prepIdentifyIntentResume)) {
+      await doResume({ choice: intent }, 'intent_select');
     } else if (activeRunId) {
       // 已在跑且非意图 HITL：只切作业台，避免误触发新开 run
     } else {
@@ -1476,10 +1921,15 @@ export default function SkillAgentScreen({
     clearSkillRun(skillId);
     clearPersistedSkillRun(skillId);
     clearSkillHitl(skillId);
+    pendingCommissionCmdRef.current = null;
+    pendingScopeSummaryRef.current = '';
+    clearCommissionBusy();
     setBootDoc(null);
     setLoadError(null);
     setCommissionExecuting(null);
     setCommissionPollDoc(null);
+    deployLinearPollGenRef.current += 1;
+    setDeployLinearPollDoc(null);
     setRunId(null);
     setTaskId(null);
     frozenSnapshotRef.current = null;
@@ -1488,6 +1938,8 @@ export default function SkillAgentScreen({
     setPreviewPath(null);
     setError(null);
     setStarting(false);
+    lastFeedStepKeyRef.current = null;
+    lastFeedPhaseRef.current = null;
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('aida:clear'));
     }
@@ -1565,6 +2017,8 @@ export default function SkillAgentScreen({
             })();
           }
         }
+      } else if (text === '/edit_executor') {
+        openExecutorConfig();
       } else {
         dispatchRailSend(text);
       }
@@ -1605,7 +2059,7 @@ export default function SkillAgentScreen({
         throw new Error('未选择文件');
       }
       try {
-        const result = await overrideOutputArtifact(skillId, arr[0], targetPath, rid);
+        const result = await overrideOutputArtifact(skillId, arr[0]!, targetPath, rid);
         if (result.ok === false) {
           throw new Error(String(result.error || '覆盖上传失败'));
         }
@@ -1627,13 +2081,44 @@ export default function SkillAgentScreen({
     }
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      const needFiles = extractNeedFilesFromHitlDoc(displayDocRef.current ?? sduiDocRef.current);
       try {
-        await uploadBatch(skillId, arr);
+        const result = await uploadBatch(skillId, arr, needFiles, [], rid);
+        const failed = (result.uploaded ?? []).filter(u => u.ok === false);
+        if (failed.length) {
+          const msg = failed.map(f => String(f.error || f.filename || '未知文件')).join('；');
+          throw new Error(`上传失败：${msg}`);
+        }
+        const check = result.check as {
+          ok?: boolean;
+          items?: Array<{ found?: boolean; label?: string; path?: string }>;
+        } | undefined;
+        if (check && check.ok === false) {
+          if (rid) {
+            frozenSnapshotRef.current = null;
+            setFrozenDoc(null);
+            const snap = await fetchUiSnapshot(skillId, rid);
+            if (snap) {
+              postUploadEpochRef.current = Date.now();
+              setPostUploadDoc(snap);
+            }
+          }
+          const missing = (check.items ?? [])
+            .filter(i => !i.found)
+            .map(i => i.label || i.path)
+            .filter(Boolean);
+          throw new Error(
+            missing.length
+              ? `还须上传：${missing.join('、')}（可一次选多个文件）`
+              : '前置文件尚未齐备，请继续上传',
+          );
+        }
       } catch (e) {
         console.error('[SDUI] upload error:', e);
         throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
       }
-      await doResume({ uploaded: arr.map(f => f.name) });
+      await doResume({ uploaded: arr.map(f => f.name) }, _stepId);
       return;
     }
     // system_design 交付台：按槽位标签上传 → sync_inputs → 拉快照；仅「输入件准备」HITL 内续跑
@@ -1705,19 +2190,159 @@ export default function SkillAgentScreen({
   }, [skillId, doResume, usesDeliveryWorkbench, activeRunId, storeRun]);
 
   const handleChoiceSubmit = useCallback(async (value: string, stepId?: string) => {
+    setViewMode('work');
+    const fromStep = resolveChoiceResumeFromStep(skillId, value, stepId);
+    const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+
+    // 部署调测 · commission_scope：提交即上锁，避免重复点击
+    if (skillId === 'software_deployment' && fromStep === 'commission_scope') {
+      if (value === 'confirm') {
+        const cmd = pendingCommissionCmdRef.current;
+        if (!cmd) {
+          clearCommissionBusy();
+          emitCommissionProgress('未能启动命令执行：缺少待执行命令，请从右侧重新点「执行」。');
+          return;
+        }
+        const label = commissionStepLabel(cmd);
+        const scope = pendingScopeSummaryRef.current || resolveCommissionScope();
+        setCommissionBusy(true, label, 'command');
+        clearSkillHitl(skillId);
+        updateSkillRun({ phase: 'running', currentStepName: label, hitlType: null });
+        await doResume({ choice: value }, fromStep);
+        setStreamEpoch(e => e + 1);
+        if (rid) {
+          beginCommandPoll(rid, cmd, label, scope);
+        } else {
+          clearCommissionBusy();
+          emitCommissionProgress('未能启动命令执行：缺少 run_id，请刷新后重试。');
+        }
+        return;
+      }
+      if (value !== 'back') {
+        setCommissionBusy(true, '解析设备范围', 'scope');
+        clearSkillHitl(skillId);
+        await doResume({ choice: value }, fromStep);
+        setStreamEpoch(e => e + 1);
+        if (rid) {
+          const gen = commissionPollGenRef.current + 1;
+          commissionPollGenRef.current = gen;
+          void pollScopeParseUntilSettled(rid, gen);
+        } else {
+          clearCommissionBusy();
+        }
+        return;
+      }
+    }
+
+    // 部署调测 · 步骤 8 确认导入：立即上锁 + 轮询 /status+/ui 判定是否导入成功
+    const toolkitStep = fromStep === 'toolkit_import' || stepId === 'toolkit_import';
+    if (
+      skillId === 'software_deployment'
+      && toolkitStep
+      && (value === 'confirm' || value === '确认执行')
+    ) {
+      const effectiveFrom = fromStep || stepId || 'toolkit_import';
+      setCommissionBusy(true, 'Toolkit 导入', 'import');
+      clearSkillHitl(skillId);
+      updateSkillRun({ phase: 'running', currentStepName: 'Toolkit 导入', hitlType: null });
+      await doResume({ choice: 'confirm' }, effectiveFrom);
+      setStreamEpoch(e => e + 1);
+      const ridAfter = resolveSkillRunId(skillId, activeRunId, storeRun);
+      if (ridAfter) {
+        emitCommissionProgress('Toolkit 导入已开始（大文件可能需数分钟），右侧会同步更新进度…');
+        const gen = deployLinearPollGenRef.current + 1;
+        deployLinearPollGenRef.current = gen;
+        setDeployLinearPollDoc(null);
+        lastFeedPhaseRef.current = 'toolkit_import:running';
+        void pollDeployLinearUntilSettled(ridAfter, 'toolkit_import', gen);
+      } else {
+        clearCommissionBusy();
+      }
+      return;
+    }
+
     await doResume(
       { choice: value },
-      resolveChoiceResumeFromStep(skillId, value, stepId),
+      fromStep,
     );
-  }, [doResume, skillId]);
+  }, [doResume, skillId, activeRunId, storeRun, pollDeployLinearUntilSettled, beginCommandPoll, pollScopeParseUntilSettled, resolveCommissionScope]);
+
+  // 部署调测：HitlForm（如步骤 7 调测设备 IP/SK「保存并继续」）提交 → resume 续跑。
+  // HitlForm 负载形如 { [formId]: { base_url_ip, secret_key } }，需扁平化后再续跑。
+  const handleFormSubmit = useCallback(async (payload: Record<string, unknown>, stepId?: string) => {
+    setViewMode('work');
+    const fromStep = stepId?.trim() || undefined;
+
+    if (skillId === 'software_deployment') {
+      let flat: Record<string, unknown> = { ...payload };
+      for (const v of Object.values(payload)) {
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          const row = v as Record<string, unknown>;
+          if ('base_url_ip' in row || 'secret_key' in row) {
+            flat = { ...flat, ...row };
+            break;
+          }
+        }
+      }
+      const resumePayload = fromStep === 'toolkit_executor'
+        ? {
+            choice: 'confirm',
+            base_url_ip: String(flat.base_url_ip ?? '').trim(),
+            secret_key: String(flat.secret_key ?? '').trim(),
+            base_url_port: '28880',
+          }
+        : payload;
+      await doResume(resumePayload, fromStep);
+      if (activeRunId && fromStep) {
+        setStreamEpoch(e => e + 1);  // 重订阅 SSE，推动界面前进到步骤 8
+      }
+      return;
+    }
+
+    await doResume(payload, fromStep || 'task_dispatch');
+  }, [doResume, activeRunId, skillId]);
+
+  // 「配置执行机」按钮：读取当前 HITL 表单预填，弹出 IP/SK 小窗
+  const openExecutorConfig = useCallback(() => {
+    if (skillId !== 'software_deployment') return;
+    setExecutorError(null);
+    const doc = displayDocRef.current;
+    const form = doc ? findNodeById(doc.root, 'hitl-form-toolkit-executor') : null;
+    const fields = (form as { fields?: Array<{ key?: string; defaultValue?: unknown }> } | null)?.fields ?? [];
+    const ipField = fields.find(f => f.key === 'base_url_ip');
+    const skField = fields.find(f => f.key === 'secret_key');
+    setExecutorIp(String(ipField?.defaultValue ?? '').trim());
+    setExecutorSk(String(skField?.defaultValue ?? '').trim());
+    setExecutorDialogOpen(true);
+  }, [skillId]);
+
+  // 弹窗保存 → 走标准 resume 续跑步骤 7（toolkit_executor），无需自定义后端端点
+  const handleExecutorSave = useCallback(async (ip: string, sk: string) => {
+    setExecutorSaving(true);
+    setExecutorError(null);
+    try {
+      await handleFormSubmit(
+        { 'hitl-form-toolkit-executor': { base_url_ip: ip, secret_key: sk } },
+        'toolkit_executor',
+      );
+      setExecutorDialogOpen(false);
+      emitCommissionProgress(`调测执行机已保存（${ip}），正在继续步骤 8（Toolkit 导入）…`);
+    } catch (e) {
+      setExecutorError(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setExecutorSaving(false);
+    }
+  }, [handleFormSubmit]);
 
   // 左栏 store 与右栏 Context 共用：ref 保证首击即最新闭包（避免 useEffect 同步滞后一帧）
   const handleActionRef = useRef(handleAction);
   const handleUploadRef = useRef(handleUpload);
   const handleChoiceSubmitRef = useRef(handleChoiceSubmit);
+  const handleFormSubmitRef = useRef(handleFormSubmit);
   handleActionRef.current = handleAction;
   handleUploadRef.current = handleUpload;
   handleChoiceSubmitRef.current = handleChoiceSubmit;
+  handleFormSubmitRef.current = handleFormSubmit;
 
   const railRuntimeCallbacks = useRef({
     onAction: (action: SduiAction) => { void handleActionRef.current(action); },
@@ -1731,6 +2356,9 @@ export default function SkillAgentScreen({
     onChoiceSubmit: (value: string, stepId?: string) => {
       void handleChoiceSubmitRef.current(value, stepId);
     },
+    onFormSubmit: (payload: Record<string, unknown>, stepId?: string) => {
+      void handleFormSubmitRef.current(payload, stepId);
+    },
   }).current;
 
   // ── HITL 提升到左侧会话框 ─────────────────────────────────────────────────
@@ -1740,22 +2368,27 @@ export default function SkillAgentScreen({
   // HITL / 左栏弹框始终读 SSE 实时态（reconcile 后的 /ui 快照会清掉 stage_select HITL）
   useEffect(() => {
     const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
-    const hitlDoc = usesDeliveryWorkbench ? sduiDoc : displayDoc;
+    const hitlDoc = usesDeliveryWorkbench ? sduiDoc : (sduiDoc ?? displayDoc);
     if (!hitlDoc || !rid) { clearSkillHitl(skillId); return; }
+    // 处理中勿从冻结快照把 HITL 投回左栏（否则确认后仍显示「等待处理中」）
+    if (skillId === 'software_deployment' && commissionBusyState.active) return;
     const card = findNodeById(hitlDoc.root, 'hitl-card')
       ?? findNodeById(hitlDoc.root, 'completion-card')
       ?? (routeHitlEdit === 'chat' ? findNodeById(hitlDoc.root, 'hitl-edit-card') : null);
     if (card) {
       setSkillHitl({
         skillId, runId: rid, node: card,
+        stepKey: extractHitlStepKey(card) || undefined,
         onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
         onUpload: railRuntimeCallbacks.onUpload,
         onAction: railRuntimeCallbacks.onAction,
+        onFormSubmit: railRuntimeCallbacks.onFormSubmit,
       });
     } else {
       clearSkillHitl(skillId);
     }
-  }, [usesDeliveryWorkbench, sduiDoc, displayDoc, activeRunId, storeRun, skillId, routeHitlEdit, railRuntimeCallbacks]);
+  }, [usesDeliveryWorkbench, sduiDoc, displayDoc, activeRunId, storeRun, skillId, routeHitlEdit, railRuntimeCallbacks, commissionBusyState.active]);
 
   useEffect(() => () => clearSkillHitl(skillId), [skillId]);  // 卸载清理
   useEffect(() => () => clearSkillRun(skillId), [skillId]);  // 卸载清理，避免左栏残留上一模块进度
@@ -1793,6 +2426,7 @@ export default function SkillAgentScreen({
     onAction: railRuntimeCallbacks.onAction,
     onUpload: railRuntimeCallbacks.onUpload,
     onChoiceSubmit: railRuntimeCallbacks.onChoiceSubmit,
+    onFormSubmit: railRuntimeCallbacks.onFormSubmit,
     onRowsSubmit: (rows, stepId) => { void handleRowsSubmit(rows, stepId); },
     onRunPatch: handleRunPatch,
     streamEpoch,
@@ -1917,6 +2551,18 @@ export default function SkillAgentScreen({
         <Suspense fallback={null}>
           <SduiPreviewModal skillId={skillId} path={previewPath} onClose={() => setPreviewPath(null)} />
         </Suspense>
+      )}
+      {/* 部署调测 · 「配置执行机」弹窗（IP/SK） */}
+      {skillId === 'software_deployment' && (
+        <ExecutorConfigDialog
+          open={executorDialogOpen}
+          initialIp={executorIp}
+          initialSk={executorSk}
+          saving={executorSaving}
+          error={executorError}
+          onSave={(ip, sk) => { void handleExecutorSave(ip, sk); }}
+          onClose={() => setExecutorDialogOpen(false)}
+        />
       )}
       {nextModule && (
         <NextModuleButton label={nextModule.label} onClick={handleNextModule} />

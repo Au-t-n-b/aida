@@ -20,8 +20,10 @@ import asyncio
 import json
 import logging
 import os
+import re
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -64,6 +66,56 @@ def _get_sdui_projector(skill_id: str):
 def _sdui_json_safe(doc: dict) -> dict:
     """SDUI 文档 → 可 JSON 序列化的 dict（剔除投影器偶发混入的运行时对象）。"""
     return json.loads(json.dumps(doc, ensure_ascii=False, default=str))
+
+
+def _list_has_prefix(items: list[Any], prefix: list[Any]) -> bool:
+    return len(items) >= len(prefix) and items[: len(prefix)] == prefix
+
+
+def _merge_steps_by_key(existing: list[Any], incoming: list[Any]) -> list[Any]:
+    """按 step key 合并 steps：同 key 保留最后一次记录，防死循环时 steps 爆炸。"""
+    if _list_has_prefix(incoming, existing):
+        return list(incoming)
+    by_key: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for s in existing:
+        if not isinstance(s, dict):
+            continue
+        key = str(s.get("key") or "")
+        if not key:
+            continue
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = s
+    for s in incoming:
+        if not isinstance(s, dict):
+            continue
+        key = str(s.get("key") or "")
+        if not key:
+            continue
+        if key not in by_key:
+            order.append(key)
+        by_key[key] = s
+    return [by_key[k] for k in order]
+
+
+def _merge_langgraph_diff_into_state(state: dict[str, Any], diff: dict[str, Any]) -> None:
+    """Merge LangGraph streamed diffs without double-appending reducer lists."""
+    for k, v in diff.items():
+        if k == "steps" and isinstance(v, list):
+            existing = state.get("steps")
+            if isinstance(existing, list):
+                state["steps"] = _merge_steps_by_key(existing, v)
+            else:
+                state["steps"] = list(v)
+        elif k == "logs" and isinstance(v, list):
+            existing = state.get("logs")
+            if isinstance(existing, list) and _list_has_prefix(v, existing):
+                state["logs"] = list(v)
+            else:
+                state.setdefault("logs", []).extend(v)
+        else:
+            state[k] = v
 
 
 def _get_skill_or_404(skill_id: str):
@@ -131,6 +183,8 @@ app.include_router(schedule_router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "*",  # 演示期放开，生产期改具体源
@@ -141,6 +195,7 @@ app.add_middleware(
 
 # 内存中的 run registry：run_id → {"queue": asyncio.Queue, "state": AgentState, "task": asyncio.Task}
 RUNS: dict[str, dict] = {}
+_PENDING_GKCLAW_INBOUND_RETRIES: set[str] = set()
 
 # 工具审批挂起池：approval_id → asyncio.Future[bool]（等待前端 /approve-tool 解锁）
 _PENDING_APPROVALS: dict[str, "asyncio.Future[bool]"] = {}
@@ -243,6 +298,67 @@ def _kick_step_retry(run_id: str, step_key: str) -> None:
     RUNS[run_id]["queue"] = asyncio.Queue()
     RUNS[run_id]["attempt"] = RUNS[run_id].get("attempt", 0) + 1
     RUNS[run_id]["task"] = asyncio.create_task(_run_single_step_streaming(run_id, step_key))
+
+
+def _step_retry_followup(
+    *,
+    prev_step: str,
+    diff: dict,
+    state: dict,
+    step_retry_keys: list[str],
+) -> str | None:
+    """单步 retry 完成后的下一跳。"""
+    if (state.get("hitl") or {}).get("step") or state.get("error"):
+        return None
+    retry_set = set(step_retry_keys or [])
+    route_to = str(diff.get("route_to") or state.get("route_to") or "").strip()
+    if route_to and route_to != prev_step and route_to in retry_set:
+        return route_to
+
+    from .gkclaw_inbound import should_chain_after_wait_survey
+
+    return should_chain_after_wait_survey(
+        prev_step=prev_step,
+        state=state,
+        step_retry_keys=list(retry_set),
+    )
+
+
+async def _retry_gkclaw_inbound_later(
+    *,
+    skill_id: str,
+    task_id: str,
+    subject: str,
+    delay_sec: float = 5.0,
+) -> None:
+    key = f"{skill_id}:{task_id or subject}"
+    if key in _PENDING_GKCLAW_INBOUND_RETRIES:
+        return
+    _PENDING_GKCLAW_INBOUND_RETRIES.add(key)
+    try:
+        await asyncio.sleep(delay_sec)
+        skill_obj = _get_skill_or_404(skill_id)
+        from .gkclaw_inbound import (
+            parse_task_id_from_subject,
+            plan_inbound_action,
+            poll_gkclaw_inbox,
+        )
+
+        resolved_task_id = (task_id or "").strip() or parse_task_id_from_subject(subject) or ""
+        try:
+            poll_gkclaw_inbox(work_root=skill_obj.work_root)
+        except Exception:
+            pass
+        plan = plan_inbound_action(
+            runs=RUNS,
+            skill_step_keys=[s.key for s in skill_obj.steps],
+            step_retry_keys=skill_obj.step_retry_keys,
+            task_id=resolved_task_id or None,
+        )
+        if plan.get("trigger") and plan.get("run_id") and plan.get("step"):
+            _kick_step_retry(str(plan["run_id"]), str(plan["step"]))
+    finally:
+        _PENDING_GKCLAW_INBOUND_RETRIES.discard(key)
 
 
 # ─── 启动钩子 ───
@@ -426,11 +542,7 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 })
                 # 把 diff 合到 cached state
                 cur = RUNS[run_id]["state"]
-                for k, v in diff.items():
-                    if k in ("logs", "steps") and isinstance(v, list):
-                        cur.setdefault(k, []).extend(v)
-                    else:
-                        cur[k] = v
+                _merge_langgraph_diff_into_state(cur, diff)
                 # system_design：新 HITL 门出现 → 归档弹框内容到 conv_log（对话区累积展示）
                 if skill_id == "system_design":
                     new_hitl = diff.get("hitl") if isinstance(diff.get("hitl"), dict) else {}
@@ -750,7 +862,6 @@ async def _run_single_step_streaming(
 ) -> None:
     """仅重试单个 step（用于 report_distribute / wait_survey / publish_confirm 等）。"""
     from .skills.base import SkillContext
-    from .gkclaw_inbound import should_chain_after_wait_survey
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
     skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
@@ -799,11 +910,7 @@ async def _run_single_step_streaming(
         diff = skill.execute_step(step, state, ctx)
         RUNS[run_id]["_running_step"] = None  # 执行完毕，清除 running 标记
         cur = RUNS[run_id]["state"]
-        for k, v in diff.items():
-            if k in ("logs", "steps") and isinstance(v, list):
-                cur.setdefault(k, []).extend(v)
-            else:
-                cur[k] = v
+        _merge_langgraph_diff_into_state(cur, diff)
         await queue.put({
             "event": "node_update",
             "data": {"node": step_key, "diff": diff},
@@ -872,17 +979,14 @@ async def _run_single_step_streaming(
                     run_id, linear[idx + 1], _chain=False, chain_linear=True,
                 )
                 return
-        chain_to = (
-            should_chain_after_wait_survey(
-                prev_step=step_key,
-                state=RUNS[run_id]["state"],
-                step_retry_keys=skill.step_retry_keys,
-            )
-            if _chain and not hitl.get("step") and not diff.get("error")
-            else None
-        )
+        chain_to = _step_retry_followup(
+            prev_step=step_key,
+            diff=diff,
+            state=RUNS[run_id]["state"],
+            step_retry_keys=skill.step_retry_keys,
+        ) if _chain and not hitl.get("step") and not diff.get("error") else None
         if chain_to:
-            await _run_single_step_streaming(run_id, chain_to, _chain=False)
+            await _run_single_step_streaming(run_id, chain_to, _chain=True)
             return
         # system_design：publish_confirm 确认发布后链式执行 publish（step_retry 不重跑前置 LLD/ZTP）
         if (
@@ -918,6 +1022,7 @@ async def gkclaw_inbound(
         parse_task_id_from_subject,
         plan_inbound_action,
         poll_gkclaw_inbox,
+        should_defer_inbound_retry,
     )
 
     skill_obj = _get_skill_or_404(skill)
@@ -937,6 +1042,7 @@ async def gkclaw_inbound(
     )
 
     triggered = False
+    deferred = False
     if plan.get("trigger") and plan.get("run_id") and plan.get("step"):
         _kick_step_retry(str(plan["run_id"]), str(plan["step"]))
         triggered = True
@@ -952,9 +1058,19 @@ async def gkclaw_inbound(
                 })
         except Exception:
             pass
+    if not triggered and should_defer_inbound_retry(plan, subject=req.subject):
+        deferred = True
+        asyncio.create_task(_retry_gkclaw_inbound_later(
+            skill_id=skill,
+            task_id=task_id,
+            subject=req.subject,
+        ))
 
     return {
         "ok": True,
+        "accepted": bool(triggered or deferred),
+        "deferred": deferred,
+        "retry_after_sec": 5 if deferred else None,
         "task_id": task_id or None,
         "mail_id": req.mail_id,
         "ingest": ingest_summary,
@@ -1578,13 +1694,7 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
             _emit_cnt[d["step"]] = 0
             # 推 SDUI：Stepper 中该节点立即变为蓝色 running 圆点
             _push_sdui_overlay()
-            # 中间对话框：开一个该节点的日志气泡
-            if not _suppress_aux_run_log(d["step"]) and (
-                (not suppress_replay) or (d["step"] not in _runlog_logged)
-            ):
-                _runlog_shown_pass.add(d["step"])
-                _runlog_logged.add(d["step"])
-                _push_run_log({"step": d["step"], "name": d["name"], "phase": "start"})
+            # 左栏日志气泡在首条 step_log 时创建（HITL 仅 check_inputs 无 emit 的步骤不空开卡）
 
         elif ev == "step_log":
             d = item["data"]
@@ -1596,7 +1706,11 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 if len(tail) > 8:
                     running["log_tail"] = tail[-8:]
             # 中间对话框：逐行日志（不节流，按 emit 的 sleep 节奏到达）
-            if step_key in _runlog_shown_pass:
+            if not _suppress_aux_run_log(step_key) and (
+                (not suppress_replay) or (step_key not in _runlog_logged)
+            ):
+                _runlog_shown_pass.add(step_key)
+                _runlog_logged.add(step_key)
                 _push_run_log({
                     "step": step_key,
                     "name": (running or {}).get("name", ""),
@@ -1624,21 +1738,17 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 })
                 # 把 diff 合到 cached state
                 cur = RUNS[run_id]["state"]
-                for k, v in diff.items():
-                    if k in ("logs", "steps") and isinstance(v, list):
-                        cur.setdefault(k, []).extend(v)
-                    else:
-                        cur[k] = v
+                _merge_langgraph_diff_into_state(cur, diff)
                 # 中间对话框：节点完成 → 收尾对应日志气泡
                 if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
                     _last_status = ""
                     _dsteps = diff.get("steps") if isinstance(diff, dict) else None
                     if isinstance(_dsteps, list) and _dsteps and isinstance(_dsteps[-1], dict):
                         _last_status = _dsteps[-1].get("status", "")
-                    if _last_status in ("completed", "failed"):
+                    if _last_status in ("completed", "failed", "hitl"):
                         await queue.put({"event": "run_log", "data": {
                             "step": node_name,
-                            "phase": "done" if _last_status == "completed" else "failed",
+                            "phase": "done" if _last_status in ("completed", "hitl") else "failed",
                         }})
                 # system_design：新 HITL 门出现 → 归档弹框内容到 conv_log（对话区累积展示）
                 if skill_id == "system_design":

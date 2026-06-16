@@ -4,7 +4,7 @@ from __future__ import annotations
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ..bridge import ensure_runtime
 from ._sd_ops import _chain, op_toolkit_executor
-from ._hitl import executor_config_input
+from ._hitl import executor_config_input, is_confirmed
 
 
 class ToolkitExecutorStep(BaseStep):
@@ -25,6 +25,21 @@ class ToolkitExecutorStep(BaseStep):
 
         cfg = load_executor_config(ctx.work_root)
         proj = ctx.project or {}
+        # 磁盘上已有 IP/SK 也须本 run 内确认，避免步骤 6 后静默跳过步骤 7。
+        if proj.get("reconfigure_executor") or not is_confirmed(proj, self.key):
+            ip = str(cfg.get("base_url_ip") or proj.get("base_url_ip") or "").strip()
+            note = "步骤 7：请填写调测设备 IP/SK"
+            if ip:
+                note = f"步骤 7：请确认调测设备配置（当前 IP {ip}）"
+            if proj.get("reconfigure_executor"):
+                note = "修改调测设备 IP/SK（将写入 toolkit_executor.json）"
+            return {
+                "ok": False,
+                "missing": [],
+                "found": [],
+                "note": note,
+                "need_inputs": executor_config_input(),
+            }
         if (cfg.get("base_url_ip") and cfg.get("secret_key")) or (
             proj.get("base_url_ip") and proj.get("secret_key")
         ):

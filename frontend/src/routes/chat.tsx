@@ -10,6 +10,7 @@ import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
 import { useSduiStream, resumeRun, uploadBatch } from '@/hooks/useSduiStream';
 import { useChatStream } from '@/hooks/useChatStream';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import type { ChatMessage, SkillLaunchInfo, ToolApprovalInfo } from '@/hooks/useChatStream';
 import type { SduiAction } from '@/lib/sdui';
 
@@ -145,6 +146,7 @@ function ToolApprovalCard({
 }
 
 function MessageBubble({ msg, onDecide }: { msg: ChatMessage; onDecide: (id: string, approved: boolean) => void }) {
+  const { avatarInitials } = useSessionUser();
   const isUser = msg.role === 'user';
   return (
     <div style={{
@@ -157,7 +159,7 @@ function MessageBubble({ msg, onDecide }: { msg: ChatMessage; onDecide: (id: str
         background: isUser ? 'var(--slate-900)' : 'var(--accent)',
         color: '#fff', fontSize: 12, fontWeight: 700,
       }}>
-        {isUser ? 'U' : 'AI'}
+        {isUser ? avatarInitials : 'AI'}
       </div>
       <div style={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', gap: 3, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
         {msg.text && (

@@ -10,6 +10,7 @@ import { useNavigate } from 'react-router-dom';
 import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { fetchMyProjects } from '@/lib/claw-manager-client';
 import {
   mapDcProjectToCard,
@@ -139,17 +140,11 @@ function ProjectCard({ p, onClick, onEdit }) {
   );
 }
 
-function userAvatar(name: string): string {
-  const s = (name || '').trim();
-  if (!s) return 'U';
-  if (/[\u4e00-\u9fff]/.test(s)) return s.slice(0, 2);
-  return s.slice(0, 2).toUpperCase();
-}
-
 export default function LandingScreen() {
   const navigate = useNavigate();
   const doLogout = useLogout();
   const { session } = useAidaSession();
+  const sessionUser = useSessionUser();
   const { selectProject } = useCurrentProject();
   const [projects, setProjects] = useState<LandingProjectCard[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,14 +193,19 @@ export default function LandingScreen() {
   const openProject = (id: string) => {
     const p = projects.find((x) => x.id === id);
     if (!p || !p.canEnter) return;
-    selectProject({ id: p.id, name: p.name, code: p.code });
+    selectProject({
+      id: p.id,
+      name: p.name,
+      code: p.code,
+      projectCode: p.projectCode || (String(p.code).startsWith('PROP-') ? undefined : p.code),
+      proposalId: p.bidCode || (String(p.code).startsWith('PROP-') ? p.code : undefined),
+    });
     navigate('/preview');
   };
 
-  const displayName = session?.user?.display_name || session?.user?.username || '用户';
-  const roleLabel = session?.user?.global_roles?.[0]?.roleName
-    || session?.role
-    || '交付成员';
+  const displayName = sessionUser.displayName;
+  const roleLabel = sessionUser.roleLabel;
+  const userId = sessionUser.userId;
 
   const visibleProjects = visibleLandingProjects(projects);
 
@@ -232,9 +232,9 @@ export default function LandingScreen() {
         <div className="lp-top-user">
           <div className="lp-top-user-meta">
             <div className="lp-top-user-name">{displayName}</div>
-            <div className="lp-top-user-title">{roleLabel}</div>
+            <div className="lp-top-user-title">{roleLabel}{userId ? ` · ${userId}` : ''}</div>
           </div>
-          <div className="lp-top-user-av">{userAvatar(displayName)}</div>
+          <div className="lp-top-user-av">{sessionUser.avatarInitials}</div>
           <button type="button" className="lp-top-logout" onClick={() => void doLogout()}>
             退出
           </button>
@@ -283,7 +283,7 @@ export default function LandingScreen() {
                   </div>
                 )}
                 {!loading && visibleProjects.map(renderCard)}
-                {!loading && <CreateCard onClick={openCreate} />}
+                {!loading && <CreateCard onClick={(e) => { e.stopPropagation(); openCreate(); }} />}
           </div>
         </div>
       </main>

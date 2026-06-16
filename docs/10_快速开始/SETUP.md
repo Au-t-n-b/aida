@@ -1,7 +1,7 @@
 # AIDA · 同事上手指南（SKILL 测试）
 
 > 前提：Python 3.10+，Node.js 18+，已拿到 zhgk 底表数据压缩包（单独发送）。
-> 如需体验工勘孪生（SOG 通道），还需向工勘孪生同事索取 `通道1.sog` 文件（大文件，不入库）。
+> 如需体验实景孪生 3D 场景，还需准备 `通道1.sog` 文件（大文件，不入库）。
 
 ---
 
@@ -23,7 +23,7 @@ agent\.venv\Scripts\activate
 # macOS / Linux
 source agent/.venv/bin/activate
 
-pip install -r agent/requirements.txt
+python -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r agent/requirements.txt
 ```
 
 ---
@@ -95,6 +95,31 @@ ZHGK_ROOT=C:/Users/你的用户名/Desktop/zhgk-desktop
 ZHGK_ROOT=/Users/你的用户名/Desktop/zhgk-desktop
 ```
 
+### 3d. 重置工勘流程（不清底表）
+
+换底表、重跑工勘，或清掉旧「全量勘测结果表」/ GKCLAW 任务登记时，用专用脚本（**不重启 Agent**）：
+
+```bash
+# 本地（读 agent/.env 的 ZHGK_ROOT）
+python agent/scripts/reset_zhgk_workspace.py
+
+# Windows 封装
+powershell -ExecutionPolicy Bypass -File scripts/reset_zhgk.ps1
+```
+
+默认清除 `Output` / `RunTime` / `Images`，**保留** `Template/`（入场评估标准表、工勘常见高风险库）与 `Input/`。
+
+| 场景 | 命令 |
+|------|------|
+| 换了底表，想按新表重建勘测项 | 默认命令即可（或手动覆盖 `Template/*.xlsx` 后执行） |
+| 连 Input 也清空并重新 seed 演示报告 | `--clear-input` |
+| 底表也要删掉、下次重新 HITL 上传 | `--clear-template` 或 `--full` |
+| Docker 演示机 | `bash scripts/reset_demo.sh`（可选 `--restart`） |
+
+执行后请**刷新前端**并重新「开始工勘」。若需连同 LangGraph 续跑状态一并清掉，加 `--clear-checkpoints`。
+
+本地若还要重启全套服务（Agent / 前端 / mailgw），用 `scripts/reset_local_dev.ps1`（内部会调用本脚本清 `Input` + 运行态）。
+
 ---
 
 ## 第四步：启动后端
@@ -119,11 +144,11 @@ curl http://127.0.0.1:7401/healthz
 
 ```bash
 cd frontend
-npm install
+npm install --registry=https://registry.npmmirror.com
 npm run dev
 ```
 
-访问 `http://localhost:5173`。前端已硬编码对接 `127.0.0.1:7401`，无需额外配置。
+访问 `http://localhost:8080`。默认前端走同源代理：本地 Vite dev server 代理到 `127.0.0.1:7401`，演示服务器由 nginx 反代到容器内 Agent。只有在需要绕过代理直连某台后端时，才在 `frontend/.env` 中填写 `VITE_AGENT_BASE`。
 
 ---
 
@@ -156,19 +181,20 @@ curl http://127.0.0.1:7401/agent/zhgk/stream/<run_id>
 |------|------------|
 | `ModuleNotFoundError: No module named 'agent'` | uvicorn 在错误目录执行。**确保在仓库根 `aida/` 下运行**，不是 `cd agent/` 后运行 |
 | `/healthz` 返回 `"configured": false` | `agent/.env` 里 `ZHIPU_API_KEY` 未填或填错 |
-| 工勘卡在 0%，状态显示 `hitl` | `Template/` 目录里缺底表文件（入场评估标准表.xlsx / 工勘常见高风险库.xlsx）。上传后点「继续」 |
+| 工勘卡在 0%，状态显示 `hitl` | `Template/` 目录里缺底表文件（入场评估标准表.xlsx / 工勘常见高风险库.xlsx）。两张表可一次或分次上传；缺一张会继续提示 |
+| 换了底表仍下发旧的勘测项（如仍是 57 条） | `Output/` 里旧「全量勘测结果表」被 `filter_build` 幂等复用。执行 `python agent/scripts/reset_zhgk_workspace.py` 后刷新页面重跑 |
 | 工勘卡在 20%，`Input/` 文件检查失败 | 缺 BOQ.xlsx，放入 `Input/`（文件名须含 BOQ）后 resume |
-| 前端白屏 / 请求 7401 失败 | 后端没起或端口被占。检查 uvicorn 日志，确认 7401 可访问 |
+| 前端白屏 / 请求后端失败 | 后端没起、端口被占，或 `VITE_AGENT_BASE` 配错。默认可不填 `VITE_AGENT_BASE`，让前端走同源代理 |
 
 ---
 
-## 第七步：工勘孪生 SOG 通道（可选）
+## 第七步：实景孪生 3D 场景（可选）
 
-> 如果你需要使用 `孪生世界 → 工勘孪生` 页面，需要额外部署 SOG 模型文件。
+> 如果你需要使用 `孪生世界 → 实景孪生` 页面，需要额外部署 3D 场景文件。
 
 ### 7a. 获取通道文件
 
-向工勘孪生同事索取 `.sog` 文件（高斯拓建建模结果，大文件不入库）。
+准备 `.sog` 文件（3DGS/高斯建模结果，大文件不入库）。当前本地演示默认使用通道1历史场景。
 
 ### 7b. 部署到本地（Windows PowerShell）
 
@@ -182,17 +208,31 @@ powershell -File agent/scripts/init_sog_channel1.ps1 -Source "D:\你的路径\�
 
 脚本会把 `scene.sog` 复制到 `data/sog-assets/channel1/`，并生成 `meta.json` 和空 `hotspots.json`。
 
+场景列表由 `data/sog-scenes.json` 管理；默认历史场景指向 `channel1`。页面支持修改场景名、查看上传时间。新上传视频当前登记为“训练中”，训练/转码服务接入前先按本地 mock 状态展示。
+
+初始视角也配置在 `data/sog-scenes.json` 的场景 `camera` 字段中：
+
+```json
+"camera": {
+  "position": [0, 1.6, -8],
+  "target": [0, 1, 0],
+  "fov": 60
+}
+```
+
+如果进入后视角仍不合适，优先调整 `position`：第三个值更负通常表示向后退，第二个值表示高度；`target` 表示看向的中心点。
+
 ### 7c. 验证
 
-后端启动后访问：`http://127.0.0.1:7401/api/sog/assets/channel1`
+后端启动后访问：`http://127.0.0.1:7401/api/sog/scenes`
 
 应返回：
 
 ```json
-{ "id": "channel1", "sceneExists": true, ... }
+[{ "id": "channel1", "status": "ready", "sceneExists": true, ... }]
 ```
 
-前端访问 `http://localhost:5173/twin/survey` 即可看到 SOG 三维查看器。
+前端访问 `http://localhost:8080/twin/survey` 即可看到实景孪生 3D 场景。
 
 ---
 

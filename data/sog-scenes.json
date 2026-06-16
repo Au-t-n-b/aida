@@ -1,0 +1,23 @@
+[
+  {
+    "id": "channel1",
+    "name": "通道1",
+    "status": "ready",
+    "uploadedAt": "2026-06-05T15:57:31.9943735+08:00",
+    "assetId": "channel1",
+    "sourceVideoName": "通道1.mp4",
+    "camera": {
+      "position": [
+        -2.17,
+        0.41,
+        -2.41
+      ],
+      "target": [
+        2.1,
+        -1.26,
+        4.2
+      ],
+      "fov": 60.0
+    }
+  }
+]

@@ -62,11 +62,12 @@ class FilterBuildStep(BaseStep):
 
         missing = []
 
-        # 1. 入场评估标准表
-        from ..path_config import get_base_table_path
-        base_table = get_base_table_path()
-        if not os.path.exists(base_table):
+        # 1. Template 底表（共用一次 HITL 同时上传）
+        from ..path_config import get_base_table_path, get_risk_library_path
+        if not os.path.exists(get_base_table_path()):
             missing.append("ProjectData/Template/入场评估标准表.xlsx")
+        if not os.path.exists(get_risk_library_path()):
+            missing.append("ProjectData/Template/工勘常见高风险库.xlsx")
 
         # 2. generation_cooling
         gc = ctx.project.get("generation_cooling", "")

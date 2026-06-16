@@ -41,7 +41,7 @@ padding:12px 14px;overflow:auto;font-size:12.5px;margin:0}
 footer{padding:24px 6%;border-top:1px solid var(--border);color:var(--dim);font-size:13px}
 footer code{color:var(--cyan)}</style></head><body>
 <header><h1>SDUI 组件目录</h1>
-<div class="meta">schemaVersion 1 · 67 个节点类型 · 42 个嵌套子类型</div>
+<div class="meta">schemaVersion 1 · 69 个节点类型 · 45 个嵌套子类型</div>
 <div class="banner">⚠ 自动生成自 <code>agent/sdui/builder.py</code> —— 请勿手改；改契约后跑 <code>gen_sdui_gallery.py</code> 重新生成（<code>lint_sdui_gallery.py</code> 守门）</div></header>
 <div class="wrap"><nav><h4>布局 Layout</h4>
 <a href="#Stack">Stack</a>
@@ -79,6 +79,8 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#ChoiceCard">ChoiceCard</a>
 <a href="#HitlTextInput">HitlTextInput</a>
 <h4>Other</h4>
+<a href="#ZhgkGoldenMetrics">ZhgkGoldenMetrics</a>
+<a href="#ZhgkAssessmentPanel">ZhgkAssessmentPanel</a>
 <a href="#RiskList">RiskList</a>
 <a href="#MachineRoom3D">MachineRoom3D</a>
 <a href="#EmptyState">EmptyState</a>
@@ -130,6 +132,9 @@ footer code{color:var(--cyan)}</style></head><body>
 <a href="#KeyValueItem">KeyValueItem</a>
 <a href="#SduiDonutSegment">DonutSegment</a>
 <a href="#SduiBarDatum">BarDatum</a>
+<a href="#SduiZhgkAssessmentCategory">ZhgkAssessmentCategory</a>
+<a href="#SduiZhgkAssessmentDetail">ZhgkAssessmentDetail</a>
+<a href="#SduiZhgkAssessmentAlert">ZhgkAssessmentAlert</a>
 <a href="#SduiArtifactItem">ArtifactItem</a>
 <a href="#SduiTimelineEvent">TimelineEvent</a>
 <a href="#SduiPlaneCell">PlaneCell</a>
@@ -432,7 +437,11 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>options</b></td><td><code>ChoiceOption[]</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>hitlRequestId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
-<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>stepId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>multiple</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>maxSelections</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>submitLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>repeatable</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;ChoiceCard&quot;,
   &quot;title&quot;: &quot;示例&quot;,
   &quot;options&quot;: [
@@ -456,6 +465,38 @@ footer code{color:var(--cyan)}</style></head><body>
   &quot;type&quot;: &quot;HitlTextInput&quot;
 }</pre></section>
 <h2 class="cat">Other</h2>
+<section id="ZhgkGoldenMetrics"><h3><code>ZhgkGoldenMetrics</code> SduiZhgkGoldenMetricsNode<span class="tag">Other</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ZhgkGoldenMetrics</code></td><td class='req'>—</td><td><code>ZhgkGoldenMetrics</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>progress</b></td><td><code>int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>centerLabel</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>items</b></td><td><code>StatisticRowItem[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ZhgkGoldenMetrics&quot;,
+  &quot;progress&quot;: 1,
+  &quot;items&quot;: [
+    {
+      &quot;title&quot;: &quot;示例&quot;,
+      &quot;value&quot;: &quot;示例&quot;
+    }
+  ]
+}</pre></section>
+<section id="ZhgkAssessmentPanel"><h3><code>ZhgkAssessmentPanel</code> SduiZhgkAssessmentPanelNode<span class="tag">Other</span></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ZhgkAssessmentPanel</code></td><td class='req'>—</td><td><code>ZhgkAssessmentPanel</code></td></tr>
+<tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>AI 五值评估</code></td></tr>
+<tr><td><b>total</b></td><td><code>int</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>rateLabel</b></td><td><code>string</code></td><td class='req'>—</td><td>默认 <code>满足率</code></td></tr>
+<tr><td><b>rateValue</b></td><td><code>int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>categories</b></td><td><code>ZhgkAssessmentCategory[]</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>alerts</b></td><td><code>ZhgkAssessmentAlert[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+  &quot;type&quot;: &quot;ZhgkAssessmentPanel&quot;,
+  &quot;total&quot;: 1,
+  &quot;rateValue&quot;: 1,
+  &quot;categories&quot;: [
+    {
+      &quot;label&quot;: &quot;示例&quot;,
+      &quot;value&quot;: 1
+    }
+  ]
+}</pre></section>
 <section id="RiskList"><h3><code>RiskList</code> SduiRiskListNode<span class="tag">Other</span></h3><p class="desc">风险清单 · 按等级（高/中/低）色带展示。zhgk 风险识别、评估类 skill 通用。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: RiskList</code></td><td class='req'>—</td><td><code>RiskList</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>items</b></td><td><code>RiskItem[]</code></td><td class='req'>✓</td><td></td></tr>
@@ -594,6 +635,7 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>pageSize</b></td><td><code>int</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>requiredKeys</b></td><td><code>string[]</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>dualMode</b></td><td><code>bool</code></td><td class='req'>—</td><td>默认 <code>False</code></td></tr>
+<tr><td><b>dualModeEditable</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>patchAction</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;DataTable&quot;,
   &quot;columns&quot;: [
@@ -767,16 +809,10 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>side</b></td><td><code>SduiNode[]</code></td><td class='req'>✓</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;DashboardLayout&quot;,
   &quot;main&quot;: [
-    {
-      &quot;type&quot;: &quot;Text&quot;,
-      &quot;content&quot;: &quot;示例&quot;
-    }
+    &quot;...&quot;
   ],
   &quot;side&quot;: [
-    {
-      &quot;type&quot;: &quot;Text&quot;,
-      &quot;content&quot;: &quot;示例&quot;
-    }
+    &quot;...&quot;
   ]
 }</pre></section>
 <section id="Drawer"><h3><code>Drawer</code> SduiDrawerNode<span class="tag">Other</span></h3><p class="desc">侧滑详情面板 · 标题 + 递归子节点（此处内嵌展示）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: Drawer</code></td><td class='req'>—</td><td><code>Drawer</code></td></tr>
@@ -845,7 +881,8 @@ footer code{color:var(--cyan)}</style></head><body>
 <section id="ContextBar"><h3><code>ContextBar</code> SduiContextBarNode<span class="tag">Other</span></h3><p class="desc">项目元信息条 · 批次 / 起止 / 负责人 / 规模（对齐交付台 ctx-bar）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: ContextBar</code></td><td class='req'>—</td><td><code>ContextBar</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>groups</b></td><td><code>ContextBarGroup[]</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>showTimelineArrow</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>showTimelineArrow</b></td><td><code>bool</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>trailingAction</b></td><td><code>CardHeaderAction</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;ContextBar&quot;,
   &quot;groups&quot;: [
     {
@@ -857,7 +894,8 @@ footer code{color:var(--cyan)}</style></head><body>
 <section id="FlowSteps"><h3><code>FlowSteps</code> SduiFlowStepsNode<span class="tag">Other</span></h3><p class="desc">横向主线流程图 · 对齐交付台 flow-steps / flow-card（可点击切换焦点步）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>type</b></td><td><code>enum: FlowSteps</code></td><td class='req'>—</td><td><code>FlowSteps</code></td></tr>
 <tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>steps</b></td><td><code>FlowStepCard[]</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>currentId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
+<tr><td><b>currentId</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>headerAction</b></td><td><code>CardHeaderAction</code></td><td class='req'>—</td><td></td></tr></table><p class="lbl">样例 JSON</p><pre>{
   &quot;type&quot;: &quot;FlowSteps&quot;,
   &quot;steps&quot;: [
     {
@@ -969,6 +1007,18 @@ footer code{color:var(--cyan)}</style></head><body>
 <section id="SduiBarDatum"><h3><code>BarDatum</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>number | int</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>color</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiZhgkAssessmentCategory"><h3><code>ZhgkAssessmentCategory</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>value</b></td><td><code>int | number</code></td><td class='req'>✓</td><td></td></tr>
+<tr><td><b>tone</b></td><td><code>enum: success | warning | error | accent | subtle</code></td><td class='req'>—</td><td><code>success</code> | <code>warning</code> | <code>error</code> | <code>accent</code> | <code>subtle</code></td></tr>
+<tr><td><b>details</b></td><td><code>ZhgkAssessmentDetail[]</code></td><td class='req'>—</td><td>默认 <code>PydanticUndefined</code></td></tr></table></section>
+<section id="SduiZhgkAssessmentDetail"><h3><code>ZhgkAssessmentDetail</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>item</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>result</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>source</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>time</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>risk</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<section id="SduiZhgkAssessmentAlert"><h3><code>ZhgkAssessmentAlert</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>tone</b></td><td><code>enum: info | success | warning | error</code></td><td class='req'>—</td><td><code>info</code> | <code>success</code> | <code>warning</code> | <code>error</code></td></tr>
+<tr><td><b>title</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>message</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr></table></section>
 <section id="SduiArtifactItem"><h3><code>ArtifactItem</code></h3><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
 <tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>path</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
@@ -1068,9 +1118,10 @@ footer code{color:var(--cyan)}</style></head><body>
 <tr><td><b>start</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>end</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>status</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
-<section id="SduiContextBarGroup"><h3><code>ContextBarGroup</code></h3><p class="desc">ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
+<section id="SduiContextBarGroup"><h3><code>ContextBarGroup</code></h3><p class="desc">ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）+ 可选行内按钮。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>label</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>value</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
-<tr><td><b>badge</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr></table></section>
+<tr><td><b>badge</b></td><td><code>string</code></td><td class='req'>—</td><td></td></tr>
+<tr><td><b>inlineAction</b></td><td><code>CardHeaderAction</code></td><td class='req'>—</td><td></td></tr></table></section>
 <section id="SduiFlowStepCard"><h3><code>FlowStepCard</code></h3><p class="desc">FlowSteps 横向流程图的一张卡片。</p><table><tr><th>字段</th><th>类型</th><th>必填</th><th>枚举 / 默认</th></tr><tr><td><b>id</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>num</b></td><td><code>int</code></td><td class='req'>✓</td><td></td></tr>
 <tr><td><b>title</b></td><td><code>string</code></td><td class='req'>✓</td><td></td></tr>

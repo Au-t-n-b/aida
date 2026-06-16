@@ -22,6 +22,7 @@ import {
   patchMaintenanceStrategyRow,
   patchServiceDeliveryUiRow,
   ProposalApiError,
+  shouldSilenceNoDataError,
   useProposalApiHeaders,
   type DeliveryChannel,
   type MaintenanceSlaRow,
@@ -73,6 +74,11 @@ export function ServiceDeliveryChapter({
       }
       setRows(data);
     } catch (err) {
+      if (shouldSilenceNoDataError(err)) {
+        setRows([]);
+        setError(null);
+        return;
+      }
       const msg =
         err instanceof ProposalApiError
           ? err.message
@@ -211,6 +217,11 @@ export function ServiceContentChapter({
       }
       setL1Rows(rows);
     } catch (err) {
+      if (shouldSilenceNoDataError(err)) {
+        setL1Rows([]);
+        setError(null);
+        return;
+      }
       const msg =
         err instanceof ProposalApiError
           ? err.message
@@ -247,6 +258,11 @@ export function ServiceContentChapter({
         const children = rows.filter((r) => r.rowLevel === 'L2');
         setChildrenByParent((prev) => ({ ...prev, [rowId]: children }));
       } catch (err) {
+        if (shouldSilenceNoDataError(err)) {
+          setChildrenByParent((prev) => ({ ...prev, [rowId]: [] }));
+          setError(null);
+          return;
+        }
         const msg =
           err instanceof ProposalApiError
             ? err.message
@@ -356,6 +372,11 @@ export function MaintStrategyChapter({
       }
       setRows(data);
     } catch (err) {
+      if (shouldSilenceNoDataError(err)) {
+        setRows([]);
+        setError(null);
+        return;
+      }
       const msg =
         err instanceof ProposalApiError
           ? err.message
@@ -583,26 +604,23 @@ export function SlaChapter({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingRowId, setSavingRowId] = useState<string | null>(null);
-  const [emptyHint, setEmptyHint] = useState<string | null>(null);
   const slaGroups = groupSlaRowsByService(rows);
 
   const loadSla = useCallback(async () => {
     setLoading(true);
     setError(null);
-    setEmptyHint(null);
     try {
       let data = await fetchMaintenanceSla(projectId, headers, proposalVersion);
       if (proposalVersion === 'draft' && data.rows.length === 0) {
         data = await parseMaintenanceProposalDoc(projectId, headers);
       }
       setRows(data.rows);
-      if (data.rows.length === 0) {
-        setEmptyHint(
-          data.meta?.hint ??
-            '暂无 SLA 数据：请确认「解析结果/维保建议书/维保建议书解析结果.json」已落盘，或由上游 sla-extract 写入后再刷新。',
-        );
-      }
     } catch (err) {
+      if (shouldSilenceNoDataError(err)) {
+        setRows([]);
+        setError(null);
+        return;
+      }
       const msg =
         err instanceof ProposalApiError
           ? err.message
@@ -656,34 +674,6 @@ export function SlaChapter({
 
   return (
     <ProposalChapterCard id="sec-7-4" title="8.4 维保SLA">
-      {emptyHint && !loading && rows.length === 0 && (
-        <p className="mb-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-          {emptyHint}
-          <button
-            type="button"
-            className="ml-2 underline"
-            onClick={() => {
-              void (async () => {
-                setLoading(true);
-                setError(null);
-                try {
-                  const data = await parseMaintenanceProposalDoc(projectId, headers, {
-                    force: true,
-                  });
-                  setRows(data.rows);
-                  setEmptyHint(null);
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : '刷新失败');
-                } finally {
-                  setLoading(false);
-                }
-              })();
-            }}
-          >
-            刷新
-          </button>
-        </p>
-      )}
       {error && (
         <div className="mb-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
           {error}

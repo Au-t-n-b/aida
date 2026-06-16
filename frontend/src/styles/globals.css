@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Tailwind CSS utilities 鈥?娣峰悎妯″紡锛坔ybrid mode锛?
  * preflight 宸插湪 tailwind.config.js 涓叧闂紝涓嶅奖鍝嶇幇鏈夋牱寮忋€?
  * 鏂扮粍浠剁洿鎺ヤ娇鐢?Tailwind utility class锛屾棫缁勪欢淇濈暀鍘?CSS class銆?
@@ -1873,6 +1873,34 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   margin-left: -6px;
   top: 50%;
   transform: translateY(-50%);
+}
+.fdy-sub-group { display: flex; flex-direction: column; gap: 2px; }
+.left-nav-fdy-v2 .fdy-sub-parent {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: inherit;
+}
+.left-nav-fdy-v2 .fdy-sub-parent .n { flex: 1; }
+.fdy-sub-parent-caret {
+  display: inline-flex;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.fdy-sub-sub-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  margin: 0 0 4px;
+}
+.left-nav-fdy-v2 .fdy-sub-sub-item {
+  font-size: 13px;
+  padding: 7px 12px;
 }
 
 .left-nav-fdy.nav-collapsed.left-nav-fdy-v2 .fdy-brand-text,

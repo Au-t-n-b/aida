@@ -6,6 +6,7 @@ import { usePathname, useNavPath } from '@/compat/navigation';
 import {
   getSeedForPath,
   getSuggestsForPath,
+  SHOW_PREVIEW_CLAW_SEED,
 } from '../data/claw-seeds';
 import { getNavLabel } from '../data/left-nav-items';
 import { skillIdFromModulePath } from '@/data/module-skill-map';
@@ -18,6 +19,10 @@ import { startRun } from '@/hooks/useSduiStream';
 import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext } from '@/components/sdui/SduiContext';
 import { RAIL_SEND_EVENT } from '@/lib/claw-send';
+// 部署调测左栏扩展（仅 /module/deploy 生效；其它模块零感知）
+import { useDeployRail } from '@/components/claw-rail/useDeployRail';
+import { SdSkillStepCard } from '@/components/claw-rail/SdSkillStepCard';
+import { useCommissionBusy } from '@/lib/commissionBusyStore';
 
 import { agentBaseSync } from '@/lib/agentBase';
 import {
@@ -27,7 +32,8 @@ import {
   saveClawChatSession,
   type StoredClawMsg,
 } from '@/lib/claw-chat-store';
-import { useCurrentProject } from '@/lib/current-project';
+import { useCurrentProject, type CurrentProject } from '@/lib/current-project';
+import { useSessionUser } from '@/hooks/useSessionUser';
 import { getUploadMeta, setUploadMetaDoc } from '@/lib/proposal-data-service';
 
 const AGENT_BASE = agentBaseSync();
@@ -233,6 +239,11 @@ function simulateProposalUpload(docKey: string, itemLabel: string, fileName: str
   }
 }
 
+function clawProjectScope(pathname: string, project: CurrentProject | null): string | null {
+  if (!pathname.includes('/proposal')) return null;
+  return project?.name?.trim() || project?.id?.trim() || null;
+}
+
 function ProposalUploadPanel() {
   const { project } = useCurrentProject();
   const projectName = project?.name ?? '';
@@ -339,18 +350,17 @@ function ProposalUploadPanel() {
 function ModuleControlPanel({ pathname }: { pathname: string }) {
   const [parseProgress, setParseProgress] = useState(0);
   const [parseStage, setParseStage] = useState('等待开始');
-  const [needRefresh, setNeedRefresh] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onProgress = (e: Event) => {
       const body = ((e as CustomEvent<{ body?: string }>).detail?.body) ?? '';
-      if (body.includes('开始解析')) { setParseProgress(10); setParseStage('拉取 BOQ 文件…'); setNeedRefresh(false); }
+      if (body.includes('开始解析')) { setParseProgress(10); setParseStage('拉取 BOQ 文件…'); }
       else if (body.includes('收到 · 已挂起'))     { setParseProgress(25); setParseStage('设备类解析中…'); }
       else if (body.includes('设备类 BOQ 已解析')) { setParseProgress(55); setParseStage('检测数据冲突…'); }
       else if (body.includes('服务类 BOQ 已分到')) { setParseProgress(80); setParseStage('服务类分类中…'); }
       else if (body.includes('已把') && body.includes('冲突自动登记')) { setParseProgress(95); setParseStage('写入风险列表…'); }
-      else if (body.includes('全部解析任务已完成')) { setParseProgress(100); setParseStage('解析完成'); setNeedRefresh(true); }
+      else if (body.includes('全部解析任务已完成')) { setParseProgress(100); setParseStage('解析完成'); }
     };
     window.addEventListener('aida:progress', onProgress);
     return () => window.removeEventListener('aida:progress', onProgress);
@@ -380,18 +390,6 @@ function ModuleControlPanel({ pathname }: { pathname: string }) {
             <div className="claw-mc-card-sub">{parseStage}</div>
           </div>
         </div>
-        <button
-          type="button"
-          className={`claw-module-ctl-card claw-mc-hitl${needRefresh ? ' on' : ''}`}
-          onClick={() => { if (needRefresh && typeof window !== 'undefined') window.location.reload(); }}
-          disabled={!needRefresh}
-        >
-          <div className="claw-mc-hitl-ic">{needRefresh ? '⟳' : '○'}</div>
-          <div className="claw-mc-card-body">
-            <div className="claw-mc-card-title">HITL 解析以完成</div>
-            <div className="claw-mc-card-sub">{needRefresh ? '点击刷新页面查看' : '解析进行中…'}</div>
-          </div>
-        </button>
       </div>
     );
   }
@@ -552,59 +550,54 @@ function convHasDangerBubble(node: import('@/lib/sdui').SduiNode | undefined): b
   return found;
 }
 
-/** 节点日志气泡：每个 step 一组，逐行随 SSE 到达渲染（与右侧步进条同步） */
+/** 节点日志：每个 step 独立一张 AIDA 对话卡片（与设计稿一致） */
 function RunLogFeed({ runId }: { runId: string }) {
   const groups = useRunLogStore(runId);
   if (!groups.length) return null;
   return (
-    <div style={{ margin: '2px 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <>
       {groups.map((g) => {
-        const icon = g.status === 'done' ? '✓' : g.status === 'failed' ? '✗' : '⟳';
-        const iconColor =
-          g.status === 'done' ? 'var(--green-600, #16a34a)'
-          : g.status === 'failed' ? 'var(--red-600, #dc2626)'
-          : '#1b84ff';
+        const statusLabel =
+          g.status === 'done' ? '已完成 √'
+          : g.status === 'failed' ? '失败 ✗'
+          : '执行中…';
+        const statusClass =
+          g.status === 'done' ? 'done'
+          : g.status === 'failed' ? 'failed'
+          : 'running';
         return (
-          <div key={g.step} style={{
-            border: '1px solid var(--c-border, rgba(0,0,0,.08))',
-            borderRadius: 6,
-            overflow: 'hidden',
-            background: 'var(--c-bg-soft, rgba(0,0,0,.02))',
-          }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '5px 9px',
-              fontSize: 12, fontWeight: 600,
-              color: 'var(--c-text, #18181b)',
-            }}>
-              <span style={{
-                color: iconColor,
-                display: 'inline-block',
-                animation: g.status === 'running' ? 'spin 1s linear infinite' : undefined,
-              }}>{icon}</span>
-              <span>{g.name}</span>
-            </div>
-            {g.lines.length > 0 && (
-              <div style={{
-                padding: '0 9px 7px 22px',
-                fontFamily: 'var(--font-mono, ui-monospace, monospace)',
-                fontSize: 11.5,
-                lineHeight: 1.7,
-                color: 'var(--c-text-muted, #71717a)',
-                whiteSpace: 'pre-wrap',
-                wordBreak: 'break-word',
-              }}>
-                {g.lines.map((ln, i) => (
-                  <div key={i} style={{ opacity: i === g.lines.length - 1 && g.status === 'running' ? 1 : 0.78 }}>
-                    {ln}
-                  </div>
-                ))}
+          <div
+            key={g.step}
+            className="cv-msg ai run-log-msg"
+            style={{ animation: 'cvMsgIn .42s cubic-bezier(.22,.7,.2,1) both' }}
+          >
+            <span className="cv-ai-av" aria-hidden><span className="cv-ai-dot" /></span>
+            <div className="cv-bubble" style={{ flex: 1, minWidth: 0 }}>
+              <div className="meta" style={{ marginBottom: 6 }}>AIDA · {g.ts ?? nowTs()}</div>
+              <div className="run-log-step-card">
+              <div className="run-log-step-head">
+                <span className="run-log-step-title">{g.name}</span>
+                <span className={`run-log-step-badge ${statusClass}`}>{statusLabel}</span>
               </div>
-            )}
+              {g.lines.length > 0 && (
+                <div className="run-log-step-body">
+                  {g.lines.map((ln, i) => (
+                    <div
+                      key={i}
+                      className="run-log-step-line"
+                      style={{ opacity: i === g.lines.length - 1 && g.status === 'running' ? 1 : 0.88 }}
+                    >
+                      {ln}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            </div>
           </div>
         );
       })}
-    </div>
+    </>
   );
 }
 
@@ -661,6 +654,8 @@ function SkillRunBanner({
   // HITL 交互卡（由右侧 SkillAgentScreen 抽取写入）：在左侧会话框内可交互渲染
   const hitlInfo = useSkillHitlStore();
   const myHitl   = hitlInfo?.skillId === skillId ? hitlInfo : null;
+  // 部署调测：HITL 由 deploy 步骤卡（SdSkillStepCard）承接，本 banner 不再重复渲染，避免左侧双卡
+  const useStepFeed = skillId === 'software_deployment';
 
   const convInfo = useSkillConversationStore();
   const myConv   = convInfo?.skillId === skillId ? convInfo : null;
@@ -719,9 +714,7 @@ function SkillRunBanner({
           </div>
         )}
 
-        {!usesDeliveryWorkbench && myRunId && myRunId !== '__starting__' && <RunLogFeed runId={myRunId} />}
-
-        {!usesDeliveryWorkbench && phase === 'hitl' && !myHitl && (
+        {!usesDeliveryWorkbench && !useStepFeed && phase === 'hitl' && !myHitl && (
           <div style={{
             margin: '6px 10px 8px',
             padding: '8px 10px',
@@ -763,7 +756,8 @@ function SkillRunBanner({
 
       {/* HITL 交互卡：直接在左侧会话框内可操作（选择 / 上传），回调直连右侧 resume */}
       {/* phase==='done' 时也渲染：guihua 的 completion-card（询问是否输出文件）需在完成态下显示 */}
-      {(phase === 'hitl' || phase === 'done') && myHitl && (
+      {/* 部署调测除外：HITL 由 SdSkillStepCard 承接，此处跳过避免左侧重复卡 */}
+      {!useStepFeed && (phase === 'hitl' || phase === 'done') && myHitl && (
         <div style={{ margin: '6px 10px 10px' }}>
           <SduiRuntimeContext.Provider
             value={{
@@ -774,7 +768,10 @@ function SkillRunBanner({
               onAction: (action) => { (getSkillHitl()?.onAction ?? myHitl.onAction)?.(action); },
               onUpload: (...args) => (getSkillHitl()?.onUpload ?? myHitl.onUpload)(...args),
               onChoiceSubmit: (...args) => { (getSkillHitl()?.onChoiceSubmit ?? myHitl.onChoiceSubmit)(...args); },
-              onFormSubmit: myHitl.onFormSubmit,
+              onFormSubmit: (...args) => {
+                const fn = getSkillHitl()?.onFormSubmit ?? myHitl.onFormSubmit;
+                fn?.(...args);
+              },
               // 在线编辑表默认留在右侧大盘（route_hitl_edit 契约），左栏不承接表格提交
               onRowsSubmit: () => {},
             }}
@@ -883,6 +880,7 @@ export default function ClawRail({
   clawSide = 'left',
   hideSwap = false,
   hideSuggests = false,
+  hideChat = false,
   inputPlaceholder = '对当前页面提问 / 下指令 · 支持引用 #PoD #机房 #项目',
 }: {
   collapsed: boolean;
@@ -895,6 +893,7 @@ export default function ClawRail({
   /** 用收起/展开按钮替代左右互换 */
   hideSwap?: boolean;
   hideSuggests?: boolean;
+  hideChat?: boolean;
   inputPlaceholder?: string;
 }) {
   const [draft, setDraft] = useState('');
@@ -911,6 +910,11 @@ export default function ClawRail({
   const pathname = usePathname() ?? '';
   const navPath = useNavPath();
   const navigation = useNavigation();
+  const { chatMetaPrefix } = useSessionUser();
+  const { project } = useCurrentProject();
+  const projectScope = clawProjectScope(pathname, project);
+  const projectScopeRef = useRef(projectScope);
+  projectScopeRef.current = projectScope;
 
   const abortActiveStream = useCallback(() => {
     streamAbortRef.current?.abort();
@@ -928,8 +932,8 @@ export default function ClawRail({
   const hitlInfoTop = useSkillHitlStore();
   const runInfoTop = useSkillRunStore();
 
-  // Real chat messages (user ↔ AI turns) · 按路由持久化（sessionStorage）
-  const initialSession = loadClawChatSession(pathname);
+  // Real chat messages (user ↔ AI turns) · 按路由（+ 项目）持久化
+  const initialSession = loadClawChatSession(pathname, projectScope);
   const [chatMsgs, setChatMsgs] = useState<Msg[]>(() => initialSession.msgs as Msg[]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [convId, setConvId] = useState<string>(() => initialSession.convId || genClawConvId());
@@ -937,29 +941,38 @@ export default function ClawRail({
   chatMsgsRef.current = chatMsgs;
   convIdRef.current = convId;
 
-  const persistSession = useCallback((msgs: Msg[], cid: string) => {
-    saveClawChatSession(pathname, { msgs: msgs as StoredClawMsg[], convId: cid });
+  const persistSession = useCallback((
+    msgs: Msg[],
+    cid: string,
+    scope: string | null | undefined = projectScopeRef.current,
+  ) => {
+    saveClawChatSession(pathname, { msgs: msgs as StoredClawMsg[], convId: cid }, scope);
   }, [pathname]);
 
-  // 路由切换：中止流式请求、恢复目标页历史会话
+  // 路由 / 项目切换：中止流式请求、保存旧会话、恢复目标会话
   useEffect(() => {
     mountedRef.current = true;
     abortActiveStream();
 
-    const session = loadClawChatSession(pathname);
+    const session = pathname.includes('/preview') && !SHOW_PREVIEW_CLAW_SEED
+      ? { msgs: [] as StoredClawMsg[], convId: genClawConvId() }
+      : loadClawChatSession(pathname, projectScope);
+    if (pathname.includes('/preview') && !SHOW_PREVIEW_CLAW_SEED) {
+      clearClawChatSession(pathname);
+    }
     setChatMsgs(session.msgs as Msg[]);
     setConvId(session.convId || genClawConvId());
 
     return () => {
       mountedRef.current = false;
       abortActiveStream();
-      persistSession(chatMsgsRef.current, convIdRef.current);
+      persistSession(chatMsgsRef.current, convIdRef.current, projectScope);
       if (typeof document !== 'undefined') {
         document.body.style.userSelect = '';
         document.body.style.cursor = '';
       }
     };
-  }, [pathname, persistSession, abortActiveStream]);
+  }, [pathname, projectScope, persistSession, abortActiveStream]);
 
   // 导航进行中立即中止 SSE，避免阻塞 React Router 提交新页面
   useEffect(() => {
@@ -983,7 +996,7 @@ export default function ClawRail({
   }, [pathname, abortActiveStream]);
 
   useEffect(() => {
-    persistSession(chatMsgs, convId);
+    persistSession(chatMsgs, convId, projectScopeRef.current);
   }, [chatMsgs, convId, persistSession]);
 
   const toggleMaximize = () => {
@@ -1005,10 +1018,15 @@ export default function ClawRail({
 
   const skillRun = useSkillRunStore();
 
+  // 部署调测左栏扩展：步骤卡 + 设备范围卡 + 自然语言调度拦截（仅 /module/deploy 生效）
+  const deployRail = useDeployRail(pathname);
+  const commissionBusy = useCommissionBusy();
+
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const onProgress = (e: Event) => {
       if (!mountedRef.current) return;
+      if (pathname.includes('/preview')) return;
       const msg = (e as CustomEvent<Partial<Msg>>).detail;
       if (!msg?.body) return;
       const ts = msg.ts ?? nowTs();
@@ -1016,7 +1034,7 @@ export default function ClawRail({
       setChatMsgs(prev => [...prev, { role: msg.role ?? 'ai', body: msg.body!, ts, ...msg }]);
     };
     const onClear = () => {
-      clearClawChatSession(pathname);
+      clearClawChatSession(pathname, projectScopeRef.current);
       setChatMsgs([]);
       setConvId(genClawConvId());
     };
@@ -1026,7 +1044,7 @@ export default function ClawRail({
       window.removeEventListener('aida:progress', onProgress);
       window.removeEventListener('aida:clear', onClear);
     };
-  }, [pathname]);
+  }, [pathname, projectScope]);
 
   // 模块 skill 会话隔离（切换 /module/* 路由时清理不匹配的 HITL / 会话）
   useEffect(() => {
@@ -1107,6 +1125,7 @@ export default function ClawRail({
     threadScrollKey, chatMsgs.length, pathname, isStreaming,
     convInfoTop?.node, hitlInfoTop?.node,
     runInfoTop?.phase, runInfoTop?.progress, uiSkillRun,
+    deployRail.stepMsgs.length, commissionBusy.active,
   ]);
 
   const allMsgs: Msg[] = [...seedForPath, ...chatMsgs];
@@ -1306,7 +1325,13 @@ export default function ClawRail({
 
   const sendMessage = useCallback(async () => {
     const text = draft.trim();
-    if (!text) return;
+    if (!text || commissionBusy.active) return;
+    // 部署调测：自然语言调度意图（开始调测 / 执行某命令）转交右侧 SkillAgentScreen 处理
+    if (deployRail.interceptSend(text)) {
+      setDraft('');
+      setChatMsgs(prev => [...prev, { role: 'user', body: text, ts: nowTs() }]);
+      return;
+    }
     // 技能页（如系统设计）：把指令转交右侧技能驱动，而非通用对话（不受通用 chat isStreaming 阻塞）
     const skillConv = getSkillConversation() ?? convInfoTop;
     if (skillConv?.runtime) {
@@ -1317,7 +1342,7 @@ export default function ClawRail({
     if (isStreaming) return;
     setDraft('');
     await sendText(text);
-  }, [draft, isStreaming, sendText, convInfoTop]);
+  }, [draft, isStreaming, sendText, convInfoTop, deployRail, commissionBusy.active]);
 
   // 右侧 skill 作业区下钻（3D 机房入口）→ 作为一条用户消息投递进本会话
   useEffect(() => {
@@ -1426,12 +1451,14 @@ export default function ClawRail({
 
       <ModuleControlPanel pathname={pathname} />
 
+      {!hideChat && (
+      <>
       {/* thread */}
       <div className="claw-thread" ref={threadRef}>
         {allMsgs.map((m, i) => (
           <div key={i} className={`cmsg ${m.role}`}>
             <div className="meta">
-              {m.role === 'ai' ? 'AIDA · ' : '何博 · '}{displayMsgTs(m.ts)}
+              {m.role === 'ai' ? 'AIDA · ' : chatMetaPrefix}{displayMsgTs(m.ts)}
             </div>
             <div className="body">
               {m.chips ? (
@@ -1536,11 +1563,25 @@ export default function ClawRail({
 
         {/* 运行进度卡 + 技能会话流：固定渲染在对话流底部 */}
         {uiSkillRun && (
-          <div className="cmsg ai">
-            <div className="meta">AIDA · {nowTs()}</div>
-            <SkillRunBanner skillId={uiSkillRun.skillId} autoStart={false} />
-          </div>
+          <>
+            <div className="cmsg ai">
+              <div className="meta">AIDA · {nowTs()}</div>
+              <SkillRunBanner skillId={uiSkillRun.skillId} autoStart={false} />
+            </div>
+            {!DELIVERY_WORKBENCH_SKILLS.has(uiSkillRun.skillId)
+              && uiSkillRun.runId
+              && uiSkillRun.runId !== '__starting__' && (
+              <RunLogFeed runId={uiSkillRun.runId} />
+            )}
+          </>
         )}
+
+        {/* 部署调测扩展：按节点逐步发的步骤卡 + 命令调测设备范围卡（仅 /module/deploy） */}
+        {deployRail.enabled && deployRail.stepMsgs.map((s, i) => (
+          <div key={`sd-step-${s.stepKey}-${i}`} className="cmsg ai">
+            <SdSkillStepCard step={s} />
+          </div>
+        ))}
       </div>
 
       {/* suggestion chips */}
@@ -1558,10 +1599,15 @@ export default function ClawRail({
       <div className="claw-input-wrap">
         <div className="claw-input">
           <textarea
-            placeholder={inputPlaceholder}
+            placeholder={
+              commissionBusy.active
+                ? (commissionBusy.label ? `正在处理 · ${commissionBusy.label}…` : '正在处理中…')
+                : inputPlaceholder
+            }
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={handleKey}
+            disabled={isStreaming || commissionBusy.active}
             rows={2}
           />
           <div className="ci-foot">
@@ -1573,13 +1619,15 @@ export default function ClawRail({
             <button
               className="send-btn"
               onClick={() => { void sendMessage(); }}
-              disabled={isStreaming || !draft.trim()}
+              disabled={isStreaming || commissionBusy.active || !draft.trim()}
             >
-              <IcSend />{isStreaming ? '…' : '发送'}
+              <IcSend />{isStreaming || commissionBusy.active ? '…' : '发送'}
             </button>
           </div>
         </div>
       </div>
+      </>
+      )}
     </aside>
   );
 }

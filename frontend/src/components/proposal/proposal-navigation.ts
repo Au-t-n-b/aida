@@ -13,6 +13,7 @@ export const CHAPTER_TARGETS: Record<string, ChapterTarget> = {
   '5': { anchor: 'sec-ch-5-1' },
   '5.1': { anchor: 'sec-ch-5-1' },
   '5.2': { anchor: 'sec-ch-5-2' },
+  '5.3': { anchor: 'sec-ch-5-3' },
   '6': { anchor: 'panel-pre' },
   '7': { anchor: 'panel-rooms' },
   '8': { anchor: 'sec-7-1' },

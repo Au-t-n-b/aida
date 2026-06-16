@@ -1,0 +1,108 @@
+{
+  "rows": [
+    {
+      "rowId": "6ab8c4cd-9929-4a1b-b00d-05bce5cc1452",
+      "serviceMajor": "硬件安装",
+      "serviceItem": "数通设备安装",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "aacfe378-6ced-4cfe-8304-0db850f393b6",
+      "serviceMajor": "硬件安装",
+      "serviceItem": "存储设备安装",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "c980d1e8-b991-44d5-a7db-4b4608c57deb",
+      "serviceMajor": "硬件安装",
+      "serviceItem": "昇腾服务器安装",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "c186d51d-9b72-4c10-8c35-0490dd2d74b1",
+      "serviceMajor": "规划设计与实施",
+      "serviceItem": "数通设备规划设计与实施",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "c919320b-2401-4f58-a027-d20ba647f552",
+      "serviceMajor": "规划设计与实施",
+      "serviceItem": "存储设备规划设计与实施",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "652865d1-ca8a-487d-8f53-45be274361f3",
+      "serviceMajor": "规划设计与实施",
+      "serviceItem": "昇腾设备规划设计与实施",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "7f853dd5-1c36-49ad-ac8f-2630539b64ea",
+      "serviceMajor": "技术集成服务",
+      "serviceItem": "数通设备技术集成服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "30ddc634-a04d-483b-a9c8-87f6f82ea01b",
+      "serviceMajor": "技术集成服务",
+      "serviceItem": "存储设备技术集成服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "59ca5501-cdf1-46f8-baaa-c5f4694d3e21",
+      "serviceMajor": "技术集成服务",
+      "serviceItem": "昇腾设备技术集成服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "a7100c8c-932a-414f-88c9-2cfea47b702b",
+      "serviceMajor": "使能服务",
+      "serviceItem": "AI 计算使能服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "47fcbfa9-be10-4f28-8df7-631ac2a5c789",
+      "serviceMajor": "运维服务",
+      "serviceItem": "数通设备运维服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "270667e5-0ade-49fc-8e26-fd626053ff08",
+      "serviceMajor": "运维服务",
+      "serviceItem": "存储设备运维服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    },
+    {
+      "rowId": "7633929a-7025-47e8-9991-c7725048f615",
+      "serviceMajor": "运维服务",
+      "serviceItem": "昇腾设备运维服务",
+      "deliveryChannel": "华为",
+      "dataSource": "自动解析",
+      "proposalVersion": null
+    }
+  ]
+}

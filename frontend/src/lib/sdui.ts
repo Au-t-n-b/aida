@@ -83,7 +83,11 @@ export type SduiMarkdownNode = OptId & { type: 'Markdown'; content: string };
 export type SduiBadgeNode    = OptId & { type: 'Badge';    text: string; tone?: 'default' | 'success' | 'warning' | 'danger'; label?: string };
 export type SduiStatisticNode= OptId & { type: 'Statistic'; title: string; value: string | number; color?: SduiSemanticColor };
 export type SduiStatisticRowItem = { title: string; value: string | number; color?: SduiSemanticColor };
-export type SduiStatisticRowNode = OptId & { type: 'StatisticRow'; items: SduiStatisticRowItem[] };
+export type SduiStatisticRowNode = OptId & {
+  type: 'StatisticRow';
+  items: SduiStatisticRowItem[];
+  density?: 'default' | 'compact';
+};
 
 export type SduiKeyValueItem = { key: string; value: string };
 export type SduiKeyValueListNode = OptId & { type: 'KeyValueList'; items: SduiKeyValueItem[] };
@@ -100,6 +104,43 @@ export type SduiBarChartNode = OptId & { type: 'BarChart'; data?: SduiBarDatum[]
 
 export type SduiGoldenMetricItem = { id?: string; label?: string; value?: number | string; color?: string };
 export type SduiGoldenMetricsNode = OptId & { type: 'GoldenMetrics'; metrics?: SduiGoldenMetricItem[] };
+export type SduiZhgkGoldenMetricsNode = OptId & {
+  type: 'ZhgkGoldenMetrics';
+  progress: number;
+  centerLabel?: string;
+  items: SduiStatisticRowItem[];
+};
+
+export type SduiZhgkAssessmentDetail = {
+  item?: string;
+  result?: string;
+  source?: string;
+  time?: string;
+  risk?: string;
+};
+
+export type SduiZhgkAssessmentCategory = {
+  label: string;
+  value: number;
+  tone?: SduiSemanticColor;
+  details?: SduiZhgkAssessmentDetail[];
+};
+
+export type SduiZhgkAssessmentAlert = {
+  tone?: 'info' | 'success' | 'warning' | 'error';
+  title?: string;
+  message: string;
+};
+
+export type SduiZhgkAssessmentPanelNode = OptId & {
+  type: 'ZhgkAssessmentPanel';
+  title?: string;
+  total: number;
+  rateLabel?: string;
+  rateValue: number;
+  categories: SduiZhgkAssessmentCategory[];
+  alerts?: SduiZhgkAssessmentAlert[];
+};
 
 export type SduiArtifactGridNode = OptId & { type: 'ArtifactGrid'; artifacts: SduiArtifactItem[]; mode?: 'input' | 'output'; title?: string };
 
@@ -246,6 +287,8 @@ export type SduiDataTableNode = OptId & {
   requiredKeys?: string[];
   /** Tier B 展示/编辑双模式（组件库 DataTable · 编辑/保存/取消） */
   dualMode?: boolean;
+  /** dualMode 时是否允许切到编辑模式；调测记录等纯只读表设为 false */
+  dualModeEditable?: boolean;
   /** dualMode 保存时 run-patch 的 action，默认 task_progress */
   patchAction?: string;
 };
@@ -332,11 +375,17 @@ export type SduiTabGroupNode = OptId & {
   fill?: boolean;
 };
 
-export type SduiContextBarGroup = { label: string; value: string; badge?: string };
+export type SduiContextBarGroup = {
+  label: string;
+  value: string;
+  badge?: string;
+  inlineAction?: SduiCardHeaderAction;
+};
 export type SduiContextBarNode = OptId & {
   type: 'ContextBar';
   groups: SduiContextBarGroup[];
   showTimelineArrow?: boolean;
+  trailingAction?: SduiCardHeaderAction;
 };
 
 export type SduiFlowStepChip = {
@@ -355,6 +404,7 @@ export type SduiFlowStepsNode = OptId & {
   type: 'FlowSteps';
   steps: SduiFlowStepCard[];
   currentId?: string;
+  headerAction?: SduiCardHeaderAction;
 };
 
 /** InputSlotList 的一行输入件槽位。source=auto 仿真产出 / manual 人工上传。*/
@@ -409,6 +459,8 @@ export type SduiChoiceCardNode = OptId & {
   multiple?: boolean;
   maxSelections?: number;
   submitLabel?: string;
+  /** 可重复触发的动作型选择，例如“刷新检查回传”；后端未命中时仍留在本节点。 */
+  repeatable?: boolean;
 };
 
 export type SduiIoConfirmPanelNode = OptId & {
@@ -485,7 +537,7 @@ export type SduiNode =
   | SduiBadgeNode | SduiStatisticNode | SduiStatisticRowNode
   | SduiKeyValueListNode | SduiTableNode
   | SduiButtonNode | SduiLinkNode
-  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode
+  | SduiDonutChartNode | SduiBarChartNode | SduiGoldenMetricsNode | SduiZhgkGoldenMetricsNode | SduiZhgkAssessmentPanelNode
   | SduiArtifactGridNode
   // v1.1 display nodes
   | SduiAlertNode | SduiTimelineNode | SduiNumberCardNode | SduiPlaneMatrixNode
@@ -572,6 +624,25 @@ function remapSduiChildren(node: SduiNode, mapChild: (n: SduiNode) => SduiNode):
 export function replaceNodeById(root: SduiNode, id: string, replacement: SduiNode): SduiNode {
   if ((root as { id?: string }).id === id) return replacement;
   return remapSduiChildren(root, child => replaceNodeById(child, id, replacement));
+}
+
+/** API 层失败时补丁「当前步骤」卡，避免右侧仍显示旧 running 态。 */
+export function patchStepDetailError(
+  doc: SduiDocument,
+  opts: { stepKey: string; label: string; errorMsg: string },
+): SduiDocument {
+  const mdNode = findNodeById(doc.root, 'sd-step-detail-md');
+  if (!mdNode || mdNode.type !== 'Markdown') return doc;
+  const lines = [
+    `**步骤**：命令调测 · ${opts.label} (\`${opts.stepKey}\`)`,
+    '**状态**：failed',
+    `**错误**：${opts.errorMsg}`,
+  ];
+  const replacement = { ...mdNode, content: lines.join('\n\n') };
+  return {
+    ...doc,
+    root: replaceNodeById(doc.root, 'sd-step-detail-md', replacement as SduiNode),
+  };
 }
 
 // ── Parsing ───────────────────────────────────────────────────────────────────

@@ -165,6 +165,16 @@ class SduiStatisticRowNode(BaseModel):
     id: str | None = None
     items: list[SduiStatisticRowItem]
     flex: float | None = None
+    density: Literal["default", "compact"] | None = None
+
+
+class SduiZhgkAssessmentDetail(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    item: str | None = None
+    result: str | None = None
+    source: str | None = None
+    time: str | None = None
+    risk: str | None = None
 
 
 class SduiKeyValueListNode(BaseModel):
@@ -187,6 +197,42 @@ class SduiGoldenMetricsNode(BaseModel):
     type: Literal["GoldenMetrics"] = "GoldenMetrics"
     id: str | None = None
     metrics: list[dict[str, Any]] | None = None
+
+
+class SduiZhgkGoldenMetricsNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkGoldenMetrics"] = "ZhgkGoldenMetrics"
+    id: str | None = None
+    progress: int | float
+    centerLabel: str | None = None
+    items: list[SduiStatisticRowItem]
+
+
+class SduiZhgkAssessmentCategory(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    label: str
+    value: int | float
+    tone: Literal["success", "warning", "error", "accent", "subtle"] | None = None
+    details: list[SduiZhgkAssessmentDetail] = Field(default_factory=list)
+
+
+class SduiZhgkAssessmentAlert(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    tone: Literal["info", "success", "warning", "error"] | None = None
+    title: str | None = None
+    message: str
+
+
+class SduiZhgkAssessmentPanelNode(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    type: Literal["ZhgkAssessmentPanel"] = "ZhgkAssessmentPanel"
+    id: str | None = None
+    title: str = "AI 五值评估"
+    total: int
+    rateLabel: str = "满足率"
+    rateValue: int | float
+    categories: list[SduiZhgkAssessmentCategory]
+    alerts: list[SduiZhgkAssessmentAlert] = Field(default_factory=list)
 
 
 # ── Chart nodes ────────────────────────────────────────────────────────────────
@@ -538,6 +584,7 @@ class SduiDataTableNode(BaseModel):
     pageSize: int | None = None
     requiredKeys: list[str] | None = None  # 提交前必填校验
     dualMode: bool = False                 # Tier B 展示/编辑双模式（任务进展等只读表）
+    dualModeEditable: bool | None = None   # dualMode 时是否显示「编辑」；默认 True
     patchAction: str | None = None         # dualMode 保存时 run-patch action（默认 task_progress）
 
 
@@ -854,11 +901,12 @@ class SduiGanttChartNode(BaseModel):
 
 
 class SduiContextBarGroup(BaseModel):
-    """ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）。"""
+    """ContextBar 一组键值：标签 + 值 + 可选角标（如「剩 10 天」）+ 可选行内按钮。"""
     model_config = ConfigDict(extra="ignore")
     label: str
     value: str
     badge: str | None = None
+    inlineAction: SduiCardHeaderAction | None = None
 
 
 class SduiContextBarNode(BaseModel):
@@ -868,6 +916,7 @@ class SduiContextBarNode(BaseModel):
     id: str | None = None
     groups: list[SduiContextBarGroup]
     showTimelineArrow: bool | None = None
+    trailingAction: SduiCardHeaderAction | None = None
 
 
 class SduiFlowStepChip(BaseModel):
@@ -895,6 +944,7 @@ class SduiFlowStepsNode(BaseModel):
     id: str | None = None
     steps: list[SduiFlowStepCard]
     currentId: str | None = None
+    headerAction: SduiCardHeaderAction | None = None
 
 
 class SduiMacroStep(BaseModel):
@@ -1000,6 +1050,10 @@ class SduiChoiceCardNode(BaseModel):
     options: list[SduiChoiceOption]
     hitlRequestId: str | None = None
     stepId: str | None = None
+    multiple: bool | None = None
+    maxSelections: int | None = None
+    submitLabel: str | None = None
+    repeatable: bool | None = None
 
 
 class SduiIoConfirmPanelNode(BaseModel):
@@ -1137,6 +1191,8 @@ SduiNode = Annotated[
         SduiDonutChartNode,
         SduiBarChartNode,
         SduiGoldenMetricsNode,
+        SduiZhgkGoldenMetricsNode,
+        SduiZhgkAssessmentPanelNode,
         SduiArtifactGridNode,
         # v1.1 display nodes
         SduiAlertNode,

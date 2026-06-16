@@ -1,0 +1,15 @@
+{
+  "assetId": "channel1",
+  "deployedFile": "scene.sog",
+  "deployedRelativePath": "data/sog-assets/channel1/scene.sog",
+  "sampleSource": {
+    "originalName": "通道1.sog",
+    "originalPath": "D:/.cursor_workplace/aida/通道1.sog",
+    "description": "实景孪生通道1演示样例（3DGS 高斯场景）"
+  },
+  "deployedAt": "2026-06-15T16:14:33.9758257+08:00",
+  "sizeBytes": 83431162,
+  "sha256": "7971c442707adf76349d156bd6befcb03576e234a68bc942e06d56214062b700",
+  "initScript": "agent/scripts/init_sog_channel1.ps1",
+  "sceneRegistry": "data/sog-scenes.json"
+}

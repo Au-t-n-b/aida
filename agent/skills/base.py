@@ -501,6 +501,13 @@ class BaseSkill(abc.ABC):
                 except Exception:
                     pass
 
+        # 进入 step 即通知前端（含 check_inputs 耗时阶段，如设备安装解析 Excel）
+        if _push is not None:
+            try:
+                _push({"event": "step_started", "data": {"step": step.key, "name": step.name}})
+            except Exception:
+                pass
+
         # 前置检查
         check = step.check_inputs(ctx)
         if not check["ok"]:
@@ -523,6 +530,7 @@ class BaseSkill(abc.ABC):
             return {
                 "steps": [rec],
                 "current_step": step.key,
+                "overall_progress": self._step_progress_pct(step.key),
                 "logs": logs,
                 "hitl": {
                     "step": step.key,
@@ -532,13 +540,6 @@ class BaseSkill(abc.ABC):
                     "need_edit": check.get("need_edit"),
                 },
             }
-
-        # 通知前端：step 真正开始执行（Stepper 节点变蓝 / 进入 running 态）
-        if _push is not None:
-            try:
-                _push({"event": "step_started", "data": {"step": step.key, "name": step.name}})
-            except Exception:
-                pass
 
         # 真实执行
         try:
@@ -599,6 +600,9 @@ class BaseSkill(abc.ABC):
             result.setdefault("current_step", self._next_step_key(step.key))
             result.setdefault("overall_progress", self._step_progress_pct(step.key))
             result["hitl"] = {}  # 清空
+            # 到达 route_to 目标 step 且正常完成 → 清除跳转标记，防 intent_select 等振荡
+            if str(state.get("route_to") or "") == step.key:
+                result["route_to"] = ""
         return result
 
     def prepare_work_root(self) -> None:
@@ -697,7 +701,7 @@ class BaseSkill(abc.ABC):
 
         支持 state['route_to']：step / 续跑可声明「直接跳到某节点」（如交付续跑
         从 input_check 后直达 ztp/publish，跳过 plane_planning / lld_integrate）。
-        到达目标节点后正常线性流转（route_to 残留无害，目标多为终态发布节点）。"""
+        到达目标节点后清除 route_to，避免残留跳转导致 step 振荡。"""
         def _route(state: SkillState) -> str:
             if state.get("error"):
                 return "__end__"

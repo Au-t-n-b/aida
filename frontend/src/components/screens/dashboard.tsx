@@ -1,4 +1,4 @@
-﻿// @ts-nocheck
+// @ts-nocheck
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
@@ -6,6 +6,8 @@ import { Navigate, useSearchParams } from 'react-router-dom';
 import Link from '@/compat/link';
 import { RISKS, MILESTONES, RISK_SOURCES } from '../../data/app-data';
 import { DispatchTracker } from '../dispatch-tracker';
+import { useSessionUser } from '@/hooks/useSessionUser';
+import { substituteMockUserInText } from '@/lib/session-user';
 import Drawer from '../drawer';
 import MilestoneBoard from './milestone-board/milestone-board';
 import { podMilestonesFromSnapshot } from './milestone-board/data';
@@ -189,6 +191,7 @@ const IcSandbox = () => (
 
 /* ── Risk Alerts ── */
 function RiskAlerts({ onDrill }) {
+  const sessionUser = useSessionUser();
   const [tab, setTab] = useState('unmeet');
   /* 5.27 M-111 · 风险来源筛选；null = 全部 */
   const [sourceFilter, setSourceFilter] = useState(null);
@@ -260,7 +263,7 @@ function RiskAlerts({ onDrill }) {
               <div className="rr-meta">
                 <span><span className="k">项目</span><span className="v">{r.project}</span></span>
                 <span><span className="k">范围</span><span className="v">{r.pod}</span></span>
-                <span><span className="k">归属</span><span className="v">{r.owner}</span></span>
+                <span><span className="k">归属</span><span className="v">{substituteMockUserInText(r.owner, sessionUser)}</span></span>
               </div>
               <div className="rr-impact">
                 影响 <span className="delay">{r.delay}</span> · SLA <span style={{ color: 'var(--c-text-2)', fontVariantNumeric: 'tabular-nums' }}>{r.sla}</span>
@@ -821,6 +824,7 @@ const RISK_DETAIL_ROWS = [
 ];
 
 function RiskDetailTable() {
+  const sessionUser = useSessionUser();
   return (
     <div className="jn-panel">
       <div className="jn-panel-head" style={{ padding: '10px 14px' }}>风险详情</div>
@@ -858,7 +862,7 @@ function RiskDetailTable() {
                 </td>
                 <td><span className="status-pill green">{r.state}</span></td>
                 <td>{r.owner}</td>
-                <td>{r.responsible}</td>
+                <td>{substituteMockUserInText(r.responsible, sessionUser)}</td>
                 <td>{r.source}</td>
                 <td className="num">{r.start}</td>
                 <td className="num">{r.plan}</td>
@@ -1606,7 +1610,7 @@ export default function DashboardScreen() {
 
   const view = searchParams.get('view');
   if (view === '底座' || view === 'foundation') {
-    return <Navigate to="/twin" replace />;
+    return <Navigate to="/twin/survey" replace />;
   }
 
   const [drill, setDrill] = useState(null); // null | milestone | workorder | risk | agent | doa

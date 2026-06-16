@@ -122,22 +122,27 @@ def _user_profile_model(profile: dict[str, Any]) -> UserProfile:
 
 
 async def _authenticate(username: str, password: str) -> tuple[str, dict[str, Any], int, str]:
-    """返回 (token, profile, expires_in, token_type)。"""
+    """返回 (token, profile, expires_in, token_type)。
+
+    规范 §4.6 创建项目流程使用 POST /api/v1/users/login 的 data.token；
+    Manager 优先签发该令牌，仅当 users/login 未上线时回退 CLaw auth/login。
+    """
     try:
-        claw = await claw_login(username, password)
-        token = str(claw["accessToken"])
-        user = claw.get("user") if isinstance(claw.get("user"), dict) else {}
-        profile = _profile_from_claw_user(user)
-        return token, profile, 3600, str(claw.get("tokenType") or "Bearer")
+        dc = await dc_login(username, password)
+        token = str(dc["token"])
+        expires_in = int(dc.get("expiresIn") or 3600)
+        profile = await get_me(token)
+        return token, profile, expires_in, "Bearer"
     except DataCenterError as e:
-        if e.code != 404:
+        http_status = (e.debug or {}).get("httpStatus")
+        if e.code != 404 and http_status != 404:
             raise
 
-    dc = await dc_login(username, password)
-    token = str(dc["token"])
-    expires_in = int(dc.get("expiresIn") or 3600)
-    profile = await get_me(token)
-    return token, profile, expires_in, "Bearer"
+    claw = await claw_login(username, password)
+    token = str(claw["accessToken"])
+    user = claw.get("user") if isinstance(claw.get("user"), dict) else {}
+    profile = _profile_from_claw_user(user)
+    return token, profile, 3600, str(claw.get("tokenType") or "Bearer")
 
 
 @router.post("/login", response_model=LoginResponse)

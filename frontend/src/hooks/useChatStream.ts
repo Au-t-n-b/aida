@@ -6,8 +6,9 @@
  *   token / tool_call / tool_result / skill_launch / choices / heartbeat / done / error
  */
 import { useCallback, useRef, useState } from 'react';
+import { agentBase } from '@/lib/runtimeBase';
 
-const AGENT_BASE = import.meta.env.VITE_AGENT_BASE || 'http://127.0.0.1:7401';
+const AGENT_BASE = agentBase();
 
 // ── 消息类型 ─────────────────────────────────────────────────────────────────
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">AIDA gateway outline</title>
+  <desc id="desc">Oversized hollow AIDA logo outline used as the login page background gateway.</desc>
+  <path
+    fill="none"
+    stroke="rgba(22,35,60,0.13)"
+    stroke-width="0.7"
+    d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"/>
+  <path
+    fill="none"
+    stroke="rgba(22,35,60,0.06)"
+    stroke-width="0.5"
+    transform="translate(7,6) scale(0.86)"
+    d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z"/>
+  <path
+    fill="rgba(47,125,246,0.14)"
+    d="M 36.0855 92 L 53.0855 92 L 59.248 80.7375 L 50 80.7375 Z"/>
+</svg>

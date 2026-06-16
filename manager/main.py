@@ -6,7 +6,7 @@ UX 协调层：鉴权代理数据中心，会话管理，后续扩展容器调�
 启动：
     cd <repo>
     source agent/.venv/bin/activate
-    uvicorn manager.main:app --host 0.0.0.0 --port 8000
+    uvicorn manager.main:app --host 0.0.0.0 --port 8081
 """
 from __future__ import annotations
 

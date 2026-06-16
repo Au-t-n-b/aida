@@ -120,6 +120,10 @@ TASKS: dict[str, TaskSpec] = {
         post_export_hook="merge_collect_xlsx",
         report_parser="hccs_weak_light_report",
         result_message="dual",
+        # 光链路常需数分钟：加大轮询间隔、减少 OPS 查询次数（总超时仍约 10min）
+        poll_max=40,
+        poll_interval_s=15,
+        report_wait_s=30,
         implemented=True,
     ),
     "os_install": _spec(

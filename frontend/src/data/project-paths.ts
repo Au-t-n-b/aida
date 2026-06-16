@@ -1,6 +1,8 @@
 /**
  * IPO 与平台目录路径常量（SSOT：业务数据规范 §2、§5）
  * 业务代码禁止散落路径字符串，一律从此模块引用。
+ *
+ * 物理根路径（Linux）：见 `@/lib/project-business-path`（`/opt/aida/aida-data/business/projects/{id}/`）
  */
 
 export const IpoLayer = {
@@ -41,6 +43,15 @@ export const OrgAssets = {
 export const ProjectPaths = {
   contract: (root: string) => ({
     ...ipoTriple(root, '早期介入', '合同'),
+    boqListIn: `${root}/早期介入/合同/${IpoLayer.input}/合同BOQ列表.xlsx`,
+    boqInfoIn: `${root}/早期介入/合同/${IpoLayer.input}/BOQ信息表`,
+    boqUploadIn: `${root}/早期介入/合同/${IpoLayer.input}/BOQ`,
+    boqDeviceParseRaw: `${root}/早期介入/合同/${IpoLayer.parse}/BOQ设备解析原始结果`,
+    serviceBoqParse: `${root}/早期介入/合同/${IpoLayer.parse}/服务BOQ解析结果`,
+    deliveryScenarioParse: `${root}/早期介入/合同/${IpoLayer.parse}/项目交付场景信息表`,
+    projectBasicInfoOut: `${root}/早期介入/合同/${IpoLayer.output}/项目基础信息表`,
+    contractDeviceTableOut: `${root}/早期介入/合同/${IpoLayer.output}/设备信息表`,
+    simulationDeviceOut: `${root}/早期介入/合同/${IpoLayer.output}/建模仿真设备信息表`,
     simulationDeviceMd: `${root}/早期介入/合同/${IpoLayer.output}/建模仿真/建模仿真设备信息表.md`,
   }),
 
@@ -49,6 +60,10 @@ export const ProjectPaths = {
     techProposalIn: `${root}/早期介入/交付预案/${IpoLayer.input}/技术建议书`,
     testCasesIn: `${root}/早期介入/交付预案/${IpoLayer.input}/测试用例`,
     testCasesTemplate: `${root}/早期介入/交付预案/${IpoLayer.input}/测试用例/测试用例模板.xlsx`,
+    hldParse: `${root}/早期介入/交付预案/${IpoLayer.parse}/HLD解析结果`,
+    techProposalParse: `${root}/早期介入/交付预案/${IpoLayer.parse}/服务建议书解析结果`,
+    testcaseParse: `${root}/早期介入/交付预案/${IpoLayer.parse}/测试用例解析结果`,
+    deviceTableOut: `${root}/早期介入/交付预案/${IpoLayer.output}/设备信息表.xlsx`,
     raciOut: `${root}/早期介入/交付预案/${IpoLayer.output}/项目责任矩阵.xlsx`,
     acceptanceOut: `${root}/早期介入/交付预案/${IpoLayer.output}/验收策略.xlsx`,
     testCasesOut: `${root}/早期介入/交付预案/${IpoLayer.output}/测试用例.xlsx`,

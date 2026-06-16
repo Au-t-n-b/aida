@@ -235,3 +235,54 @@ async def save_upload(root: Path, kind: str, file: UploadFile) -> dict[str, Any]
         "path": str(dest.relative_to(root)).replace("\\", "/"),
         "size": len(content),
     }
+
+
+def reset_workspace(root: Path) -> dict[str, Any]:
+    """重置会话：清空运行态与中间产物，保留 ProjectData/input/ 用户上传的源文件。
+
+    清除 plan/Output、plan/RunTime、plan/Input、results、顶层 Output/RunTime/Start/Images；
+    不清 input/ 下各槽位文件与 input_registry.json。
+    """
+    root = Path(root).resolve()
+    pd = root / "ProjectData"
+    removed: list[str] = []
+
+    def _clear_dir(path: Path, *, keep_names: frozenset[str] = frozenset()) -> None:
+        if not path.is_dir():
+            return
+        for p in list(path.iterdir()):
+            if p.name in keep_names or p.name.startswith("~$"):
+                continue
+            try:
+                if p.is_file():
+                    p.unlink()
+                    removed.append(str(p.relative_to(root)).replace("\\", "/"))
+                elif p.is_dir():
+                    for child in list(p.rglob("*")):
+                        if child.is_file() and not child.name.startswith("~$"):
+                            child.unlink()
+                            removed.append(str(child.relative_to(root)).replace("\\", "/"))
+                    if not any(p.iterdir()):
+                        p.rmdir()
+            except OSError:
+                pass
+
+    for rel in (
+        "plan/Output",
+        "plan/RunTime",
+        "plan/Input",
+        "results",
+        "Output",
+        "RunTime",
+        "Start",
+        "Images",
+    ):
+        keep = frozenset({"gateway.json.example", "gateway.json"}) if rel == "plan/RunTime" else frozenset()
+        _clear_dir(pd / rel, keep_names=keep)
+
+    return {
+        "ok": True,
+        "removed_count": len(removed),
+        "removed": removed,
+        "message": "已清空部署调测运行态与产物（input 源文件已保留），可重新从步骤 1 启动。",
+    }

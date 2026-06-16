@@ -1,0 +1,106 @@
+{
+  "chapterKey": "7",
+  "chapterTitle": "7. 机房机柜信息",
+  "rows": [
+    {
+      "podName": "POD01",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD02",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD03",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD04",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD05",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD06",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD07",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD08",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    },
+    {
+      "podName": "POD09",
+      "roomName": "",
+      "compute": "",
+      "bus": "",
+      "paramLeaf": "",
+      "bizLeaf": "",
+      "mgmt": "",
+      "sampleLeaf": "",
+      "dataSource": "自动解析"
+    }
+  ],
+  "proposalVersion": "草稿"
+}

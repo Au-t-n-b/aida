@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { AcceptanceChapter } from './chapters/acceptance-chapter';
 import { CustomerChapterWrapper } from './chapters/customer-chapter';
 import { DeviceChapter } from './chapters/device-chapter';
@@ -50,7 +50,9 @@ import {
   type VersionInfoMetadata,
 } from '@/lib/proposal-api';
 import { navDebug } from '@/lib/nav-debug';
+import { workspaceNavigate } from '@/lib/workspace-nav-link';
 import { useCurrentProject } from '@/lib/current-project';
+import { resolveTopBarProjectDisplayName } from '@/data/topbar-projects';
 
 const DEFAULT_MANIFEST: DraftManifest = {
   workingVersionLabel: '草稿',
@@ -74,8 +76,27 @@ const FALLBACK_VERSIONS: ProposalVersionItem[] = [
   },
 ];
 
+function versionSortKey(version: string): string {
+  const ts = version.match(/_(\d{14})(?:_|$)/)?.[1];
+  return ts ?? version;
+}
+
+function pickDefaultVersion(versionList: ProposalVersionItem[]): string {
+  const published = versionList.filter(
+    (v) => v.status === 'published' && v.proposalVersion !== 'draft',
+  );
+  if (published.length === 0) return 'draft';
+  const latestPublished = published.find((v) => v.isLatest);
+  if (latestPublished?.proposalVersion) return latestPublished.proposalVersion;
+  const sorted = [...published].sort((a, b) =>
+    versionSortKey(a.proposalVersion).localeCompare(versionSortKey(b.proposalVersion)),
+  );
+  return sorted[sorted.length - 1]?.proposalVersion ?? 'draft';
+}
+
 export default function ProposalScreen() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { project } = useCurrentProject();
   const mountedRef = useRef(true);
   const headers = useProposalApiHeaders();
@@ -112,7 +133,7 @@ export default function ProposalScreen() {
   const [snapKey, setSnapKey] = useState<SnapKey>('exec');
   const [activeChapterKey, setActiveChapterKey] = useState<string | null>(null);
   const [pendingTip, setPendingTip] = useState<{ num: string; panel: string } | null>(null);
-  const [outlineCollapsed, setOutlineCollapsed] = useState(false);
+  const [outlineCollapsed, setOutlineCollapsed] = useState(true);
   const [outlineHover, setOutlineHover] = useState(false);
   const [outlinePinned, setOutlinePinned] = useState(false);
   const [outlineHidden, setOutlineHidden] = useState(false);
@@ -314,8 +335,59 @@ export default function ProposalScreen() {
         setDraftChapters({});
       }
 
-      setVersions(versionList.length > 0 ? versionList : FALLBACK_VERSIONS);
-      setProposalVersion('draft');
+      const nextVersions = versionList.length > 0 ? versionList : FALLBACK_VERSIONS;
+      setVersions(nextVersions);
+      const defaultVersion = pickDefaultVersion(nextVersions);
+      // #region agent log
+      fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H13',location:'frontend/src/components/proposal/proposal-screen.tsx:loadProposalState',message:'default version decision on load',data:{defaultVersion,versions:nextVersions.map((v)=>({proposalVersion:v.proposalVersion,status:v.status,updatedBy:v.updatedBy ?? null,isLatest:v.isLatest ?? null})),draftMetadataUpdatedBy:draftData?.metadata?.updatedBy ?? null},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      setProposalVersion(defaultVersion);
+
+      if (defaultVersion !== 'draft') {
+        try {
+          const snap = await fetchVersionSnapshot(projectId, defaultVersion, headers);
+          const selectedVersion = nextVersions.find((v) => v.proposalVersion === defaultVersion);
+          setManifest({
+            workingVersionLabel: defaultVersion,
+            status: 'published',
+          });
+          setMetadata(
+            resolveVersionInfoMetadata(
+              snap as Record<string, unknown>,
+              DEFAULT_METADATA,
+              selectedVersion,
+            ),
+          );
+          // #region agent log
+          fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H13',location:'frontend/src/components/proposal/proposal-screen.tsx:loadProposalState',message:'metadata source after default published selection',data:{defaultVersion,selectedVersionUpdatedBy:selectedVersion?.updatedBy ?? null,snapshotMetadataUpdatedBy:((snap as {metadata?: {updatedBy?: string}}).metadata?.updatedBy) ?? null,resolvedMetadataUpdatedBy:resolveVersionInfoMetadata((snap as Record<string, unknown>),DEFAULT_METADATA,selectedVersion).updatedBy ?? null},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+          setDraftChapters(
+            ((snap as { chapters?: Record<string, unknown> }).chapters ?? {}) as Record<
+              string,
+              unknown
+            >,
+          );
+          const changeLogForVersion = await loadChangeLogThroughVersion(
+            projectId,
+            headers,
+            defaultVersion,
+            draftData,
+          );
+          setCumulativeLog(changeLogForVersion);
+          setManualChangeLog([]);
+          setDirty(false);
+          setTableDirty(false);
+        } catch (err) {
+          const msg =
+            err instanceof ProposalApiError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : '加载版本失败';
+          errors.push(msg);
+          setProposalVersion('draft');
+        }
+      }
 
       if (errors.length > 0) {
         fireDocToast(errors[0] ?? '预案加载失败');
@@ -326,7 +398,7 @@ export default function ProposalScreen() {
         navDebug('proposal-state load done');
       }
     }
-  }, [fireDocToast, headers, projectId]);
+  }, [fireDocToast, headers, projectId, setTableDirty]);
 
   useEffect(() => {
     let cancelled = false;
@@ -393,6 +465,7 @@ export default function ProposalScreen() {
             log.filter((e) => e.editable !== false && e.source !== 'snapshot'),
           );
           setEtag(draftData.manifest?.etag);
+          setDirty(draftData.manifest?.dirty ?? false);
         } catch {
           /* keep current */
         }
@@ -422,13 +495,15 @@ export default function ProposalScreen() {
         );
         setCumulativeLog(changeLog);
         setManualChangeLog([]);
+        setDirty(false);
+        setTableDirty(false);
       } catch (err) {
         const msg =
           err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '加载版本失败';
         fireDocToast(msg);
       }
     },
-    [fireDocToast, headers, projectId, versions],
+    [fireDocToast, headers, projectId, setTableDirty, versions],
   );
 
   const handleChapterJump = useCallback((chapterKey: string) => {
@@ -458,7 +533,13 @@ export default function ProposalScreen() {
 
     void (async () => {
       try {
+        // #region agent log
+        fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/components/proposal/proposal-screen.tsx:handleSaveDraft',message:'headers used for save draft',data:{xUserRole:(new Headers(headers)).get('X-User-Role'),xUserAccount:(new Headers(headers)).get('X-User-Account')},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         const result = await saveDraftWithEtagRetry();
+        // #region agent log
+        fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H5',location:'frontend/src/components/proposal/proposal-screen.tsx:handleSaveDraft',message:'saveDraftWithEtagRetry result',data:{resultUpdatedBy:result.updatedBy ?? null,resultCreatedBy:result.createdBy ?? null,resultMetadataUpdatedBy:result.metadata?.updatedBy ?? null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         await saveDraftTables();
         setDirty(false);
         setTableDirty(false);
@@ -478,11 +559,18 @@ export default function ProposalScreen() {
         }
         const draftAfterSave = await fetchDraft(projectId, headers);
         const logAfterSave = await loadChangeLogForDraft(projectId, headers, draftAfterSave);
+        setManifest(draftAfterSave.manifest ?? DEFAULT_MANIFEST);
+        setMetadata(resolveVersionInfoMetadata(draftAfterSave, metadata));
         setCumulativeLog(logAfterSave);
         setManualChangeLog(
           logAfterSave.filter((e) => e.editable !== false && e.source !== 'snapshot'),
         );
         if (draftAfterSave.manifest?.etag) setEtag(draftAfterSave.manifest.etag);
+        setDirty(draftAfterSave.manifest?.dirty ?? false);
+        setTableDirty(false);
+        // #region agent log
+        fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H5',location:'frontend/src/components/proposal/proposal-screen.tsx:handleSaveDraft',message:'draft state after re-fetch',data:{manifestUpdatedBy:draftAfterSave.manifest?.updatedBy ?? null,metadataUpdatedBy:draftAfterSave.metadata?.updatedBy ?? null,resolvedDisplayUpdatedBy:resolveVersionInfoMetadata(draftAfterSave, metadata).updatedBy ?? null},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
       } catch (err) {
         const msg =
           err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '保存失败';
@@ -507,17 +595,19 @@ export default function ProposalScreen() {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
       setDirty(false);
-      window.location.assign('/twin?view=digital');
+      workspaceNavigate(navigate, '/twin/digital', location.pathname);
     } catch (err) {
       const msg =
         err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';
       fireDocToast(msg);
+    } finally {
       setActionBusy(false);
     }
-  }, [fireDocToast, headers, isEditable, manualChangeLog, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, location.pathname, manualChangeLog, navigate, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
 
   const upsertDraftChapterRows = useCallback(
     (chapterKey: string, chapterTitle: string, rows: Array<Record<string, unknown>>) => {
+      let changed = false;
       setDraftChapters((prev) => {
         const prevChapter = (prev[chapterKey] as Record<string, unknown> | undefined) ?? {};
         const prevRows = Array.isArray(prevChapter.rows)
@@ -528,6 +618,7 @@ export default function ProposalScreen() {
         if (prevRowsJson === nextRowsJson && prevChapter.chapterTitle === chapterTitle) {
           return prev;
         }
+        changed = true;
         return {
           ...prev,
           [chapterKey]: {
@@ -538,8 +629,10 @@ export default function ProposalScreen() {
           },
         };
       });
-      setDirty(true);
-      setTableDirty(true);
+      if (changed) {
+        setDirty(true);
+        setTableDirty(true);
+      }
     },
     [setTableDirty],
   );
@@ -596,7 +689,7 @@ export default function ProposalScreen() {
       ? ''
       : 'proposal-page--outline-collapsed';
 
-  const pageTitle = `${metadata.projectName ?? project?.name ?? '京东三期项目'}交付预案`;
+  const pageTitle = `${resolveTopBarProjectDisplayName(project)}交付预案`;
 
   return (
     <div className={`proposal-page${outlinePageClass ? ` ${outlinePageClass}` : ''}`}>

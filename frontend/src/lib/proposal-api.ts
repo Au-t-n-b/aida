@@ -4,6 +4,7 @@
  */
 import { useMemo } from 'react';
 import { useAidaSession } from '@/lib/aida-session';
+import { agentBase } from '@/lib/runtimeBase';
 
 const DEFAULT_PROJECT_ID = '56A0TXN';
 const CURRENT_PROJECT_STORAGE_KEY = 'aida:current-project';
@@ -11,7 +12,7 @@ const CURRENT_PROJECT_STORAGE_KEY = 'aida:current-project';
 const PROPOSAL_API_BASE =
   (
     (import.meta.env.VITE_PROPOSAL_API_BASE as string | undefined)
-    || (import.meta.env.VITE_AGENT_BASE as string | undefined)
+    || agentBase()
   )?.replace(/\/$/, '') ?? '';
 
 export type DeliveryChannel = '华为' | '客户';
@@ -237,6 +238,20 @@ export class ProposalApiError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+export function shouldSilenceNoDataError(err: unknown): boolean {
+  if (err instanceof ProposalApiError) {
+    if (err.code === 'NOT_FOUND' || err.code === 'VERSION_NOT_FOUND' || err.code === 'BR_PROPOSAL_PARSE_EMPTY') {
+      return true;
+    }
+    if (err.status === 404) return true;
+    return /不存在|缺失|缺少|未找到|为空/.test(err.message ?? '');
+  }
+  if (err instanceof Error) {
+    return /不存在|缺失|缺少|未找到|为空/.test(err.message ?? '');
+  }
+  return false;
 }
 
 export function mapProposalRole(role: string | undefined): string {
@@ -675,6 +690,17 @@ async function proposalFetch<T>(
       withNoCache({ ...rest, headers, signal: fetchTimeoutSignal() }),
     );
 
+  if ((rest.method ?? 'GET').toUpperCase() === 'PUT' && path === '/draft') {
+    // #region agent log
+    fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H1',location:'frontend/src/lib/proposal-api.ts:proposalFetch',message:'save draft request headers before fetch',data:{projectId,path,method:(rest.method ?? 'GET').toUpperCase(),xUserRole:headers.get('X-User-Role'),xUserAccount:headers.get('X-User-Account'),proposalApiBase:PROPOSAL_API_BASE || null,targetUrl:proposalUrl(projectId, path, { ...query })},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
+  if ((rest.method ?? 'GET').toUpperCase() === 'GET' && path === '/draft') {
+    // #region agent log
+    fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H8',location:'frontend/src/lib/proposal-api.ts:proposalFetch',message:'fetch draft request headers before fetch',data:{projectId,path,method:(rest.method ?? 'GET').toUpperCase(),xUserRole:headers.get('X-User-Role'),xUserAccount:headers.get('X-User-Account'),proposalApiBase:PROPOSAL_API_BASE || null,targetUrl:proposalUrl(projectId, path, { ...query })},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
+
   let resp = await doFetch();
   if (resp.status === 304) {
     console.warn('[proposal-api] 304 Not Modified, retry with cache buster', path);
@@ -692,6 +718,11 @@ async function proposalFetch<T>(
   }
 
   if (!resp.ok) {
+    if (path.startsWith('/chapters/')) {
+      // #region agent log
+      fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H17',location:'frontend/src/lib/proposal-api.ts:proposalFetch',message:'chapter request failed',data:{projectId,path,method:(rest.method ?? 'GET').toUpperCase(),query:query ?? null,status:resp.status,errorCode:json?.error?.code ?? null,errorMessage:json?.error?.message ?? null,targetUrl:proposalUrl(projectId, path, { ...query })},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+    }
     throw new ProposalApiError(
       resp.status,
       json?.error?.code ?? 'HTTP_ERROR',
@@ -1288,9 +1319,19 @@ export async function patchMaintenanceSlaHardwareSupport(
 
 export function useProposalApiHeaders(): HeadersInit {
   const { session } = useAidaSession();
+  const userAccount = useMemo(() => {
+    const username = session?.user?.username?.trim();
+    if (username) return username;
+    const displayName = session?.user?.display_name?.trim();
+    if (displayName) return displayName;
+    return undefined;
+  }, [session?.user?.display_name, session?.user?.username]);
+  // #region agent log
+  fetch('http://127.0.0.1:7687/ingest/b0d42ca7-6c6c-4b3d-8898-16bce900c282',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'f94a50'},body:JSON.stringify({sessionId:'f94a50',runId:'pre-fix',hypothesisId:'H4',location:'frontend/src/lib/proposal-api.ts:useProposalApiHeaders',message:'derive proposal api user account',data:{hasSession:Boolean(session),role:session?.role ?? null,username:session?.user?.username ?? null,displayName:session?.user?.display_name ?? null,resolvedUserAccount:userAccount ?? null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   return useMemo(
-    () => buildProposalHeaders(session?.role ?? 'td', session?.sessionId),
-    [session?.role, session?.sessionId],
+    () => buildProposalHeaders(session?.role ?? 'td', userAccount),
+    [session?.role, userAccount],
   );
 }
 

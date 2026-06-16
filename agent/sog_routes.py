@@ -1,19 +1,130 @@
-"""工勘孪生 · FastAPI 路由（/api/sog/* 与 /data/sog-assets/*）。"""
+"""实景孪生 · FastAPI 路由（/api/sog/* 与 /data/sog-assets/*）。"""
 from __future__ import annotations
 
+import json
+import os
+import threading
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field
 
-from .sog_assets import SogAssetStore, validate_asset_id
+from .sog_assets import SogAssetStore, SogSceneStore, validate_asset_id
 
 router = APIRouter(tags=["sog"])
 _store = SogAssetStore()
+_scene_store = SogSceneStore()
+_probe_path = Path(
+    os.environ.get(
+        "AIDA_SOG_PROBE_EVENTS",
+        str(Path(__file__).resolve().parents[1] / "data" / "sog-probe-events.json"),
+    )
+).resolve()
+_probe_lock = threading.Lock()
 
 
 def _invalid_asset_id() -> HTTPException:
     return HTTPException(status_code=400, detail="invalid asset id")
+
+
+class SogSceneUpdateReq(BaseModel):
+    name: str
+
+
+class SogCameraUpdateReq(BaseModel):
+    position: list[float]
+    target: list[float]
+    fov: float | None = 60
+
+
+class SogProbeEvent(BaseModel):
+    event: str
+    payload: dict[str, Any] = Field(default_factory=dict)
+    sceneId: str | None = None
+    assetId: str | None = None
+    viewerSrc: str | None = None
+    pageStatus: str | None = None
+    receivedAt: str | None = None
+
+
+def _read_probe_events() -> list[dict[str, Any]]:
+    if not _probe_path.is_file():
+        return []
+    try:
+        data = json.loads(_probe_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return []
+    return data if isinstance(data, list) else []
+
+
+def _write_probe_events(events: list[dict[str, Any]]) -> None:
+    _probe_path.parent.mkdir(parents=True, exist_ok=True)
+    _probe_path.write_text(
+        json.dumps(events[-500:], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+@router.get("/api/sog/scenes")
+def list_sog_scenes() -> list[dict[str, Any]]:
+    return _scene_store.list_scenes()
+
+
+@router.get("/api/sog/scenes/{scene_id}")
+def get_sog_scene_meta(scene_id: str) -> dict[str, Any]:
+    try:
+        return _scene_store.get_scene(scene_id)
+    except ValueError as exc:
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.patch("/api/sog/scenes/{scene_id}")
+def update_sog_scene(scene_id: str, body: SogSceneUpdateReq) -> dict[str, Any]:
+    try:
+        return _scene_store.update_scene_name(scene_id, body.name)
+    except ValueError as exc:
+        message = str(exc)
+        if "scene name required" in message:
+            raise HTTPException(status_code=400, detail="scene name required") from exc
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.put("/api/sog/scenes/{scene_id}/camera")
+def update_sog_scene_camera(scene_id: str, body: SogCameraUpdateReq) -> dict[str, Any]:
+    try:
+        return _scene_store.update_scene_camera(scene_id, body.model_dump())
+    except ValueError as exc:
+        message = str(exc)
+        if "invalid camera" in message:
+            raise HTTPException(status_code=400, detail="invalid camera") from exc
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.delete("/api/sog/scenes/{scene_id}")
+def delete_sog_scene(scene_id: str) -> dict[str, Any]:
+    try:
+        return _scene_store.delete_scene(scene_id)
+    except ValueError as exc:
+        raise _invalid_asset_id() from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="scene not found") from exc
+
+
+@router.post("/api/sog/scenes/upload")
+async def upload_sog_scene_video(file: UploadFile = File(...)) -> dict[str, Any]:
+    filename = (file.filename or "现场视频.mp4").strip() or "现场视频.mp4"
+    # 当前仅登记训练任务，训练/转码服务后续接入；读取一小段确保请求体被消费。
+    await file.read(1024)
+    return _scene_store.create_training_scene(filename)
 
 
 @router.get("/api/sog/assets/{asset_id}")
@@ -48,11 +159,36 @@ def put_sog_hotspots(asset_id: str, body: list[dict[str, Any]]) -> list[dict[str
 @router.get("/api/sog/assets/{asset_id}/settings")
 def get_sog_settings(asset_id: str) -> dict[str, Any]:
     try:
-        return _store.read_settings(asset_id)
+        return _store.read_settings(asset_id, camera=_scene_store.get_camera_for_asset(asset_id))
     except ValueError as exc:
         raise _invalid_asset_id() from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@router.post("/api/sog/probe-events")
+def append_sog_probe_event(body: SogProbeEvent) -> dict[str, Any]:
+    with _probe_lock:
+        events = _read_probe_events()
+        item = body.dict()
+        item["receivedAt"] = datetime.now(timezone.utc).isoformat()
+        events.append(item)
+        _write_probe_events(events)
+        return {"ok": True, "count": len(events[-500:])}
+
+
+@router.get("/api/sog/probe-events")
+def list_sog_probe_events(limit: int = 120) -> list[dict[str, Any]]:
+    safe_limit = max(1, min(500, limit))
+    with _probe_lock:
+        return _read_probe_events()[-safe_limit:]
+
+
+@router.delete("/api/sog/probe-events")
+def clear_sog_probe_events() -> dict[str, Any]:
+    with _probe_lock:
+        _write_probe_events([])
+    return {"ok": True}
 
 
 @router.get("/data/sog-assets/{asset_id}/scene.sog")

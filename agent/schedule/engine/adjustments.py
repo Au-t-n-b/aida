@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
-from math import ceil
 from typing import Sequence
 
 from agent.schedule.engine.scheduler import (
@@ -10,12 +9,14 @@ from agent.schedule.engine.scheduler import (
     _estimate_duration,
     _inputs_with_fs_dependencies_only,
     _instantiate,
+    _matching_quantity,
     generate_plan,
 )
 from agent.schedule.contracts.api import ChangeSet
 from agent.schedule.contracts.common import TEAM_SIZE_DEFAULT, TEAM_SIZE_MAX, TargetRef
 from agent.schedule.contracts.inputs import InputBundle, ReworkEvent
 from agent.schedule.contracts.outputs import (
+    GapSummary,
     PlanKpis,
     PlanResult,
     PulledInput,
@@ -30,6 +31,10 @@ from agent.schedule.contracts.outputs import (
 class AdjustmentOptions:
     options: list[StrategyPlan]
     unmet: list[UnmetItem]
+    gap: GapSummary | None = None
+
+
+_RISK_RANK = {"低": 0, "中": 1, "高": 2}
 
 
 @dataclass(frozen=True)
@@ -48,6 +53,13 @@ class _DurationBound:
     constraint_source: str | None
     standard_work_days: float
     minimum_work_days: float
+    crew_work_days: tuple[float, ...] = ()
+
+
+@dataclass(frozen=True)
+class _IneffectiveCompressionNotice:
+    risk: RiskItem
+    reason: str
 
 
 def build_adjustment_options(
@@ -56,10 +68,11 @@ def build_adjustment_options(
     seed_plan: PlanResult,
     seed_risks: Sequence[RiskItem],
 ) -> AdjustmentOptions:
-    """Build strategy cards for /adjust without changing the public contracts."""
+    """Build strategy cards and gap summary for /adjust."""
 
     base_plan = _apply_reworks(seed_plan, changes.reworks)
     demand = _select_primary_demand(base_plan, changes)
+    gap = _gap_summary(base_plan, demand)
     if demand is None:
         option = _make_option(
             option_id="A",
@@ -69,10 +82,10 @@ def build_adjustment_options(
             risks=list(seed_risks),
             advice="建议采用均匀方案，作为当前可下发的稳定基线。",
         )
-        return AdjustmentOptions(options=[option], unmet=[])
+        return AdjustmentOptions(options=[option], unmet=[], gap=gap)
 
     if demand.gap_days > 0:
-        a_plan, a_risks, a_overrides, a_unmet = _compress_plan(
+        a_plan, a_risks, a_added_crews, a_unmet = _compress_plan(
             inputs,
             changes,
             seed_plan,
@@ -80,7 +93,7 @@ def build_adjustment_options(
             "uniform",
             list(seed_risks),
         )
-        b_plan, b_risks, b_overrides, b_unmet = _compress_plan(
+        b_plan, b_risks, b_added_crews, b_unmet = _compress_plan(
             inputs,
             changes,
             seed_plan,
@@ -97,9 +110,13 @@ def build_adjustment_options(
                 plan=a_plan,
                 inputs=inputs,
                 risks=a_risks,
-                advice="建议采用均匀压缩，关键路径活动共同承担压缩压力。",
-                added_crew=_added_crew(a_overrides, bounds),
+                advice=_compression_advice(
+                    "建议采用均匀压缩，关键路径活动共同承担压缩压力。",
+                    a_risks,
+                ),
+                added_crew=_added_crew(a_added_crews, bounds),
                 has_unmet=bool(a_unmet),
+                target_date=demand.desired_end,
             ),
             _make_option(
                 option_id="B",
@@ -107,17 +124,21 @@ def build_adjustment_options(
                 plan=b_plan,
                 inputs=inputs,
                 risks=b_risks,
-                advice="建议用于必须快速抢回节点的场景，优先压缩空间最大的关键活动。",
-                added_crew=_added_crew(b_overrides, bounds),
+                advice=_compression_advice(
+                    "建议用于必须快速抢回节点的场景，优先压缩空间最大的关键活动。",
+                    b_risks,
+                ),
+                added_crew=_added_crew(b_added_crews, bounds),
                 has_unmet=bool(b_unmet),
+                target_date=demand.desired_end,
             ),
             c_option,
         ]
-        return AdjustmentOptions(options=options, unmet=_merge_unmet([*a_unmet, *b_unmet, *c_unmet]))
+        return AdjustmentOptions(options=options, unmet=_merge_unmet([*a_unmet, *b_unmet, *c_unmet]), gap=gap)
 
     if demand.gap_days < 0:
         option, unmet = _buffer_option(inputs, changes, seed_plan, list(seed_risks), demand)
-        return AdjustmentOptions(options=[option], unmet=unmet)
+        return AdjustmentOptions(options=[option], unmet=unmet, gap=gap)
 
     option = _make_option(
         option_id="A",
@@ -126,8 +147,38 @@ def build_adjustment_options(
         inputs=inputs,
         risks=list(seed_risks),
         advice="调整后已经满足目标节点，暂不需要额外压缩。",
+        target_date=demand.desired_end,
     )
-    return AdjustmentOptions(options=[option], unmet=[])
+    return AdjustmentOptions(options=[option], unmet=[], gap=gap)
+
+
+def select_shadow_recommendation(options: Sequence[StrategyPlan]) -> StrategyPlan:
+    """Select the hidden beta recommendation by the deterministic scoring ladder."""
+
+    if not options:
+        raise ValueError("options must not be empty")
+
+    achievable = [option for option in options if option.kpis.gap_days <= 0]
+    if achievable:
+        return min(
+            achievable,
+            key=lambda option: (
+                _risk_rank(option.risk_level),
+                option.kpis.added_crew,
+                option.kpis.compressed_days,
+                option.option_id,
+            ),
+        )
+    return min(
+        options,
+        key=lambda option: (
+            option.kpis.gap_days,
+            _risk_rank(option.risk_level),
+            option.kpis.added_crew,
+            option.kpis.compressed_days,
+            option.option_id,
+        ),
+    )
 
 
 def _run_variant(
@@ -156,15 +207,17 @@ def _compress_plan(
     demand: _DemandTarget,
     mode: str,
     base_risks: list[RiskItem],
-) -> tuple[PlanResult, list[RiskItem], dict[str, float], list[UnmetItem]]:
+) -> tuple[PlanResult, list[RiskItem], dict[str, int], list[UnmetItem]]:
     bounds = _duration_bounds(inputs)
     overrides: dict[str, float] = {}
+    crew_overrides: dict[str, int] = {}
     plan = _apply_reworks(seed_plan, changes.reworks)
     risks = list(base_risks)
     guard = 0
     concentrated_ids: set[str] | None = None
+    ineffective_notice: _IneffectiveCompressionNotice | None = None
     if mode == "concentrated":
-        initial_candidates = _compression_candidates(plan, bounds, overrides, demand.target)
+        initial_candidates = _compression_candidates(plan, bounds, crew_overrides, demand.target)
         top_k = inputs.rule_config.concentrate_top_k
         concentrated_ids = {
             bound.instance_id
@@ -172,36 +225,77 @@ def _compress_plan(
         }
 
     while _target_end(plan, demand.target) > demand.desired_end and guard < 500:
-        guard += 1
-        candidates = _compression_candidates(plan, bounds, overrides, demand.target)
-        if not candidates:
-            break
-        remaining_days = float((_target_end(plan, demand.target) - demand.desired_end).days)
-        selected = candidates
-        if mode == "concentrated":
-            selected = [item for item in candidates if item[0].instance_id in (concentrated_ids or set())]
-            selected = sorted(selected, key=lambda item: item[1], reverse=True)
-            if not selected:
+        target_end_before = _target_end(plan, demand.target)
+        trial_overrides = dict(overrides)
+        trial_crew_overrides = dict(crew_overrides)
+        trial_plan = plan
+        trial_risks = risks
+        changed_any = False
+        moved_target = False
+
+        while guard < 500:
+            guard += 1
+            candidates = _compression_candidates(trial_plan, bounds, trial_crew_overrides, demand.target)
+            if not candidates:
+                break
+            remaining_days = float((_target_end(trial_plan, demand.target) - demand.desired_end).days)
+            selected = candidates
+            if mode == "concentrated":
+                selected = [item for item in candidates if item[0].instance_id in (concentrated_ids or set())]
+                selected = sorted(selected, key=lambda item: item[1], reverse=True)
+                if not selected:
+                    break
+
+            changed = False
+            for bound, _available in selected:
+                if remaining_days <= 0:
+                    break
+                current_added_crew = trial_crew_overrides.get(bound.instance_id, 0)
+                next_added_crew = current_added_crew + 1
+                if next_added_crew >= len(bound.crew_work_days):
+                    continue
+                current = bound.crew_work_days[current_added_crew]
+                next_work_days = bound.crew_work_days[next_added_crew]
+                if next_work_days < current - 1e-9:
+                    trial_crew_overrides[bound.instance_id] = next_added_crew
+                    trial_overrides[bound.instance_id] = next_work_days
+                    remaining_days -= current - next_work_days
+                    changed = True
+            if not changed:
                 break
 
-        changed = False
-        for bound, _available in selected:
-            if remaining_days <= 0:
+            changed_any = True
+            trial_plan, trial_risks = _run_variant(inputs, changes, seed_plan, trial_overrides)
+            if _target_end(trial_plan, demand.target) < target_end_before:
+                overrides = trial_overrides
+                crew_overrides = trial_crew_overrides
+                plan = trial_plan
+                risks = trial_risks
+                moved_target = True
                 break
-            current = overrides.get(bound.instance_id, bound.standard_work_days)
-            decrement = min(1.0, current - bound.minimum_work_days, float(remaining_days))
-            next_work_days = current - decrement
-            if next_work_days < current - 1e-9:
-                overrides[bound.instance_id] = next_work_days
-                remaining_days -= decrement
-                changed = True
-        if not changed:
-            break
-        plan, risks = _run_variant(inputs, changes, seed_plan, overrides)
 
-    unmet = _unmet_for_gap(plan, demand)
+        if not changed_any:
+            ineffective_notice = _ineffective_compression_notice(
+                plan,
+                demand,
+                include_generic=False,
+            )
+            if ineffective_notice is not None:
+                risks = _merge_risks([*risks, ineffective_notice.risk])
+            break
+        if not moved_target:
+            ineffective_notice = _ineffective_compression_notice(plan, demand)
+            if ineffective_notice is not None:
+                risks = _merge_risks([*risks, ineffective_notice.risk])
+            break
+
+    unmet = _unmet_for_gap(
+        plan,
+        demand,
+        reason=ineffective_notice.reason if ineffective_notice is not None else None,
+    )
     all_risks = _merge_risks([*risks, *_compression_risks(plan)])
-    return plan, all_risks, overrides, unmet
+    return plan, all_risks, crew_overrides, unmet
 
 
 def _buffer_option(
@@ -251,6 +345,7 @@ def _buffer_option(
         risks=risks,
         advice="建议把富余时间回灌为关键路径 buffer，降低现场扰动风险。",
         has_unmet=bool(unmet),
+        target_date=demand.desired_end,
     )
     return option, unmet
 
@@ -319,6 +414,7 @@ def _pull_inputs_option(
         advice="建议优先协调机房就位或到货时间，不压缩现场施工。",
         pulled_inputs=pulled_inputs,
         has_unmet=bool(unmet),
+        target_date=demand.desired_end,
     )
     return option, unmet
 
@@ -360,7 +456,8 @@ def _duration_bounds(inputs: InputBundle) -> dict[str, _DurationBound]:
     bounds: dict[str, _DurationBound] = {}
     for instance in _instantiate(calculation_inputs):
         estimate = _estimate_duration(instance, calculation_inputs)
-        minimum_work_days = estimate.minimum_work_days
+        crew_work_days = _elastic_crew_work_days(instance, calculation_inputs)
+        minimum_work_days = min(crew_work_days) if crew_work_days else estimate.minimum_work_days
         if minimum_work_days is None:
             minimum_work_days = estimate.standard_work_days
         bounds[instance.instance_id] = _DurationBound(
@@ -370,22 +467,51 @@ def _duration_bounds(inputs: InputBundle) -> dict[str, _DurationBound]:
             constraint_source=instance.activity.constraint_source,
             standard_work_days=estimate.standard_work_days,
             minimum_work_days=max(1.0, minimum_work_days),
+            crew_work_days=crew_work_days,
         )
     return bounds
+
+
+def _elastic_crew_work_days(instance, inputs: InputBundle) -> tuple[float, ...]:
+    activity = instance.activity
+    if activity.duration_mode != "弹性" or not activity.workload_rules:
+        return ()
+
+    baselines = [rule.assumed_crew or TEAM_SIZE_DEFAULT for rule in activity.workload_rules]
+    max_added_crew = max(0, TEAM_SIZE_MAX - max(baselines, default=TEAM_SIZE_DEFAULT))
+    work_days: list[float] = []
+    for added_crew in range(max_added_crew + 1):
+        total = 0.0
+        for rule, baseline_crew in zip(activity.workload_rules, baselines, strict=True):
+            quantity = _matching_quantity(inputs, instance, rule.workload_source)
+            crew_size = min(TEAM_SIZE_MAX, baseline_crew + added_crew)
+            daily_rate = rule.standard_daily_rate * crew_size / baseline_crew
+            if rule.limit_daily_rate is not None:
+                daily_rate = min(daily_rate, rule.limit_daily_rate)
+            total += quantity / daily_rate
+        work_days.append(max(total, 1.0))
+    return tuple(work_days)
 
 
 def _compression_candidates(
     plan: PlanResult,
     bounds: dict[str, _DurationBound],
-    overrides: dict[str, float],
+    crew_overrides: dict[str, int],
     target: TargetRef,
 ) -> list[tuple[_DurationBound, float]]:
     candidates: list[tuple[_DurationBound, float]] = []
     for instance_id in _critical_prefix(plan, target):
         bound = bounds.get(instance_id)
-        if bound is None or bound.constraint_source != "人":
+        if bound is None or bound.duration_mode != "弹性" or not bound.crew_work_days:
             continue
-        current = overrides.get(instance_id, bound.standard_work_days)
+        current_added_crew = crew_overrides.get(instance_id, 0)
+        next_added_crew = current_added_crew + 1
+        if next_added_crew >= len(bound.crew_work_days):
+            continue
+        current = bound.crew_work_days[current_added_crew]
+        next_work_days = bound.crew_work_days[next_added_crew]
+        if next_work_days >= current - 1e-9:
+            continue
         available = current - bound.minimum_work_days
         if available > 1e-9:
             candidates.append((bound, available))
@@ -416,12 +542,13 @@ def _make_option(
     added_crew: int = 0,
     pulled_inputs: Sequence[PulledInput] | None = None,
     has_unmet: bool = False,
+    target_date: date | None = None,
 ) -> StrategyPlan:
     merged_risks = _merge_risks(risks)
     return StrategyPlan(
         option_id=option_id,
         strategy=strategy,
-        kpis=_plan_kpis(plan, inputs, added_crew=added_crew),
+        kpis=_plan_kpis(plan, inputs, added_crew=added_crew, target_date=target_date),
         plan=plan,
         risk_level=_risk_level(merged_risks, has_unmet=has_unmet),
         advice=advice,
@@ -430,7 +557,13 @@ def _make_option(
     )
 
 
-def _plan_kpis(plan: PlanResult, inputs: InputBundle, *, added_crew: int = 0) -> PlanKpis:
+def _plan_kpis(
+    plan: PlanResult,
+    inputs: InputBundle,
+    *,
+    added_crew: int = 0,
+    target_date: date | None = None,
+) -> PlanKpis:
     dates = [(activity.start_date, activity.end_date) for activity in plan.activities]
     if dates:
         start = min(start_date for start_date, _ in dates)
@@ -447,7 +580,31 @@ def _plan_kpis(plan: PlanResult, inputs: InputBundle, *, added_crew: int = 0) ->
         total_duration_days=total_duration_days,
         compressed_days=compressed_days,
         added_crew=added_crew,
+        gap_days=_plan_gap_days(plan, target_date),
     )
+
+
+def _gap_summary(plan: PlanResult, demand: _DemandTarget | None) -> GapSummary:
+    if demand is None:
+        return GapSummary(
+            baseline_finish_date=plan.project_finish_date,
+            target_date=None,
+            gap_days=0,
+        )
+    return GapSummary(
+        baseline_finish_date=plan.project_finish_date,
+        target_date=demand.desired_end,
+        # 自洽：按 (基线预计完成 − 目标).days 重算，与 baseline_finish_date/target_date 及各卡
+        # kpis.gap_days(均走 _plan_gap_days) 同一口径；不再取可能陈旧的 demand.gap_days
+        # （拖动目标后 demand.gap_days 与 desired_end 会 desync→banner 自相矛盾。T-045 验收实测授权修）
+        gap_days=_plan_gap_days(plan, demand.desired_end),
+    )
+
+
+def _plan_gap_days(plan: PlanResult, target_date: date | None) -> int:
+    if plan.project_finish_date is None or target_date is None:
+        return 0
+    return (plan.project_finish_date - target_date).days
 
 
 def _compression_risks(plan: PlanResult) -> list[RiskItem]:
@@ -471,28 +628,110 @@ def _compression_risks(plan: PlanResult) -> list[RiskItem]:
     return risks
 
 
-def _added_crew(overrides: dict[str, float], bounds: dict[str, _DurationBound]) -> int:
+def _added_crew(crew_overrides: dict[str, int], bounds: dict[str, _DurationBound]) -> int:
     added = 0
-    for instance_id, work_days in overrides.items():
+    for instance_id, added_crew in crew_overrides.items():
         bound = bounds.get(instance_id)
-        if bound is None or bound.duration_mode != "弹性" or work_days >= bound.standard_work_days:
+        if bound is None or bound.duration_mode != "弹性":
             continue
-        required_size = ceil(TEAM_SIZE_DEFAULT * bound.standard_work_days / work_days)
-        added += max(0, min(TEAM_SIZE_MAX, required_size) - TEAM_SIZE_DEFAULT)
+        added += max(0, added_crew)
     return added
 
 
-def _unmet_for_gap(plan: PlanResult, demand: _DemandTarget) -> list[UnmetItem]:
+def _unmet_for_gap(
+    plan: PlanResult,
+    demand: _DemandTarget,
+    *,
+    reason: str | None = None,
+) -> list[UnmetItem]:
     gap_days = max(0, (_target_end(plan, demand.target) - demand.desired_end).days)
     if not gap_days:
         return []
     return [
         UnmetItem(
             target_desc=demand.target_desc,
-            reason="关键路径可压活动已到极限，仍无法满足目标。",
+            reason=reason or "关键路径可压活动已到极限，仍无法满足目标。",
             gap_days=gap_days,
         )
     ]
+
+
+def _compression_advice(default: str, risks: Sequence[RiskItem]) -> str:
+    for risk in risks:
+        if risk.risk_type == "链路聚合" and "加人无效" in risk.message:
+            return risk.message
+    return default
+
+
+def _ineffective_compression_notice(
+    plan: PlanResult,
+    demand: _DemandTarget,
+    *,
+    include_generic: bool = True,
+) -> _IneffectiveCompressionNotice | None:
+    target_desc = demand.target_desc
+    availability_activity = _latest_availability_activity_on_target_path(plan, demand.target)
+    if availability_activity is None:
+        if not include_generic:
+            return None
+        reason = f"{target_desc} 加人后目标日期未提前，当前瓶颈不在人力弹性活动。"
+        message = f"{reason} 请优先检查站货、机房就位或目标锚点。"
+        return _IneffectiveCompressionNotice(
+            risk=RiskItem(
+                risk_type="链路聚合",
+                severity="中",
+                instance_id=None,
+                message=message,
+            ),
+            reason=reason,
+        )
+
+    if availability_activity.milestone_kind == "到货":
+        reason = f"{target_desc} 受到货约束，加人无效。"
+        message = f"{reason} 请用 C 站货提拉或调整到货日期。"
+    else:
+        reason = f"{target_desc} 受机房就位约束，加人无效。"
+        message = f"{reason} 请调整机房就位日期。"
+    return _IneffectiveCompressionNotice(
+        risk=RiskItem(
+            risk_type="链路聚合",
+            severity="高",
+            instance_id=availability_activity.instance_id,
+            message=message,
+        ),
+        reason=reason,
+    )
+
+
+def _latest_availability_activity_on_target_path(
+    plan: PlanResult,
+    target: TargetRef,
+) -> ScheduledActivity | None:
+    activity_by_id = {activity.instance_id: activity for activity in plan.activities}
+    for instance_id in reversed(_critical_prefix(plan, target)):
+        activity = activity_by_id.get(instance_id)
+        if activity is not None and activity.milestone_kind in {"到货", "机房就位"}:
+            return activity
+    target_ids = set(_resolve_target_instance_ids(plan, target))
+    if not target_ids:
+        return None
+    ancestors: list[ScheduledActivity] = []
+    seen: set[str] = set()
+    stack = list(target_ids)
+    while stack:
+        instance_id = stack.pop()
+        if instance_id in seen:
+            continue
+        seen.add(instance_id)
+        activity = activity_by_id.get(instance_id)
+        if activity is None:
+            continue
+        if activity.milestone_kind in {"到货", "机房就位"}:
+            ancestors.append(activity)
+        stack.extend(activity.predecessor_instance_ids)
+    if not ancestors:
+        return None
+    return max(ancestors, key=lambda activity: (activity.end_date, activity.instance_id))
 
 
 def _target_end(plan: PlanResult, target: TargetRef) -> date:
@@ -706,6 +945,10 @@ def _risk_level(risks: Sequence[RiskItem], *, has_unmet: bool) -> str:
     if risks:
         return "中"
     return "低"
+
+
+def _risk_rank(risk_level: str) -> int:
+    return _RISK_RANK.get(risk_level, 99)
 
 
 def _merge_risks(risks: Sequence[RiskItem]) -> list[RiskItem]:

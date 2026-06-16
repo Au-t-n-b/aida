@@ -15,7 +15,7 @@ import os
 from pathlib import Path
 from typing import Any, ClassVar
 
-from ..base import BaseSkill, SkillState
+from ..base import BaseSkill, SkillState, SkillContext
 from ... import software_deployment_files as _sd_files
 from .sdui import project as _sdui_project, SD_STEP_NAMES, SD_STEP_ORDER
 from .steps import (
@@ -27,6 +27,7 @@ from .steps import (
     CloudopsFullStep,
     ToolkitExecutorStep,
     ToolkitImportStep,
+    CommissionScopeStep,
     ConnectionStep,
     LqConnectionStep,
     WeakLightStep,
@@ -52,7 +53,19 @@ LINEAR_STEP_KEYS: tuple[str, ...] = (
 )
 
 COMMISSION_STEP_KEYS: tuple[str, ...] = INIT_INSTALL_COMMANDS
-DISPATCH_STEP_KEYS: tuple[str, ...] = COMMISSION_STEP_KEYS + ("commission_report",)
+DISPATCH_STEP_KEYS: tuple[str, ...] = ("commission_scope",) + COMMISSION_STEP_KEYS + ("commission_report",)
+
+# deploy_chain.json 时间戳 → 线性步骤 key（用于 Agent 重启后从磁盘恢复）
+_CHAIN_AT_BY_STEP: tuple[tuple[str, str], ...] = (
+    ("plan_receive", "step1_plan_receive_at"),
+    ("plan_split", "step2_plan_split_at"),
+    ("plan_dispatch", "step3_plan_dispatch_at"),
+    ("cloudops_init", "step4_cloudops_init_at"),
+    ("cloudops_supplement", "step5_cloudops_supplement_at"),
+    ("cloudops_full", "step6_cloudops_full_at"),
+    ("toolkit_executor", "step7_executor_config_at"),
+    ("toolkit_import", "step8_toolkit_import_at"),
+)
 
 
 class SoftwareDeploymentSkill(BaseSkill):
@@ -70,6 +83,7 @@ class SoftwareDeploymentSkill(BaseSkill):
         CloudopsFullStep(),
         ToolkitExecutorStep(),
         ToolkitImportStep(),
+        CommissionScopeStep(),
         ConnectionStep(),
         LqConnectionStep(),
         WeakLightStep(),
@@ -90,6 +104,7 @@ class SoftwareDeploymentSkill(BaseSkill):
         p.setdefault("project_id", "nanobot-local")
         p.setdefault("scope", "all")
         p.setdefault("confirmations", {})
+        p.setdefault("commission", {})
         return p
 
     def commission_preconditions_met(self) -> tuple[bool, str]:
@@ -119,6 +134,9 @@ class SoftwareDeploymentSkill(BaseSkill):
 
         proj = dict(project or {})
         proj["commission_mode"] = True
+        chain = _chain(self.work_root)
+        self._hydrate_recovered_step_metrics(steps_out, chain)
+        self._hydrate_step_artifacts(steps_out)
         return {
             "run_id": run_id,
             "skill_id": self.name,
@@ -129,6 +147,307 @@ class SoftwareDeploymentSkill(BaseSkill):
             "logs": [f"[start] 前置已满足，进入命令调测工作台 · run {run_id}"],
             "hitl": {},
         }
+
+    def build_disk_recovery_state(self, run_id: str) -> dict[str, Any] | None:
+        """Agent 内存 run 丢失时，据 deploy_chain.json 重建进度（刷新/重启后 rejoin）。"""
+        chain = _chain(self.work_root)
+        if not any(chain.get(at) for _, at in _CHAIN_AT_BY_STEP):
+            return None
+
+        if chain.get("step8_toolkit_import_at"):
+            return self.build_commission_entry_state(run_id, self.initial_project({}))
+
+        steps_out: list[dict[str, Any]] = []
+        confirmations: dict[str, bool] = {}
+        current: str | None = None
+        last_done: str | None = None
+
+        for key, at_key in _CHAIN_AT_BY_STEP:
+            step = next(s for s in self.steps if s.key == key)
+            if chain.get(at_key):
+                steps_out.append(
+                    step.make_record(
+                        "completed",
+                        ended_at=str(chain.get(at_key) or step._now()),
+                        progress=100,
+                        log_tail=[f"[{key}] 已从磁盘恢复为已完成"],
+                    )
+                )
+                confirmations[key] = True
+                last_done = key
+            elif current is None:
+                current = key
+                break
+
+        if not current:
+            return self.build_commission_entry_state(run_id, self.initial_project({}))
+
+        ctx = SkillContext(
+            skill_id=self.name,
+            work_root=self.work_root,
+            run_id=run_id,
+            project={"confirmations": confirmations},
+            llm_factory=self.llm_factory,
+        )
+        step_obj = next(s for s in self.steps if s.key == current)
+        check = step_obj.check_inputs(ctx)
+        hitl: dict[str, Any] = {}
+        if not check.get("ok"):
+            missing = check.get("missing") or []
+            need_inputs = check.get("need_inputs") or []
+            note = check.get("note") or f"{step_obj.name} 待处理"
+            hitl = {
+                "step": current,
+                "reason": note,
+                "need_files": missing,
+                "need_inputs": need_inputs,
+                "need_edit": check.get("need_edit"),
+            }
+            steps_out.append(
+                step_obj.make_record(
+                    "hitl",
+                    ended_at=step_obj._now(),
+                    log_tail=[f"[{current}] 已从磁盘恢复，等待确认或补料"],
+                )
+            )
+
+        progress = self._step_progress_pct(last_done) if last_done else 0
+        self._hydrate_recovered_step_metrics(steps_out, chain)
+        self._hydrate_step_artifacts(steps_out)
+        return {
+            "run_id": run_id,
+            "skill_id": self.name,
+            "project": {
+                **self.initial_project({}),
+                "confirmations": confirmations,
+            },
+            "steps": steps_out,
+            "current_step": current,
+            "overall_progress": progress,
+            "logs": [
+                f"[rejoin] Agent 重启后从 deploy_chain 恢复 · 当前步骤 {current} · run {run_id}",
+            ],
+            "hitl": hitl,
+            "error": "",
+        }
+
+    def _hydrate_recovered_step_metrics(
+        self,
+        steps_out: list[dict[str, Any]],
+        chain: dict[str, Any],
+    ) -> None:
+        """rejoin 后从磁盘产物回填 step.metrics，供 SDUI 计划/设备页签展示（投影器只读 metrics）。"""
+        import json
+
+        from .steps._preview_metrics import (
+            device_stats,
+            slim_device_tasks,
+            slim_scene_spec,
+            slim_third_tasks,
+        )
+
+        root = self.work_root
+        by_key = {str(s.get("key") or ""): s for s in steps_out if s.get("key")}
+
+        if by_key.get("plan_receive", {}).get("status") == "completed":
+            tc = chain.get("step1_task_count")
+            if tc:
+                by_key["plan_receive"].setdefault("metrics", {})["task_count"] = tc
+
+        if by_key.get("plan_split", {}).get("status") == "completed":
+            metrics = by_key["plan_split"].setdefault("metrics", {})
+            scene_path = root / "ProjectData/plan/RunTime/scene.json"
+            if scene_path.is_file():
+                try:
+                    scene = json.loads(scene_path.read_text(encoding="utf-8"))
+                    if isinstance(scene, dict):
+                        metrics["scene_spec"] = slim_scene_spec(scene)
+                except Exception:
+                    pass
+            tree_path = root / "ProjectData/plan/Output/plan_display_tree.json"
+            third_path = root / "ProjectData/plan/Output/third_level_tasks.json"
+            if tree_path.is_file():
+                try:
+                    raw = json.loads(tree_path.read_text(encoding="utf-8"))
+                    if isinstance(raw, dict):
+                        metrics["second_count"] = raw.get("secondCount") or chain.get("step1_task_count") or 0
+                        metrics["third_count"] = raw.get("thirdCount") or chain.get("step2_third_task_count") or 0
+                        rows = raw.get("rows") or []
+                        if rows:
+                            metrics["third_tasks_preview"] = slim_third_tasks(rows)
+                except Exception:
+                    pass
+            elif third_path.is_file():
+                try:
+                    raw = json.loads(third_path.read_text(encoding="utf-8"))
+                    tasks = raw.get("tasks") if isinstance(raw, dict) else []
+                    if isinstance(tasks, list):
+                        metrics["third_count"] = len(tasks)
+                        metrics["third_tasks_preview"] = slim_third_tasks(tasks)
+                except Exception:
+                    pass
+            if not metrics.get("second_count") and chain.get("step1_task_count"):
+                metrics["second_count"] = chain["step1_task_count"]
+            if not metrics.get("third_count") and chain.get("step2_third_task_count"):
+                metrics["third_count"] = chain["step2_third_task_count"]
+
+        if by_key.get("plan_dispatch", {}).get("status") == "completed":
+            metrics = by_key["plan_dispatch"].setdefault("metrics", {})
+            base_path = root / "ProjectData/plan/Output/device_base_table.json"
+            if base_path.is_file():
+                try:
+                    raw = json.loads(base_path.read_text(encoding="utf-8"))
+                    tasks = raw.get("tasks") if isinstance(raw, dict) else []
+                    if isinstance(tasks, list):
+                        metrics["device_rows"] = len(tasks)
+                        metrics["device_tasks_preview"] = slim_device_tasks(tasks)
+                        metrics["device_stats"] = device_stats(tasks)
+                except Exception:
+                    pass
+
+        if by_key.get("toolkit_import", {}).get("status") == "completed":
+            metrics = by_key["toolkit_import"].setdefault("metrics", {})
+            receipt = root / "ProjectData/plan/RunTime/toolkit_import.json"
+            if receipt.is_file():
+                try:
+                    raw = json.loads(receipt.read_text(encoding="utf-8"))
+                    refresh = raw.get("refresh") if isinstance(raw.get("refresh"), dict) else {}
+                    if refresh.get("devicesRefreshed") is not None:
+                        metrics["refreshed_devices"] = refresh["devicesRefreshed"]
+                    if refresh.get("rowsRefreshed") is not None:
+                        metrics["refreshed_rows"] = refresh["rowsRefreshed"]
+                    metrics["toolkit_imported"] = True
+                except Exception:
+                    pass
+
+        from ._preview_metrics import build_commission_record
+        from ._commission_report_loader import enrich_commission_record, resolve_task_run_dir
+
+        _commission_cmds = (
+            ("connection", "connection"),
+            ("lq_connection", "lq_connection"),
+            ("weak_light", "weak_light"),
+            ("hccs_weak_light", "hccs_weak_light"),
+        )
+        for step_key, cmd in _commission_cmds:
+            result_dir = root / f"ProjectData/results/{cmd}"
+            if not result_dir.is_dir():
+                continue
+            try:
+                has_output = any(result_dir.iterdir())
+            except OSError:
+                has_output = False
+            if not has_output:
+                continue
+            rec = by_key.get(step_key)
+            if not rec:
+                run_dir = resolve_task_run_dir(root, {"stepKey": step_key})
+                rel = (
+                    str(run_dir.relative_to(root)).replace("\\", "/")
+                    if run_dir is not None
+                    else str(result_dir.relative_to(root)).replace("\\", "/")
+                )
+                base_rec = build_commission_record(
+                    step_key,
+                    {
+                        "ok": True,
+                        "message": "已从磁盘恢复",
+                        "result_dir": rel,
+                        "task_id": run_dir.name if run_dir is not None else "",
+                    },
+                )
+                steps_out.append({
+                    "key": step_key,
+                    "name": step_key,
+                    "status": "completed",
+                    "metrics": {
+                        f"{cmd}_ok": True,
+                        "command": cmd,
+                        "result_dir": rel,
+                        "commission_record": enrich_commission_record(base_rec, root),
+                    },
+                })
+                by_key[step_key] = steps_out[-1]
+                continue
+            metrics = rec.setdefault("metrics", {})
+            run_dir = resolve_task_run_dir(
+                root,
+                {
+                    "stepKey": step_key,
+                    "taskName": str(metrics.get("task_id") or metrics.get("task_name") or ""),
+                    "resultDir": str(metrics.get("result_dir") or ""),
+                },
+            )
+            rel_run = (
+                str(run_dir.relative_to(root)).replace("\\", "/")
+                if run_dir is not None
+                else str(metrics.get("result_dir") or result_dir.relative_to(root)).replace("\\", "/")
+            )
+            receipt_path = (run_dir / "receipt.json") if run_dir is not None else None
+            if receipt_path is not None and receipt_path.is_file():
+                try:
+                    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                except Exception:
+                    receipt = {}
+                if str(receipt.get("reportPath") or "").strip() or receipt.get("finishedAt"):
+                    rec["status"] = "completed"
+                    metrics[f"{cmd}_ok"] = True
+                    metrics["result_dir"] = rel_run
+                    metrics["task_id"] = str(receipt.get("taskName") or run_dir.name if run_dir else "")
+            elif not metrics.get(f"{cmd}_ok"):
+                metrics[f"{cmd}_ok"] = True
+            if not metrics.get("result_dir"):
+                metrics["result_dir"] = rel_run
+            if not metrics.get("commission_record"):
+                base_rec = build_commission_record(
+                    step_key,
+                    {
+                        "ok": True,
+                        "message": "已从磁盘恢复",
+                        "result_dir": rel_run,
+                        "task_id": run_dir.name if run_dir is not None else "",
+                    },
+                )
+                metrics["commission_record"] = enrich_commission_record(base_rec, root)
+            elif run_dir is not None and rec.get("status") == "completed":
+                metrics["commission_record"] = enrich_commission_record(
+                    dict(metrics["commission_record"]) if isinstance(metrics.get("commission_record"), dict) else {},
+                    root,
+                )
+
+    def _hydrate_step_artifacts(self, steps_out: list[dict[str, Any]]) -> None:
+        """rejoin 后从磁盘扫各步 artifacts_pattern，补全项目文档页签。"""
+        from ..base import SkillContext
+
+        ctx = SkillContext(
+            skill_id=self.name,
+            work_root=self.work_root,
+            run_id="<hydrate>",
+            llm_factory=self.llm_factory,
+        )
+        by_key = {str(s.get("key") or ""): s for s in steps_out if s.get("key")}
+        for step_def in self.steps:
+            rec = by_key.get(step_def.key)
+            if not rec or rec.get("status") != "completed":
+                continue
+            arts = list(step_def.collect_existing_artifacts(ctx))
+            metrics = rec.get("metrics") or {}
+            if isinstance(metrics, dict):
+                rd = str(metrics.get("result_dir") or "").strip().replace("\\", "/")
+                if rd:
+                    if "ProjectData/" in rd:
+                        rd = rd[rd.index("ProjectData/") :]
+                    full = ctx.work_root / rd
+                    if full.is_file():
+                        if rd not in arts:
+                            arts.append(rd)
+                    elif full.is_dir():
+                        for child in sorted(full.iterdir()):
+                            if child.is_file() and child.suffix.lower() in {".xlsx", ".xls", ".json", ".csv", ".txt"}:
+                                rel = str(child.relative_to(ctx.work_root)).replace("\\", "/")
+                                if rel not in arts:
+                                    arts.append(rel)
+            rec["artifacts"] = arts
 
     def apply_resume_payload(
         self, project: dict[str, Any], payload: dict[str, Any], hitl_step: str
@@ -141,9 +460,63 @@ class SoftwareDeploymentSkill(BaseSkill):
         if payload.get("rerun") and target:
             confirmations.pop(target, None)
 
-        if choice == "confirm" and target:
+        comm = dict(p.get("commission") or {})
+        scope_step = hitl_step == "commission_scope" or target == "commission_scope"
+        cmd_from_payload = str(payload.get("command") or "").strip()
+        if scope_step or cmd_from_payload:
+            if payload.get("scope_direct") and cmd_from_payload:
+                from .steps.scope_parse import normalize_parsed, format_scope_summary
+
+                parsed = normalize_parsed({
+                    "scope": payload.get("scope") or "all",
+                    "pod_ids": payload.get("pod_ids"),
+                    "devices": payload.get("devices"),
+                    "task_no": payload.get("task_no"),
+                    "only_installed": payload.get("only_installed", True),
+                })
+                if parsed:
+                    comm["pending_command"] = cmd_from_payload
+                    comm["parsed"] = dict(parsed)
+                    comm["summary"] = format_scope_summary(parsed)
+                    comm["phase"] = "ready"
+                    comm.pop("scope_text", None)
+                    comm.pop("parse_error", None)
+            elif cmd_from_payload:
+                comm["pending_command"] = cmd_from_payload
+                comm["phase"] = "scope_input"
+                for k in ("parsed", "preview", "parse_error", "summary", "scope_text"):
+                    comm.pop(k, None)
+                if payload.get("rerun"):
+                    confirmations.pop(cmd_from_payload, None)
+            if isinstance(choice, str) and choice.strip() and choice not in ("confirm", "back"):
+                comm["scope_text"] = choice.strip()
+                comm.pop("parse_error", None)
+            if choice == "confirm" and comm.get("phase") == "scope_confirm":
+                comm["phase"] = "ready"
+            if choice == "back":
+                comm["phase"] = "scope_input"
+                for k in ("parsed", "preview", "scope_text", "parse_error", "summary"):
+                    comm.pop(k, None)
+            p["commission"] = comm
+
+        if choice == "confirm" and target and target != "commission_scope":
             confirmations[target] = True
         p["confirmations"] = confirmations
+
+        if payload.get("reconfigure_executor"):
+            p["reconfigure_executor"] = True
+            try:
+                from .bridge import get_sd_root, ensure_runtime
+                root = get_sd_root()
+                ensure_runtime(root)
+                from toolkit_executor import load_executor_config  # noqa: WPS433
+
+                cfg = load_executor_config(root)
+                for key in ("base_url_ip", "secret_key", "base_url_port"):
+                    if cfg.get(key) and not p.get(key):
+                        p[key] = cfg[key]
+            except Exception:
+                pass
 
         if hitl_step == "toolkit_executor":
             raw_cfg: dict[str, Any] = {}
@@ -153,13 +526,25 @@ class SoftwareDeploymentSkill(BaseSkill):
                 value = payload.get(key) or raw_cfg.get(key)
                 if value:
                     p[key] = value
+            if raw_cfg or payload.get("base_url_ip") or payload.get("secret_key"):
+                p.pop("reconfigure_executor", None)
 
-        for key in ("base_url_ip", "secret_key", "base_url_port", "project_id", "scope"):
+        for key in ("base_url_ip", "secret_key", "base_url_port", "project_id", "scope", "task_no"):
             if payload.get(key):
                 p[key] = payload[key]
         scope = payload.get("scope")
         if isinstance(scope, str) and scope.strip():
             p["scope"] = scope.strip()
+        if payload.get("pod_ids") is not None:
+            raw_pods = payload.get("pod_ids")
+            if isinstance(raw_pods, list):
+                p["pod_ids"] = [int(x) for x in raw_pods if str(x).strip() != ""]
+        if payload.get("devices") is not None:
+            raw_devs = payload.get("devices")
+            if isinstance(raw_devs, list):
+                p["devices"] = [str(x).strip() for x in raw_devs if str(x).strip()]
+        if payload.get("only_installed") is not None:
+            p["only_installed"] = bool(payload.get("only_installed"))
         return p
 
     def build_graph(self, checkpointer=None):
@@ -231,6 +616,12 @@ class SoftwareDeploymentSkill(BaseSkill):
                 checkpointer = SqliteSaver(conn)
 
         return g.compile(checkpointer=checkpointer)
+
+    def _next_step_key(self, current: str) -> str:
+        """线性 8 完成后进入命令调测首命令（与 build_commission_entry_state / rejoin 对齐）。"""
+        if current == "toolkit_import":
+            return COMMISSION_STEP_KEYS[0]
+        return super()._next_step_key(current)
 
     def _step_progress_pct(self, step_key: str) -> int:
         try:

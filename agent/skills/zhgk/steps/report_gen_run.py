@@ -1,21 +1,11 @@
-"""
-report_gen_run · 工勘报告生成（9 表 Word）
-
-意图: report_gen 专属
-
-流程:
-  1. 读取全量勘测结果表（需已含 AI 评估结果）
-  2. 重建 AssessmentResult 列表（从 AI评估结果 列）
-  3. load_risk_library + identify_risks + write_risk_table
-  4. 从 Output/ 读取问题清单表（如存在）
-  5. 构建 ProjectMeta（from project dict + project_info.json）
-  6. build_report() → 工勘报告.docx
-  7. 返回 artifacts + metrics
-"""
+"""report_gen_run · 工勘报告生成（本地 mock 报告）."""
 from __future__ import annotations
 
 import json
 import os
+import shutil
+from datetime import datetime
+from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._intent_guard import should_skip
@@ -47,60 +37,76 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
     return ""
 
 
-def _read_issue_list_file(output_dir) -> list[dict]:
-    """从 Output/ 读取问题清单表，返回 IssueItem 列表"""
-    import openpyxl
-    files = sorted(output_dir.glob("*问题清单表*.xlsx")) if output_dir.exists() else []
-    if not files:
-        return []
-    try:
-        wb = openpyxl.load_workbook(str(files[0]), read_only=True, data_only=True)
-        ws = wb.active
-        headers = [str(ws.cell(1, c).value or "").strip() for c in range(1, ws.max_column + 1)]
-        col_map = {name: idx for idx, name in enumerate(headers) if name}
-        items = []
-        for row in ws.iter_rows(min_row=2, values_only=True):
-            if row[0] is None:
-                continue
-            def _s(key: str) -> str:
-                idx = col_map.get(key)
-                return str(row[idx] or "").strip() if idx is not None else ""
-            items.append({
-                "序号": int(row[0]) if row[0] else len(items) + 1,
-                "问题描述": _s("问题描述"),
-                "状态": _s("状态") or "open",
-                "整改建议": _s("整改建议"),
-                "责任人": "",
-                "计划关闭时间": "",
-                "备注": _s("备注"),
-            })
-        wb.close()
-        return items
-    except Exception:
-        return []
+def _read_project_info(ctx: SkillContext) -> dict:
+    info_path = ctx.runtime_dir / "project_info.json"
+    if info_path.exists():
+        try:
+            return json.loads(info_path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
 
 
-def _rebuild_assessment_results(survey_rows: list[dict]) -> list:
-    """从勘测结果行重建 AssessmentResult 列表"""
-    from ..services.types import AssessmentResult, AssessmentValue
-    valid_values = {v.value for v in AssessmentValue}
-    results = []
-    for row in survey_rows:
-        ai_val = (row.get("AI评估结果") or "").strip()
-        if ai_val in valid_values:
-            conclusion = AssessmentValue.from_str(ai_val)
-        else:
-            conclusion = AssessmentValue.NOT_SURVEYED
-        results.append(AssessmentResult(conclusion=conclusion, defect_description="", confidence=0.9))
-    return results
+def _write_project_info(ctx: SkillContext, info: dict) -> None:
+    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+    (ctx.runtime_dir / "project_info.json").write_text(
+        json.dumps(info, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _mock_report_source(ctx: SkillContext) -> Path | None:
+    patterns = [
+        "*工勘报告*.pdf",
+        "*工勘报告*.docx",
+        "*report*.pdf",
+        "*report*.docx",
+    ]
+    for folder in (ctx.input_dir, ctx.output_dir, ctx.work_root / "ProjectData" / "Template"):
+        if not folder.exists():
+            continue
+        for pat in patterns:
+            matches = sorted(folder.glob(pat))
+            if matches:
+                return matches[0]
+    return None
+
+
+def _mock_report_output_path(ctx: SkillContext, source: Path) -> Path:
+    activity = str(ctx.project.get("activity_id") or "ACT001").strip() or "ACT001"
+    project = str(ctx.project.get("project_name") or "智算 Q3 · 客户甲一期").strip()
+    room = str(ctx.project.get("room_name") or "A 机房").strip()
+    suffix = source.suffix or ".pdf"
+    safe = f"{activity}_{project}_{room}_工勘报告{suffix}"
+    for ch in '<>:"/\\|?*':
+        safe = safe.replace(ch, "_")
+    return ctx.output_dir / safe
+
+
+_REPORT_REVIEW_INPUT = {
+    "id": "report_review_choice",
+    "label": "工勘报告已生成",
+    "options": [
+        {
+            "label": "下载附件查看",
+            "value": "download",
+            "description": "报告已作为产物提供下载，确认后进入审批分发",
+        },
+        {
+            "label": "直接发送审批",
+            "value": "send_approval",
+            "description": "不查看附件，直接进入审批邮件编辑",
+        },
+    ],
+}
 
 
 class ReportGenRunStep(BaseStep):
     key = "report_gen_run"
     name = "报告生成"
     artifacts_pattern = [
-        "ProjectData/Output/工勘报告.docx",
-        "ProjectData/Output/*风险识别结果表*.xlsx",
+        "ProjectData/Output/*工勘报告*.pdf",
+        "ProjectData/Output/*工勘报告*.docx",
     ]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
@@ -108,112 +114,65 @@ class ReportGenRunStep(BaseStep):
             return {"ok": True, "missing": []}
 
         missing = []
-        if _get_survey_table(ctx) is None:
+        if _get_survey_table(ctx) is None and ctx.project.get("intent") != "report_gen":
             missing.append("ProjectData/Output/*全量勘测结果表*.xlsx")
+        if _mock_report_source(ctx) is None:
+            missing.append("ProjectData/Input/*工勘报告*.pdf")
 
-        from ..path_config import get_report_template_path, get_risk_library_path
-        if not os.path.exists(get_report_template_path()):
-            missing.append("ProjectData/Template/新版项目工勘报告模板.docx")
-        if not os.path.exists(get_risk_library_path()):
-            missing.append("ProjectData/Template/工勘常见高风险库.xlsx")
+        if missing:
+            return {
+                "ok": False,
+                "missing": missing,
+                "note": "mock 报告未就绪，请先放入本地工勘报告附件",
+            }
 
-        return {"ok": not missing, "missing": missing}
+        info = _read_project_info(ctx)
+        if ctx.project.get("report_review_choice") or info.get("mock_report_path"):
+            return {"ok": True, "missing": []}
+
+        return {
+            "ok": False,
+            "missing": [],
+            "need_inputs": [_REPORT_REVIEW_INPUT],
+            "note": "撰写工勘报告已 mock：将使用本地已放好的工勘报告作为生成结果。",
+        }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         if should_skip(self.key, ctx.project):
             return {}
 
-        from ..services.survey_table_builder import read_survey_table
-        from ..services.risk_engine import load_risk_library, identify_risks, write_risk_table
-        from ..services.report_builder import build_report
-        from ..services.types import ProjectMeta
-        from ..services._llm_adapter import make_llm_adapter
-        from ..path_config import get_report_template_path, get_risk_library_path
+        source = _mock_report_source(ctx)
+        if source is None:
+            raise RuntimeError("report_gen_run: 本地 mock 工勘报告不存在")
 
-        survey_table = _get_survey_table(ctx)
-        if not survey_table:
-            raise RuntimeError("report_gen_run: 全量勘测结果表不存在")
+        ctx.output_dir.mkdir(parents=True, exist_ok=True)
+        report_path = _mock_report_output_path(ctx, source)
+        if source.resolve() != report_path.resolve():
+            shutil.copy2(source, report_path)
+        choice = str(ctx.project.get("report_review_choice") or "download")
+        emit(f"[report_gen_run] mock 撰写工勘报告：{source.name}")
+        emit(f"[report_gen_run] ✓ 工勘报告已就绪：{report_path.name}")
+        if choice == "download":
+            emit("[report_gen_run] 用户选择下载附件查看，报告已作为产物提供")
+        else:
+            emit("[report_gen_run] 用户选择直接发送审批，进入审批邮件编辑")
 
-        proj = ctx.project
-        gen_cooling = _get_generation_cooling(ctx)
-        output_dir = str(ctx.output_dir)
-        llm = make_llm_adapter(ctx, step_key=self.key)
-
-        # ── 1. 读取勘测结果 ─────────────────────────────────────────────
-        emit(f"[report_gen_run] 读取勘测结果表: {os.path.basename(survey_table)}")
-        survey_rows = read_survey_table(survey_table)
-        emit(f"[report_gen_run] 总条目: {len(survey_rows)}")
-
-        assessment_results = _rebuild_assessment_results(survey_rows)
-
-        # ── 2. 风险识别 ──────────────────────────────────────────────────
-        risk_library_path = get_risk_library_path()
-        emit(f"[report_gen_run] 加载高风险库: {os.path.basename(risk_library_path)}")
-        risk_items_raw = load_risk_library(risk_library_path, generation_cooling=gen_cooling)
-        emit(f"[report_gen_run] 高风险条目: {len(risk_items_raw)} 条")
-
-        emit("[report_gen_run] LLM 风险判断中…")
-        triggered_risks = identify_risks(risk_items_raw, survey_rows, llm)
-        emit(f"[report_gen_run] 触发风险: {len(triggered_risks)} 条")
-
-        risk_table_path = write_risk_table(
-            triggered_risks,
-            output_dir=output_dir,
-            activity_id=proj.get("activity_id", ""),
-            project_name=proj.get("project_name", ""),
-            room_name=proj.get("room_name", ""),
-        )
-        emit(f"[report_gen_run] 风险表: {os.path.basename(risk_table_path)}")
-
-        # ── 3. 读取问题清单 ──────────────────────────────────────────────
-        issue_list = _read_issue_list_file(ctx.output_dir)
-        emit(f"[report_gen_run] 问题清单: {len(issue_list)} 条")
-
-        # ── 4. 构建 ProjectMeta ──────────────────────────────────────────
-        # 从 project_info.json 补充 survey_date / surveyor
-        info: dict = {}
-        info_path = ctx.runtime_dir / "project_info.json"
-        if info_path.exists():
-            try:
-                info = json.loads(info_path.read_text(encoding="utf-8"))
-            except Exception:
-                pass
-
-        project_meta = ProjectMeta(
-            project_name=proj.get("project_name", info.get("project_name", "")),
-            activity_id=proj.get("activity_id", info.get("activity_id", "")),
-            room_name=proj.get("room_name", info.get("room_name", "")),
-            survey_date=proj.get("survey_date", info.get("survey_date", "")),
-            surveyor=proj.get("surveyor", info.get("surveyor", "")),
-            generation_cooling=gen_cooling,
-        )
-
-        # ── 5. 生成报告 ──────────────────────────────────────────────────
-        template_path = get_report_template_path()
-        emit(f"[report_gen_run] 填充报告模板: {os.path.basename(template_path)}")
-
-        report_path = build_report(
-            template_path=template_path,
-            output_dir=output_dir,
-            project_meta=project_meta,
-            survey_results=survey_rows,
-            assessment_results=assessment_results,
-            issue_list=issue_list,
-            risk_list=triggered_risks,
-            photo_map=None,
-            llm_call=llm,
-        )
-        emit(f"[report_gen_run] ✓ 工勘报告: {os.path.basename(report_path)}")
+        info = _read_project_info(ctx)
+        info.update({
+            "mock_report_path": str(report_path),
+            "mock_report_source": str(source),
+            "mock_report_generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "report_review_choice": choice,
+        })
+        _write_project_info(ctx, info)
 
         return {
             "metrics": {
-                "total_items": len(survey_rows),
-                "triggered_risks": len(triggered_risks),
-                "issue_count": len(issue_list),
-                "report_path": report_path,
+                "report_mock": True,
+                "report_review_choice": choice,
+                "report_path": str(report_path),
             },
             "artifacts": [
                 ctx.rel(report_path),
-                ctx.rel(risk_table_path),
             ],
         }

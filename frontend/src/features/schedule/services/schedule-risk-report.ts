@@ -5,10 +5,18 @@ import type {
   InputBundle,
   PlanResult,
   Pod,
+  ReportSummaryRequest,
+  ReportSummaryResponse,
   Room,
   ScheduledActivity,
 } from '@/features/schedule/contracts/schedule.gen';
-import { readLatestScheduleReportSnapshot, type ScheduleReportSnapshot } from '@/features/schedule/services/schedule';
+import {
+  generateReportSummary,
+  isScheduleApiForcedMock,
+  readLatestScheduleReportSnapshot,
+  writeLatestScheduleReportSummary,
+  type ScheduleReportSnapshot,
+} from '@/features/schedule/services/schedule';
 
 export type RiskReportSeverity = '高' | '中' | '低';
 
@@ -48,6 +56,8 @@ export type ScheduleRiskReport = {
   todoCount: number;
   highCount: number;
   categories: RiskReportCategory[];
+  aiSummary: ReportSummaryResponse | null;
+  canGenerateAiSummary: boolean;
 };
 
 export type ScheduleRiskReportState =
@@ -72,6 +82,19 @@ export function getScheduleRiskReportState(): ScheduleRiskReportState {
   const snapshot = readLatestScheduleReportSnapshot();
   if (!snapshot) return { status: 'empty' };
   return { status: 'ready', report: buildScheduleRiskReport(snapshot) };
+}
+
+export async function generateScheduleRiskReportSummary(
+  report: ScheduleRiskReport,
+  signal?: AbortSignal,
+): Promise<ReportSummaryResponse | null> {
+  const result = await generateReportSummary(buildReportSummaryRequest(report), signal);
+  if (result.source !== 'api') {
+    console.warn('[T-026] risk report AI summary unavailable', result.reason, result.error);
+    return null;
+  }
+  writeLatestScheduleReportSummary(result.response);
+  return result.response;
 }
 
 function buildScheduleRiskReport(snapshot: ScheduleReportSnapshot): ScheduleRiskReport {
@@ -101,6 +124,44 @@ function buildScheduleRiskReport(snapshot: ScheduleReportSnapshot): ScheduleRisk
     todoCount: allItems.length,
     highCount: allItems.filter((item) => item.severity === '高').length,
     categories,
+    aiSummary: context.snapshot.report_summary ?? null,
+    canGenerateAiSummary: context.snapshot.source === 'api' && !isScheduleApiForcedMock(),
+  };
+}
+
+function buildReportSummaryRequest(report: ScheduleRiskReport): ReportSummaryRequest {
+  return {
+    project_name: report.projectName,
+    project_id: report.projectId,
+    project_scale: report.projectScale,
+    total_card_count: report.totalCardCount,
+    scene: report.scene,
+    product_form: report.productForm,
+    baseline_version: report.baselineVersion,
+    report_generated_at: report.generatedAt,
+    committed_at: report.committedAt,
+    project_finish_date: report.projectFinishDate,
+    activity_count: report.activityCount,
+    critical_activity_count: report.criticalActivityCount,
+    todo_count: report.todoCount,
+    high_count: report.highCount,
+    categories: report.categories.map((category) => ({
+      category_id: category.id,
+      title: category.title,
+      recognition: category.recognition,
+      description: category.description,
+      item_count: category.items.length,
+      items: category.items.map((item) => ({
+        id: item.id,
+        matter: item.matter,
+        owner: item.owner,
+        suggested_date: item.suggestedDate,
+        related_activity: item.relatedActivity,
+        status: item.status,
+        severity: item.severity,
+        reason: item.reason,
+      })),
+    })),
   };
 }
 

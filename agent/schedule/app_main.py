@@ -16,9 +16,10 @@ def create_app(
     *,
     store: PlanVersionStore | None = None,
     db_path: str | Path | None = None,
+    report_summary_client=None,
 ) -> FastAPI:
     app = FastAPI(title="AIDA Schedule API", version="0.1.0")
-    configure_schedule_state(app, store=store, db_path=db_path)
+    configure_schedule_state(app, store=store, db_path=db_path, report_summary_client=report_summary_client)
 
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
@@ -41,9 +42,11 @@ def configure_schedule_state(
     *,
     store: PlanVersionStore | None = None,
     db_path: str | Path | None = None,
+    report_summary_client=None,
 ) -> None:
     app.state.schedule_plan_store = store
     app.state.schedule_plan_store_path = Path(db_path or _default_db_path())
+    app.state.report_summary_client = report_summary_client
 
 
 def _default_db_path() -> Path:

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -76,17 +76,19 @@ def _sync_delivery_scene_xlsx(
 
 class CreateProjectBody(BaseModel):
     projectName: str = Field(min_length=1)
+    contractType: Literal["预销售合同", "标准合同"]
     projectCode: str | None = None
     bidCode: str | None = None
-    customerName: str | None = None
-    tdUserId: int | None = None
-    pdUserId: int | None = None
-    pcmUserId: int | None = None
+    customerName: str = ""
+    tdUsername: str | None = None
+    pdUsername: str | None = None
+    pcmUsername: str | None = None
     deliveryTraits: list[Any] | None = None
 
 
 class UpdateProjectBody(BaseModel):
     projectName: str | None = None
+    contractType: Literal["预销售合同", "标准合同"] | None = None
     tdUsername: str | None = None
     pdUsername: str | None = None
     pcmUsername: str | None = None
@@ -105,6 +107,7 @@ async def create_project_endpoint(
     """代理数据中心新建项目 POST /api/v1/projects。"""
     token = _bearer_token(authorization)
     payload = body.model_dump(exclude_none=True)
+    payload.setdefault("customerName", body.customerName or "")
     try:
         data = await create_project(token, payload)
     except DataCenterError as e:
@@ -114,7 +117,7 @@ async def create_project_endpoint(
     if project_id:
         try:
             detail = await get_project(token, project_id)
-            hint = infer_contract_type_from_create(
+            hint = body.contractType or infer_contract_type_from_create(
                 project_code=body.projectCode,
                 bid_code=body.bidCode,
             )

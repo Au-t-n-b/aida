@@ -78672,46 +78672,59 @@ const initJoystick = (dom, events, state) => {
 };
 // Initialize the annotation navigator for stepping between annotations
 const initAnnotationNav = (dom, events, state, annotations) => {
-    // Only show navigator when there are at least 2 annotations
-    if (annotations.length < 2)
-        return;
+    let items = Array.isArray(annotations) ? annotations : [];
     let currentIndex = 0;
     const updateDisplay = () => {
-        dom.annotationNavTitle.textContent = annotations[currentIndex].title || '';
+        dom.annotationNavTitle.textContent = items[currentIndex]?.title || '';
     };
     const updateMode = () => {
         if (!state.loaded)
             return;
+        if (items.length < 2) {
+            dom.annotationNav.classList.add('hidden');
+            dom.annotationNav.classList.remove('desktop', 'touch', 'faded-in', 'faded-out');
+            updateDisplay();
+            return;
+        }
         dom.annotationNav.classList.remove('desktop', 'touch', 'hidden');
         dom.annotationNav.classList.add(state.inputMode);
     };
     const updateFade = () => {
-        if (!state.loaded)
+        if (!state.loaded || items.length < 2)
             return;
         dom.annotationNav.classList.toggle('faded-in', !state.controlsHidden);
         dom.annotationNav.classList.toggle('faded-out', state.controlsHidden);
     };
     const goTo = (index) => {
+        if (items.length === 0)
+            return;
         currentIndex = index;
         updateDisplay();
-        events.fire('annotation.navigate', annotations[currentIndex]);
+        events.fire('annotation.navigate', items[currentIndex]);
     };
     // Prev / Next
     dom.annotationPrev.addEventListener('click', (e) => {
         e.stopPropagation();
-        goTo((currentIndex - 1 + annotations.length) % annotations.length);
+        goTo((currentIndex - 1 + items.length) % items.length);
     });
     dom.annotationNext.addEventListener('click', (e) => {
         e.stopPropagation();
-        goTo((currentIndex + 1) % annotations.length);
+        goTo((currentIndex + 1) % items.length);
     });
     // Sync when an annotation is activated externally (e.g. hotspot click)
     events.on('annotation.activate', (annotation) => {
-        const idx = annotations.indexOf(annotation);
+        const idx = items.indexOf(annotation);
         if (idx !== -1) {
             currentIndex = idx;
             updateDisplay();
         }
+    });
+    events.on('annotations.replaced', (nextAnnotations) => {
+        items = Array.isArray(nextAnnotations) ? nextAnnotations : [];
+        currentIndex = Math.min(currentIndex, Math.max(0, items.length - 1));
+        updateDisplay();
+        updateMode();
+        updateFade();
     });
     // React to state changes
     events.on('loaded:changed', () => {
@@ -79304,6 +79317,10 @@ class Annotation extends Script {
     /**
      * @private
      */
+    prerenderHandler = null;
+    /**
+     * @private
+     */
     tooltipVisible = true;
     /**
      * @private
@@ -79643,6 +79660,10 @@ class Annotation extends Script {
         this.refreshStyle();
         // Clean up on entity destruction
         this.on('destroy', () => {
+            if (this.prerenderHandler) {
+                this.app.off('prerender', this.prerenderHandler);
+                this.prerenderHandler = null;
+            }
             this.hotspotDom.remove();
             this.tooltipDom.remove();
             this.materials.forEach(mat => mat.destroy());
@@ -79650,9 +79671,10 @@ class Annotation extends Script {
             this.texture.destroy();
             this.texture = null;
         });
-        this.app.on('prerender', () => {
+        this.prerenderHandler = () => {
             this._update();
-        });
+        };
+        this.app.on('prerender', this.prerenderHandler);
     }
     /**
      * Update screen-space elements and materials for this annotation. Called each frame from the
@@ -79661,6 +79683,10 @@ class Annotation extends Script {
      * @private
      */
     _update() {
+        if (!this.entity.enabled) {
+            this._hideElements();
+            return;
+        }
         if (!Annotation.camera)
             return;
         const position = this.entity.getPosition();
@@ -79881,71 +79907,146 @@ class Annotation extends Script {
     }
 }
 
+const runtimeHotspotsToAnnotations = (hotspots) => {
+    if (!Array.isArray(hotspots)) {
+        return [];
+    }
+    return hotspots
+        .filter((hotspot) => Array.isArray(hotspot?.position) &&
+        hotspot.position.length === 3 &&
+        hotspot.position.every((value) => Number.isFinite(value)))
+        .map((hotspot, index) => {
+        const [x, y, z] = hotspot.position;
+        const mode = hotspot.mode === 'abnormal' ? 'abnormal' : 'normal';
+        return {
+            position: hotspot.position,
+            title: typeof hotspot.title === 'string' && hotspot.title.trim() ? hotspot.title : `标签 ${index + 1}`,
+            text: typeof hotspot.text === 'string' ? hotspot.text : '',
+            extras: {
+                id: typeof hotspot.id === 'string' ? hotspot.id : `runtime-hotspot-${index + 1}`,
+                mode,
+                statusLabel: typeof hotspot.statusLabel === 'string' && hotspot.statusLabel.trim() ?
+                    hotspot.statusLabel :
+                    (mode === 'abnormal' ? '异常' : '正常')
+            },
+            camera: {
+                initial: {
+                    position: [x, y + 1, z - 3],
+                    target: hotspot.position,
+                    fov: 60
+                }
+            }
+        };
+    });
+};
 class Annotations {
     annotations;
     parentDom;
+    global;
+    entities = [];
+    scriptMap = new Map();
     constructor(global, hasCameraFrame) {
         // create dom parent
         const parentDom = document.createElement('div');
         parentDom.id = 'annotations';
         Annotation.parentDom = parentDom;
         document.querySelector('#ui').appendChild(parentDom);
-        this.annotations = global.settings.annotations;
+        this.global = global;
+        this.annotations = [];
         this.parentDom = parentDom;
         const updateVisibility = () => {
-            parentDom.style.display = 'block';
-            Annotation.opacity = 1.0;
-            if (this.annotations.length > 0) {
-                global.app.renderNextFrame = true;
-            }
+            this.updateVisibility();
         };
         global.events.on('controlsHidden:changed', updateVisibility);
         global.events.on('cameraMode:changed', updateVisibility);
         global.events.on('gamingControls:changed', updateVisibility);
-        updateVisibility();
         if (hasCameraFrame) {
             Annotation.hotspotColor.gamma();
             Annotation.hoverColor.gamma();
         }
-        // create annotation entities
-        const parent = global.app.root;
-        const scriptMap = new Map();
-        for (let i = 0; i < this.annotations.length; i++) {
-            const ann = this.annotations[i];
-            const entity = new Entity();
-            entity.addComponent('script');
-            entity.script.create(Annotation);
-            const script = entity.script;
-            script.annotation.label = (i + 1).toString();
-            script.annotation.title = ann.title;
-            script.annotation.text = ann.text;
-            script.annotation.mode = ann.extras?.mode === 'abnormal' ? 'abnormal' : 'normal';
-            script.annotation.statusLabel = typeof ann.extras?.statusLabel === 'string' ?
-                ann.extras.statusLabel :
-                (script.annotation.mode === 'abnormal' ? '异常' : '正常');
-            script.annotation.refreshStyle();
-            entity.setPosition(ann.position[0], ann.position[1], ann.position[2]);
-            parent.addChild(entity);
-            scriptMap.set(ann, script.annotation);
-            // handle an annotation being activated/shown
-            script.annotation.on('show', () => {
-                global.events.fire('annotation.activate', ann);
-            });
-            script.annotation.on('hide', () => {
-                global.events.fire('annotation.deactivate');
-            });
-            // re-render if hover state changes
-            script.annotation.on('hover', (hover) => {
-                global.app.renderNextFrame = true;
-            });
-        }
+        this.replaceAnnotations(global.settings.annotations || []);
         // handle navigator requesting an annotation to be shown
         global.events.on('annotation.navigate', (ann) => {
-            const script = scriptMap.get(ann);
+            const script = this.scriptMap.get(ann);
             if (script) {
                 script.showTooltip();
             }
         });
+    }
+    updateVisibility() {
+        this.parentDom.style.display = 'block';
+        Annotation.opacity = 1.0;
+        if (this.annotations.length > 0) {
+            this.global.app.renderNextFrame = true;
+        }
+    }
+    deactivateEntity(entity) {
+        entity.enabled = false;
+        const script = entity.script?.annotation;
+        if (script) {
+            script.__runtimeAnnotation = null;
+            script.hideTooltip(false);
+            script._hideElements();
+        }
+    }
+    getOrCreateEntity(index) {
+        const existing = this.entities[index];
+        if (existing) {
+            existing.enabled = true;
+            return existing;
+        }
+        const entity = new Entity();
+        entity.addComponent('script');
+        entity.script.create(Annotation);
+        const script = entity.script.annotation;
+        script.__runtimeAnnotation = null;
+        script.__runtimeHandlersAttached = true;
+        script.on('show', () => {
+            if (script.__runtimeAnnotation) {
+                this.global.events.fire('annotation.activate', script.__runtimeAnnotation);
+            }
+        });
+        script.on('hide', () => {
+            this.global.events.fire('annotation.deactivate');
+        });
+        script.on('hover', () => {
+            this.global.app.renderNextFrame = true;
+        });
+        this.global.app.root.addChild(entity);
+        this.entities.push(entity);
+        return entity;
+    }
+    applyAnnotation(entity, ann, index) {
+        const script = entity.script.annotation;
+        script.__runtimeAnnotation = ann;
+        script.label = (index + 1).toString();
+        script.title = ann.title;
+        script.text = ann.text;
+        script.mode = ann.extras?.mode === 'abnormal' ? 'abnormal' : 'normal';
+        script.statusLabel = typeof ann.extras?.statusLabel === 'string' ?
+            ann.extras.statusLabel :
+            (script.mode === 'abnormal' ? '异常' : '正常');
+        script.refreshStyle();
+        entity.setPosition(ann.position[0], ann.position[1], ann.position[2]);
+        script.showTooltip(false);
+        this.scriptMap.set(ann, script);
+    }
+    replaceAnnotations(annotations) {
+        this.global.events.fire('annotation.deactivate');
+        this.scriptMap.clear();
+        this.annotations = Array.isArray(annotations) ? annotations : [];
+        this.global.settings.annotations = this.annotations;
+        this.updateVisibility();
+        for (let i = 0; i < this.annotations.length; i++) {
+            const entity = this.getOrCreateEntity(i);
+            const ann = this.annotations[i];
+            this.applyAnnotation(entity, ann, i);
+        }
+        for (let i = this.annotations.length; i < this.entities.length; i++) {
+            this.deactivateEntity(this.entities[i]);
+        }
+        this.global.events.fire('annotations.replaced', this.annotations);
+        this.global.app.renderNextFrame = true;
     }
 }
 
@@ -85335,10 +85436,68 @@ class Viewer {
     navCursor = null;
     debugPanel = null;
     origChunks;
+    pendingRuntimeHotspots = null;
+    viewerReadyPosted = false;
     constructor(global, gsplatLoad, skyboxLoad, collisionLoad) {
         this.global = global;
         const { app, settings, config, events, state, camera, renderer } = global;
         const { graphicsDevice } = app;
+        const probeUrl = (() => {
+            try {
+                return new URL('/api/sog/probe-events', config.contentUrl || window.location.href).href;
+            }
+            catch {
+                return null;
+            }
+        })();
+        const probe = (event, payload = {}) => {
+            const parentOrigin = (() => {
+                try {
+                    return document.referrer ? new URL(document.referrer).origin : '*';
+                }
+                catch {
+                    return '*';
+                }
+            })();
+            const body = {
+                event,
+                payload: {
+                    ...payload,
+                    href: window.location.href,
+                    renderer,
+                    contentUrl: config.contentUrl,
+                    noanim: !!config.noanim,
+                    fullload: !!config.fullload,
+                    state: {
+                        progress: state.progress,
+                        loaded: state.loaded,
+                        readyToRender: state.readyToRender,
+                        cameraMode: state.cameraMode,
+                        hasCollision: state.hasCollision
+                    },
+                    ts: new Date().toISOString()
+                }
+            };
+            window.parent?.postMessage?.({
+                type: 'sog-viewer-probe',
+                ...body
+            }, parentOrigin);
+            if (probeUrl) {
+                fetch(probeUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                }).catch(() => {});
+            }
+        };
+        probe('viewer.constructor');
+        let lastProbeProgress = -1;
+        events.on('progress:changed', (progress) => {
+            if (progress === 100 || progress - lastProbeProgress >= 10) {
+                lastProbeProgress = progress;
+                probe('progress.changed', { progress });
+            }
+        });
         // render skybox as plain equirect
         const glsl = ShaderChunks.get(graphicsDevice, 'glsl');
         glsl.set('skyboxPS', patchChunk(glsl.get('skyboxPS'), 'mapRoughnessUv(uv, mipLevel)', 'uv', 'glsl skyboxPS'));
@@ -85449,6 +85608,27 @@ class Viewer {
         events.on('firstFrame', () => {
             state.loaded = true;
             state.animationPaused = !!config.noanim;
+            probe('firstFrame', {
+                canvas: {
+                    width: app.graphicsDevice.canvas.width,
+                    height: app.graphicsDevice.canvas.height,
+                    clientWidth: app.graphicsDevice.canvas.clientWidth,
+                    clientHeight: app.graphicsDevice.canvas.clientHeight
+                }
+            });
+            if (!this.viewerReadyPosted) {
+                this.viewerReadyPosted = true;
+                const parentOrigin = (() => {
+                    try {
+                        return document.referrer ? new URL(document.referrer).origin : '*';
+                    }
+                    catch {
+                        return '*';
+                    }
+                })();
+                window.parent?.postMessage?.({ type: 'sog-viewer-ready' }, parentOrigin);
+                probe('viewer.ready.posted');
+            }
             window.scrubTo = (time) => {
                 if (!state.hasAnimation) {
                     return Promise.reject(new Error('No animation track'));
@@ -85462,8 +85642,75 @@ class Viewer {
             };
             window.animationDuration = state.animationDuration;
         });
+        window.addEventListener('message', (event) => {
+            const data = event.data;
+            if (data?.type === 'sog-camera:capture') {
+                try {
+                    if (!this.cameraManager) {
+                        throw new Error('camera not ready');
+                    }
+                    const focusVec = new Vec3();
+                    this.cameraManager.camera.calcFocusPoint(focusVec);
+                    const payload = {
+                        camera: {
+                            position: [
+                                this.cameraManager.camera.position.x,
+                                this.cameraManager.camera.position.y,
+                                this.cameraManager.camera.position.z,
+                            ],
+                            target: [focusVec.x, focusVec.y, focusVec.z],
+                            fov: this.cameraManager.camera.fov,
+                        },
+                        snapshot: captureCameraState(this.cameraManager, state),
+                    };
+                    event.source?.postMessage?.({
+                        type: 'sog-camera:captured',
+                        payload,
+                    }, event.origin || '*');
+                }
+                catch (error) {
+                    event.source?.postMessage?.({
+                        type: 'sog-camera:capture-error',
+                        payload: { message: error instanceof Error ? error.message : String(error) },
+                    }, event.origin || '*');
+                }
+                return;
+            }
+            if (data?.type !== 'sog-hotspots:update') {
+                return;
+            }
+            try {
+                probe('hotspots.message.received', {
+                    hotspotCount: Array.isArray(data.payload?.hotspots) ? data.payload.hotspots.length : null
+                });
+                const count = this.replaceHotspots(data.payload?.hotspots ?? []);
+                probe('hotspots.replaced', {
+                    count,
+                    pooledEntities: this.annotations?.entities?.length ?? null,
+                    activeAnnotations: this.annotations?.annotations?.length ?? null
+                });
+                event.source?.postMessage?.({
+                    type: 'sog-hotspots:updated',
+                    payload: { count }
+                }, event.origin || '*');
+            }
+            catch (error) {
+                event.source?.postMessage?.({
+                    type: 'sog-hotspots:update-error',
+                    payload: { message: error instanceof Error ? error.message : String(error) }
+                }, event.origin || '*');
+            }
+        });
         // wait for the model to load
+        probe('load.promise.waiting');
         Promise.all([gsplatLoad, skyboxLoad, collisionLoad]).then((results) => {
+            probe('load.promise.resolved', {
+                hasGsplat: !!results[0]?.gsplat,
+                hasCollision: !!results[2],
+                hasInstance: !!results[0]?.gsplat?.instance,
+                hasResource: !!results[0]?.gsplat?.resource,
+                hasOctree: !!results[0]?.gsplat?.resource?.octree
+            });
             const gsplat = results[0].gsplat;
             const collision = results[2];
             // get scene bounding box
@@ -85473,6 +85720,13 @@ class Viewer {
             }
             if (!config.noui) {
                 this.annotations = new Annotations(global, this.cameraFrame != null);
+                probe('annotations.created', {
+                    initialCount: Array.isArray(global.settings.annotations) ? global.settings.annotations.length : null
+                });
+                if (this.pendingRuntimeHotspots !== null) {
+                    this.replaceHotspots(this.pendingRuntimeHotspots);
+                    this.pendingRuntimeHotspots = null;
+                }
             }
             this.picker = new Picker(app, camera);
             this.inputController = new InputController(global, this.picker);
@@ -85504,6 +85758,15 @@ class Viewer {
             }
             this.cameraManager = new CameraManager(global, sceneBound, collision);
             applyCamera(this.cameraManager.camera);
+            probe('camera.applied', {
+                position: [
+                    this.cameraManager.camera.position.x,
+                    this.cameraManager.camera.position.y,
+                    this.cameraManager.camera.position.z
+                ],
+                distance: this.cameraManager.camera.distance,
+                fov: this.cameraManager.camera.fov
+            });
             if (!config.noui) {
                 this.navCursor = new NavCursor(app, camera, collision ?? null, events, state);
             }
@@ -85573,6 +85836,16 @@ class Viewer {
                 // same performance, but rotating on slow devices does not give us unsorted splats on sides
                 gsplat.radialSorting = true;
                 const eventHandler = app.systems.gsplat;
+                let firstFrameEmitted = false;
+                const emitFirstFrame = () => {
+                    if (firstFrameEmitted) {
+                        return;
+                    }
+                    firstFrameEmitted = true;
+                    events.fire('firstFrame');
+                    // emit first frame event on window
+                    window.firstFrame?.();
+                };
                 // idle timer: force continuous rendering until 4s of inactivity
                 let idleTime = 0;
                 this.forceRenderNextFrame = true;
@@ -85593,7 +85866,11 @@ class Viewer {
                 let current = 0;
                 let watermark = 1;
                 const readyHandler = (camera, layer, ready, loading) => {
+                    if (ready || loading !== current) {
+                        probe('frame.ready', { ready, loading, current, watermark });
+                    }
                     if (ready && loading === 0) {
+                        probe('scene.ready.zero-loading');
                         // scene is done loading
                         eventHandler.off('frame:ready', readyHandler);
                         state.readyToRender = true;
@@ -85605,9 +85882,11 @@ class Viewer {
                         gsplat.renderer = rendererTable[renderer];
                         // wait for the first valid frame to complete rendering
                         app.once('frameend', () => {
-                            events.fire('firstFrame');
-                            // emit first frame event on window
-                            window.firstFrame?.();
+                            emitFirstFrame();
+                        });
+                        app.renderNextFrame = true;
+                        window.requestAnimationFrame(() => {
+                            emitFirstFrame();
                         });
                     }
                     // update loading status
@@ -85619,7 +85898,21 @@ class Viewer {
                 };
                 eventHandler.on('frame:ready', readyHandler);
             }
+        }).catch((error) => {
+            probe('load.promise.error', {
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined
+            });
         });
+    }
+    replaceHotspots(hotspots) {
+        const annotations = runtimeHotspotsToAnnotations(hotspots);
+        if (!this.annotations) {
+            this.pendingRuntimeHotspots = hotspots;
+            return annotations.length;
+        }
+        this.annotations.replaceAnnotations(annotations);
+        return annotations.length;
     }
     // configure camera based on application mode and post process settings
     configureCamera(settings) {

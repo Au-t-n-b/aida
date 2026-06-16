@@ -5,10 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from agent.sdui.builder import (
-    SduiAccordionItem,
-    SduiAccordionNode,
+    SduiArtifactGridNode,
+    SduiArtifactItem,
     SduiBadgeNode,
     SduiCardNode,
+    SduiDataTableColumn,
     SduiDataTableNode,
     SduiEmptyStateNode,
     SduiMarkdownNode,
@@ -18,6 +19,7 @@ from agent.sdui.builder import (
     SduiStatisticRowNode,
     SduiTextNode,
 )
+from .steps._commission_report_loader import enrich_commission_record
 from agent.sdui.projector_base import collect_metrics
 
 _COMMISSION_KEYS = ("connection", "lq_connection", "weak_light", "hccs_weak_light")
@@ -45,10 +47,135 @@ def _steps_map(state: dict[str, Any]) -> dict[str, str]:
 
 
 def _step_record(state: dict[str, Any], key: str) -> dict[str, Any] | None:
+    rec: dict[str, Any] | None = None
     for s in state.get("steps") or []:
         if s.get("key") == key:
-            return s
+            rec = s
+    return rec
+
+
+def _work_root() -> Path:
+    from .bridge import get_sd_root
+
+    return get_sd_root()
+
+
+def _rel_doc_path(raw: str, root: Path) -> str | None:
+    text = str(raw or "").strip().replace("\\", "/")
+    if not text:
+        return None
+    if text.startswith("ProjectData/"):
+        return text
+    if "ProjectData/" in text:
+        return text[text.index("ProjectData/") :]
+    candidate = root / text
+    if candidate.is_file():
+        try:
+            return str(candidate.relative_to(root)).replace("\\", "/")
+        except ValueError:
+            return text
     return None
+
+
+def _collect_disk_doc_rows(seen: set[str]) -> list[list[str]]:
+    """deploy_chain + 输入槽位磁盘兜底（rejoin 后内存 artifacts 为空时）。"""
+    root = _work_root()
+    chain_path = root / "ProjectData/plan/RunTime/deploy_chain.json"
+    if not chain_path.is_file():
+        return []
+    try:
+        import json
+
+        chain = json.loads(chain_path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    rows: list[list[str]] = []
+    chain_slots: list[tuple[str, str, str]] = [
+        ("step1_second_tasks_path", "plan_receive", "已生成"),
+        ("step2_testcase_path", "plan_split", "已发布"),
+        ("step3_lld_path", "plan_dispatch", "已发布"),
+        ("step3_checklist_path", "plan_dispatch", "已生成"),
+        ("step4_cloudops_output_path", "cloudops_init", "已生成"),
+        ("step5_cloudops_manual_path", "cloudops_supplement", "已发布"),
+        ("step6_cloudops_full_path", "cloudops_full", "已生成"),
+        ("step6_ztp_path", "cloudops_full", "已发布"),
+    ]
+    for key, agent, pub in chain_slots:
+        rel = _rel_doc_path(str(chain.get(key) or ""), root)
+        if not rel:
+            continue
+        name = Path(rel).name
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        rows.append(
+            [
+                _DOC_AGENT_TAG.get(agent, "其他作业类"),
+                name,
+                _fmt_ts(chain.get("updated_at")),
+                "v1.0",
+                "—",
+                agent,
+                pub,
+            ]
+        )
+
+    static_outputs: list[tuple[str, str, str]] = [
+        ("ProjectData/plan/Output/third_level_tasks.json", "plan_split", "已生成"),
+        ("ProjectData/plan/Output/plan_display_tree.json", "plan_split", "已生成"),
+        ("ProjectData/plan/Output/device_base_table.json", "plan_dispatch", "已生成"),
+        ("ProjectData/plan/RunTime/toolkit_executor.json", "toolkit_executor", "已生成"),
+        ("ProjectData/plan/RunTime/toolkit_import.json", "toolkit_import", "已生成"),
+    ]
+    for rel, agent, pub in static_outputs:
+        if not (root / rel).is_file():
+            continue
+        name = Path(rel).name
+        if name in seen:
+            continue
+        seen.add(name)
+        rows.append([_DOC_AGENT_TAG.get(agent, "其他作业类"), name, "—", "v1.0", "—", agent, pub])
+
+    try:
+        from agent import software_deployment_files as sd_files
+
+        for slot_id, agent in (
+            ("testcase", "plan_split"),
+            ("lld_design", "plan_dispatch"),
+            ("cloudops_manual", "cloudops_supplement"),
+            ("check_list", "cloudops_full"),
+            ("ztp_bundle", "cloudops_full"),
+        ):
+            found, fname = sd_files.slot_disk_status(root, slot_id)
+            if not found or not fname or fname in seen:
+                continue
+            seen.add(fname)
+            rows.append([_DOC_AGENT_TAG.get(agent, "项目管理类"), fname, "—", "v1.0", "—", agent, "已发布"])
+    except Exception:
+        pass
+
+    results_root = root / "ProjectData/results"
+    if results_root.is_dir():
+        for cmd_dir in sorted(results_root.iterdir()):
+            if not cmd_dir.is_dir():
+                continue
+            agent = cmd_dir.name if cmd_dir.name in _COMMISSION_KEYS else "commission_report"
+            for child in sorted(cmd_dir.rglob("*")):
+                if not child.is_file() or child.name.startswith("~$"):
+                    continue
+                if child.suffix.lower() not in {".xlsx", ".xls", ".json", ".csv", ".txt"}:
+                    continue
+                try:
+                    rel = str(child.relative_to(root)).replace("\\", "/")
+                except ValueError:
+                    continue
+                name = child.name
+                if name in seen:
+                    continue
+                seen.add(name)
+                rows.append([_DOC_AGENT_TAG.get(agent, "其他作业类"), name, "—", "v1.0", "—", agent, "已生成"])
+    return rows
 
 
 def _metric(m: dict[str, Any], *keys: str, default: Any = None) -> Any:
@@ -196,6 +323,7 @@ def _collect_doc_rows(state: dict[str, Any]) -> list[list[str]]:
             rows.append(
                 [_DOC_AGENT_TAG.get(agent, "项目管理类"), fname, "—", "—", "—", agent, "待上传"]
             )
+    rows.extend(_collect_disk_doc_rows(seen))
     return rows
 
 
@@ -313,7 +441,107 @@ def build_plan_tab(state: dict[str, Any]) -> list[SduiNode]:
     return [SduiCardNode(id="sd-tab-plan", title="项目计划列表", children=children)]
 
 
+def _commission_status_label(rec: dict[str, Any], step_status: str | None) -> str:
+    raw = str(rec.get("status") or step_status or "").strip()
+    if raw in ("failed", "error"):
+        return "失败"
+    if raw == "completed":
+        return "已完成"
+    if raw in ("已完成", "失败", "进行中"):
+        return raw
+    return raw or "—"
+
+
+def _commission_detail_nodes(rec: dict[str, Any]) -> list[SduiNode]:
+    """单条调测记录的结构化详情（汇报摘要 + 失败明细 + 报告文件）。"""
+    err = str(rec.get("errorMessage") or "").strip()
+    nodes: list[SduiNode] = []
+
+    if err:
+        nodes.append(
+            SduiMarkdownNode(content=f"**失败原因**：{err}")
+        )
+
+    succ = rec.get("successNum")
+    fail = rec.get("failNum")
+    total = rec.get("totalNums")
+    conclusion = str(rec.get("conclusion") or "—")
+    task_id = str(rec.get("taskId") or "—")
+    kpi_items = [
+        SduiStatisticRowItem(title="结论", value=conclusion, color="success" if conclusion == "通过" else "warning"),
+        SduiStatisticRowItem(
+            title="通过/失败",
+            value=str(rec.get("passFail") or f"{succ if succ is not None else '?'}/{fail if fail is not None else '?'}"),
+            color="accent",
+        ),
+        SduiStatisticRowItem(title="设备数", value=str(rec.get("deviceCount") or "—"), color="accent"),
+    ]
+    if total is not None:
+        kpi_items.append(SduiStatisticRowItem(title="检查项", value=str(total), color="subtle"))
+    nodes.append(SduiStatisticRowNode(id=f"sd-task-kpi-{rec.get('stepKey')}", items=kpi_items, density="compact"))
+
+    meta_bits = [f"任务号：`{task_id}`"]
+    scope = str(rec.get("scope") or "").strip()
+    if scope:
+        meta_bits.append(f"范围：{scope}")
+    pod_ids = rec.get("podIds")
+    if isinstance(pod_ids, list) and pod_ids:
+        meta_bits.append(f"POD：{', '.join(str(p) for p in pod_ids)}")
+    result_dir = str(rec.get("resultDir") or "").strip()
+    if result_dir:
+        meta_bits.append(f"目录：`{result_dir}`")
+    nodes.append(SduiTextNode(content=" · ".join(meta_bits), variant="caption", color="subtle"))
+
+    failed = rec.get("failedDevices") if isinstance(rec.get("failedDevices"), list) else []
+    if failed:
+        rows = [[d.get("ip", "—"), d.get("reason", "—")] for d in failed if isinstance(d, dict)]
+        nodes.append(
+            SduiDataTableNode(
+                id=f"sd-task-fail-{rec.get('stepKey')}",
+                title="失败明细（节选）",
+                columns=["设备 IP", "失败原因"],
+                rows=rows[:15],
+            )
+        )
+
+    markdown_extra = str(rec.get("markdownExtra") or "").strip()
+    if markdown_extra:
+        nodes.append(SduiMarkdownNode(content=f"**解析摘要**\n\n{markdown_extra}"))
+
+    artifacts = rec.get("artifacts") if isinstance(rec.get("artifacts"), list) else []
+    art_items = [
+        SduiArtifactItem(
+            id=f"art-{rec.get('stepKey')}-{i}",
+            label=str(a.get("label") or "报告"),
+            path=str(a.get("path") or ""),
+            kind=a.get("kind") or "other",
+            status="ready",
+        )
+        for i, a in enumerate(artifacts)
+        if isinstance(a, dict) and a.get("path")
+    ]
+    if art_items:
+        nodes.append(
+            SduiArtifactGridNode(
+                id=f"sd-task-artifacts-{rec.get('stepKey')}",
+                title="报告文件",
+                mode="output",
+                artifacts=art_items,
+            )
+        )
+    elif not err:
+        nodes.append(
+            SduiTextNode(
+                content="报告文件尚未落盘（任务成功后生成 report.zip + receipt.json）",
+                variant="caption",
+                color="subtle",
+            )
+        )
+    return nodes
+
+
 def _collect_commission_records(state: dict[str, Any]) -> list[dict[str, Any]]:
+    skill_root = _work_root()
     records: list[dict[str, Any]] = []
     for key in _COMMISSION_KEYS:
         rec = _step_record(state, key)
@@ -330,13 +558,35 @@ def _collect_commission_records(state: dict[str, Any]) -> list[dict[str, Any]]:
                 "taskName": metrics.get("task_id") or key,
                 "description": SD_STEP_NAMES.get(key, ""),
                 "deviceCount": "—",
-                "status": "已完成" if rec.get("status") == "completed" else str(rec.get("status") or "—"),
+                "status": _commission_status_label({}, str(rec.get("status") or "")),
+                "errorMessage": str(rec.get("error") or state.get("error") or ""),
             }
         item["startedAt"] = _fmt_ts(rec.get("started_at"))
         item["endedAt"] = _fmt_ts(rec.get("ended_at") or rec.get("started_at"))
         item.setdefault("executor", "driver.py")
-        records.append(item)
+        item["status"] = _commission_status_label(item, str(rec.get("status") or ""))
+        if not item.get("errorMessage") and rec.get("error"):
+            item["errorMessage"] = str(rec.get("error"))
+        records.append(enrich_commission_record(item, skill_root))
     return records
+
+
+def _task_log_table_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(rec.get("stepKey") or i),
+            "taskType": str(rec.get("taskType") or "—"),
+            "taskName": str(rec.get("taskName") or "—"),
+            "conclusion": str(rec.get("conclusion") or "—"),
+            "passFail": str(rec.get("passFail") or "—"),
+            "deviceCount": str(rec.get("deviceCount") or "—"),
+            "startedAt": str(rec.get("startedAt") or "—"),
+            "endedAt": str(rec.get("endedAt") or "—"),
+            "executor": str(rec.get("executor") or "—"),
+            "status": _commission_status_label(rec, ""),
+        }
+        for i, rec in enumerate(records)
+    ]
 
 
 def build_task_log_tab(state: dict[str, Any]) -> list[SduiNode]:
@@ -357,35 +607,16 @@ def build_task_log_tab(state: dict[str, Any]) -> list[SduiNode]:
             )
         ]
 
-    table_rows: list[list[str]] = []
-    accordion_items: list[SduiAccordionItem] = []
+    table_rows = _task_log_table_rows(records)
+    detail_cards: list[SduiNode] = []
     for rec in records:
-        table_rows.append(
-            [
-                str(rec.get("taskType") or "—"),
-                str(rec.get("taskName") or "—"),
-                str(rec.get("description") or "—"),
-                str(rec.get("deviceCount") or "—"),
-                str(rec.get("startedAt") or "—"),
-                str(rec.get("executor") or "—"),
-                str(rec.get("status") or "—"),
-                str(rec.get("endedAt") or "—"),
-                str(rec.get("executor") or "—"),
-            ]
-        )
-        summary = rec.get("summaryRows") or []
-        if summary:
-            lines = ["| 是否通过 | 测试光纤(根) | 设备数量 |", "| --- | --- | --- |"]
-            for row in summary:
-                if isinstance(row, (list, tuple)) and len(row) >= 3:
-                    lines.append(f"| {row[0]} | {row[1]} | {row[2]} |")
-            body = "\n".join(lines)
-        else:
-            body = f"结果目录：`{rec.get('resultDir') or '—'}`"
-        accordion_items.append(
-            SduiAccordionItem(
+        conclusion = str(rec.get("conclusion") or "")
+        detail_cards.append(
+            SduiCardNode(
+                id=f"sd-task-detail-{rec.get('stepKey')}",
                 title=f"{rec.get('taskType')} · {rec.get('taskName')}",
-                body=body,
+                density="compact",
+                children=_commission_detail_nodes(rec),
             )
         )
 
@@ -395,27 +626,33 @@ def build_task_log_tab(state: dict[str, Any]) -> list[SduiNode]:
             title="调测任务记录",
             children=[
                 SduiTextNode(
-                    content=f"共 {len(records)} 条命令调测记录",
+                    content=(
+                        f"共 {len(records)} 条命令调测记录 · "
+                        "列表为概要，下方卡片含汇报摘要、失败明细与可打开的报告文件"
+                    ),
                     variant="caption",
                     color="subtle",
                 ),
                 SduiDataTableNode(
                     id="sd-task-log-table",
                     title="调测任务记录",
+                    dualMode=True,
+                    dualModeEditable=False,
                     columns=[
-                        "任务类型",
-                        "任务名称",
-                        "任务描述",
-                        "设备数量",
-                        "开始时间",
-                        "执行人",
-                        "任务状态",
-                        "更新时间",
-                        "更新人",
+                        SduiDataTableColumn(key="taskType", label="任务类型", width=132),
+                        SduiDataTableColumn(key="taskName", label="任务名称", width=148),
+                        SduiDataTableColumn(key="conclusion", label="结论", width=72),
+                        SduiDataTableColumn(key="passFail", label="通过/失败", width=88),
+                        SduiDataTableColumn(key="deviceCount", label="设备数", width=72),
+                        SduiDataTableColumn(key="startedAt", label="开始时间", width=140),
+                        SduiDataTableColumn(key="endedAt", label="结束时间", width=140),
+                        SduiDataTableColumn(key="executor", label="执行人", width=92),
+                        SduiDataTableColumn(key="status", label="状态", type="status", width=80),
                     ],
                     rows=table_rows,
+                    rowKey="id",
                 ),
-                SduiAccordionNode(id="sd-task-log-detail", items=accordion_items),
+                *detail_cards,
             ],
         )
     ]

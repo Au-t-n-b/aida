@@ -1,8 +1,9 @@
 /**
  * SduiChoiceCard — HITL 单选 / 多选卡（意图消歧等多选场景对齐设计稿 cv-dis-*）
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSduiRuntime } from './SduiContext';
+import { useCommissionBusy } from '@/lib/commissionBusyStore';
 import { hitlKey, getHitlOptimistic, setHitlOptimistic } from './hitlOptimistic';
 import type { SduiChoiceCardNode } from '@/lib/sdui';
 
@@ -11,15 +12,32 @@ type Props = Omit<SduiChoiceCardNode, 'type' | 'id' | 'flex'>;
 export function SduiChoiceCard({
   title,
   options,
+  hitlRequestId,
   stepId,
   multiple = false,
   maxSelections,
   submitLabel,
+  repeatable = false,
 }: Props) {
-  const { onChoiceSubmit, runId } = useSduiRuntime();
-  const key = hitlKey(runId, stepId);
-  const restored = getHitlOptimistic(key);
-  const restoredSel = restored?.kind === 'choice' ? restored.selected : null;
+  const { onChoiceSubmit, runId, streamEpoch } = useSduiRuntime();
+  const busy = useCommissionBusy();
+  const isRefreshAction = options.length === 1 && options.some((opt) => {
+    const value = String(opt.value ?? opt.id ?? '').toLowerCase();
+    return value === 'refresh' || opt.label.includes('刷新检查回传');
+  });
+  const effectiveRepeatable = repeatable || isRefreshAction;
+  const promptFingerprint = [
+    hitlRequestId ?? '',
+    title,
+    multiple ? 'multi' : 'single',
+    options.map((opt, i) => `${opt.value ?? opt.id ?? i}:${opt.label}`).join('|'),
+  ].join('::');
+  const key = hitlKey(runId, stepId, promptFingerprint);
+  const readRestoredSelection = () => {
+    const restored = effectiveRepeatable ? null : getHitlOptimistic(key);
+    return restored?.kind === 'choice' ? restored.selected : null;
+  };
+  const restoredSel = readRestoredSelection();
 
   const [selected, setSelected] = useState<string[]>(
     multiple ? (restoredSel ? restoredSel.split('、') : []) : [],
@@ -27,7 +45,21 @@ export function SduiChoiceCard({
   const [single, setSingle] = useState<string | null>(
     multiple ? null : restoredSel,
   );
-  const [submitted, setSubmitted] = useState(restoredSel != null);
+  const [submitted, setSubmitted] = useState(!effectiveRepeatable && restoredSel != null);
+
+  useEffect(() => {
+    const nextRestoredSel = readRestoredSelection();
+    setSelected(multiple ? (nextRestoredSel ? nextRestoredSel.split('、') : []) : []);
+    setSingle(multiple ? null : nextRestoredSel);
+    setSubmitted(!effectiveRepeatable && nextRestoredSel != null);
+  }, [key, multiple, effectiveRepeatable]);
+
+  useEffect(() => {
+    if (!effectiveRepeatable) return;
+    setSelected([]);
+    setSingle(null);
+    setSubmitted(false);
+  }, [effectiveRepeatable, streamEpoch]);
 
   const max = multiple ? (maxSelections ?? options.length) : 1;
   const picked = multiple ? selected : (single ? [single] : []);
@@ -51,16 +83,30 @@ export function SduiChoiceCard({
     const value = multiple ? picked.join('、') : picked[0];
     if (!value) return;
     setSubmitted(true);
-    setHitlOptimistic(key, { kind: 'choice', selected: value });
+    if (!effectiveRepeatable) {
+      setHitlOptimistic(key, { kind: 'choice', selected: value });
+    } else {
+      window.setTimeout(() => {
+        setSelected([]);
+        setSingle(null);
+        setSubmitted(false);
+      }, 1200);
+    }
     onChoiceSubmit(value, stepId);
   };
 
   const confirmText = submitLabel
     ?? (multiple ? `确认（${picked.length}）` : '确认选择');
+  const showRefreshMissHint = isRefreshAction && !title.includes('暂未检测到回传结果');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)' }}>
+      {showRefreshMissHint && (
+        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--orange-600, #d97706)', whiteSpace: 'pre-line', lineHeight: 1.5 }}>
+          暂未检测到回传结果
+        </div>
+      )}
+      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'pre-line', lineHeight: 1.5 }}>
         {title}
       </div>
       <div
@@ -153,19 +199,31 @@ export function SduiChoiceCard({
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '10px 14px',
           borderRadius: 'var(--radius-md)',
-          background: '#e6f6ee',
-          border: '1px solid #bfe9d3',
-          fontSize: '12px', color: '#065f46', fontWeight: 500,
+          background: busy.active ? '#eef1fc' : '#e6f6ee',
+          border: busy.active ? '1px solid #c7d2fe' : '1px solid #bfe9d3',
+          fontSize: '12px',
+          color: busy.active ? '#1e34a8' : '#065f46',
+          fontWeight: 500,
         }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-            <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
-          </svg>
+          {busy.active ? (
+            <i style={{
+              width: 14, height: 14, borderRadius: '50%', flexShrink: 0,
+              border: '2px solid #3551d8', borderTopColor: 'transparent',
+              display: 'inline-block', animation: 'spin .8s linear infinite',
+            }} />
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+              <circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.5 2.5L16 9.5"/>
+            </svg>
+          )}
           已提交：
           <span style={{ fontWeight: 600 }}>
             {picked.map((v) => options.find((o) => (o.value ?? o.id) === v)?.label ?? v).join('、')}
           </span>
-          <span style={{ color: '#0a7350', fontWeight: 400, marginLeft: 4 }}>· 等待处理中…</span>
+          <span style={{ fontWeight: 400, marginLeft: 4 }}>
+            · {busy.active ? (busy.label ? `正在处理 · ${busy.label}…` : '正在处理中…') : '等待处理中…'}
+          </span>
         </div>
       )}
     </div>

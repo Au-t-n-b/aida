@@ -654,12 +654,43 @@ function glowSprite(sev){                              // 径向光晕贴图（�
   sp.renderOrder=6;
   return sp;
 }
-if(COMPACT){                                           // 概览：每个问题一个呼吸闪烁光点，无引线无标签
+const SEV_VIV={danger:'#ef4444',warn:'#f59e0b',info:'#3b82f6'};   // 高饱和（概览亮点/序号牌用）
+function markDot(sev){                                  // 概览：小而亮的实心点（高饱和核心 + 薄外晕）
+  const col=SEV_VIV[sev]||SEV_VIV.info,s=64,c=document.createElement('canvas');c.width=c.height=s;
+  const x=c.getContext('2d'),g=x.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  g.addColorStop(0,'#ffffff');g.addColorStop(0.30,col);g.addColorStop(0.52,col);
+  g.addColorStop(0.64,'rgba(255,255,255,0)');g.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle=g;x.beginPath();x.arc(s/2,s/2,s/2,0,7);x.fill();
+  const t=new THREE.CanvasTexture(c);if('sRGBEncoding' in THREE)t.encoding=THREE.sRGBEncoding;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,opacity:1,depthWrite:false}));
+  sp.renderOrder=6;return sp;
+}
+function markBadge(num,sev,wh){                         // 概览：迷你序号牌（圆角小牌·按级配色·白序号），billboard
+  const col=SEV_VIV[sev]||SEV_VIV.info,fs=48,padX=18;
+  const mc=document.createElement('canvas').getContext('2d');mc.font='800 '+fs+'px sans-serif';
+  const label=String(num),tw=mc.measureText(label).width;
+  const w=Math.ceil(Math.max(tw+padX*2,fs+padX)),h=Math.ceil(fs+18);
+  const c=document.createElement('canvas');c.width=w+8;c.height=h+8;const x=c.getContext('2d');
+  x.translate(4,4);const r=h/2;
+  x.beginPath();x.moveTo(r,0);x.arcTo(w,0,w,h,r);x.arcTo(w,h,0,h,r);x.arcTo(0,h,0,0,r);x.arcTo(0,0,w,0,r);x.closePath();
+  x.shadowColor='rgba(0,0,0,0.5)';x.shadowBlur=6;x.shadowOffsetY=2;
+  x.fillStyle=col;x.fill();x.shadowColor='transparent';
+  x.lineWidth=3.5;x.strokeStyle='rgba(255,255,255,0.95)';x.stroke();
+  x.fillStyle='#ffffff';x.font='800 '+fs+'px sans-serif';x.textAlign='center';x.textBaseline='middle';
+  x.fillText(label,w/2,h/2+1);
+  const t=new THREE.CanvasTexture(c);if('sRGBEncoding' in THREE)t.encoding=THREE.sRGBEncoding;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false,depthTest:false}));
+  sp.renderOrder=8;sp.scale.set(wh*((w+8)/(h+8)),wh,1);return sp;
+}
+if(COMPACT){                                           // 概览：每个问题 = 亮点 + 迷你序号牌
   for(const it of issues){
-    const glow=glowSprite(it.sev);
-    glow.position.set(it.pos[0],Math.max(it.pos[1],0.4)+1.8,it.pos[2]);
-    world.add(glow);regMark(glow,it.idx/Math.max(1,issues.length));
-    issObjs.push({it,glow});
+    const dot=markDot(it.sev);
+    dot.position.set(it.pos[0],Math.max(it.pos[1],0.4)+0.6,it.pos[2]);dot.scale.set(0.6,0.6,1);
+    world.add(dot);regMark(dot,it.idx/Math.max(1,issues.length));
+    const badge=markBadge(it.idx+1,it.sev,1.15);
+    badge.position.set(it.pos[0],Math.max(it.pos[1],0.4)+1.95,it.pos[2]);
+    world.add(badge);regMark(badge,it.idx/Math.max(1,issues.length));
+    issObjs.push({it,glow:dot,badge});
   }
 }else
 for(const it of issues){
@@ -737,8 +768,8 @@ function updateMarkers(t){
     issObjs.forEach((o,i)=>{
       if(!o.glow)return;
       const w=0.5+0.5*Math.sin(t*2.8+i*1.9);
-      o.glow.material.opacity=0.25+0.5*w;
-      const s=0.65+0.3*w;
+      o.glow.material.opacity=0.72+0.28*w;             // 更亮（0.72~1.0）
+      const s=0.5+0.13*w;                              // 更小（0.5~0.63）
       o.glow.scale.set(s,s,1);
     });
     return;

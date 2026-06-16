@@ -1,7 +1,12 @@
 import type { ApiMeta, ProjectDataContext, ProposalTableSlot, TableReadResult } from './types';
 import { notifyDataFallback } from './fallback-notify';
+import { agentBase } from '@/lib/runtimeBase';
 
-const API = '/api/v1';
+/** 与 proposal-api 一致：静态 8080 部署时走 VITE_AGENT_BASE / bareMetal :7401，避免 POST 打到 http.server。 */
+function apiRoot(): string {
+  const base = agentBase();
+  return base ? `${base}/api/v1` : '/api/v1';
+}
 const LOG_PREFIX = '[AIDA DC]';
 const DC_FETCH_TIMEOUT_MS = 30_000;
 const DC_SYNC_TIMEOUT_MS = 120_000;
@@ -36,7 +41,7 @@ export async function readProposalTable(
   ctx: ProjectDataContext,
   slot: ProposalTableSlot,
 ): Promise<TableReadResult> {
-  const url = `${API}/proposal/tables/read`;
+  const url = `${apiRoot()}/proposal/tables/read`;
   const body = {
     slot,
     projectId: ctx.dcProjectId,
@@ -104,7 +109,7 @@ export async function writeProposalTable(
   rows: unknown[],
   version: number,
 ): Promise<{ path: string; version: number; meta?: ApiMeta }> {
-  const url = `${API}/proposal/tables/write`;
+  const url = `${apiRoot()}/proposal/tables/write`;
   console.info(`${LOG_PREFIX} POST ${url}`, {
     slot,
     kind,
@@ -158,7 +163,7 @@ export async function parseTechProposalUpload(
   file: File,
   token?: string,
 ): Promise<unknown[]> {
-  const url = `${API}/proposal/parse/tech-proposal`;
+  const url = `${apiRoot()}/proposal/parse/tech-proposal`;
   console.info(`${LOG_PREFIX} POST ${url}`, { fileName: file.name, token: maskToken(token) });
   const fd = new FormData();
   fd.append('file', file);
@@ -183,7 +188,7 @@ export async function parseTestcasesUpload(
   file: File,
   ctx: ProjectDataContext,
 ): Promise<{ rows: unknown[]; warnings: string[] }> {
-  const url = `${API}/proposal/parse/testcases`;
+  const url = `${apiRoot()}/proposal/parse/testcases`;
   console.info(`${LOG_PREFIX} POST ${url}`, {
     fileName: file.name,
     projectId: ctx.dcProjectId,
@@ -231,7 +236,7 @@ export async function syncProposalLocalFiles(
   ctx: ProjectDataContext,
   slots?: ProposalTableSlot[],
 ): Promise<{ slots: Record<string, SyncSlotResult>; ready: number; total: number; warnings: string[] }> {
-  const url = `${API}/proposal/sync`;
+  const url = `${apiRoot()}/proposal/sync`;
   const body = {
     projectId: ctx.dcProjectId,
     projectName: ctx.projectName,

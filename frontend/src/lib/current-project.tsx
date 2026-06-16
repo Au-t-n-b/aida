@@ -11,7 +11,10 @@ import {
 export type CurrentProject = {
   id: string;
   name: string;
+  /** 兼容旧字段：可能是项目编码，也可能是 Proposal ID。新代码优先用 projectCode/proposalId。 */
   code?: string;
+  projectCode?: string;
+  proposalId?: string;
 };
 
 type CurrentProjectContextValue = {

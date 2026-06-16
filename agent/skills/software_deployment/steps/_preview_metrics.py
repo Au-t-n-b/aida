@@ -137,6 +137,31 @@ def device_stats(rows: list[dict[str, Any]]) -> dict[str, int]:
     }
 
 
+def build_commission_failure_record(
+    step_key: str,
+    error_message: str,
+    *,
+    started_at: str = "",
+    ended_at: str = "",
+) -> dict[str, Any]:
+    """命令调测失败时写入任务记录（无 result_dir）。"""
+    err = str(error_message or "执行失败").strip()
+    return {
+        "stepKey": step_key,
+        "taskType": _COMMISSION_LABELS.get(step_key, step_key),
+        "taskName": step_key,
+        "description": _COMMISSION_LABELS.get(step_key, step_key),
+        "deviceCount": "—",
+        "startedAt": _fmt_ts(started_at),
+        "endedAt": _fmt_ts(ended_at),
+        "executor": "driver.py",
+        "status": "失败",
+        "resultDir": "",
+        "errorMessage": err,
+        "summaryRows": [],
+    }
+
+
 def build_commission_record(
     step_key: str,
     result: dict[str, Any],
@@ -161,33 +186,52 @@ def build_commission_record(
 
     summary_rows: list[list[str]] = []
     if passed:
-        fiber = str(detail.get("fiberCount") or detail.get("testFiberCount") or "—")
-        dev = str(detail.get("deviceCount") or detail.get("totalDevices") or success or "—")
-        summary_rows.append([passed, fiber, dev])
+        dev = str(detail.get("deviceCount") or detail.get("totalDevices") or "—")
+        summary_rows.append(
+            [
+                passed,
+                str(success if success is not None else "—"),
+                str(fail if fail is not None else "—"),
+                dev,
+            ]
+        )
     for item in detail.get("summaryRows") or detail.get("listData") or []:
         if not isinstance(item, dict):
             continue
         summary_rows.append(
             [
                 str(item.get("optResult") or item.get("checkResult") or item.get("result") or "—"),
-                str(item.get("fiberCount") or item.get("testFiber") or "—"),
+                str(item.get("successNum") or item.get("passCount") or "—"),
+                str(item.get("failNum") or item.get("failCount") or "—"),
                 str(item.get("deviceCount") or item.get("deviceIp") or "—"),
             ]
         )
 
-    return {
+    rd = str(result.get("result_dir") or detail.get("resultDir") or "").strip().replace("\\", "/")
+    if rd and "ProjectData/" in rd:
+        rd = rd[rd.index("ProjectData/") :]
+
+    record: dict[str, Any] = {
         "stepKey": step_key,
         "taskType": _COMMISSION_LABELS.get(step_key, step_key),
         "taskName": task_name,
+        "taskId": str(detail.get("taskId") or result.get("task_id") or ""),
         "description": str(detail.get("description") or detail.get("taskDesc") or _COMMISSION_LABELS.get(step_key, "")),
         "deviceCount": str(detail.get("deviceCount") or detail.get("totalDevices") or "—"),
         "startedAt": _fmt_ts(started_at),
         "endedAt": _fmt_ts(ended_at),
         "executor": str(detail.get("executor") or detail.get("operator") or "driver.py"),
         "status": "已完成" if result.get("ok") else "失败",
-        "resultDir": str(result.get("result_dir") or ""),
+        "resultDir": rd,
+        "errorMessage": "" if result.get("ok") else str(result.get("error") or result.get("message") or ""),
         "summaryRows": summary_rows[:8],
+        "successNum": success,
+        "failNum": fail,
+        "conclusion": passed or "",
     }
+    if success is not None or fail is not None:
+        record["passFail"] = f"{success if success is not None else '?'}/{fail if fail is not None else '?'}"
+    return record
 
 
 def _fmt_ts(raw: str) -> str:

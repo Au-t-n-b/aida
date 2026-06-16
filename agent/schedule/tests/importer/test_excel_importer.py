@@ -18,6 +18,7 @@ from agent.schedule.importer.excel import (  # noqa: E402
     DataImportError,
     _load_batches,
     _load_project,
+    _load_rooms_and_pods,
     _load_teams,
     _pick_scale_days,
     _resolve_activity_reference,
@@ -50,23 +51,49 @@ def _write_activity_dependency_metadata(
     data_root: Path,
     *,
     project_id: str = "P-001",
-    project_name: object | None = "Project Alpha",
     project_scale: object | None = "标准项目",
-    total_card_count: object | None = 3456,
-    include_project_name: bool = True,
+    include_legacy_project_name: bool = False,
+    legacy_project_name: object | None = "Project Alpha",
+    include_legacy_card_count: bool = False,
+    legacy_total_card_count: object | None = 3456,
 ) -> None:
     headers = ["PROJECT_ID", "PROJECT_SCENE", "PRODUCT_FORM", "COOLING_METHOD", "PROJECT_SCALE"]
     row: list[object | None] = [project_id, "集群集成", "A3", "liquid_cooling", project_scale]
-    if include_project_name:
+    if include_legacy_project_name:
         headers.append("PROJECT_NAME")
-        row.append(project_name)
-    headers.append("TOTAL_CARD_COUNT")
-    row.append(total_card_count)
+        row.append(legacy_project_name)
+    if include_legacy_card_count:
+        headers.append("TOTAL_CARD_COUNT")
+        row.append(legacy_total_card_count)
     _write_workbook(
         data_root / "02_活动依赖" / "A3-液冷-活动依赖.xlsx",
         headers,
         [row],
         sheet_name="sheet0",
+    )
+
+
+def _write_project_scenario_metadata(
+    data_root: Path,
+    *,
+    project_name: object | None = "Project Alpha",
+    card_count: object | None = 3456,
+    include_project_name: bool = True,
+    include_card_count: bool = True,
+) -> None:
+    headers = ["产品代际"]
+    row: list[object | None] = ["A3"]
+    if include_project_name:
+        headers.append("项目名称")
+        row.append(project_name)
+    if include_card_count:
+        headers.append("卡数")
+        row.append(card_count)
+    _write_workbook(
+        data_root / "11_项目交付场景信息" / "项目交付场景信息表.xlsx",
+        headers,
+        [row],
+        sheet_name="Sheet1",
     )
 
 
@@ -92,30 +119,87 @@ def test_real_excel_files_build_valid_input_bundle(bundle):
     assert bundle.dependencies
     assert len(bundle.batches) == 3
 
+    assert all(room.cabling_ready_date is None for room in bundle.rooms)
+    assert all(room.install_ready_date is None for room in bundle.rooms)
+    assert all(room.liquid_ready_date is None for room in bundle.rooms)
+    assert all(arrival.arrival_date is None for arrival in bundle.arrivals)
+    assert {arrival.arrival_status for arrival in bundle.arrivals} == {"未明"}
+
     imported_pod_ids = {pod_id for batch in bundle.batches for pod_id in batch.pod_ids}
     assert imported_pod_ids == {pod.pod_id for pod in bundle.pods}
 
 
-def test_project_metadata_reads_name_and_card_count_from_table(tmp_path):
-    _write_activity_dependency_metadata(tmp_path, project_name="项目甲", total_card_count=2345)
+def test_project_metadata_reads_project_name_and_card_count_from_scenario_table(tmp_path):
+    _write_activity_dependency_metadata(tmp_path)
+    _write_project_scenario_metadata(tmp_path, project_name="项目甲", card_count=3456)
 
     project = _load_project(tmp_path, total_card_count=None)
 
     assert project.project_id == "P-001"
     assert project.project_name == "项目甲"
-    assert project.total_card_count == 2345
+    assert project.total_card_count == 3456
 
 
-def test_project_metadata_explicit_card_count_overrides_table(tmp_path):
-    _write_activity_dependency_metadata(tmp_path, total_card_count=2345)
+def test_project_metadata_ignores_legacy_activity_dependency_metadata_columns(tmp_path):
+    _write_activity_dependency_metadata(
+        tmp_path,
+        include_legacy_project_name=True,
+        legacy_project_name="旧项目名",
+        include_legacy_card_count=True,
+        legacy_total_card_count="not-a-number",
+    )
+    _write_project_scenario_metadata(tmp_path, project_name="项目甲", card_count=3456)
+
+    project = _load_project(tmp_path, total_card_count=None)
+
+    assert project.project_id == "P-001"
+    assert project.project_name == "项目甲"
+    assert project.total_card_count == 3456
+
+
+def test_project_metadata_missing_scenario_table_falls_back_to_project_id_and_scale(tmp_path):
+    _write_activity_dependency_metadata(tmp_path, project_id="P-FALLBACK")
+
+    project = _load_project(tmp_path, total_card_count=None)
+
+    assert project.project_name == "P-FALLBACK"
+    assert project.total_card_count is None
+    assert _pick_scale_days(SCALE_STANDARD_TEXT, project.project_scale, project.total_card_count, 123, "标准工时") == 11
+
+
+def test_project_metadata_scenario_missing_card_count_column_falls_back_to_project_scale(tmp_path):
+    _write_activity_dependency_metadata(tmp_path)
+    _write_project_scenario_metadata(tmp_path, include_card_count=False)
+
+    project = _load_project(tmp_path, total_card_count=None)
+
+    assert project.total_card_count is None
+    assert _pick_scale_days(SCALE_STANDARD_TEXT, project.project_scale, project.total_card_count, 123, "标准工时") == 11
+
+
+def test_project_metadata_blank_scenario_card_count_falls_back_to_project_scale(tmp_path):
+    _write_activity_dependency_metadata(tmp_path)
+    _write_project_scenario_metadata(tmp_path, card_count=None)
+
+    project = _load_project(tmp_path, total_card_count=None)
+
+    assert project.total_card_count is None
+    assert _pick_scale_days(SCALE_STANDARD_TEXT, project.project_scale, project.total_card_count, 123, "标准工时") == 11
+
+
+def test_project_metadata_explicit_card_count_overrides_lower_priority_sources(tmp_path):
+    _write_activity_dependency_metadata(tmp_path)
+    _write_project_scenario_metadata(tmp_path, project_name="项目甲", card_count="not-a-number")
 
     project = _load_project(tmp_path, total_card_count=10001)
 
+    assert project.project_name == "项目甲"
     assert project.total_card_count == 10001
 
 
 def test_project_metadata_blank_card_count_falls_back_to_project_scale(tmp_path):
-    _write_activity_dependency_metadata(tmp_path, project_scale="标准项目", total_card_count=None)
+    _write_activity_dependency_metadata(tmp_path, project_scale="标准项目")
+    _write_project_scenario_metadata(tmp_path, card_count=None)
 
     project = _load_project(tmp_path, total_card_count=None)
 
@@ -124,7 +208,8 @@ def test_project_metadata_blank_card_count_falls_back_to_project_scale(tmp_path)
 
 
 def test_project_metadata_blank_card_count_and_scale_defaults_middle_bucket(tmp_path):
-    _write_activity_dependency_metadata(tmp_path, project_scale=None, total_card_count=None)
+    _write_activity_dependency_metadata(tmp_path, project_scale=None)
+    _write_project_scenario_metadata(tmp_path, card_count=None)
 
     project = _load_project(tmp_path, total_card_count=None)
 
@@ -133,16 +218,18 @@ def test_project_metadata_blank_card_count_and_scale_defaults_middle_bucket(tmp_
     assert _pick_scale_days(SCALE_STANDARD_TEXT, project.project_scale, project.total_card_count, 123, "标准工时") == 11
 
 
-@pytest.mark.parametrize("invalid_card_count", [0, "not-a-number"])
-def test_project_metadata_invalid_card_count_is_loud_import_error(tmp_path, invalid_card_count):
-    _write_activity_dependency_metadata(tmp_path, total_card_count=invalid_card_count)
+@pytest.mark.parametrize("invalid_card_count", [0, -1, "not-a-number"])
+def test_project_metadata_invalid_scenario_card_count_is_loud_import_error(tmp_path, invalid_card_count):
+    _write_activity_dependency_metadata(tmp_path)
+    _write_project_scenario_metadata(tmp_path, card_count=invalid_card_count)
 
-    with pytest.raises(DataImportError, match="IMPORT_ERROR.*活动依赖表第2行.*TOTAL_CARD_COUNT"):
+    with pytest.raises(DataImportError, match="IMPORT_ERROR.*项目交付场景信息表第2行.*卡数"):
         _load_project(tmp_path, total_card_count=None)
 
 
 def test_project_metadata_missing_project_name_falls_back_to_project_id(tmp_path):
-    _write_activity_dependency_metadata(tmp_path, project_id="P-FALLBACK", include_project_name=False)
+    _write_activity_dependency_metadata(tmp_path, project_id="P-FALLBACK")
+    _write_project_scenario_metadata(tmp_path, include_project_name=False)
 
     project = _load_project(tmp_path, total_card_count=None)
 
@@ -150,7 +237,8 @@ def test_project_metadata_missing_project_name_falls_back_to_project_id(tmp_path
 
 
 def test_project_metadata_blank_project_name_falls_back_to_project_id(tmp_path):
-    _write_activity_dependency_metadata(tmp_path, project_id="P-BLANK", project_name=None)
+    _write_activity_dependency_metadata(tmp_path, project_id="P-BLANK")
+    _write_project_scenario_metadata(tmp_path, project_name=None)
 
     project = _load_project(tmp_path, total_card_count=None)
 
@@ -239,6 +327,52 @@ def test_unknown_batch_pod_is_loud_import_error(tmp_path):
 
     with pytest.raises(DataImportError, match="IMPORT_ERROR.*第2行.*P-MISSING.*05_机房机柜信息"):
         _load_batches(tmp_path, pods)
+
+
+def test_room_ready_source_dates_are_loaded_and_blank_values_remain_unknown(tmp_path):
+    _write_workbook(
+        tmp_path / "05_机房机柜信息" / "机房机柜信息表.xlsx",
+        ["PoD名称", "机房名称", "计算柜", "总线柜", "参数面Leaf柜", "样本面Leaf柜", "业务面Leaf柜", "管理面柜"],
+        [
+            ["P-01", "R1", None, None, None, None, None, None],
+            ["P-02", "R2", None, None, None, None, None, None],
+        ],
+    )
+    _write_workbook(
+        tmp_path / "05_机房机柜信息" / "机房ready源表.xlsx",
+        ["机房id", "可布线", "可装设备", "可通液"],
+        [
+            ["R1", "2026-01-02", "2026-01-03", "2026-01-04"],
+            ["R2", None, None, None],
+        ],
+    )
+
+    rooms, pods = _load_rooms_and_pods(tmp_path, [])
+
+    rooms_by_id = {room.room_id: room for room in rooms}
+    assert rooms_by_id["R1"].cabling_ready_date == date(2026, 1, 2)
+    assert rooms_by_id["R1"].install_ready_date == date(2026, 1, 3)
+    assert rooms_by_id["R1"].liquid_ready_date == date(2026, 1, 4)
+    assert rooms_by_id["R2"].cabling_ready_date is None
+    assert rooms_by_id["R2"].install_ready_date is None
+    assert rooms_by_id["R2"].liquid_ready_date is None
+    assert [pod.pod_id for pod in pods] == ["P-01", "P-02"]
+
+
+def test_room_ready_source_unknown_room_is_loud_import_error(tmp_path):
+    _write_workbook(
+        tmp_path / "05_机房机柜信息" / "机房机柜信息表.xlsx",
+        ["PoD名称", "机房名称", "计算柜", "总线柜", "参数面Leaf柜", "样本面Leaf柜", "业务面Leaf柜", "管理面柜"],
+        [["P-01", "R1", None, None, None, None, None, None]],
+    )
+    _write_workbook(
+        tmp_path / "05_机房机柜信息" / "机房ready源表.xlsx",
+        ["机房id", "可布线", "可装设备", "可通液"],
+        [["R-MISSING", None, None, None]],
+    )
+
+    with pytest.raises(DataImportError, match="IMPORT_ERROR.*机房ready源表.*R-MISSING"):
+        _load_rooms_and_pods(tmp_path, [])
 
 
 def test_missing_team_file_falls_back_to_no_explicit_teams(tmp_path):
