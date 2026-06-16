@@ -41,6 +41,11 @@ def resolve_resume_route_to(
         if uploaded or choice:
             return "assess"
 
+    if hitl_step == "filter_build":
+        uploaded = (payload or {}).get("uploaded")
+        if uploaded:
+            return "filter_build"
+
     if hitl_step == "supplement_run" and choice:
         return "assess"
 

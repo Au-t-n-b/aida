@@ -492,6 +492,22 @@ function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   if (Array.isArray(c)) c.forEach(child => walkSduiNodes(child, visit));
 }
 
+/** 从 HITL FilePicker.helpText 解析 need_files（与 build_hitl 格式对齐）。 */
+function extractNeedFilesFromHitlDoc(doc: SduiDocument | null): string[] {
+  if (!doc?.root) return [];
+  const card = findNodeById(doc.root, 'hitl-card');
+  if (!card) return [];
+  let paths: string[] = [];
+  walkSduiNodes(card, (node) => {
+    if (node.type !== 'FilePicker' || !node.helpText) return;
+    paths = node.helpText
+      .split('\n')
+      .map(line => line.replace(/^[·•]\s*/, '').trim())
+      .filter(Boolean);
+  });
+  return paths;
+}
+
 /** 统计 SDUI 中 InputSlotList 已就绪槽位数（上传后对比 SSE 是否追上）。 */
 function countReadyInputSlots(doc: SduiDocument | null): number {
   if (!doc?.root) return 0;
@@ -2060,13 +2076,44 @@ export default function SkillAgentScreen({
     }
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
+      const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
+      const needFiles = extractNeedFilesFromHitlDoc(displayDocRef.current ?? sduiDocRef.current);
       try {
-        await uploadBatch(skillId, arr);
+        const result = await uploadBatch(skillId, arr, needFiles, [], rid);
+        const failed = (result.uploaded ?? []).filter(u => u.ok === false);
+        if (failed.length) {
+          const msg = failed.map(f => String(f.error || f.filename || '未知文件')).join('；');
+          throw new Error(`上传失败：${msg}`);
+        }
+        const check = result.check as {
+          ok?: boolean;
+          items?: Array<{ found?: boolean; label?: string; path?: string }>;
+        } | undefined;
+        if (check && check.ok === false) {
+          if (rid) {
+            frozenSnapshotRef.current = null;
+            setFrozenDoc(null);
+            const snap = await fetchUiSnapshot(skillId, rid);
+            if (snap) {
+              postUploadEpochRef.current = Date.now();
+              setPostUploadDoc(snap);
+            }
+          }
+          const missing = (check.items ?? [])
+            .filter(i => !i.found)
+            .map(i => i.label || i.path)
+            .filter(Boolean);
+          throw new Error(
+            missing.length
+              ? `还须上传：${missing.join('、')}（可一次选多个文件）`
+              : '前置文件尚未齐备，请继续上传',
+          );
+        }
       } catch (e) {
         console.error('[SDUI] upload error:', e);
         throw e instanceof Error ? e : new Error('上传失败，请检查文件格式或网络连接');
       }
-      await doResume({ uploaded: arr.map(f => f.name) });
+      await doResume({ uploaded: arr.map(f => f.name) }, _stepId);
       return;
     }
     // system_design 交付台：按槽位标签上传 → sync_inputs → 拉快照；仅「输入件准备」HITL 内续跑

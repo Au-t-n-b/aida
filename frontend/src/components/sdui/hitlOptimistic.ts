@@ -42,3 +42,8 @@ export function getHitlOptimistic(key: string): HitlOptimistic | null {
 
 /** HITL 推进前的最小确认可见时长：先稳定显示确认态，再触发后端 resume。 */
 export const HITL_HOLD_MS = 500;
+
+export function clearHitlOptimistic(key: string): void {
+  store.delete(key);
+}
+

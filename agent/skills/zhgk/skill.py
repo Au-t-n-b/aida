@@ -222,6 +222,10 @@ class ZhgkSkill(BaseSkill):
             # 文件型 HITL；复勘标记由 wait_survey 成功合并后清理，避免续跑前误判已有旧结果。
             pass
 
+        elif hitl_step == "filter_build":
+            # 文件型 HITL：底表上传后由 check_inputs 复检，齐备才放行 filter_build.run
+            pass
+
         elif hitl_step == "resurvey_gate" and choice:
             if choice in {"resurvey", "skip_resurvey"}:
                 project["resurvey_decision"] = choice
