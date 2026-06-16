@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T06:51:57.169810+00:00",
+  "generated_at": "2026-06-14T11:24:18.102404+00:00",
   "endpoint": "POST http://100.102.191.17:9091/wapi/v1/ai/device/createDevice",
   "diagram": "参数面",
   "api": "createDevice",
