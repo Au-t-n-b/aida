@@ -1373,7 +1373,10 @@ export default function SkillAgentScreen({
       if (liveHasHitl && livePatch.phase === 'hitl') {
         patch.phase = 'hitl';
         patch.hitlType = livePatch.hitlType ?? patch.hitlType;
-      } else if (!liveHasHitl && patch.phase === 'hitl') {
+      } else if (!liveHasHitl && patch.phase === 'hitl' && skillId !== 'guihua') {
+        // guihua（frozenTarget===0）靠冻结快照在创建超节点等执行过渡期保持左栏 HITL 对话卡，
+        // 不能因实时 sduiDoc 暂无 hitl-card 就把 phase 抢成 running（否则左栏闪「执行中 0%」空卡）。
+        // 解冻由下方 frozenTarget===0 护栏（workbench 推进 / 出现新交互卡）负责。
         patch.phase = livePatch.phase || 'running';
         patch.hitlType = null;
       }
