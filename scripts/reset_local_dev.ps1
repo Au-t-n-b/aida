@@ -195,28 +195,18 @@ $zhgkRoot = Get-DotEnvValue $AgentEnv "ZHGK_ROOT"
 if (-not $zhgkRoot) {
     $zhgkRoot = Join-Path $env:USERPROFILE ".nanobot\workspace\skills\zhgk"
 }
-$projectData = Join-Path $zhgkRoot "ProjectData"
 
-Write-Step "clear zhgk runtime data: $projectData"
-foreach ($sub in @("Input", "Output", "RunTime", "Images")) {
-    Clear-DirectoryContents (Join-Path $projectData $sub)
+Write-Step "reset zhgk workspace (clear runtime + re-seed demo report)"
+$resetArgs = @(
+    (Join-Path $Root "agent\scripts\reset_zhgk_workspace.py"),
+    "--clear-input"
+)
+if ($zhgkRoot) {
+    $resetArgs += @("--zhgk-root", $zhgkRoot)
 }
-foreach ($sub in @("Start", "Template")) {
-    New-Item -ItemType Directory -Force -Path (Join-Path $projectData $sub) | Out-Null
-}
-
-$mockReportDest = Join-Path $projectData "Input\本地工勘报告.pdf"
-$mockReportProject = Join-Path $Root "data\projects\70e5ca737ae5433e9f0f3134d216acf7\交付作业\智慧工勘\输入文件\本地工勘报告.pdf"
-$mockReportFixture = Join-Path $Root "agent\skills\zhgk\fixtures\本地工勘报告.pdf"
-$mockReportSrc = $null
-if (Test-Path $mockReportProject) { $mockReportSrc = $mockReportProject }
-elseif (Test-Path $mockReportFixture) { $mockReportSrc = $mockReportFixture }
-if ($mockReportSrc) {
-    New-Item -ItemType Directory -Force -Path (Join-Path $projectData "Input") | Out-Null
-    Copy-Item -LiteralPath $mockReportSrc -Destination $mockReportDest -Force
-    Write-Step "seed demo report from project: $mockReportDest"
-} else {
-    Write-Step "skip demo report seed: project asset and legacy fixture both missing"
+& $AgentPython @resetArgs
+if ($LASTEXITCODE -ne 0) {
+    throw "reset_zhgk_workspace.py failed with exit code $LASTEXITCODE"
 }
 
 if (-not $KeepMailgwData) {

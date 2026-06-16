@@ -99,7 +99,31 @@ npm run dev
 
 ### 3.1 本地重置脚本（仅本地测试用）
 
-当本地 run 状态、GKCLAW task、mailgw 缓存或前端页面状态出现串扰时，可执行重置脚本，恢复一个干净的本地联调环境：
+#### 3.1a 只重置工勘工作区（推荐）
+
+换底表、清旧结果表、清 GKCLAW 登记，但**不重启服务**、**不删 Template 底表**：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/reset_zhgk.ps1
+```
+
+或：
+
+```bash
+python agent/scripts/reset_zhgk_workspace.py
+```
+
+| 参数 | 作用 |
+|------|------|
+| （默认） | 清 `Output` / `RunTime` / `Images`；保留 `Template`（含风险库）与 `Input` |
+| `-ClearInput` / `--clear-input` | 同时清 `Input`，并 seed 演示 `本地工勘报告.pdf` |
+| `-ClearTemplate` / `--clear-template` | 同时清底表，下次须重新 HITL 上传 |
+| `-Full` / `--full` | 清 Template + Input + checkpoint |
+| `-DryRun` / `--dry-run` | 仅预览将删除的路径 |
+
+#### 3.1b 全套本地联调重置（停服 + 清数据 + 拉起）
+
+当本地 run 状态、GKCLAW task、mailgw 缓存或前端页面状态出现串扰时，可执行：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/reset_local_dev.ps1
@@ -107,9 +131,9 @@ powershell -ExecutionPolicy Bypass -File scripts/reset_local_dev.ps1
 
 脚本会停止并重启本地联调服务：Mock Datacenter `9000`、Agent `7401`、Manager `8081`、mailgw `8025`（存在 `mailgw/config.yaml` 时）和 Frontend `8080`。
 
-它会清理本地运行态数据：
+它会清理本地运行态数据（通过 `reset_zhgk_workspace.py --clear-input`）：
 
-- `ZHGK_ROOT/ProjectData/Input`
+- `ZHGK_ROOT/ProjectData/Input`（随后重新 seed 演示报告）
 - `ZHGK_ROOT/ProjectData/Output`
 - `ZHGK_ROOT/ProjectData/RunTime`
 - `ZHGK_ROOT/ProjectData/Images`
@@ -154,20 +178,23 @@ docker compose up -d --build
 - `mailgw/config.yaml.example` 或私有 `mailgw/config.yaml` 中 `pop3.poll_interval` 建议设为 `30~60`，并保持 `agent_notify.enabled: true`，这样收到 GKCLAW 回传邮件后会自动通知 Agent 继续检查。
 - `data/sog-assets/` 和 `data/sog-scenes.json` 已准备好；它们会挂载进容器，重启后保留。
 
-演示服务器重置运行态时使用：
+演示服务器重置运行态时使用（底层均为 `agent/scripts/reset_zhgk_workspace.py`）：
 
 ```bash
-# 只清理 zhgk 运行态、checkpoint、mailgw 缓存，不动 Input/Template/SOG 资产
+# 清 Output/RunTime/Images，保留 Template 底表与风险库、Input
 bash scripts/reset_demo.sh
 
 # 清理后顺手重启容器服务
 bash scripts/reset_demo.sh --restart
 
-# 连 ProjectData/Input 也清理，适合从头演示一轮
+# 连 Input 也清理，适合从头演示一轮
 bash scripts/reset_demo.sh --clear-input --restart
+
+# 彻底重置（含底表与 LangGraph checkpoint）
+bash scripts/reset_demo.sh --full --restart
 ```
 
-该脚本不会清理源码、依赖、`agent/.env`、`mailgw/.env`、`mailgw/config.yaml`、`ProjectData/Template`、`data/sog-assets` 和 `data/sog-scenes.json`。
+该脚本不会清理源码、依赖、`agent/.env`、`mailgw/.env`、`mailgw/config.yaml`；**默认保留** `ProjectData/Template`（含风险库）；`--full` 时才会清空 Template。`data/sog-assets` 和 `data/sog-scenes.json` 始终保留。
 
 ### 4. 实景孪生 3D 场景（可选演示）
 

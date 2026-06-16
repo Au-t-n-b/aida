@@ -186,6 +186,8 @@ evidence/ / pending_results/）；隔离区 `RunTime/gkclaw/_quarantine/`；扫�
 | 包进 `_quarantine/` | checksum 篡改 / 路径逃逸 / 未知 task_id / payload 不合契约 / 冲突 | 看 packages.json 对应 disposition 与 note，按契约 §19-20 处置 |
 | state.json 出现 `merge_blocked=true` | 表指纹不一致（下发后表被改）或双源冲突（Input/ 已有人工表） | 看 `merge_blocked_reason`；转写结果在 `pending_results/`，人工裁决后手动放入 Input/ |
 | 邮件发了但显示 dry-run | `AIDA_SEND_EMAIL≠1` | 按 §4 设置后重发（新 task_id） |
+| 换了底表仍下发旧条目（如 57 项不变） | `filter_build` 发现 `Output/` 已有全量勘测结果表则幂等复用 | 执行 `python agent/scripts/reset_zhgk_workspace.py`（Docker：`bash scripts/reset_demo.sh`）；默认**不删** Template 风险库；刷新前端重跑 |
+| `confirm_table` 点「重新生成」后条目未变 | redo 仅清确认标记，旧 Output 表仍在 | 同上，先清 Output 再 redo / 重跑 |
 
 ## 9. 回退方案
 

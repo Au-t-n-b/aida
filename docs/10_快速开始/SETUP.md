@@ -95,6 +95,31 @@ ZHGK_ROOT=C:/Users/你的用户名/Desktop/zhgk-desktop
 ZHGK_ROOT=/Users/你的用户名/Desktop/zhgk-desktop
 ```
 
+### 3d. 重置工勘流程（不清底表）
+
+换底表、重跑工勘，或清掉旧「全量勘测结果表」/ GKCLAW 任务登记时，用专用脚本（**不重启 Agent**）：
+
+```bash
+# 本地（读 agent/.env 的 ZHGK_ROOT）
+python agent/scripts/reset_zhgk_workspace.py
+
+# Windows 封装
+powershell -ExecutionPolicy Bypass -File scripts/reset_zhgk.ps1
+```
+
+默认清除 `Output` / `RunTime` / `Images`，**保留** `Template/`（入场评估标准表、工勘常见高风险库）与 `Input/`。
+
+| 场景 | 命令 |
+|------|------|
+| 换了底表，想按新表重建勘测项 | 默认命令即可（或手动覆盖 `Template/*.xlsx` 后执行） |
+| 连 Input 也清空并重新 seed 演示报告 | `--clear-input` |
+| 底表也要删掉、下次重新 HITL 上传 | `--clear-template` 或 `--full` |
+| Docker 演示机 | `bash scripts/reset_demo.sh`（可选 `--restart`） |
+
+执行后请**刷新前端**并重新「开始工勘」。若需连同 LangGraph 续跑状态一并清掉，加 `--clear-checkpoints`。
+
+本地若还要重启全套服务（Agent / 前端 / mailgw），用 `scripts/reset_local_dev.ps1`（内部会调用本脚本清 `Input` + 运行态）。
+
 ---
 
 ## 第四步：启动后端
@@ -156,7 +181,8 @@ curl http://127.0.0.1:7401/agent/zhgk/stream/<run_id>
 |------|------------|
 | `ModuleNotFoundError: No module named 'agent'` | uvicorn 在错误目录执行。**确保在仓库根 `aida/` 下运行**，不是 `cd agent/` 后运行 |
 | `/healthz` 返回 `"configured": false` | `agent/.env` 里 `ZHIPU_API_KEY` 未填或填错 |
-| 工勘卡在 0%，状态显示 `hitl` | `Template/` 目录里缺底表文件（入场评估标准表.xlsx / 工勘常见高风险库.xlsx）。上传后点「继续」 |
+| 工勘卡在 0%，状态显示 `hitl` | `Template/` 目录里缺底表文件（入场评估标准表.xlsx / 工勘常见高风险库.xlsx）。两张表可一次或分次上传；缺一张会继续提示 |
+| 换了底表仍下发旧的勘测项（如仍是 57 条） | `Output/` 里旧「全量勘测结果表」被 `filter_build` 幂等复用。执行 `python agent/scripts/reset_zhgk_workspace.py` 后刷新页面重跑 |
 | 工勘卡在 20%，`Input/` 文件检查失败 | 缺 BOQ.xlsx，放入 `Input/`（文件名须含 BOQ）后 resume |
 | 前端白屏 / 请求后端失败 | 后端没起、端口被占，或 `VITE_AGENT_BASE` 配错。默认可不填 `VITE_AGENT_BASE`，让前端走同源代理 |
 
