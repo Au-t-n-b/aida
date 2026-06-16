@@ -33,8 +33,8 @@ import { BATCH_COLORS, type BatchRow, type RoomRow, type TeamRow } from '@/featu
 import { agentBase } from '@/lib/runtimeBase';
 
 const FORCE_MOCK_FLAG = '1';
-const CHANGE_TEMPLATE_PATH = `${API_PREFIX}/change-template`;
-const CHANGE_TEMPLATE_FILENAME = '变更表模板.xlsx';
+const CHANGE_TEMPLATE_DOWNLOAD_PATH = `${API_PREFIX}/change-template`;
+const CHANGE_TEMPLATE_FILENAME = '调整表模板.xlsx';
 const DELIVERY_PLAN_FILENAME = '交付计划表.xlsx';
 const REPORT_SNAPSHOT_STORAGE_KEY = 'aida:schedule-risk-report:last';
 
@@ -53,6 +53,7 @@ export type GenerateScheduleInput = {
   rooms: RoomRow[];
   batches: BatchRow[];
   teams: TeamRow[];
+  skipWeekends?: boolean;
   signal?: AbortSignal;
 };
 
@@ -329,7 +330,7 @@ export async function parseChangeTemplate(input: ParseChangeTemplateInput): Prom
 }
 
 export async function downloadChangeTemplate(): Promise<void> {
-  const response = await fetch(scheduleApiUrl(CHANGE_TEMPLATE_PATH));
+  const response = await fetch(scheduleApiUrl(CHANGE_TEMPLATE_DOWNLOAD_PATH));
   if (!response.ok) {
     throw await readError(response);
   }
@@ -407,7 +408,7 @@ export function isScheduleApiForcedMock(): boolean {
   return shouldForceMock();
 }
 
-export function buildGenerateRequest({ rooms, batches, teams }: GenerateScheduleInput): GenerateRequest {
+export function buildGenerateRequest({ rooms, batches, teams, skipWeekends }: GenerateScheduleInput): GenerateRequest {
   const projectBundle = currentProjectBundleSource();
   if (projectBundle) {
     const source = indexProjectBundle(projectBundle);
@@ -422,7 +423,7 @@ export function buildGenerateRequest({ rooms, batches, teams }: GenerateSchedule
         dependencies: projectBundle.dependencies,
         batches: batches.map((batch) => toContractBatch(batch, source.batches.get(batch.id))),
         anchors: [...(projectBundle.anchors ?? [])],
-        rule_config: projectBundle.rule_config,
+        rule_config: withSkipWeekends(projectBundle.rule_config, skipWeekends),
       },
     };
   }
@@ -439,10 +440,15 @@ export function buildGenerateRequest({ rooms, batches, teams }: GenerateSchedule
     dependencies: MOCK_SCHEDULE_DEPENDENCIES,
     batches: batches.map((batch) => toContractBatch(batch)),
     anchors: [],
-    rule_config: DEFAULT_RULE_CONFIG,
+    rule_config: withSkipWeekends(DEFAULT_RULE_CONFIG, skipWeekends),
   };
 
   return { inputs };
+}
+
+function withSkipWeekends(ruleConfig: RuleConfig | null | undefined, skipWeekends?: boolean): RuleConfig | undefined {
+  if (skipWeekends === undefined) return ruleConfig ?? undefined;
+  return { ...(ruleConfig ?? {}), skip_weekends: skipWeekends };
 }
 
 type ProjectBundleIndex = {
@@ -695,9 +701,7 @@ function buildChangeSet(input: AdjustScheduleInput, baseline: GenerateScheduleIn
   const teams = (currentRequest.inputs.teams ?? []).filter((team) =>
     changedTeamIds.has(team.team_id) || !hasSameById(baselineRequest.inputs.teams ?? [], team, 'team_id'),
   );
-  const batches = currentRequest.inputs.batches.filter((batch) =>
-    changedBatchIds.has(batch.batch_id) || !hasSameById(baselineRequest.inputs.batches, batch, 'batch_id'),
-  );
+  const batches = buildBatchChanges(currentRequest.inputs.batches, baselineRequest.inputs.batches);
 
   return {
     rooms,
@@ -705,7 +709,7 @@ function buildChangeSet(input: AdjustScheduleInput, baseline: GenerateScheduleIn
     teams,
     batches,
     anchors: buildBatchAnchors(batches),
-    demands: buildBatchDemands(currentRequest.inputs.batches, baselineRequest.inputs.batches),
+    demands: buildBatchDemands(currentRequest.inputs.batches, baselineRequest.inputs.batches, changedBatchIds),
     incidents: (input.incidents ?? []).map(toIncidentEvent),
     rule_config: currentRequest.inputs.rule_config,
   };
@@ -723,6 +727,28 @@ function idsFromChangeKeys(changeKeys: Set<string>, prefix: string): Set<string>
 function hasSameById<T, K extends keyof T>(items: T[], item: T, idKey: K): boolean {
   const found = items.find((candidate) => candidate[idKey] === item[idKey]);
   return found ? JSON.stringify(found) === JSON.stringify(item) : false;
+}
+
+function buildBatchChanges(current: Batch[], baseline: Batch[]): Batch[] {
+  const baselineById = new Map(baseline.map((batch) => [batch.batch_id, batch]));
+  return current.flatMap((batch) => {
+    const before = baselineById.get(batch.batch_id);
+    if (!before) return [batch];
+    if (hasSameBatchWithoutTargets(before, batch)) return [];
+    return [{
+      ...batch,
+      power_on_target_date: before.power_on_target_date ?? null,
+      online_target_date: before.online_target_date ?? null,
+    }];
+  });
+}
+
+function hasSameBatchWithoutTargets(before: Batch, after: Batch): boolean {
+  const withoutTargets = (batch: Batch) => {
+    const { power_on_target_date, online_target_date, ...rest } = batch;
+    return rest;
+  };
+  return JSON.stringify(withoutTargets(before)) === JSON.stringify(withoutTargets(after));
 }
 
 function buildArrivalChanges(
@@ -793,10 +819,15 @@ function buildBatchAnchors(batches: Batch[]): NonNullable<ChangeSet['anchors']> 
   });
 }
 
-function buildBatchDemands(current: Batch[], baseline: Batch[]): NonNullable<ChangeSet['demands']> {
+function buildBatchDemands(
+  current: Batch[],
+  baseline: Batch[],
+  changedBatchIds: Set<string>,
+): NonNullable<ChangeSet['demands']> {
   const baselineById = new Map(baseline.map((batch) => [batch.batch_id, batch]));
   const demands: NonNullable<ChangeSet['demands']> = [];
   for (const batch of current) {
+    if (!changedBatchIds.has(batch.batch_id)) continue;
     const before = baselineById.get(batch.batch_id);
     if (!before) continue;
     addDateDemand(demands, batch.batch_id, '批次上线', before.online_target_date ?? null, batch.online_target_date ?? null);
@@ -818,8 +849,8 @@ function addDateDemand(
   demands.push({
     demand_id: `demand-${batchId}-${kind === '批次上线' ? 'online' : 'power-on'}`,
     target: { kind, ref_id: batchId },
-    direction: delta > 0 ? '延后' : '提前',
-    amount_days: Math.abs(delta),
+    direction: '某日期前完成',
+    deadline: after,
     reason: '前端计划调整页目标日期变更',
   });
 }
@@ -843,6 +874,7 @@ function cloneScheduleInput(input: GenerateScheduleInput): GenerateScheduleInput
     rooms: JSON.parse(JSON.stringify(input.rooms)) as RoomRow[],
     batches: JSON.parse(JSON.stringify(input.batches)) as BatchRow[],
     teams: JSON.parse(JSON.stringify(input.teams)) as TeamRow[],
+    skipWeekends: input.skipWeekends,
   };
 }
 
