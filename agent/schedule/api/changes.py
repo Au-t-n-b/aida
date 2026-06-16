@@ -5,19 +5,23 @@ from datetime import date, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, Form, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from openpyxl import load_workbook
+from openpyxl.styles import Font, PatternFill
 
 from agent.schedule.contracts.api import API_PREFIX, ChangeSet, ConflictDetail, ErrorResponse, ParseChangesResponse
 from agent.schedule.contracts.inputs import ArrivalItem, Batch, Room
+from agent.schedule.importer import DataImportError, load_input_bundle
+from agent.schedule.settings import get_as_of_date
 
 router = APIRouter(prefix=API_PREFIX, tags=["schedule"])
 
 SCHEDULE_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = SCHEDULE_ROOT / "project-data" / "10_变更表模板"
-TEMPLATE_FILE = TEMPLATE_DIR / "变更表模板.xlsx"
+TEMPLATE_FILE = TEMPLATE_DIR / "调整表模板.xlsx"
 XLSX_MEDIA_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 ROOM_SHEET = "机房ready"
@@ -25,7 +29,7 @@ ARRIVAL_SHEET = "到货"
 BATCH_SHEET = "批次目标"
 
 ROOM_COLUMNS = ("机房id", "可布线", "可装设备", "可通液")
-ARRIVAL_COLUMNS = ("pod_id", "到货日期")
+ARRIVAL_COLUMNS = ("管理单元", "设备类型", "型号", "数量", "单位", "到货日期")
 BATCH_COLUMNS = ("batch_id", "上电目标", "上线目标")
 
 _INVALID_DATE = object()
@@ -34,11 +38,15 @@ _INVALID_DATE = object()
 @router.get("/change-template")
 def download_change_template():
     if not TEMPLATE_FILE.exists():
-        return _import_error(["变更表模板文件未生成，请检查 02_项目数据/10_变更表模板。"])
-    return FileResponse(
-        TEMPLATE_FILE,
+        return _import_error(["调整表模板文件未生成，请检查 02_项目数据/10_变更表模板。"])
+    try:
+        content = _prefilled_change_template()
+    except (DataImportError, OSError, KeyError, ValueError) as exc:
+        return _import_error([f"调整表模板预填失败：{exc}"])
+    return StreamingResponse(
+        BytesIO(content),
         media_type=XLSX_MEDIA_TYPE,
-        filename="变更表模板.xlsx",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote('调整表模板.xlsx')}"},
     )
 
 
@@ -73,8 +81,12 @@ def parse_changes(
         if fatal:
             return _import_error(fatal)
 
+        try:
+            source_arrivals = _current_project_arrivals_by_pod()
+        except DataImportError as exc:
+            return _import_error([f"当前项目到货数据不可用：{exc}"])
         rooms = _parse_room_rows(room_sheet, room_ids, warnings)
-        arrivals = _parse_arrival_rows(arrival_sheet, pod_ids, warnings)
+        arrivals = _parse_arrival_rows(arrival_sheet, pod_ids, source_arrivals, warnings)
         batches = _parse_batch_rows(batch_sheet, batch_ids, batch_meta, warnings)
     finally:
         workbook.close()
@@ -87,6 +99,58 @@ def parse_changes(
         ),
         warnings=warnings,
     )
+
+
+def _prefilled_change_template() -> bytes:
+    bundle = load_input_bundle()
+    workbook = load_workbook(TEMPLATE_FILE)
+    try:
+        if ARRIVAL_SHEET not in workbook.sheetnames:
+            raise KeyError(f"缺少sheet「{ARRIVAL_SHEET}」")
+        _rewrite_arrival_sheet(workbook[ARRIVAL_SHEET], bundle.arrivals, include_dates=False)
+        output = BytesIO()
+        workbook.save(output)
+        return output.getvalue()
+    finally:
+        workbook.close()
+
+
+def _rewrite_arrival_sheet(sheet, arrivals: list[ArrivalItem], *, include_dates: bool) -> None:
+    if sheet.max_row:
+        sheet.delete_rows(1, sheet.max_row)
+    if sheet.max_column:
+        sheet.delete_cols(1, sheet.max_column)
+
+    sheet.append(list(ARRIVAL_COLUMNS))
+    for arrival in arrivals:
+        sheet.append(
+            [
+                arrival.pod_id,
+                arrival.device_type,
+                arrival.device_model,
+                arrival.quantity,
+                arrival.unit,
+                arrival.arrival_date if include_dates else None,
+            ]
+        )
+
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = Font(bold=True)
+    widths = {"A": 18, "B": 14, "C": 30, "D": 10, "E": 8, "F": 14}
+    for column, width in widths.items():
+        sheet.column_dimensions[column].width = width
+    for cell in sheet["F"]:
+        cell.number_format = "yyyy-mm-dd"
+
+
+def _current_project_arrivals_by_pod() -> dict[str, list[ArrivalItem]]:
+    bundle = load_input_bundle()
+    arrivals_by_pod: dict[str, list[ArrivalItem]] = {}
+    for arrival in bundle.arrivals:
+        arrivals_by_pod.setdefault(arrival.pod_id, []).append(arrival)
+    return arrivals_by_pod
 
 
 def _parse_room_rows(sheet, known_ids: set[str], warnings: list[str]) -> dict[str, Room]:
@@ -118,34 +182,84 @@ def _parse_room_rows(sheet, known_ids: set[str], warnings: list[str]) -> dict[st
     return rooms
 
 
-def _parse_arrival_rows(sheet, known_ids: set[str], warnings: list[str]) -> dict[str, ArrivalItem]:
+def _parse_arrival_rows(
+    sheet,
+    known_ids: set[str],
+    source_arrivals: dict[str, list[ArrivalItem]],
+    warnings: list[str],
+) -> dict[str, ArrivalItem]:
     headers = _headers(sheet)
-    arrivals: dict[str, ArrivalItem] = {}
+    as_of_date = get_as_of_date()
+    latest_by_pod: dict[str, date] = {}
+    incomplete_pods: set[str] = set()
+
     for row_number, row in _data_rows(sheet):
         if not _has_any_value(row):
             continue
-        pod_id = _text(_cell(row, headers, "pod_id"))
+        pod_id = _text(_cell(row, headers, "管理单元"))
         if not pod_id:
-            warnings.append(f"「{ARRIVAL_SHEET}」第{row_number}行缺少pod_id，已跳过。")
+            warnings.append(f"「{ARRIVAL_SHEET}」第{row_number}行缺少管理单元，已跳过。")
             continue
         if known_ids and pod_id not in known_ids:
-            warnings.append(f"「{ARRIVAL_SHEET}」第{row_number}行pod_id「{pod_id}」不在当前盘子中，已跳过。")
+            warnings.append(f"「{ARRIVAL_SHEET}」第{row_number}行管理单元「{pod_id}」不在当前盘子中，已跳过。")
             continue
-        arrival_date = _optional_date(_cell(row, headers, "到货日期"), ARRIVAL_SHEET, row_number, "到货日期", warnings)
+
+        raw_date = _cell(row, headers, "到货日期")
+        if not _text(raw_date):
+            warnings.append(f"「{ARRIVAL_SHEET}」第{row_number}行《到货日期》未填，管理单元「{pod_id}」未聚合。")
+            incomplete_pods.add(pod_id)
+            continue
+        arrival_date = _optional_date(raw_date, ARRIVAL_SHEET, row_number, "到货日期", warnings)
         if arrival_date is None or arrival_date is _INVALID_DATE:
+            incomplete_pods.add(pod_id)
             continue
-        arrivals[pod_id] = ArrivalItem(
-            arrival_id=f"arrival-{pod_id}",
-            pod_id=pod_id,
-            device_type="设备到货齐套",
-            device_model=None,
-            unit="批",
-            quantity=1,
-            arrival_date=arrival_date,
-            arrival_status="在途",
-            note="变更表上传",
-        )
+        current = latest_by_pod.get(pod_id)
+        if current is None or arrival_date > current:
+            latest_by_pod[pod_id] = arrival_date
+
+    arrivals: dict[str, ArrivalItem] = {}
+    for pod_id, arrival_date in latest_by_pod.items():
+        if pod_id in incomplete_pods:
+            continue
+        source_items = source_arrivals.get(pod_id)
+        if not source_items:
+            arrivals[f"arrival-{pod_id}"] = _fallback_arrival(pod_id, arrival_date, as_of_date)
+            continue
+        for source in source_items:
+            arrivals[source.arrival_id] = source.model_copy(
+                update={
+                    "arrival_date": arrival_date,
+                    "arrival_status": _arrival_status(arrival_date, as_of_date),
+                    "note": _merge_note(source.note, "变更表上传按管理单元聚合"),
+                }
+            )
     return arrivals
+
+
+def _fallback_arrival(pod_id: str, arrival_date: date, as_of_date: date) -> ArrivalItem:
+    return ArrivalItem(
+        arrival_id=f"arrival-{pod_id}",
+        pod_id=pod_id,
+        device_type="设备到货齐套",
+        device_model=None,
+        unit="批",
+        quantity=1,
+        arrival_date=arrival_date,
+        arrival_status=_arrival_status(arrival_date, as_of_date),
+        note="变更表上传按管理单元聚合",
+    )
+
+
+def _arrival_status(arrival_date: date, as_of_date: date | None = None) -> str:
+    return "已到货" if arrival_date <= (as_of_date or get_as_of_date()) else "在途"
+
+
+def _merge_note(existing: str | None, extra: str) -> str:
+    if not existing:
+        return extra
+    if extra in existing:
+        return existing
+    return f"{existing}；{extra}"
 
 
 def _parse_batch_rows(
