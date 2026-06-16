@@ -1443,8 +1443,9 @@ export default function ClawRail({
         title={hideSwap ? undefined : collapsed ? '展开 AIDA 助手' : '折叠 AIDA 助手'}
       >
         <div className="ch-icon"><IcSparkle /></div>
-        <div style={{ flex: 1 }}>
-          <div className="ch-name">AIDA助手 · <span style={{ color: 'var(--c-text-muted)', fontWeight: 400 }}>{navLabel}</span></div>
+        <div className="claw-head-title">
+          <div className="ch-name">AIDA 助手 · <span style={{ color: 'var(--c-text-muted)', fontWeight: 400 }}>{navLabel}</span></div>
+          <div className="ch-status"><span className="status-dot done" /> 当前模块就绪</div>
         </div>
         {!hideSwap && <span className="ch-collapse"><IcChevron /></span>}
       </div>

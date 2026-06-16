@@ -5,7 +5,6 @@ import { useNavigate } from 'react-router-dom';
 import Link from '@/compat/link';
 import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
-import { useSessionUser } from '@/hooks/useSessionUser';
 import {
   PROJECT_LIST_MINI,
   resolveTopBarProjectDisplayName,
@@ -58,7 +57,6 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
   const navigate = useNavigate();
   const doLogout = useLogout();
   const { project, selectProject } = useCurrentProject();
-  const sessionUser = useSessionUser();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -115,8 +113,8 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
         </button>
         <div style={{ position: 'relative' }}>
           <div className="user-chip" onClick={() => setUserOpen(o => !o)}>
-            <div className="av">{sessionUser.avatarInitials}</div>
-            <span>{sessionUser.displayName}</span>
+            <div className="av">交付</div>
+            <span>交付经理</span>
             <span className="topbar-project-caret">▾</span>
           </div>
           {userOpen && (
@@ -125,7 +123,7 @@ export function TopBar({ breadcrumbs: _breadcrumbs = [] }: TopBarProps) {
               style={{ left: 'auto', right: 0, minWidth: 200 }}
               onMouseLeave={() => setUserOpen(false)}
             >
-              <div className="topbar-project-pop-head">{sessionUser.profileHeadline}</div>
+              <div className="topbar-project-pop-head">交付经理 · 智算 Q3</div>
               <button
                 type="button"
                 className="topbar-project-row"
