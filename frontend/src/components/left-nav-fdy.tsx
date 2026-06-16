@@ -103,6 +103,8 @@ function isSubActive(navPath: string, s: FdySubItem, hrefPrefix?: string): boole
   }
   if (s.href) {
     if (s.href === '/cockpit') return navPath === '/cockpit' || navPath.startsWith('/cockpit?');
+    // 算力底座孪生(/twin) 只匹配自身，勿把 /twin/survey（实景孪生）也点亮
+    if (s.href === '/twin') return navPath === '/twin' || navPath.startsWith('/twin?');
     if (s.href.includes('?')) return navPath === s.href;
     return navPath === s.href || navPath.startsWith(`${s.href}/`) || navPath.startsWith(`${s.href}?`);
   }
@@ -419,8 +421,9 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
   const navTwin: FdySubItem[] = [
     NAV_TWIN[0]!,
+    { ...NAV_TWIN[1]!, status: 'live', statusLabel: '工勘' },
     {
-      ...NAV_TWIN[1]!,
+      ...NAV_TWIN[2]!,
       status: MODULE_STATUS.cockpit?.state,
       statusLabel: '看板',
     },

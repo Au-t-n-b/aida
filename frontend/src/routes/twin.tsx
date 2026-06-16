@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { TwinWorld } from '@/components/twin/twin-world';
-import { useTwinPhase, type TwinPhase } from '@/lib/twin-phase';
+import { useTwinPhase, consumeTwinAutoBuild, type TwinPhase } from '@/lib/twin-phase';
 
 const VIEW_TO_PHASE: Record<string, TwinPhase> = {
   build: 'init',
@@ -21,6 +21,13 @@ export default function TwinPage() {
   const [phase, setPhase] = useTwinPhase();
   const [params, setParams] = useSearchParams();
   const viewParam = params.get('view');
+
+  // 入口（如「生成预案并决策」）置位的一次性自动构建请求：消费一次 → 自动跑「构建算力底座孪生」。
+  // 不依赖 URL（避免 Outlet 因 search 变化重挂载丢状态）；配合 ?view=build 进入即清除/init 态。
+  const [autoBuild, setAutoBuild] = useState(false);
+  useEffect(() => {
+    if (consumeTwinAutoBuild()) setAutoBuild(true);
+  }, []);
 
   useEffect(() => {
     if (!viewParam) return;
@@ -42,7 +49,7 @@ export default function TwinPage() {
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <TwinWorld phase={phase} onPhase={setPhase} />
+      <TwinWorld phase={phase} onPhase={setPhase} autoBuild={autoBuild} />
     </div>
   );
 }

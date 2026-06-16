@@ -32,6 +32,18 @@ export function setTwinPhase(p: TwinPhase) {
   window.dispatchEvent(new CustomEvent(EVT, { detail: p }));
 }
 
+/* 一次性「自动构建」请求：不走 URL（避免 WorkspaceShell Outlet 因 search 变化重挂载丢状态）。
+ * 入口（如「生成预案并决策」）跳转前置位，孪生页挂载后消费一次并自动跑构建。SPA 内导航有效。 */
+let pendingAutoBuild = false;
+export function requestTwinAutoBuild() {
+  pendingAutoBuild = true;
+}
+export function consumeTwinAutoBuild(): boolean {
+  const v = pendingAutoBuild;
+  pendingAutoBuild = false;
+  return v;
+}
+
 export function useTwinPhase(): [TwinPhase, (p: TwinPhase) => void] {
   const [phase, setPhase] = useState<TwinPhase>(() => readStored());
 

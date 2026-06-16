@@ -10,10 +10,8 @@ import LandingPage from '@/routes/landing';
 /** 工作台子路由：同步 import，避免 lazy + React 19 在重页（交付预案）卸载时残留 DOM */
 import CockpitPage from '@/routes/cockpit';
 import DesignPage from '@/routes/design';
+import TwinPage from '@/routes/twin';
 import TwinSurveyPage from '@/routes/twin-survey';
-import TwinPhysicalPage from '@/routes/twin-physical';
-import TwinDigitalPage from '@/routes/twin-digital';
-import TwinRedirectPage from '@/routes/twin-redirect';
 import TwinDigitalDemoPage from '@/routes/twin-digital-demo';
 import MilestonesPage from '@/routes/milestones';
 import CommissioningPage from '@/routes/commissioning';
@@ -79,10 +77,8 @@ export const router = createBrowserRouter([
         ),
       },
       { path: '/design', element: <DesignPage /> },
-      { path: '/twin', element: <TwinRedirectPage /> },
+      { path: '/twin', element: <TwinPage /> },
       { path: '/twin/survey', element: <TwinSurveyPage /> },
-      { path: '/twin/physical', element: <TwinPhysicalPage /> },
-      { path: '/twin/digital', element: <TwinDigitalPage /> },
       { path: '/twin/digital-demo', element: <TwinDigitalDemoPage /> },
       { path: '/milestones', element: <MilestonesPage /> },
       { path: '/commissioning', element: <CommissioningPage /> },
@@ -108,7 +104,7 @@ export const router = createBrowserRouter([
       { path: '/module/:key', element: <ModuleRoutePage /> },
     ],
   },
-  { path: '/foundation', element: <Navigate to="/twin/survey" replace /> },
+  { path: '/foundation', element: <Navigate to="/twin" replace /> },
   {
     path: '/assets',
     element: (
