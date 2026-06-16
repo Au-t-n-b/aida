@@ -13,7 +13,12 @@ from pathlib import Path
 DEFAULT_DEMO_PROJECT_ID = "70e5ca737ae5433e9f0f3134d216acf7"
 
 MOCK_REPORT_FILENAME = "本地工勘报告.pdf"
+ROOM_RACK_FILENAME = "机房机柜信息表.xlsx"
 SURVEY_INPUT_REL = Path("交付作业") / "智慧工勘" / "输入文件"
+TWIN_ROOM_RACK_REL = (
+    Path("孪生世界") / "算力底座孪生" / "输出结果" / "机房机柜信息表"
+)
+SURVEY_OUTPUT_REL = Path("交付作业") / "智慧工勘" / "输出结果"
 
 _AGENT_DIR = Path(__file__).resolve().parents[2]
 REPO_ROOT = _AGENT_DIR.parent
@@ -37,6 +42,40 @@ def mock_report_manifest_path(
     project_id: str = DEFAULT_DEMO_PROJECT_ID,
 ) -> Path:
     return mock_report_project_path(repo_root, project_id).parent / "manifest.json"
+
+
+def room_rack_project_path(
+    repo_root: Path | None = None,
+    project_id: str = DEFAULT_DEMO_PROJECT_ID,
+) -> Path:
+    root = repo_root or REPO_ROOT
+    return project_data_root(root, project_id) / TWIN_ROOM_RACK_REL / ROOM_RACK_FILENAME
+
+
+def room_rack_manifest_path(
+    repo_root: Path | None = None,
+    project_id: str = DEFAULT_DEMO_PROJECT_ID,
+) -> Path:
+    return room_rack_project_path(repo_root, project_id).parent / "manifest.json"
+
+
+def survey_output_project_dir(
+    repo_root: Path | None = None,
+    project_id: str = DEFAULT_DEMO_PROJECT_ID,
+) -> Path:
+    root = repo_root or REPO_ROOT
+    return project_data_root(root, project_id) / SURVEY_OUTPUT_REL
+
+
+def resolve_room_rack_xlsx(
+    repo_root: Path | None = None,
+    project_id: str = DEFAULT_DEMO_PROJECT_ID,
+) -> Path | None:
+    """项目孪生输出优先。"""
+    project_xlsx = room_rack_project_path(repo_root, project_id)
+    if project_xlsx.is_file():
+        return project_xlsx
+    return None
 
 
 def resolve_mock_report_source(

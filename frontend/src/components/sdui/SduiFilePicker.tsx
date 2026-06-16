@@ -8,9 +8,9 @@
  *
  * 不再「选完立即上传」：给用户确认机会，也避免把后端 resume 和前端状态更新搞成竞态。
  */
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useSduiRuntime } from './SduiContext';
-import { hitlKey, getHitlOptimistic, setHitlOptimistic } from './hitlOptimistic';
+import { hitlKey, getHitlOptimistic, setHitlOptimistic, clearHitlOptimistic } from './hitlOptimistic';
 import type { SduiFilePickerNode } from '@/lib/sdui';
 
 type Props = Omit<SduiFilePickerNode, 'type' | 'id' | 'flex'>;
@@ -39,11 +39,32 @@ export function SduiFilePicker({
   ].join('::');
   const key = hitlKey(runId, stepId, promptFingerprint);
   const restored = getHitlOptimistic(key);
+  const restoredUploading = restored?.kind === 'file_uploading' ? restored.names : null;
   const restoredNames = restored?.kind === 'file' ? restored.names : null;
   const [pending, setPending] = useState<File[]>([]);
-  const [status, setStatus] = useState<UploadStatus>(restoredNames ? 'success' : 'idle');
+  const [status, setStatus] = useState<UploadStatus>(
+    restoredUploading ? 'uploading' : restoredNames ? 'success' : 'idle',
+  );
   const [doneNames, setDoneNames] = useState<string[]>(restoredNames ?? []);
+  const [uploadingNames, setUploadingNames] = useState<string[]>(restoredUploading ?? []);
   const [errMsg, setErrMsg] = useState('');
+
+  // 冻结重挂载后：轮询 optimistic store，接上仍在进行的 onUpload 结果
+  useEffect(() => {
+    if (status !== 'uploading') return;
+    const timer = window.setInterval(() => {
+      const cur = getHitlOptimistic(key);
+      if (cur?.kind === 'file') {
+        setDoneNames(cur.names);
+        setUploadingNames([]);
+        setStatus('success');
+      } else if (!cur || cur.kind !== 'file_uploading') {
+        setUploadingNames([]);
+        setStatus(prev => (prev === 'uploading' ? 'idle' : prev));
+      }
+    }, 200);
+    return () => window.clearInterval(timer);
+  }, [key, status]);
 
   // ── 选择文件（不自动上传，只暂存）─────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -59,20 +80,26 @@ export function SduiFilePicker({
 
   // ── 点「上传并继续」───────────────────────────────────────────────────────
   const handleConfirm = async () => {
+    if (status === 'uploading') return;
     if (!pending.length) return;
+    const names = pending.map(f => f.name);
+    setUploadingNames(names);
     setStatus('uploading');
     setErrMsg('');
+    setHitlOptimistic(key, { kind: 'file_uploading', names });
     try {
       // 把 File[] 转成 FileList-like：构造 DataTransfer（浏览器支持）
       const dt = new DataTransfer();
       for (const f of pending) dt.items.add(f);
-      const names = pending.map(f => f.name);
       // onUpload 内 parent 仅上传、然后 hold 再 resume → 此处 resolve 即显示成功态
       await onUpload(dt.files, purpose ?? 'hitl', stepId);
       setDoneNames(names);
       setHitlOptimistic(key, { kind: 'file', names });
       setStatus('success');
+      setUploadingNames([]);
     } catch (e) {
+      clearHitlOptimistic(key);
+      setUploadingNames([]);
       setStatus('error');
       setErrMsg(e instanceof Error ? e.message : '上传失败，请重试');
     }
@@ -80,6 +107,10 @@ export function SduiFilePicker({
 
   const isUploading = status === 'uploading';
   const isDone = status === 'success';
+  const displayPendingNames = pending.length > 0
+    ? pending.map(f => f.name)
+    : uploadingNames;
+  const showPickerArea = !isDone && (pending.length > 0 || isUploading);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -109,17 +140,17 @@ export function SduiFilePicker({
         <div
           onClick={() => !isUploading && inputRef.current?.click()}
           style={{
-            border: `2px dashed ${pending.length ? 'var(--blue-400)' : 'var(--border)'}`,
+            border: `2px dashed ${showPickerArea ? 'var(--blue-400)' : 'var(--border)'}`,
             borderRadius: 'var(--radius-lg)',
             padding: '18px 16px',
             textAlign: 'center',
             cursor: isUploading ? 'not-allowed' : 'pointer',
-            background: pending.length ? 'var(--blue-50)' : 'var(--surface)',
+            background: showPickerArea ? 'var(--blue-50)' : 'var(--surface)',
             transition: 'all .15s',
             opacity: isUploading ? 0.6 : 1,
           }}
         >
-          {pending.length === 0 ? (
+          {!showPickerArea ? (
             <>
               <div style={{ fontSize: '20px', marginBottom: 6 }}>📂</div>
               <div style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)' }}>
@@ -133,10 +164,10 @@ export function SduiFilePicker({
             <>
               <div style={{ fontSize: '16px', marginBottom: 4 }}>📄</div>
               <div style={{ fontSize: 'var(--text-sm)', fontWeight: 500, color: 'var(--blue-700)' }}>
-                已选 {pending.length} 个文件
+                已选 {displayPendingNames.length} 个文件
               </div>
               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: 3 }}>
-                {pending.map(f => f.name).join('、')}
+                {displayPendingNames.join('、')}
               </div>
               {!isUploading && (
                 <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: 4 }}>
@@ -189,7 +220,7 @@ export function SduiFilePicker({
       )}
 
       {/* 确认按钮 */}
-      {!isDone && pending.length > 0 && (
+      {!isDone && (pending.length > 0 || isUploading) && (
         <button
           onClick={() => void handleConfirm()}
           disabled={isUploading}
@@ -217,7 +248,7 @@ export function SduiFilePicker({
               上传中…
             </>
           ) : (
-            `上传 ${pending.length} 个文件并继续`
+            `上传 ${(displayPendingNames.length || pending.length)} 个文件并继续`
           )}
         </button>
       )}

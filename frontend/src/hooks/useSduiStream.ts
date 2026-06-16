@@ -97,7 +97,7 @@ function hasWorkbenchContent(doc: SduiDocument): boolean {
 }
 
 /** full_restart 重连时拒绝比当前更低的进度快照（与后端 display_state 双保险）。*/
-function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocument {
+export function mergeSduiDoc(prev: SduiDocument | null, next: SduiDocument): SduiDocument {
   if (!prev) return next;
   if (isErrorSduiDoc(next)) return next;
   const pPrev = extractSduiProgress(prev);
@@ -453,6 +453,9 @@ export interface StartReq {
   scenario_run?: string;
   /** zhgk：从 3D 机房入口下钻时预选意图（写入 initial project） */
   intent?: string;
+  /** zhgk：Idle 机房卡片选型 */
+  room_name?: string;
+  pod_names?: string[];
   /** system_design：NL 命令 / 自由文本 / 动作 */
   command?: string;
   text?: string;
@@ -626,13 +629,23 @@ export async function overrideOutputArtifact(
 
 
 
-export async function fetchUiSnapshot(skillId: string, runId: string, base?: string): Promise<SduiDocument | null> {
+/** GET /ui 默认超时（ms）；避免 Agent 被 LLM 占满时 HITL 上传永久卡在「上传中」。 */
+export const UI_SNAPSHOT_TIMEOUT_MS = 8000;
+
+export async function fetchUiSnapshot(
+  skillId: string,
+  runId: string,
+  base?: string,
+  timeoutMs: number = UI_SNAPSHOT_TIMEOUT_MS,
+): Promise<SduiDocument | null> {
 
   const agentBase = base ?? await ensureAgentBase(skillId);
 
   try {
 
-    const res = await fetch(`${agentBase}/agent/${skillId}/ui/${runId}`);
+    const res = await fetch(`${agentBase}/agent/${skillId}/ui/${runId}`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
 
     if (!res.ok) {
       if (res.status === 404) {

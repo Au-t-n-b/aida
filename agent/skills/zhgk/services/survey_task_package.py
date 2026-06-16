@@ -14,6 +14,8 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from .survey_context import format_survey_task_name
+
 
 def build_survey_task_package(
     survey_table_path: str,
@@ -34,10 +36,12 @@ def build_survey_task_package(
 
     prefix = "_".join(p for p in (activity_id, project_name, room_name) if p) or "勘测任务包"
     zip_path = out / f"{prefix}_勘测任务包.zip"
+    task_name = format_survey_task_name(project_name=project_name, room_name=room_name)
 
     manifest: dict[str, Any] = {
         "type": "survey_task_package",
         "version": "v4",
+        "task_name": task_name,
         "project_name": project_name,
         "room_name": room_name,
         "activity_id": activity_id,

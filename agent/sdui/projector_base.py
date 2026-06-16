@@ -603,6 +603,18 @@ def build_hitl(
                     title=inp.get("label", default_choice_title),
                     options=options, hitlRequestId=step_key, stepId=step_key,
                 ))
+                # 若 input 声明了可选文件上传提示，追加 FilePicker（optional）
+                upload_hint: str | None = inp.get("upload_hint")
+                upload_accept: str = inp.get("upload_accept", ".xlsx,.xls")
+                if upload_hint:
+                    children.append(SduiFilePickerNode(
+                        id=f"hitl-optional-file-{step_key}",
+                        purpose=f"hitl_{step_key}",
+                        label=upload_hint,
+                        helpText="此文件为可选项，上传后将用于追加；未上传则使用默认来源。",
+                        accept=upload_accept, multiple=False,
+                        hitlRequestId=step_key, stepId=step_key,
+                    ))
 
     if state.get("error"):
         children.append(SduiTextNode(content=f"错误：{state['error']}", variant="caption", color="error"))

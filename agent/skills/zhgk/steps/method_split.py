@@ -63,9 +63,11 @@ def _send_customer_feedback_email(
             info = json.loads(info_path.read_text(encoding="utf-8"))
         except Exception:
             info = {}
-    project_name = info.get("项目名称", "") or "未知项目"
-    room_name = info.get("机房名称", "") or ""
-    survey_date = info.get("勘察日期", "") or info.get("勘测日期", "")
+    from ..services.survey_context import resolve_survey_context
+    ctx_fields = resolve_survey_context(ctx.project, info)
+    project_name = ctx_fields["project_name"]
+    room_name = ctx_fields["room_name"]
+    survey_date = info.get("survey_date", "") or info.get("勘察日期", "") or info.get("勘测日期", "")
 
     recipients = _resolve_project_recipients(ctx, emit)
     to = [r.get("email", "") for r in recipients if r.get("email")]

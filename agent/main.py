@@ -17,6 +17,7 @@ AIDA Agent · FastAPI 入口
 """
 from __future__ import annotations
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -196,6 +197,33 @@ app.add_middleware(
 # 内存中的 run registry：run_id → {"queue": asyncio.Queue, "state": AgentState, "task": asyncio.Task}
 RUNS: dict[str, dict] = {}
 _PENDING_GKCLAW_INBOUND_RETRIES: set[str] = set()
+
+
+def _projection_state_for_run(run_id: str) -> dict[str, Any]:
+    """full_restart 重放期间对外投影用 display_state，避免 /ui·SSE 首帧暴露 steps=[] 中间态。"""
+    entry = RUNS[run_id]
+    canonical = entry["state"]
+    task = entry.get("task")
+    display = entry.get("display_state")
+    if not (display and task is not None and not task.done()):
+        return canonical
+
+    disp_hitl = (display.get("hitl") or {}).get("step")
+    can_hitl = (canonical.get("hitl") or {}).get("step")
+    # canonical 已消解 HITL（如复勘上传合并完成）→ 不再用冻结快照，避免界面卡在「待文件」
+    if disp_hitl and not can_hitl:
+        return canonical
+
+    def _done_count(st: dict[str, Any]) -> int:
+        return sum(
+            1 for s in (st.get("steps") or [])
+            if isinstance(s, dict) and s.get("status") == "completed"
+        )
+
+    if _done_count(canonical) >= _done_count(display):
+        return canonical
+    return display
+
 
 # 工具审批挂起池：approval_id → asyncio.Future[bool]（等待前端 /approve-tool 解锁）
 _PENDING_APPROVALS: dict[str, "asyncio.Future[bool]"] = {}
@@ -667,12 +695,12 @@ async def _sse_generator(run_id: str) -> AsyncIterator[dict]:
 
     async def _send_snapshot() -> AsyncIterator[dict]:
         """快照辅助：发 snapshot + sdui，供首连和 resume 无缝切换时复用。"""
-        yield {"event": "snapshot", "data": json.dumps(RUNS[run_id]["state"], ensure_ascii=False, default=str)}
+        yield {"event": "snapshot", "data": json.dumps(_projection_state_for_run(run_id), ensure_ascii=False, default=str)}
         try:
-            _skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
+            _skill_id = _projection_state_for_run(run_id).get("skill_id", "zhgk")
             _proj = _get_sdui_projector(_skill_id)
             if _proj is not None:
-                sdui_snap = _proj(RUNS[run_id]["state"])
+                sdui_snap = _proj(_projection_state_for_run(run_id))
                 yield {"event": "sdui", "data": json.dumps(sdui_snap, ensure_ascii=False, default=str)}
         except Exception as e:
             import sys, traceback
@@ -907,10 +935,13 @@ async def _run_single_step_streaming(
         pass
 
     try:
-        diff = skill.execute_step(step, state, ctx)
+        # step_retry 路径在 asyncio 主循环执行；LLM 重步骤（assess 等）放线程池，避免堵死 HTTP。
+        diff = await asyncio.to_thread(skill.execute_step, step, state, ctx)
         RUNS[run_id]["_running_step"] = None  # 执行完毕，清除 running 标记
         cur = RUNS[run_id]["state"]
         _merge_langgraph_diff_into_state(cur, diff)
+        if RUNS[run_id].get("display_state") and not (cur.get("hitl") or {}).get("step"):
+            RUNS[run_id].pop("display_state", None)
         await queue.put({
             "event": "node_update",
             "data": {"node": step_key, "diff": diff},
@@ -1213,6 +1244,16 @@ def files_check(skill: str, need: list[str] = Query(default=[])):
     if need:
         return fh.check_need_files(root, need)
     return fh.check_project_files(root)
+
+
+@app.get("/agent/{skill}/room-catalog")
+def room_catalog(skill: str):
+    """智慧工勘 Idle：机房列表 + 状态 + 五值（读孪生机房机柜表与 Output 快照）。"""
+    if skill != "zhgk":
+        raise HTTPException(404, f"skill '{skill}' 无 room-catalog")
+    from agent.skills.zhgk.services.room_catalog import build_room_catalog
+
+    return build_room_catalog()
 
 
 @app.post("/agent/{skill}/upload")
@@ -1739,6 +1780,9 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                 # 把 diff 合到 cached state
                 cur = RUNS[run_id]["state"]
                 _merge_langgraph_diff_into_state(cur, diff)
+                # HITL 消解后立刻丢弃 display_state，/ui·SSE 不再投影旧的「待上传」态
+                if RUNS[run_id].get("display_state") and not (cur.get("hitl") or {}).get("step"):
+                    RUNS[run_id].pop("display_state", None)
                 # 中间对话框：节点完成 → 收尾对应日志气泡
                 if node_name in _runlog_shown_pass and not _suppress_aux_run_log(node_name):
                     _last_status = ""
@@ -1813,6 +1857,7 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
                     await queue.put({"event": "sdui", "data": _proj(RUNS[run_id]["state"])})
             except Exception:
                 pass
+            RUNS[run_id].pop("display_state", None)
 
         final_state = RUNS[run_id]["state"]
         hitl = final_state.get("hitl") or {}
@@ -1823,6 +1868,7 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
     except asyncio.CancelledError:
         return
     except Exception as e:
+        RUNS[run_id].pop("display_state", None)
         await queue.put({"event": "error", "data": {"error": str(e)}})
     finally:
         unregister_run_push(run_id)
@@ -1888,6 +1934,7 @@ async def reset_workspace_endpoint(skill: str):
     summary = reset_fn(skill_obj.work_root)
     return summary
 
+
 # ─── SSE 订阅 ───
 
 async def _sse_generator(run_id: str) -> AsyncIterator[dict]:
@@ -1897,12 +1944,12 @@ async def _sse_generator(run_id: str) -> AsyncIterator[dict]:
 
     async def _send_snapshot() -> AsyncIterator[dict]:
         """快照辅助：发 snapshot + sdui，供首连和 resume 无缝切换时复用。"""
-        yield {"event": "snapshot", "data": json.dumps(RUNS[run_id]["state"], ensure_ascii=False, default=str)}
+        yield {"event": "snapshot", "data": json.dumps(_projection_state_for_run(run_id), ensure_ascii=False, default=str)}
         try:
-            _skill_id = RUNS[run_id]["state"].get("skill_id", "zhgk")
+            _skill_id = _projection_state_for_run(run_id).get("skill_id", "zhgk")
             _proj = _get_sdui_projector(_skill_id)
             if _proj is not None:
-                sdui_snap = _proj(RUNS[run_id]["state"])
+                sdui_snap = _proj(_projection_state_for_run(run_id))
                 yield {"event": "sdui", "data": json.dumps(sdui_snap, ensure_ascii=False, default=str)}
         except Exception:
             pass
@@ -2182,6 +2229,7 @@ async def resume_run(skill: str, req: ResumeReq):
                 init_state["steps"] = hist + list(v)
             else:
                 init_state[k] = v
+    RUNS[req.run_id]["display_state"] = copy.deepcopy({**prev, "project": project})
     RUNS[req.run_id]["state"] = init_state
     new_tid = f"{req.run_id}-r{attempt}"
     task = asyncio.create_task(
@@ -2835,8 +2883,8 @@ def get_ui_snapshot(skill: str, run_id: str):
     if run_id not in RUNS:
         raise HTTPException(404, "run_id not found")
     entry = RUNS[run_id]
-    # 始终以 canonical state 投影（project 内会 reconcile output/ 磁盘并就地更新 state）
-    state = entry["state"]
+    # full_restart 重放期间用 display_state 投影，避免 steps 重建导致 Stepper/进度回退
+    state = _projection_state_for_run(run_id)
     skill_id = state.get("skill_id", skill)
     proj_fn = _get_sdui_projector(skill_id)
     if proj_fn is None:

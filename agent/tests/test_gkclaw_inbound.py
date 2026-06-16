@@ -93,6 +93,23 @@ def test_should_chain_wait_survey_to_assess():
     ) == "assess"
 
 
+def test_should_chain_wait_survey_to_assess_when_current_step_stale():
+    """复勘第 N 轮上传后 current_step 可能仍指向下游，仍应链到 assess。"""
+    state = {
+        "current_step": "issue_list",
+        "hitl": {},
+        "steps": [
+            {"key": "wait_survey", "status": "completed", "metrics": {"survey_round": 3}},
+            {"key": "assess", "status": "completed"},
+        ],
+    }
+    assert should_chain_after_wait_survey(
+        prev_step="wait_survey",
+        state=state,
+        step_retry_keys=["wait_survey", "assess", "issue_list"],
+    ) == "assess"
+
+
 def test_should_chain_assess_to_issue_list_after_inbound():
     state = {
         "current_step": "issue_list",

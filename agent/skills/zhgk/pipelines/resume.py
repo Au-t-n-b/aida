@@ -23,7 +23,7 @@ def resolve_resume_route_to(
     if hitl_step == "determine_gen" and choice:
         return "determine_gen"
 
-    if hitl_step == "data_append" and choice:
+    if hitl_step == "data_append" and (choice or (payload or {}).get("uploaded")):
         return "data_append"
 
     if hitl_step == "confirm_table":

@@ -12,12 +12,8 @@ from agent.skills.zhgk.steps.wait_survey import (
 )
 
 
-def test_build_app_wait_label_includes_task_id_and_refresh_hint():
-    assert _build_app_wait_label("task-20260614-K1903-0001") == (
-        "等待现场APP勘测回传\n"
-        "task_id:task-20260614-K1903-0001\n"
-        "回传后自动更新进度，也可手动检测刷新"
-    )
+def test_build_app_wait_label_is_concise():
+    assert _build_app_wait_label("task-20260614-K1903-0001") == "等待现场 App 勘测回传"
 
 
 def test_build_survey_merge_metadata_uses_mailgw_as_video_survey():

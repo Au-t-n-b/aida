@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..survey_context import format_survey_task_name
+
 ON_SITE_METHOD = "现场勘测"
 
 
@@ -121,10 +123,13 @@ def build_task_payload(
 
     room_name = str(project.get("room_name", "")).strip()
     project_name = str(project.get("project_name", "")).strip()
-    round_suffix = f"（第{survey_round}轮）" if survey_round > 1 else ""
     return {
         "task_id": task_id,
-        "task_name": f"{project_name}·{room_name} 现场勘测{round_suffix}".strip("·"),
+        "task_name": format_survey_task_name(
+            project_name=project_name,
+            room_name=room_name,
+            survey_round=survey_round,
+        ),
         "project": {
             "project_id": str(project.get("activity_id", "")).strip()
                           or str(project.get("project_code", "")).strip(),
