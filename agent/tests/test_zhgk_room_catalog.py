@@ -65,13 +65,13 @@ def test_build_room_catalog_with_project_data(tmp_path: Path, monkeypatch):
     rack = tmp_path / "rack.xlsx"
     _write_minimal_rack_xlsx(rack)
 
-    def fake_resolve(repo_root=None, project_id=...):
+    def fake_resolve(project_id=..., business_root=None):
         return rack
 
     monkeypatch.setattr(rc, "resolve_room_rack_xlsx", fake_resolve)
     monkeypatch.setattr(rc, "get_output_dir", lambda: tmp_path / "ws_out")
 
-    cat = build_room_catalog(repo_root=tmp_path, project_id="test")
+    cat = build_room_catalog(project_id="test")
     assert cat["source"] == "project-data"
     assert len(cat["rooms"]) == 2
     ids = {r["room_id"] for r in cat["rooms"]}

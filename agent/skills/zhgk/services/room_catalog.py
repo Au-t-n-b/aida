@@ -8,7 +8,6 @@ from typing import Any
 from agent.services.proposal_chapter_files import parse_room_rack_output_xlsx
 from agent.skills.zhgk.demo_assets import (
     DEFAULT_DEMO_PROJECT_ID,
-    REPO_ROOT,
     resolve_room_rack_xlsx,
     survey_output_project_dir,
 )
@@ -59,11 +58,11 @@ def _aggregate_rooms(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def load_room_rack_rows(
     *,
-    repo_root: Path | None = None,
+    business_root: Path | None = None,
     project_id: str = DEFAULT_DEMO_PROJECT_ID,
 ) -> tuple[list[dict[str, Any]], str, Path | None]:
     """加载孪生机房机柜表行；返回 (rows, source, path)。"""
-    path = resolve_room_rack_xlsx(repo_root=repo_root, project_id=project_id)
+    path = resolve_room_rack_xlsx(project_id=project_id, business_root=business_root)
     if path is None or not path.is_file():
         return [], "missing", None
     rows = parse_room_rack_output_xlsx(path.read_bytes())
@@ -72,16 +71,18 @@ def load_room_rack_rows(
 
 def build_room_catalog(
     *,
-    repo_root: Path | None = None,
+    business_root: Path | None = None,
     project_id: str = DEFAULT_DEMO_PROJECT_ID,
     workspace_output_dir: Path | None = None,
 ) -> dict[str, Any]:
-    root = repo_root or REPO_ROOT
-    rack_rows, source, rack_path = load_room_rack_rows(repo_root=root, project_id=project_id)
+    rack_rows, source, rack_path = load_room_rack_rows(
+        business_root=business_root,
+        project_id=project_id,
+    )
     rooms_base = _aggregate_rooms(rack_rows)
 
     ws_out = workspace_output_dir or get_output_dir()
-    proj_out = survey_output_project_dir(root, project_id)
+    proj_out = survey_output_project_dir(project_id, business_root=business_root)
 
     rooms: list[dict[str, Any]] = []
     for base in rooms_base:
