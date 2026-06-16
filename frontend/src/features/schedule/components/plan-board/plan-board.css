@@ -74,12 +74,18 @@
 .planinit .claw-swap:active{transform:scale(.94)}
 .planinit.sched-cr-right .claw-swap{right:auto; left:-13px}
 .planinit .cr-head{padding:16px 18px 14px; border-bottom:1px solid var(--line-2)}
+/* Claw 头部强制纵向堆叠：覆盖下方 SLA 计算行 `.cr-head{display:flex}`（同名 class 泄漏）——品牌行在上、交付盘子行在下，item③ 的「上分隔线」才成立 */
+.planinit .claw-rail .cr-head{display:block}
 .planinit .cr-brand{display:flex; align-items:center; gap:10px}
-.planinit .cr-mark{width:30px; height:30px; border-radius:8px; background:var(--ink); display:grid; place-items:center; flex:0 0 30px}
-.planinit .cr-brand .nm{font-weight:600; font-size:14.5px; letter-spacing:.2px}
-.planinit .cr-brand .sub{font-size:11px; color:var(--ink-3); margin-top:1px; font-family:var(--mono)}
-.planinit .cr-scope{margin-top:13px; display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink-2);
-  background:var(--surface-3); border:1px solid var(--line-2); padding:6px 9px; border-radius:var(--r-s)}
+/* 品牌标志：A 峰白路径居中于品牌蓝渐变圆底座（照 brand-logo.svg·品牌身份色不用 --ink）*/
+.planinit .cr-mark{width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg,#1565C0,#4FC3F7); display:grid; place-items:center; flex:0 0 36px}
+.planinit .cr-id{flex:1; min-width:0; display:flex; align-items:center; justify-content:space-between; gap:8px}
+.planinit .cr-brand .nm{font-weight:600; font-size:14.5px; letter-spacing:.2px; color:var(--ink)}
+/* 状态药丸：文案随阶段 init↔adjust 动态（排期初始化 / 计划调整）*/
+.planinit .cr-pill{flex:0 0 auto; font-size:10.5px; font-weight:600; line-height:1.4; color:var(--brand); background:var(--brand-soft); border:1px solid var(--brand-line); border-radius:999px; padding:2px 9px; white-space:nowrap; letter-spacing:.2px}
+/* 交付盘子行：底部一行 + 上分隔线 + 品牌蓝点缀图标（C 版重排）*/
+.planinit .cr-scope{margin-top:12px; padding-top:11px; border-top:1px solid var(--line-2); display:flex; align-items:center; gap:7px; font-size:11.5px; color:var(--ink-2)}
+.planinit .cr-scope .cr-scope-ic{display:inline-flex; align-items:center; color:var(--brand)}
 .planinit .cr-scope b{color:var(--ink); font-weight:600}
 
 .planinit .cr-body{flex:1; overflow-y:auto; padding:14px}
@@ -155,10 +161,7 @@
 /* height:auto 显式覆盖 B 全局 .topbar{height:44px} 的泄漏（class 名冲突）——排期内层顶栏靠内容自然撑高 */
 .planinit .topbar{display:flex; align-items:center; justify-content:space-between; height:auto; min-height:0; padding:var(--sp-5) var(--sp-7);
   background:rgba(245,247,251,.97); border-bottom:1px solid var(--line)}
-.planinit .tb-left .crumb{font-size:11.5px; color:var(--ink-4); font-family:var(--mono); letter-spacing:.4px; display:flex; gap:6px; align-items:center}
-.planinit .tb-left .crumb .sep{color:var(--line-2)}
-.planinit .tb-left .crumb .on{color:var(--brand); font-weight:600}
-.planinit .tb-left h1{font-size:20px; font-weight:700; margin-top:5px; color:var(--ink); line-height:1.2}
+.planinit .tb-left h1{font-size:20px; font-weight:700; margin:0; color:var(--ink); line-height:1.2}
 .planinit .tb-left .tb-sub{font-size:12.5px; color:var(--ink-3); font-weight:500; margin-top:4px}
 .planinit .tb-stats{display:flex; gap:18px; margin-top:11px}
 .planinit .tb-stat{font-size:11px; color:var(--ink-2)}
@@ -1042,7 +1045,19 @@
 .planinit .gap-met{display:flex; align-items:center; gap:10px; background:var(--ok-soft,rgba(27,157,107,.10)); border:1px solid var(--ok);
   border-radius:var(--r-m); padding:13px 18px; margin-bottom:18px; font-size:13px; color:var(--ink); box-shadow:var(--sh-1)}
 .planinit .gap-met .gm-ic{display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--ok); color:#fff; font-size:12px; font-weight:800; flex:0 0 auto}
+.planinit .gap-met .gm-text{flex:1; min-width:0; line-height:1.5}
 .planinit .gap-met b{font-family:var(--mono); font-weight:700}
+.planinit .gap-met .gm-actions{margin-left:auto; display:flex; align-items:center; gap:8px; flex:0 0 auto}
+.planinit .gap-met .gm-action{display:inline-flex; align-items:center; justify-content:center; gap:6px; min-height:32px; padding:7px 12px; border-radius:8px; border:1px solid var(--ok); background:var(--surface); color:var(--ok); font-size:12px; font-weight:700; font-family:var(--sans); cursor:pointer; white-space:nowrap}
+.planinit .gap-met .gm-action:hover{background:rgba(27,157,107,.14)}
+.planinit .gap-met .gm-action.primary{background:var(--ok); color:var(--on-brand)}
+.planinit .gap-met .gm-action.primary:hover{filter:brightness(.94)}
+/* 全不达标·醒目横幅（T-066②·复用 .gap-met 圆徽风格·改 danger 调）：所有方案超期时在方案区顶部诚实告知 + 给方向 */
+.planinit .plans-none-met{display:flex; align-items:center; gap:11px; background:var(--danger-soft); border:1px solid var(--danger-line);
+  border-radius:var(--r-m); padding:13px 18px; margin-bottom:16px; font-size:13px; color:var(--ink); box-shadow:var(--sh-1)}
+.planinit .plans-none-met .pnm-ic{display:grid; place-items:center; width:20px; height:20px; border-radius:50%; background:var(--danger); color:#fff; font-size:13px; font-weight:800; line-height:1; flex:0 0 auto}
+.planinit .plans-none-met .pnm-text{flex:1; min-width:0; line-height:1.55}
+.planinit .plans-none-met b{font-family:var(--mono); font-weight:700; color:var(--danger)}
 .planinit .kpis{display:grid; grid-template-columns:repeat(4,1fr); border-bottom:1px solid var(--line-2)}
 .planinit .kpi{padding:10px 8px; text-align:center; border-right:1px solid var(--line-2)}
 .planinit .kpi:last-child{border:0}
@@ -1195,6 +1210,11 @@
 .planinit .bwd-mk.sug .bwd-mlab{color:var(--on-brand); font-weight:700; display:inline-flex; align-items:center; gap:var(--sp-2); letter-spacing:.2px}
 .planinit .bwd-mk.sug .bwd-mdate{color:var(--on-brand); font-size:var(--fs-emph); font-weight:800; letter-spacing:.4px}
 .planinit .bwd-mk.sug .bwd-dot{width:11px; height:11px; background:var(--brand); border:2px solid var(--surface); box-shadow:0 0 0 2px var(--brand), 0 0 0 5px var(--brand-soft)}
+.planinit .bwd-mk.sug.pending .bwd-cap{background:var(--surface-3); border:1px dashed var(--ink-4); box-shadow:0 0 0 3px var(--surface); position:relative}
+.planinit .bwd-mk.sug.pending .bwd-mlab{color:var(--ink-2)}
+.planinit .bwd-mk.sug.pending .bwd-mdate{color:var(--ink-3); text-decoration:line-through; text-decoration-thickness:2px; text-decoration-color:var(--ink-4)}
+.planinit .bwd-mk.sug.pending .bwd-dot{background:var(--surface); border-color:var(--ink-4); box-shadow:0 0 0 2px var(--surface), 0 0 0 5px var(--line-2)}
+.planinit .bwd-pending-tag{position:absolute; right:-12px; top:-12px; padding:2px 6px; border-radius:6px; background:var(--warn-soft); border:1px solid var(--warn-line); color:var(--warn); font-size:10px; font-weight:800; line-height:1; white-space:nowrap; box-shadow:var(--sh-1)}
 /* ✦ AI 标：跟随父级颜色（药丸内为白、明细链内为靛蓝） */
 .planinit .bwd-ai{display:inline-flex; align-items:center; line-height:0}
 .planinit .bwd-ai svg{display:block}
@@ -1287,14 +1307,20 @@
 .planinit .ro-cat-num b{color:var(--ink); font-weight:800; font-size:var(--fs-head)}
 .planinit .ro-unit{font-style:normal; font-size:var(--fs-cap)}
 
-/* ===================== 意外事件入口（adjust 基线下方）· 效率打折 / 假期空置 · 用户决策 2026-06-01 ===================== */
+/* ===================== 意外事件入口（adjust 基线下方）· 效率打折 / 假期停工 / 周末停工 · 用户决策 2026-06-16 ===================== */
 .planinit .bwd-events{margin-top:var(--sp-5); background:var(--surface); border:1px solid var(--line); border-radius:var(--r-m); padding:var(--sp-5) var(--sp-7) var(--sp-6); box-shadow:var(--sh-1)}
 .planinit .be-head{display:flex; align-items:flex-start; justify-content:space-between; gap:var(--sp-6); flex-wrap:wrap; margin-bottom:var(--sp-5)}
 .planinit .be-titles{display:flex; flex-direction:column; gap:var(--sp-2); min-width:0}
 .planinit .be-title{display:inline-flex; align-items:center; gap:var(--sp-3); font-size:var(--fs-emph); font-weight:700; color:var(--ink)}
 .planinit .be-title svg{color:var(--warn); flex:0 0 auto}
 .planinit .be-sub{font-size:var(--fs-sm); color:var(--ink-3)}
-.planinit .be-add{display:inline-flex; gap:var(--sp-3); flex:0 0 auto; align-self:center}
+.planinit .be-add{display:inline-flex; align-items:center; gap:var(--sp-3); flex:0 0 auto; align-self:center; flex-wrap:wrap; justify-content:flex-end}
+.planinit .be-weekend-toggle{display:inline-flex; align-items:center; gap:var(--sp-2); padding:var(--sp-3) var(--sp-4); border:1px solid var(--brand-line); border-radius:8px; background:var(--brand-soft); color:var(--brand); font-size:var(--fs-body-s); font-weight:700; cursor:pointer; user-select:none}
+.planinit .be-weekend-toggle input{position:absolute; opacity:0; pointer-events:none}
+.planinit .be-switch{width:30px; height:16px; border-radius:999px; background:var(--surface); border:1px solid var(--brand-line); box-shadow:inset 0 1px 2px rgba(21,35,59,.12); position:relative; flex:0 0 30px; transition:background var(--dur-1), border-color var(--dur-1)}
+.planinit .be-switch i{position:absolute; width:12px; height:12px; border-radius:50%; left:2px; top:1px; background:var(--ink-4); transition:transform var(--dur-1), background var(--dur-1)}
+.planinit .be-weekend-toggle input:checked + .be-switch{background:var(--brand); border-color:var(--brand)}
+.planinit .be-weekend-toggle input:checked + .be-switch i{transform:translateX(14px); background:var(--on-brand)}
 .planinit .be-add-btn{display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-body-s); font-weight:600; font-family:var(--sans); padding:var(--sp-3) var(--sp-5); border-radius:8px; cursor:pointer; transition:all var(--dur-1)}
 .planinit .be-add-btn svg{flex:0 0 auto}
 .planinit .be-add-btn.eff{border:1px solid var(--danger-line); background:var(--danger-soft); color:var(--danger)}
@@ -1425,7 +1451,7 @@
 /* ===================== ④ 甘特排期详情 · 全屏覆盖层 ===================== */
 .planinit .gd-overlay{position:fixed; inset:0; z-index:300; background:rgba(15,23,42,.42); backdrop-filter:blur(2px);
   display:grid; place-items:center; padding:22px; animation:pi-rise .22s ease both}
-.planinit .gd-panel{width:min(1280px,97vw); height:min(840px,94vh); display:flex; flex-direction:column;
+.planinit .gd-panel{position:relative; width:min(1280px,97vw); height:min(840px,94vh); display:flex; flex-direction:column;
   background:var(--bg-2); border-radius:var(--r-l); box-shadow:var(--sh-3); overflow:hidden; animation:pi-rise .26s ease both}
 /* 甘特内联（非弹窗）：宽度撑满排期内容区；高度随内容自适应，甘特体一次铺开全部行 → 整页(stage-wrap)滚动看全 · 用户决策 2026-06-02 */
 .planinit .gd-panel.gd-inline{width:100%; height:auto; border-radius:var(--r-m); box-shadow:var(--sh-1); border:1px solid var(--line); overflow:visible; animation:pi-rise .2s ease both}
@@ -1461,12 +1487,12 @@
 /* 关键路径 KPI · 与工具栏勾选 / 时间轴显隐联动 */
 .planinit .gd-kpi.gd-kpi-crit-on{border-color:var(--danger-line); background:color-mix(in srgb, var(--danger) 6%, var(--surface-2))}
 .planinit .gd-kpi.gd-kpi-crit-on .gd-kpi-v{color:var(--danger)}
-.planinit .gd-toolbar{margin-left:auto; display:flex; align-items:center; gap:var(--sp-6); align-self:center}
-.planinit .gd-toolbar label{display:inline-flex; align-items:center; gap:var(--sp-3); font-size:var(--fs-body-s); color:var(--ink-2); cursor:pointer}
+.planinit .gd-toolbar{margin-left:auto; display:flex; align-items:center; justify-content:flex-end; gap:var(--sp-4); align-self:center; padding-left:var(--sp-5); border-left:1px solid var(--line-2); flex-wrap:wrap}
+.planinit .gd-toolbar label{display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-cap); color:var(--ink-2); cursor:pointer; white-space:nowrap}
 .planinit .gd-toolbar input{accent-color:var(--brand)}
-.planinit .gd-batch-filter{display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-body-s); color:var(--ink-2); cursor:pointer}
-.planinit .gd-batch-filter select{font-size:var(--fs-body-s); color:var(--ink); background:var(--surface-1); border:1px solid var(--line); border-radius:6px; padding:var(--sp-1) var(--sp-3); cursor:pointer}
-.planinit .gd-legend{display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-5); padding:var(--sp-3) var(--sp-5); margin:0; font-size:var(--fs-cap); color:var(--ink-3)}
+.planinit .gd-batch-filter{display:inline-flex; align-items:center; gap:var(--sp-2); font-size:var(--fs-cap); color:var(--ink-2); cursor:pointer}
+.planinit .gd-batch-filter select{font-size:var(--fs-cap); color:var(--ink); background:var(--surface-1); border:1px solid var(--line); border-radius:6px; padding:1px var(--sp-2); cursor:pointer}
+.planinit .gd-legend{display:flex; flex-wrap:wrap; align-items:center; gap:var(--sp-4); padding:var(--sp-3) var(--sp-5); margin:0; font-size:var(--fs-cap); color:var(--ink-3)}
 .planinit .gd-leg-i{display:inline-flex; align-items:center; gap:var(--sp-2)}
 .planinit .gd-leg-dia{width:9px; height:9px; background:#4a90e2; transform:rotate(45deg); border-radius:2px}
 .planinit .gd-leg-bar{width:26px; height:9px; border-radius:3px; background:linear-gradient(90deg,var(--gd-plan),var(--gd-dc),var(--gd-goods),var(--gd-install),var(--gd-power),var(--gd-accept))}
@@ -1545,8 +1571,9 @@
 .planinit .gd-lrow.sel{background:var(--brand-soft)}
 .planinit .gd-lrow.phase{grid-template-columns:1fr; background:var(--surface-2); cursor:pointer; height:34px; padding:0}
 .planinit .gd-lrow.phase:hover{background:var(--brand-soft)}
-.planinit .gd-phase-btn{width:100%; height:100%; display:flex; align-items:center; gap:var(--sp-2); padding:0 var(--sp-5); border:0; background:transparent; color:inherit; font:inherit; cursor:pointer; text-align:left}
+.planinit .gd-phase-btn{width:100%; height:100%; display:grid; grid-template-columns:1fr 40px 60px; align-items:center; gap:var(--sp-3); padding:0 var(--sp-5); border:0; background:transparent; color:inherit; font:inherit; cursor:pointer; text-align:left}
 .planinit .gd-phase-btn:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
+.planinit .gd-phase-name{display:flex; align-items:center; gap:var(--sp-2); min-width:0}
 .planinit .gd-phase-caret{width:12px; flex:0 0 12px; color:var(--ink-3); font-size:var(--fs-sm); line-height:1}
 .planinit .gd-lname{display:inline-flex; align-items:center; gap:var(--sp-3); min-width:0; font-weight:600; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .planinit .gd-lname.task{font-weight:500; color:var(--ink-2); padding-left:var(--sp-3)}
@@ -1557,6 +1584,8 @@
 .planinit .gd-crit-pill{font-style:normal; font-size:var(--fs-micro); font-weight:700; color:var(--danger); background:var(--danger-soft); border-radius:5px; padding:var(--sp-1) var(--sp-3); flex:0 0 auto}
 .planinit .gd-lbatch{font-family:var(--mono); font-size:var(--fs-cap); color:var(--ink-3); text-align:center}
 .planinit .gd-ldur{font-family:var(--mono); font-size:var(--fs-sm); color:var(--ink-2); text-align:right; font-weight:600; font-variant-numeric:tabular-nums}
+.planinit .gd-lbatch.phase{min-width:0}
+.planinit .gd-ldur.phase{color:var(--ink); font-size:var(--fs-cap)}
 .planinit .gd-ldur.mod{color:var(--warn)}
 .planinit .gd-ldur i{font-style:normal; font-size:var(--fs-micro); margin-left:var(--sp-1); color:var(--warn)}
 /* canvas */
@@ -1567,15 +1596,22 @@
 .planinit .gd-month{flex:0 0 auto; font-size:var(--fs-cap); color:var(--ink-2); font-weight:600; padding-left:var(--sp-3); border-right:1px solid var(--line-2); line-height:18px; white-space:nowrap; overflow:hidden}
 .planinit .gd-days{display:flex; height:18px}
 .planinit .gd-day{flex:0 0 auto; font-size:var(--fs-micro); color:var(--ink-4); text-align:center; line-height:18px; border-right:1px solid rgba(225,230,240,.5); font-family:var(--mono); font-variant-numeric:tabular-nums}
+.planinit .gd-day.week-alt{background:rgba(21,35,59,.035)}
 .planinit .gd-day.we{background:var(--surface-2)}
+.planinit .gd-day.week-alt.we{background:color-mix(in srgb, var(--surface-2) 70%, rgba(21,35,59,.05))}
 .planinit .gd-day.today{background:var(--brand-soft); color:var(--brand); font-weight:700}
-.planinit .gd-grid{position:relative}
+.planinit .gd-grid{position:relative; background-color:var(--surface); background-repeat:repeat}
 .planinit .gd-today{position:absolute; top:0; width:0; border-left:2px dashed var(--danger); z-index:4; pointer-events:none}
 .planinit .gd-deps{position:absolute; left:0; pointer-events:none; z-index:3; overflow:visible}
 .planinit .gd-dep{fill:none; stroke:var(--line-3); stroke-width:1.3}
 .planinit .gd-dep.crit{stroke:var(--danger); stroke-width:1.6}
 .planinit .gd-grow{position:absolute; left:0; right:0; height:34px}
-.planinit .gd-grow.phase{background:var(--surface-2); border-top:1px solid var(--line-2); border-bottom:1px solid var(--line-2)}
+.planinit .gd-grow.phase{background:color-mix(in srgb, var(--surface-2) 78%, transparent); border-top:1px solid var(--line-2); border-bottom:1px solid var(--line-2)}
+.planinit .gd-phase-summary{position:absolute; top:13px; height:8px; border-radius:2px; background:var(--gd-phase-color,var(--ink)); box-shadow:0 1px 0 rgba(21,35,59,.08); opacity:.88; z-index:2; pointer-events:none}
+.planinit .gd-phase-summary::before,
+.planinit .gd-phase-summary::after{content:""; position:absolute; top:100%; width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:4px solid var(--gd-phase-color,var(--ink))}
+.planinit .gd-phase-summary::before{left:0}
+.planinit .gd-phase-summary::after{right:0}
 .planinit .gd-bar{position:absolute; top:7px; height:20px; border-radius:5px; display:flex; align-items:center; overflow:visible; cursor:pointer;
   box-shadow:var(--sh-1); z-index:2; transition:box-shadow var(--dur-1)}
 .planinit .gd-bar:hover{box-shadow:var(--sh-2); filter:brightness(1.04)}
@@ -1597,6 +1633,12 @@
 .planinit .gd-dur.mod{border-color:var(--warn-line); background:var(--warn-soft); color:var(--warn)}
 .planinit .gd-dur.dragging{border-color:var(--brand); background:var(--brand-soft); color:var(--brand); font-weight:700}
 .planinit .gd-dur input{width:38px; border:0; outline:0; background:transparent; font-family:var(--mono); font-size:var(--fs-sm); color:var(--ink); font-weight:700; font-variant-numeric:tabular-nums}
+.planinit .gd-popover{position:absolute; z-index:80; width:236px; padding:var(--sp-5) var(--sp-6); border:1px solid var(--line); border-radius:var(--r-s); background:var(--surface); box-shadow:var(--sh-3); color:var(--ink); pointer-events:none}
+.planinit .gd-popover::before{content:""; position:absolute; top:-6px; left:18px; width:10px; height:10px; transform:rotate(45deg); background:var(--surface); border-left:1px solid var(--line); border-top:1px solid var(--line)}
+.planinit .gd-pop-title{font-size:var(--fs-body-s); font-weight:700; line-height:1.45; color:var(--ink); margin-bottom:var(--sp-4); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.planinit .gd-pop-row{display:flex; align-items:center; justify-content:space-between; gap:var(--sp-5); padding:var(--sp-2) 0; font-size:var(--fs-sm); line-height:1.35}
+.planinit .gd-pop-row span{color:var(--ink-3)}
+.planinit .gd-pop-row b{font-family:var(--mono); font-size:var(--fs-sm); font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums}
 
 /* ===== 「计划调整」自适应卡 · 置顶于 Claw 线程上方（移植自源 C chrome.tsx 的 .claw-todo/.ct-*；旧别名已换 B 的 --c-* token，scope 到 .planinit）· 用户决策 2026-05-31 ===== */
 .planinit .claw-todo {
@@ -1632,6 +1674,13 @@
 .planinit .claw-todo.open .ct-head .ct-caret { transform: rotate(180deg); }
 .planinit .claw-todo .ct-body { padding: 0 10px 9px; }
 .planinit .claw-todo .ct-hint { font-size: 10.5px; color: var(--c-text-muted); margin: 0 0 7px; line-height: 1.5; }
+.planinit .claw-todo .ct-empty {
+  padding: 8px 10px; margin-top: 2px;
+  font-size: 11px; line-height: 1.45; color: var(--c-text-2);
+  background: color-mix(in srgb, var(--c-surface) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-brand) 16%, transparent);
+  border-radius: 8px;
+}
 .planinit .claw-todo .ct-item {
   display: flex; align-items: center; gap: 9px;
   padding: 7px 9px; margin-top: 6px; cursor: pointer;
