@@ -17,6 +17,20 @@ type Props = Omit<SduiFilePickerNode, 'type' | 'id' | 'flex'>;
 
 type UploadStatus = 'idle' | 'uploading' | 'success' | 'error';
 
+/** 展示用：只显示文件名，不展示 ProjectData/... 等路径前缀。 */
+function displayHelpText(helpText: string): string {
+  return helpText
+    .split('\n')
+    .map((line) => {
+      const m = line.match(/^([·•]\s*)(.*)$/);
+      const prefix = m?.[1] ?? '';
+      const path = (m?.[2] ?? line).trim();
+      const name = path.replace(/^.*[/\\]/, '');
+      return prefix + name;
+    })
+    .join('\n');
+}
+
 export function SduiFilePicker({
   purpose,
   label,
@@ -131,7 +145,7 @@ export function SduiFilePicker({
           borderRadius: 'var(--radius-md)',
           border: '1px solid var(--border)',
         }}>
-          {helpText}
+          {displayHelpText(helpText)}
         </div>
       )}
 

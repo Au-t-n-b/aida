@@ -6,12 +6,12 @@
 """
 from __future__ import annotations
 
-import json
 import os
 from typing import Optional
 
 import openpyxl
 
+from .llm_json import extract_json_from_llm_response
 from .logger import log_error, log_info, log_warn
 from .types import AssessmentResult, AssessmentValue, LLMCallable, SurveyResultRow
 
@@ -210,16 +210,10 @@ def _find_col(headers: list[str], name: str) -> Optional[int]:
 
 def _parse_response(response: str) -> AssessmentResult:
     """解析 LLM 返回的 JSON 为 AssessmentResult。"""
-    text = response.strip()
-    # 去除可能的 markdown 代码块
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        raise AssessmentError("SS-AE-E-002", f"LLM 返回无法解析为 JSON: {text[:200]}")
+        data = extract_json_from_llm_response(response)
+    except ValueError as e:
+        raise AssessmentError("SS-AE-E-002", str(e)) from e
 
     conclusion_str = data.get("conclusion", "")
     if conclusion_str not in VALID_CONCLUSIONS:

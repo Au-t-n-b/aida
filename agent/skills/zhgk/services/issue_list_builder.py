@@ -6,11 +6,11 @@
 """
 from __future__ import annotations
 
-import json
 import os
 
 import openpyxl
 
+from .llm_json import extract_json_from_llm_response
 from .logger import log_error, log_info, log_warn
 from .types import IssueGenResult, IssueStatus, LLMCallable
 
@@ -243,16 +243,10 @@ def _generate_issue(item: dict, llm_call: LLMCallable) -> IssueGenResult:
     )
 
     response = llm_call(ISSUE_SYSTEM_PROMPT, user_prompt)
-    text = response.strip()
-
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
-
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        raise IssueListError("SS-IL-E-002", f"LLM 返回无法解析: {text[:200]}")
+        data = extract_json_from_llm_response(response)
+    except ValueError as e:
+        raise IssueListError("SS-IL-E-002", str(e)) from e
 
     return IssueGenResult(
         problem_description=data.get("problem_description", ""),

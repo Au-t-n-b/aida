@@ -2,7 +2,33 @@ from pathlib import Path
 
 from openpyxl import Workbook
 
+from agent.skills.zhgk.services.assessment_engine import _parse_response
 from agent.skills.zhgk.steps.assess import _build_assessment_detail_groups
+
+
+def test_parse_response_plain_json():
+    result = _parse_response('{"conclusion": "满足", "defect": ""}')
+    assert result.conclusion.value == "满足"
+    assert result.defect_description == ""
+
+
+def test_parse_response_strips_redacted_thinking_block():
+    response = (
+        '<think>让我分析这个任务：\n'
+        "检查内容：楼内运输走廊最窄宽度不低于1.5m\n"
+        "检查结果：沿途最窄处1.62m，满足运输要求。\n"
+        '结论：满足要求</think>\n\n'
+        '{"conclusion":"满足","defect":""}'
+    )
+    result = _parse_response(response)
+    assert result.conclusion.value == "满足"
+
+
+def test_parse_response_strips_markdown_fence():
+    response = '```json\n{"conclusion": "不满足", "defect": "温度超标"}\n```'
+    result = _parse_response(response)
+    assert result.conclusion.value == "不满足"
+    assert result.defect_description == "温度超标"
 
 
 def test_build_assessment_detail_groups_reads_survey_rows(tmp_path: Path):
