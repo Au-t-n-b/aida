@@ -19,6 +19,7 @@
 // 构建失败邮件（Email Extension Plugin · emailext）：
 //   - 使用 Jenkins 全局/项目默认模板（$DEFAULT_SUBJECT / $DEFAULT_CONTENT）
 //   - 收件人：$DEFAULT_RECIPIENTS + 提交者/开发者/触发人等干系人
+//   - 附件：完整 console log（attachLog + compressLog 压缩为 zip）
 //   - 需在 Jenkins「Extended E-mail Notification」配置 SMTP
 // ============================================================
 
@@ -212,6 +213,7 @@ EOS
                 ],
                 attachLog: true,
                 compressLog: true,
+                logLines: -1,
             )
         }
         always {
