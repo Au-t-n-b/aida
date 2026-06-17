@@ -51,6 +51,7 @@ import {
 } from '@/lib/proposal-api';
 import { navDebug } from '@/lib/nav-debug';
 import { workspaceNavigate } from '@/lib/workspace-nav-link';
+import { requestTwinAutoBuild } from '@/lib/twin-phase';
 import { useCurrentProject } from '@/lib/current-project';
 import { resolveTopBarProjectDisplayName } from '@/data/topbar-projects';
 
@@ -270,9 +271,14 @@ export default function ProposalScreen() {
         const fresh = await fetchDraft(projectId, headers);
         const freshEtag = fresh.manifest?.etag;
         if (freshEtag) setEtag(freshEtag);
-        return attempt(freshEtag);
+        try {
+          return await attempt(freshEtag);
+        } catch {
+          // pass through to force-save fallback below
+        }
       }
-      throw err;
+      // 异常兜底：直接释放锁（不带 If-Match）执行一次强制保存。
+      return attempt(undefined);
     }
   }, [draftChapters, etag, headers, manualChangeLog, projectId]);
 
@@ -580,13 +586,16 @@ export default function ProposalScreen() {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
       setDirty(false);
-      workspaceNavigate(navigate, '/twin/digital', location.pathname);
     } catch (err) {
       const msg =
         err instanceof ProposalApiError ? err.message : err instanceof Error ? err.message : '发布失败';
       fireDocToast(msg);
     } finally {
       setActionBusy(false);
+      // 发布成功或被门禁拦截，都跳转到算力底座孪生页：置位一次性请求 → 进入即清除/init 态，
+      // 并自动跑「构建算力底座孪生」（分窗 + 创建机房/数字孪生动画）。?view=build 保持 URL 稳定不重挂载。
+      requestTwinAutoBuild();
+      workspaceNavigate(navigate, '/twin?view=build', location.pathname);
     }
   }, [fireDocToast, headers, isEditable, location.pathname, manualChangeLog, navigate, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
 

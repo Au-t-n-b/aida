@@ -610,26 +610,25 @@ function ZhgkGoldenMetricsView({
         </svg>
       </div>
       <div style={{
-        flex: '1 1 420px',
+        flex: '1 1 0',
         minWidth: 0,
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 240px))',
-        justifyContent: 'start',
+        gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
         gap: '12px',
       }}>
         {items.map((item, i) => {
           const accent = item.color ? (STAT_ACCENT[item.color] ?? '#94a3b8') : '#94a3b8';
           const value = String(item.value);
-          const isLong = value.length >= 6 || /[/·]/.test(value);
+          const isLong = value.length >= 10 || /[/·]/.test(value);
           return (
             <div key={i} style={{
               position: 'relative',
-              minHeight: 116,
+              minHeight: 96,
               background: 'var(--c-surface)',
               border: '1px solid var(--c-border)',
               borderRadius: 'var(--r-md)',
               boxShadow: 'var(--shadow-xs)',
-              padding: '16px 18px 16px 22px',
+              padding: '14px 16px 14px 20px',
               overflow: 'hidden',
             }}>
               <div style={{ position: 'absolute', left: 0, top: 14, bottom: 14, width: 4, borderRadius: '0 999px 999px 0', background: accent }} />
@@ -643,14 +642,14 @@ function ZhgkGoldenMetricsView({
               </div>
               <div style={{
                 fontFamily: 'var(--font-sans)',
-                fontSize: isLong ? 24 : 28,
+                fontSize: isLong ? 18 : 22,
                 fontWeight: 640,
                 color: 'var(--c-text)',
-                marginTop: 14,
+                marginTop: 10,
                 letterSpacing: 0,
-                lineHeight: 1.18,
+                lineHeight: 1.2,
                 fontVariantNumeric: 'tabular-nums',
-                wordBreak: 'keep-all',
+                wordBreak: 'break-word',
                 overflowWrap: 'anywhere',
               }}>
                 {value}

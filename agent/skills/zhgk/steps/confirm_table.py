@@ -117,6 +117,7 @@ class ConfirmTableStep(BaseStep):
         package_path = None
         if survey_table:
             try:
+                from ..services.survey_context import resolve_survey_context
                 from ..services.survey_task_package import (
                     build_survey_task_package, collect_on_site_items,
                 )
@@ -127,13 +128,14 @@ class ConfirmTableStep(BaseStep):
                         info = json.loads(info_path.read_text(encoding="utf-8"))
                     except Exception:
                         info = {}
+                ctx_fields = resolve_survey_context(ctx.project, info)
                 on_site = collect_on_site_items(survey_table)
                 package_path = build_survey_task_package(
                     survey_table,
                     str(ctx.output_dir),
-                    project_name=info.get("项目名称", ""),
-                    room_name=info.get("机房名称", ""),
-                    activity_id=info.get("工勘活动ID", "") or info.get("activity_id", ""),
+                    project_name=ctx_fields["project_name"],
+                    room_name=ctx_fields["room_name"],
+                    activity_id=ctx_fields["activity_id"],
                     on_site_items=on_site,
                 )
                 emit(f"[confirm_table] ✓ 勘测任务包已生成：{os.path.basename(package_path)}"

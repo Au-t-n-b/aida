@@ -11,7 +11,8 @@
  */
 export type HitlOptimistic =
   | { kind: 'choice'; selected: string }
-  | { kind: 'file'; names: string[] };
+  | { kind: 'file'; names: string[] }
+  | { kind: 'file_uploading'; names: string[] };
 
 interface Entry { value: HitlOptimistic; ts: number }
 

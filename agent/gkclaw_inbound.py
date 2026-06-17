@@ -159,15 +159,18 @@ def should_chain_after_wait_survey(
     """GKCLAW 回传后自动推进到下一个非人工等待节点，直到遇到 HITL。"""
     if (state.get("hitl") or {}).get("step") or state.get("error"):
         return None
+    retry_set = set(step_retry_keys or [])
+    # 复勘上传合并后必须重跑 assess；current_step 可能仍指向下游（assess 已有 completed 记录）
+    if prev_step == "wait_survey" and "assess" in retry_set:
+        return "assess"
     nxt = str(state.get("current_step") or "")
     expected = {
         "task_dispatch": "wait_survey",
-        "wait_survey": "assess",
         "assess": "issue_list",
         "issue_list": "resurvey_gate",
         "resurvey_gate": "report_gen_run",
         "report_gen_run": "report_distribute",
     }.get(prev_step)
-    if nxt == expected and expected in step_retry_keys:
+    if nxt == expected and expected in retry_set:
         return expected
     return None

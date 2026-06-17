@@ -63,6 +63,12 @@ def _write_project_info(runtime_dir, project: dict, generation_cooling: str) -> 
     info_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _survey_preview_metrics(gen_cooling: str | None = None) -> dict:
+    """底表条目 KPI：无代际制冷时返回 base_table_count，有则返回过滤预览。"""
+    from ..services.survey_item_stats import compute_survey_item_stats
+    return compute_survey_item_stats(gen_cooling or None)
+
+
 class DetermineGenStep(BaseStep):
     key = "determine_gen"
     name = "代际制冷识别"
@@ -128,7 +134,8 @@ class DetermineGenStep(BaseStep):
                                 "reason": f"BOQ 解析失败（{e.message}），请手动指定代际-制冷",
                                 "need_files": [],
                                 "need_inputs": [_HITL_INPUT],
-                            }
+                            },
+                            "metrics": _survey_preview_metrics(),
                         }
                     elif e.code == "SS-BP-E-002":
                         emit(f"[determine_gen] BOQ 未找到设备型号: {e.message}")
@@ -138,7 +145,8 @@ class DetermineGenStep(BaseStep):
                                 "reason": "BOQ 文件中未找到可识别的设备型号，请手动指定代际-制冷",
                                 "need_files": [],
                                 "need_inputs": [_HITL_INPUT],
-                            }
+                            },
+                            "metrics": _survey_preview_metrics(),
                         }
                     else:
                         raise
@@ -152,7 +160,8 @@ class DetermineGenStep(BaseStep):
                     "reason": "未上传 BOQ 文件，请手动指定代际-制冷",
                     "need_files": [],
                     "need_inputs": [_HITL_INPUT],
-                }
+                },
+                "metrics": _survey_preview_metrics(),
             }
 
         # ── 5. 写 project_info.json ────────────────────────────────────────
@@ -160,9 +169,17 @@ class DetermineGenStep(BaseStep):
         emit(f"[determine_gen] ✓ 代际制冷: {gen_cooling}（来源: {source}）")
         emit(f"[determine_gen] project_info.json 已写入 RunTime/")
 
+        preview = _survey_preview_metrics(gen_cooling)
+        if preview.get("filtered_count") is not None:
+            emit(
+                f"[determine_gen] 底表预览: {preview.get('base_table_count', '?')} 条 → "
+                f"过滤后 {preview['filtered_count']} 条（{gen_cooling}）"
+            )
+
         return {
             "metrics": {
                 "generation_cooling": gen_cooling,
                 "gen_cooling_source": source,
+                **preview,
             }
         }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * SkillAgentScreen · 通用作业界面（SDUI 驱动）— 双模式
  * ─────────────────────────────────────────────────────────
  * 后端 project(SkillState) → SduiDocument → SduiNodeView 渲染。
@@ -29,12 +29,14 @@ import {
   resetWorkspace,
   isIdleLikeSduiDoc,
   isRunUnavailableDoc,
+  mergeSduiDoc,
   fetchUiSnapshot,
   fetchRunStatus,
   runStepOutcome,
   AGENT_BASE,
   type StartReq,
 } from '@/hooks/useSduiStream';
+import { ZhgkRoomPicker, type ZhgkRoomCatalogItem } from '@/components/zhgk/ZhgkRoomPicker';
 import { clearRunLog } from '@/lib/runLogStore';
 import type { CommissionIntent } from '@/lib/commissionCommands';
 import {
@@ -61,6 +63,7 @@ import { setCommissionBusy, clearCommissionBusy, getCommissionBusy, useCommissio
 import { persistSkillRunId, readSkillRunId, clearPersistedSkillRun } from '@/lib/skillRunPersist';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
+import { resolveAgentStartProject, useCurrentProject } from '@/lib/current-project';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl, getSkillHitl } from '@/lib/skillHitlStore';
@@ -341,13 +344,7 @@ const SKILL_META: Record<string, {
       { key: 'assess',           name: 'AI 五值评估', sub: '满足·不满足·…' },
       { key: 'report_gen_run',   name: '报告与分发', sub: '报告·审批·邮件' },
     ],
-    files: [
-      { name: 'BOQ.xlsx',                   ext: 'xlsx' },
-      { name: '入场评估标准表.xlsx',         ext: 'xlsx', optional: true, hint: 'filter_build HITL 自行上传' },
-      { name: '工勘常见高风险库.xlsx',       ext: 'xlsx', optional: true, hint: 'filter_build HITL 自行上传' },
-      { name: '本地工勘报告.pdf',            ext: 'pdf',  hint: '演示资产，随项目 demo 数据' },
-      { name: '新版项目工勘报告模板.docx',   ext: 'docx', optional: true },
-    ],
+    files: [],
   },
   guihua: {
     icon: (
@@ -394,9 +391,12 @@ const SKILL_META: Record<string, {
   },
 };
 
-function IdleScreen({ skillId, title, description, onStart, onCommissionStart, loading }: {
+function IdleScreen({
+  skillId, title, description, onStart, onStartRoom, onCommissionStart, loading,
+}: {
   skillId: string; title: string; description: string;
   onStart: () => void;
+  onStartRoom?: (room: ZhgkRoomCatalogItem) => void;
   onCommissionStart?: () => void;
   loading: boolean;
 }) {
@@ -438,7 +438,10 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
         </div>
       )}
 
-      {/* ── 所需文件 ── */}
+      {skillId === 'zhgk' && onStartRoom ? (
+        <ZhgkRoomPicker loading={loading} onSelect={onStartRoom} />
+      ) : (
+        <>
       {files.length > 0 && (
         <div className="skill-idle-files">
           <div className="skill-idle-files-ic">📂</div>
@@ -465,6 +468,8 @@ function IdleScreen({ skillId, title, description, onStart, onCommissionStart, l
         <span className="skill-idle-btn-icon">▶</span>
         {loading ? '启动中…' : `启动${title}`}
       </button>
+        </>
+      )}
       {onCommissionStart && (
         <button
           type="button"
@@ -492,20 +497,33 @@ function walkSduiNodes(node: SduiNode, visit: (n: SduiNode) => void): void {
   if (Array.isArray(c)) c.forEach(child => walkSduiNodes(child, visit));
 }
 
-/** 从 HITL FilePicker.helpText 解析 need_files（与 build_hitl 格式对齐）。 */
-function extractNeedFilesFromHitlDoc(doc: SduiDocument | null): string[] {
-  if (!doc?.root) return [];
-  const card = findNodeById(doc.root, 'hitl-card');
-  if (!card) return [];
+/** 从 HITL 节点（hitl-card 或左栏提升的 node）解析 FilePicker need_files。 */
+function extractNeedFilesFromHitlNode(node: SduiNode | null | undefined): string[] {
+  if (!node) return [];
   let paths: string[] = [];
-  walkSduiNodes(card, (node) => {
-    if (node.type !== 'FilePicker' || !node.helpText) return;
-    paths = node.helpText
+  walkSduiNodes(node, (n) => {
+    if (n.type !== 'FilePicker' || !n.helpText) return;
+    paths = n.helpText
       .split('\n')
       .map(line => line.replace(/^[·•]\s*/, '').trim())
       .filter(Boolean);
   });
   return paths;
+}
+
+/** 从 HITL FilePicker.helpText 解析 need_files（与 build_hitl 格式对齐）。 */
+function extractNeedFilesFromHitlDoc(doc: SduiDocument | null): string[] {
+  if (!doc?.root) return [];
+  const card = findNodeById(doc.root, 'hitl-card');
+  return extractNeedFilesFromHitlNode(card);
+}
+
+/** 上传时解析 need_files：优先左栏 skillHitlStore（真实 HITL 卡），回落 displayDoc。 */
+function resolveNeedFilesForUpload(doc: SduiDocument | null): string[] {
+  const hitl = getSkillHitl();
+  const fromRail = extractNeedFilesFromHitlNode(hitl?.node);
+  if (fromRail.length) return fromRail;
+  return extractNeedFilesFromHitlDoc(doc);
 }
 
 /** 统计 SDUI 中 InputSlotList 已就绪槽位数（上传后对比 SSE 是否追上）。 */
@@ -757,6 +775,15 @@ function stripSideRoutedCards(root: SduiNode): SduiNode {
 function hasMachineRoom3d(root: SduiNode): boolean {
   const children = (root as { children?: SduiNode[] }).children;
   return Array.isArray(children) && children.some(c => (c as { id?: string }).id === 'machine-room-3d');
+}
+
+/** zhgk：机房切换由顶部 ZhgkRoomPicker 承担，剥离 SDUI 的 3D 总览与上下文条。 */
+function stripZhgkWorkbenchChrome(root: SduiNode): SduiNode {
+  const children = (root as { children?: SduiNode[] }).children;
+  if (!Array.isArray(children)) return root;
+  const hide = new Set(['machine-room-3d', 'room-contextbar']);
+  const next = children.filter(c => !hide.has((c as { id?: string }).id ?? ''));
+  return { ...root, children: next } as SduiNode;
 }
 
 /** 两态导航（总览 ↔ 作业）：按 viewMode 隐藏 root 顶层互斥块，根治滚动过载。
@@ -1012,6 +1039,7 @@ export default function SkillAgentScreen({
 }: SkillAgentScreenProps) {
   // ── 模式检测：仅当 Manager 分配了容器 endpoint 时走任务 API；本地登录无容器仍直连 Agent
   const { session } = useAidaSession();
+  const { project: currentProject } = useCurrentProject();
   const useClawMode = !!session?.containerEndpoint;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1054,6 +1082,7 @@ export default function SkillAgentScreen({
   const [executorError, setExecutorError] = useState<string | null>(null);
   // 两态导航（总览 ↔ 作业）：默认总览（3D 机房入口盘）；点意图入口 → 作业；返回总览 → /overview
   const [viewMode, setViewMode] = useState<'overview' | 'work'>('overview');
+  const [zhgkActiveRoom, setZhgkActiveRoom] = useState<string | null>(null);
   // system_design 交付台：SSE + 冻结窗口（进度/HITL 丝滑）；磁盘真值由后端 project() 投影前 sync
   const usesDeliveryWorkbench = DELIVERY_WORKBENCH_SKILLS.has(skillId);
   const [postUploadDoc, setPostUploadDoc] = useState<SduiDocument | null>(null);
@@ -1061,6 +1090,8 @@ export default function SkillAgentScreen({
   /** 非交付台 skill：定时拉 /ui 对齐 output/ 磁盘 */
   const [diskPollDoc, setDiskPollDoc] = useState<SduiDocument | null>(null);
   const diskPollGenRef = useRef(0);
+  /** 冻结时产物数基准：仅当磁盘产物较此增加时才用 diskPollDoc 覆盖（防 wait_survey 上传后误拆冻结）。 */
+  const diskPollBaselineRef = useRef(0);
 
   // ── 左右同步：聊天侧 ZhgkProgressCard 启动 run 后自动接入（本地模式）────────
   // store 里有匹配的 skillId + runId 且本地尚未启动 → 直接接入，跳过 IdleScreen
@@ -1128,6 +1159,7 @@ export default function SkillAgentScreen({
     diSubmitDocRef.current = null;
     progressFloorRef.current = 0;
     frozenProgressRef.current = 0;
+    diskPollBaselineRef.current = 0;
     setBootDoc(null);
     setLoadError(null);
   }, [runId, taskId]);
@@ -1157,12 +1189,25 @@ export default function SkillAgentScreen({
     const hadHitl = frozenDocSnap ? !!findNodeById(frozenDocSnap.root, 'hitl-card') : false;
     const hitlResolved = hadHitl && !hasHitl;
     const publishDone = usesDeliveryWorkbench && isMacroPublishDone(sduiDoc);
+    // 上传续跑后 HITL 已消解：立即拆冻结，避免右栏卡在「等待现场上传」。
+    // guihua（frozenTarget===0 无进度指标）排除：点「是，开始创建超节点」后 combo_create 执行期
+    // 实时 doc 暂无 hitl-card 会令 hitlResolved=true，若立即拆冻结左栏会闪「执行中 0%」空卡；
+    // 其解冻交由下方 frozenTarget===0 护栏（出现新交互卡 / workbench 推进）处理，以保持对话卡片。
+    if (hitlResolved && !hasHitl && skillId !== 'guihua') {
+      frozenSnapshotRef.current = null;
+      setFrozenDoc(null);
+      diskPollBaselineRef.current = 0;
+      setDiskPollDoc(null);
+    }
     // HITL 出现/消解即解冻：仅对有进度指标（zhgk / system_design）或交付台 skill 生效。
     // 不加 idle 守卫 —— system_design 的对话框流程依赖该即时解冻语义；
     // guihua（frozenTarget===0 且非交付台）不在此列，仍走下方「只前向推进才解冻」护栏。
+    // 交付台：HITL 出现/消解即解冻（对话框流程依赖）。
+    // 有进度指标（zhgk）：新 HITL 可解冻；HITL 消解须进度追上冻结水位，防 full_restart 首帧误拆。
     const hitlUnfreeze =
-      (frozenTarget > 0 || usesDeliveryWorkbench)
-      && (hasHitl || hitlResolved);
+      (usesDeliveryWorkbench && (hasHitl || hitlResolved))
+      || (frozenTarget > 0 && hasHitl && !hadHitl)
+      || (frozenTarget > 0 && hitlResolved && progress >= frozenTarget);
     // 有进度指标的 skill（zhgk / system_design）：进度追上冻结水位且已脱离 idle；
     // HITL 消解 / 失败 / 完成 / 发布蓝图步 done → 解冻（error 态 progress 常为 0）。
     if (
@@ -1219,20 +1264,46 @@ export default function SkillAgentScreen({
     : (() => {
         const live = liveSduiDoc;
         const frozen = frozenSnapshotRef.current ?? frozenDoc;
-        // HITL 交互中：右侧大盘读实时 SSE，避免冻结快照把进度环/VHS 卡在旧水位
-        if (live && frozen && hasLeftRailHitl(live)) return live;
         const layered = diSubmitOverride ?? deployLinearPollDoc ?? commissionPollDoc ?? postUploadDoc ?? diskPollDoc
           ?? frozen ?? live ?? bootDoc;
+        if (!layered) return null;
+
+        // guihua：HITL 期间保持左栏对话卡；resume 过渡期 live 常无 hitl-card，须继续读冻结快照
+        if (skillId === 'guihua') {
+          if (live && hasLeftRailHitl(live)) return live;
+          if (frozen && hasLeftRailHitl(frozen)) return frozen;
+          return layered;
+        }
+
+        // zhgk 等：HITL 交互中读实时 SSE，但须不低于冻结进度（防重放中间态闪回）
+        if (live && frozen && hasLeftRailHitl(live)) {
+          const liveProgress = extractProgressFromSdui(live).progress ?? 0;
+          if (liveProgress >= frozenProgressRef.current) return live;
+        }
+        const anchor = frozen ?? bootDoc;
+        const picked = layered;
         // 步骤 8 导入完成后须展示「命令调测 · 调度」；冻结层可能仍停在 HITL，优先带 panel 的快照
         if (skillId === 'software_deployment') {
           const hubDoc = [deployLinearPollDoc, commissionPollDoc, live, postUploadDoc, diskPollDoc, frozen, bootDoc]
             .find((d): d is SduiDocument => !!d && isToolkitHubReadyInDoc(d));
           if (hubDoc) return hubDoc;
         }
-        return layered;
+        return anchor && picked !== anchor ? mergeSduiDoc(anchor, picked) : picked;
       })();
   const displayDocRef = useRef<SduiDocument | null>(null);
   useEffect(() => { displayDocRef.current = displayDoc; }, [displayDoc]);
+
+  useEffect(() => {
+    if (skillId !== 'zhgk') return;
+    if (runId || taskId) setViewMode('work');
+  }, [skillId, runId, taskId]);
+
+  useEffect(() => {
+    if (skillId !== 'zhgk' || !displayDoc?.meta) return;
+    const rn = displayDoc.meta.room_name;
+    if (typeof rn === 'string' && rn.trim()) setZhgkActiveRoom(rn.trim());
+  }, [skillId, displayDoc]);
+
   useEffect(() => {
     if (!sduiDoc || postUploadEpochRef.current === 0) return;
     const post = postUploadDoc;
@@ -1261,12 +1332,17 @@ export default function SkillAgentScreen({
       const snap = await fetchUiSnapshot(skillId, rid);
       if (!snap || cancelled) return;
       const outs = countOutputArtifacts(snap);
-      if (outs > 0) {
-        frozenSnapshotRef.current = null;
-        setFrozenDoc(null);
+      if (outs <= 0) return;
+      const frozen = frozenSnapshotRef.current ?? frozenDoc;
+      if (frozen) {
+        // 冻结窗口内：仅当磁盘产物较冻结基准增加时才更新 diskPollDoc，且不拆冻结层
+        if (outs <= diskPollBaselineRef.current) return;
         diskPollGenRef.current += 1;
-        setDiskPollDoc(snap);
+        setDiskPollDoc(mergeSduiDoc(frozen, snap));
+        return;
       }
+      diskPollGenRef.current += 1;
+      setDiskPollDoc(snap);
     };
     void tick();
     const timer = window.setInterval(() => { void tick(); }, 8000);
@@ -1277,6 +1353,7 @@ export default function SkillAgentScreen({
   }, [usesDeliveryWorkbench, useClawMode, skillId, activeRunId, storeRun]);
   useEffect(() => {
     diskPollGenRef.current = 0;
+    diskPollBaselineRef.current = 0;
     setDiskPollDoc(null);
     deployLinearPollGenRef.current += 1;
     setDeployLinearPollDoc(null);
@@ -1298,15 +1375,22 @@ export default function SkillAgentScreen({
   useEffect(() => {
     if (!displayDoc || !activeRunId) return;
     const patch = extractProgressFromSdui(displayDoc);
-    // 冻结层可能挡住较新进度；HITL 态以实时 SSE 为准取较大值
+    // 冻结层可能挡住较新进度；HITL 以实时 SSE 为准，且须在 HITL 消解后清掉左栏「待文件」
     if (sduiDoc && !usesDeliveryWorkbench) {
       const livePatch = extractProgressFromSdui(sduiDoc);
+      const liveHasHitl = !!findNodeById(sduiDoc.root, 'hitl-card');
       if ((livePatch.progress ?? 0) > (patch.progress ?? 0)) {
         patch.progress = livePatch.progress;
       }
-      if (livePatch.phase === 'hitl') {
+      if (liveHasHitl && livePatch.phase === 'hitl') {
         patch.phase = 'hitl';
         patch.hitlType = livePatch.hitlType ?? patch.hitlType;
+      } else if (!liveHasHitl && patch.phase === 'hitl' && skillId !== 'guihua') {
+        // guihua（frozenTarget===0）靠冻结快照在创建超节点等执行过渡期保持左栏 HITL 对话卡，
+        // 不能因实时 sduiDoc 暂无 hitl-card 就把 phase 抢成 running（否则左栏闪「执行中 0%」空卡）。
+        // 解冻由下方 frozenTarget===0 护栏（workbench 推进 / 出现新交互卡）负责。
+        patch.phase = livePatch.phase || 'running';
+        patch.hitlType = null;
       }
     }
     // 有实质内容但无进度指标（如 guihua 三页签工作台）：至少标记 running，防止停留在 starting
@@ -1379,7 +1463,14 @@ export default function SkillAgentScreen({
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
-    if (!req.intent) setViewMode('overview');
+    const startReq: StartReq = skillId === 'zhgk'
+      ? { ...resolveAgentStartProject(currentProject), ...req }
+      : req;
+    // zhgk：选择机房后直接进入作业台，不再停留在「机房总览」页
+    if (skillId === 'zhgk' && req.room_name) {
+      setViewMode('work');
+      setZhgkActiveRoom(req.room_name);
+    } else if (!req.intent) setViewMode('overview');
     setStarting(true);
     setError(null);
     try {
@@ -1388,11 +1479,11 @@ export default function SkillAgentScreen({
           accessToken: session.accessToken,
           sessionId: session.sessionId,
           kind: skillId,
-          params: { ...req },
+          params: { ...startReq },
         });
         setTaskId(resp.task_id);
       } else {
-        const id = await startRun(skillId, req);
+        const id = await startRun(skillId, startReq);
         setRunId(id);
         setSkillRun(skillId, id, 'ui');
         persistSkillRunId(skillId, id);
@@ -1404,7 +1495,20 @@ export default function SkillAgentScreen({
     } finally {
       setStarting(false);
     }
-  }, [skillId, useClawMode, session]);
+  }, [skillId, useClawMode, session, currentProject]);
+
+  const handleZhgkRoomSwitch = useCallback((room: ZhgkRoomCatalogItem) => {
+    if (room.room_name === zhgkActiveRoom) return;
+    clearPersistedSkillRun(skillId);
+    clearSkillRun(skillId);
+    setBootDoc(null);
+    setRunId(null);
+    setTaskId(null);
+    void handleStart({
+      room_name: room.room_name,
+      pod_names: room.pod_names,
+    });
+  }, [skillId, zhgkActiveRoom, handleStart]);
 
   // 建模仿真（guihua）：进入模块即自动开跑（adapt_build 仅载入适配表，秒级完成 →
   // 「BOQ 数据已解析完毕」），无需用户先点「启动」。仅本地模式、仅一次。
@@ -1465,6 +1569,7 @@ export default function SkillAgentScreen({
       const curProgress = extractProgressFromSdui(curDoc).progress ?? 0;
       frozenProgressRef.current = Math.max(curProgress, progressFloorRef.current);
       progressFloorRef.current = frozenProgressRef.current;
+      diskPollBaselineRef.current = countOutputArtifacts(curDoc);
       frozenSnapshotRef.current = curDoc;
       setFrozenDoc(curDoc);
       // 设备安装：提交后后端 full_restart 重放期间，过渡文档（剥离编辑表 + 当前步 running）顶上，
@@ -2018,7 +2123,7 @@ export default function SkillAgentScreen({
       } else if (text === '/work') {
         setViewMode('work');
       } else if (text === '/overview') {
-        setViewMode('overview');
+        if (skillId !== 'zhgk') setViewMode('overview');
       } else if (usesDeliveryWorkbench) {
         // system_design：根据当前态路由自由文本（启动 / 重试 / HITL 续跑 / full_restart 携带指令）
         const liveDoc = sduiDocRef.current ?? displayDocRef.current;
@@ -2060,7 +2165,7 @@ export default function SkillAgentScreen({
         }
       } else if (text === '/edit_executor') {
         openExecutorConfig();
-      } else {
+      } else if (skillId !== 'zhgk') {
         dispatchRailSend(text);
       }
     } else if (action.kind === 'open_preview') {
@@ -2123,7 +2228,7 @@ export default function SkillAgentScreen({
     // 非 system_design（zhgk/guihua/device_install/software_deployment）：通用上传 + 续跑
     if (!usesDeliveryWorkbench) {
       const rid = resolveSkillRunId(skillId, activeRunId, storeRun);
-      const needFiles = extractNeedFilesFromHitlDoc(displayDocRef.current ?? sduiDocRef.current);
+      const needFiles = resolveNeedFilesForUpload(displayDocRef.current ?? sduiDocRef.current);
       try {
         const result = await uploadBatch(skillId, arr, needFiles, [], rid);
         const failed = (result.uploaded ?? []).filter(u => u.ok === false);
@@ -2136,24 +2241,25 @@ export default function SkillAgentScreen({
           items?: Array<{ found?: boolean; label?: string; path?: string }>;
         } | undefined;
         if (check && check.ok === false) {
-          if (rid) {
-            frozenSnapshotRef.current = null;
-            setFrozenDoc(null);
-            const snap = await fetchUiSnapshot(skillId, rid);
-            if (snap) {
-              postUploadEpochRef.current = Date.now();
-              setPostUploadDoc(snap);
-            }
-          }
           const missing = (check.items ?? [])
             .filter(i => !i.found)
             .map(i => i.label || i.path)
             .filter(Boolean);
-          throw new Error(
-            missing.length
-              ? `还须上传：${missing.join('、')}（可一次选多个文件）`
-              : '前置文件尚未齐备，请继续上传',
-          );
+          const errMsg = missing.length
+            ? `还须上传：${missing.join('、')}（可一次选多个文件）`
+            : '前置文件尚未齐备，请继续上传';
+          if (rid) {
+            frozenSnapshotRef.current = null;
+            setFrozenDoc(null);
+            // 非阻塞刷新 UI；避免 Agent 繁忙时 await /ui 导致永久「上传中」
+            void fetchUiSnapshot(skillId, rid).then(snap => {
+              if (snap) {
+                postUploadEpochRef.current = Date.now();
+                setPostUploadDoc(snap);
+              }
+            });
+          }
+          throw new Error(errMsg);
         }
       } catch (e) {
         console.error('[SDUI] upload error:', e);
@@ -2476,6 +2582,12 @@ export default function SkillAgentScreen({
           title={title}
           description={description}
           onStart={() => { void handleStart(); }}
+          onStartRoom={skillId === 'zhgk' ? (room) => {
+            void handleStart({
+              room_name: room.room_name,
+              pod_names: room.pod_names,
+            });
+          } : undefined}
           onCommissionStart={skillId === 'software_deployment' ? () => { void handleStart({ entry_mode: 'commission' }); } : undefined}
           loading={starting}
         />
@@ -2492,23 +2604,34 @@ export default function SkillAgentScreen({
   }
 
   const leftRailHitl = displayDoc ? hasLeftRailHitl(displayDoc) : false;
+  const effectiveViewMode = skillId === 'zhgk' ? 'work' : viewMode;
   // 交付台 skill（system_design）不走 3D 两态；其它 skill 保留总览 ↔ 作业切换
-  const showOverviewBar = !usesDeliveryWorkbench && viewMode === 'overview' && !!displayDoc && hasMachineRoom3d(displayDoc.root);
-  const displayRoot = displayDoc
+  const showOverviewBar = skillId !== 'zhgk'
+    && !usesDeliveryWorkbench
+    && effectiveViewMode === 'overview'
+    && !!displayDoc
+    && hasMachineRoom3d(displayDoc.root);
+  let displayRoot = displayDoc
     ? (usesDeliveryWorkbench
         // 交付台：右栏面板剥离左栏会话与 HITL 卡（它们已提升到左侧 ClawRail）
         ? dropConversationFromPanel(dropHitlFromPanel(displayDoc.root))
         // guihua：HITL 路由左侧会话框，右侧剥离 hitl-card + completion-card 两张导引卡
         : skillId === 'guihua'
-          ? applyViewMode(stripSideRoutedCards(displayDoc.root), viewMode)
+          ? applyViewMode(stripSideRoutedCards(displayDoc.root), effectiveViewMode)
           // 其它 skill：HITL 路由到左栏 + 两态视图裁剪
           : applyViewMode(
               leftRailHitl
                 ? stripHitlCard(displayDoc.root)
                 : routeHitlToChat(displayDoc.root, routeHitlEdit === 'chat'),
-              viewMode,
+              effectiveViewMode,
             ))
     : null;
+
+  if (displayRoot && skillId === 'zhgk') {
+    displayRoot = stripZhgkWorkbenchChrome(displayRoot);
+  }
+
+  const displayRootFinal = displayRoot;
 
   return (
     <SduiRuntimeContext.Provider value={runtime}>
@@ -2568,8 +2691,36 @@ export default function SkillAgentScreen({
             </button>
           </div>
         )}
-        {displayRoot ? (
-          <SduiNodeView node={displayRoot} />
+        {displayRootFinal ? (
+          skillId === 'zhgk' ? (() => {
+            const rootAny: any = displayRootFinal as any;
+            const children: any[] | undefined = rootAny?.children;
+            const idx = Array.isArray(children)
+              ? children.findIndex(c => (c?.id ?? '') === 'task-timeline')
+              : -1;
+            if (idx >= 0 && Array.isArray(children)) {
+              const beforeNode = { ...rootAny, children: children.slice(0, idx + 1) };
+              const afterChildren = children.slice(idx + 1);
+              const afterNode = { ...rootAny, children: afterChildren };
+              return (
+                <>
+                  <SduiNodeView node={beforeNode} />
+                  <div style={{ marginBottom: 14 }}>
+                    <ZhgkRoomPicker
+                      layout="full"
+                      activeRoomName={zhgkActiveRoom}
+                      loading={starting}
+                      onSelect={handleZhgkRoomSwitch}
+                    />
+                  </div>
+                  {afterChildren.length ? <SduiNodeView node={afterNode} /> : null}
+                </>
+              );
+            }
+            return <SduiNodeView node={displayRootFinal} />;
+          })() : (
+            <SduiNodeView node={displayRootFinal} />
+          )
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {/* 骨架屏：正在连接 SSE / 等待第一个 sdui 事件 */}

@@ -224,10 +224,12 @@ class TaskDispatchStep(BaseStep):
             emit("[task_dispatch] 打包 GKCLAW 任务（现场勘测条目 + 底表背景知识）…")
         assignees = _load_assignees(ctx)
         _persist_assignees(ctx, assignees)
+        from ..services.survey_context import resolve_survey_context
+        dispatch_project = {**ctx.project, **resolve_survey_context(ctx.project, info)}
         result = dispatch_task(
             runtime_dir=ctx.runtime_dir,
             survey_table_path=survey_table,
-            project=ctx.project,
+            project=dispatch_project,
             assignees=assignees,
             generation_cooling=str(info.get("generation_cooling", "")
                                    or ctx.project.get("generation_cooling", "")),

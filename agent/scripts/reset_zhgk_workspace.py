@@ -186,7 +186,6 @@ def main() -> int:
 
         dest = seed_mock_report_to_workspace(
             project_data / "Input",
-            repo_root=_REPO_ROOT,
             project_id=args.project_id,
         )
         if dest:

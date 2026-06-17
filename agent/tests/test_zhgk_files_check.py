@@ -117,6 +117,8 @@ def test_infer_upload_kind_v4() -> None:
     assert infer_upload_kind("工勘常见高风险库.xlsx") == "template"
     assert infer_upload_kind("新版项目工勘报告模板.docx") == "template"
     assert infer_upload_kind("勘测结果.xlsx") == "input"
+    assert infer_upload_kind("复勘结果表.xlsx") == "survey_result"
+    assert infer_upload_kind("已填写_全量勘测结果表.xlsx") == "survey_result"
     assert infer_upload_kind("photo.jpg") == "image"
 
 
@@ -158,3 +160,26 @@ def test_check_need_files_filter_build_templates(tmp_path: Path) -> None:
     out = check_need_files(tmp_path, need)
     assert out["ok"] is True
     assert out["found_count"] == 2
+
+
+def test_check_need_files_resurvey_result_without_extension(tmp_path: Path) -> None:
+    """复勘 HITL 文案无 .xlsx，上传 复勘结果表.xlsx 后应判齐备。"""
+    need = ["ProjectData/Input/复勘结果表（需填写「最新检查结果」）"]
+    out = check_need_files(tmp_path, need)
+    assert out["ok"] is False
+
+    p = tmp_path / "ProjectData/Input/复勘结果表.xlsx"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_bytes(b"xlsx")
+    out = check_need_files(tmp_path, need)
+    assert out["ok"] is True
+    assert "复勘结果表.xlsx" in str(out["items"][0]["matched"])
+
+
+def test_save_upload_canonicalizes_survey_result_name(tmp_path: Path) -> None:
+    file = UploadFile(filename="复勘结果表.xlsx", file=BytesIO(b"xlsx"))
+    out = asyncio.run(save_upload(tmp_path, "survey_result", file))
+    assert out["filename"] == "已填写_全量勘测结果表.xlsx"
+    assert (tmp_path / "ProjectData/Input/已填写_全量勘测结果表.xlsx").is_file()
+    need = ["ProjectData/Input/复勘结果表（需填写「最新检查结果」）"]
+    assert check_need_files(tmp_path, need)["ok"] is True

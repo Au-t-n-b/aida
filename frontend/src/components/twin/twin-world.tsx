@@ -22,7 +22,7 @@ const TW_PHYSICAL_SRC = (function () {
     return new TextDecoder('utf-8').decode(bytes);
   } catch (e) { return null; }
 })();
-export function PhysicalTwinFrame({ compact, building  }: any) {
+function PhysicalTwinFrame({ compact, building  }: any) {
   const qs = compact ? (building ? '?compact=1&build=1' : '?compact=1&instant=1') : '';
   /* src 挂载时冻结：building→built 仅 props 变化不重载页面（动画播完自然停在成品态），key 变化重挂载才换 src */
   const [src] = useStateTW<any>(PHYS_TWIN_URL + qs);
@@ -355,7 +355,7 @@ function ProblemMark({ cx, cy, tone, cls  }: any) {
   );
 }
 
-export function PhysicalViz({ playing  }: any) {
+function PhysicalViz({ playing  }: any) {
   const [phase, setPhase] = useStateTW<any>(playing ? 'cad' : 'static');
   useEffectTW(() => {
     if (!playing) { setPhase('static'); return; }
@@ -785,7 +785,7 @@ function DigitalDetail({ view, error, onReload }: any) {
   );
 }
 
-function TwinWorld({ phase, onPhase  }: any) {
+function TwinWorld({ phase, onPhase, autoBuild  }: any) {
   const setPhase = onPhase;
   const [playing, setPlaying] = useStateTW<any>(false);
   const [isRefreshing, setIsRefreshing] = useStateTW<any>(false);
@@ -880,6 +880,16 @@ function TwinWorld({ phase, onPhase  }: any) {
   // “更新”: 采集最新数据 → 重新跑一遍左右两侧的构建过程；数字侧同步重新派生（reload），
   // building 期间 compact 脚本的完成判定读鲜值，新派生结果落地后即生效
   const handleRefresh = () => { setBuildSeq((s: number) => s + 1); setIsRefreshing(true); setPhase('building'); reload(); };
+
+  // 外部带 autoBuild（如「生成预案并决策」跳转）进入：在 init 态自动跑一次「构建算力底座孪生」
+  const autoBuiltRef = useRefTW<any>(false);
+  useEffectTW(() => {
+    if (!autoBuild || autoBuiltRef.current) return;
+    if (phase !== 'init' || introExiting) return;
+    autoBuiltRef.current = true;
+    const t = setTimeout(() => handleBuild(), 360);  // 等中央 emblem 渲染好再触发裂变动画
+    return () => clearTimeout(t);
+  }, [autoBuild, phase, introExiting]);
 
   const physIssueTotal = (physStats && physStats.issues && physStats.issues.total) || 14;
   const physBadge = playing ? '扫描中' : `${physIssueTotal} 项工勘问题`;
@@ -986,64 +996,3 @@ function TwinWorld({ phase, onPhase  }: any) {
 }
 
 export { TwinWorld };
-
-export function TwinPhysicalPanel() {
-  const [physFrameFailed, setPhysFrameFailed] = useStateTW<any>(false);
-  const [isPhysFs, setIsPhysFs] = useStateTW<any>(false);
-  const physDetailRef = useRefTW<any>(null);
-
-  useEffectTW(() => {
-    const onMsg = (e: any) => {
-      if (e.origin !== window.location.origin && !(window.location.protocol === 'file:' && e.origin === 'null')) return;
-      const d = e && e.data;
-      if (d && typeof d === 'object' && d.type === 'twin:stats') setPhysFrameFailed(false);
-    };
-    window.addEventListener('message', onMsg);
-    return () => window.removeEventListener('message', onMsg);
-  }, []);
-
-  useEffectTW(() => {
-    const t = setTimeout(() => setPhysFrameFailed(true), 8000);
-    return () => clearTimeout(t);
-  }, []);
-
-  useEffectTW(() => {
-    const onFs = () => setIsPhysFs(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', onFs);
-    return () => document.removeEventListener('fullscreenchange', onFs);
-  }, []);
-
-  const togglePhysFs = () => {
-    const el = physDetailRef.current;
-    if (!el) return;
-    if (document.fullscreenElement) document.exitFullscreen?.();
-    else el.requestFullscreen?.();
-  };
-
-  return (
-    <div className="tw-phys-detail" ref={physDetailRef} style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-      <div className="tw-phys-tabbar">
-        <div className="tw-phys-tabs" />
-        <button type="button" className="tw-phys-fs" onClick={togglePhysFs} title={isPhysFs ? '退出全屏' : '全屏显示'}>
-          <IcFullscreen exit={isPhysFs} />{isPhysFs ? '退出全屏' : '全屏'}
-        </button>
-      </div>
-      <div className="tw-phys-detail-body">
-        <div className="tw-phys-pane" style={{ display: 'flex' }}>
-          {physFrameFailed
-            ? <PhysicalViz playing={false} />
-            : <PhysicalTwinFrame key="phys-standalone" compact={false} building={false} />}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function TwinDigitalPanel() {
-  const { view, error, reload } = useContingencyOntology();
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <DigitalDetail view={view} error={error} onReload={reload} />
-    </div>
-  );
-}

@@ -56,7 +56,7 @@ ZHGK_ROOT={dest}
 | **缺底表（HITL 上传）** | 保持 `Template/` 为空 → 启动工勘 → `filter_build` HITL 自行上传两张底表 |
 | **缺 BOQ** | `--copy-template` 后，确保 `Input/` 里没有 `*BOQ*.xlsx` → HITL 提示补 BOQ |
 | **缺报告模板** | Template 有底表但缺 `新版项目工勘报告模板.docx` → report_gen 用内置模板降级 |
-| **演示工勘报告** | 随项目 demo 入库；init/reset 从 `data/projects/{project_id}/交付作业/智慧工勘/输入文件/` 复制到 `Input/` |
+| **演示工勘报告** | 随项目 demo 入库；init/reset 从 `{AIDA_BUSINESS_ROOT}/projects/{project_id}/交付作业/智慧工勘/输入文件/` 复制到 `Input/` |
 | **补齐后续跑** | 把文件放进对应目录，或 `POST /agent/zhgk/upload` → `/resume` |
 
 ## 目录说明（v4）
@@ -172,8 +172,12 @@ def main() -> int:
     print("  Template/入场评估标准表.xlsx")
     print("  Template/工勘常见高风险库.xlsx")
     print("  Template/新版项目工勘报告模板.docx（可选）")
+    from agent.config import BUSINESS_ROOT
+    from agent.skills.zhgk.demo_assets import mock_report_project_path
+
     print("演示工勘报告（随项目 demo 入库，init/reset 自动复制到 Input/）：")
-    print(f"  data/projects/{DEFAULT_DEMO_PROJECT_ID}/交付作业/智慧工勘/输入文件/本地工勘报告.pdf")
+    print(f"  {mock_report_project_path(DEFAULT_DEMO_PROJECT_ID)}")
+    print(f"  （AIDA_BUSINESS_ROOT={BUSINESS_ROOT}）")
     return 0
 
 

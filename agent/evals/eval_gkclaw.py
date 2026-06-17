@@ -1496,15 +1496,15 @@ def wait_survey_shows_gkclaw_state_and_accepts_mailed_result():
     from agent.skills.zhgk.steps.wait_survey import WaitSurveyStep
     from agent.skills.zhgk.services.gkclaw import ingest
     from agent.skills.zhgk.services.gkclaw.registry import TaskRegistry
-    # 下发（dry-run）后进入 wait_survey：note 应展示 GKCLAW 任务状态
+    # 下发（dry-run）后进入 wait_survey：展示 App 等待 Choice，GKCLAW 详情见独立状态卡
     ctx = _step_ctx(extra_project={"dispatch_decision": "dispatch", "assignees": _ASSIGNEES})
     TaskDispatchStep().run(ctx, {}, lambda m: None)
     ws = WaitSurveyStep()
     check = ws.check_inputs(ctx)
     assert not check["ok"]
     tid = _json.loads((ctx.runtime_dir / "project_info.json").read_text(encoding="utf-8"))["gkclaw_task_id"]
-    assert tid in check["note"] and "等待现场 App" in check["note"]
-    assert "暂未检测到回传结果" in check["note"]
+    assert check["need_inputs"][0]["label"] == "等待现场 App 勘测回传"
+    assert "GKCLAW 任务" not in check.get("note", "")
     assert check["need_inputs"][0]["repeatable"] is True
     # 模拟邮件 final 到达（直接走 ingest，等价于钩子拉取后的落盘效果）
     tp = TaskRegistry(ctx.runtime_dir).task_payload(tid)
@@ -1536,9 +1536,8 @@ def initial_app_dispatch_waits_current_task_even_if_table_has_old_results():
     check = WaitSurveyStep().check_inputs(ctx)
 
     assert not check["ok"]
-    assert tid in check["note"]
-    assert "等待现场 App" in check["note"]
-    assert "暂未检测到回传结果" in check["note"]
+    assert check["need_inputs"][0]["label"] == "等待现场 App 勘测回传"
+    assert "GKCLAW 任务" not in check.get("note", "")
     assert check["need_inputs"][0]["repeatable"] is True
 
 
@@ -1559,9 +1558,8 @@ def initial_app_waits_existing_accepted_task_even_after_resume_project_lost_choi
     check = WaitSurveyStep().check_inputs(ctx)
 
     assert not check["ok"]
-    assert tid in check["note"]
-    assert "等待现场 App" in check["note"]
-    assert "暂未检测到回传结果" in check["note"]
+    assert check["need_inputs"][0]["label"] == "等待现场 App 勘测回传"
+    assert "GKCLAW 任务" not in check.get("note", "")
     assert check["need_inputs"][0]["repeatable"] is True
 
 
@@ -1784,9 +1782,8 @@ def app_resurvey_ignores_stale_uploaded_table_and_waits_current_task():
     check = WaitSurveyStep().check_inputs(ctx)
 
     assert not check["ok"]
-    assert tid in check["note"]
-    assert "等待现场 App" in check["note"]
-    assert "暂未检测到回传结果" in check["note"]
+    assert check["need_inputs"][0]["label"] == "等待现场 App 勘测回传"
+    assert "GKCLAW 任务" not in check.get("note", "")
     assert check["need_inputs"][0]["repeatable"] is True
     assert "旧" in check["note"] or "历史" in check["note"] or "已忽略" in check["note"]
 

@@ -57,6 +57,25 @@ export function useCurrentProject(): CurrentProjectContextValue {
   return ctx;
 }
 
+import { DEFAULT_PROJECT_NAME } from '@/data/project-paths';
+import { PROJECT_LIST_MINI } from '@/data/topbar-projects';
+
+/** 启动 Agent run 时写入 project 的项目名 / 编码（与 TopBar 当前项目对齐）。 */
+export function resolveAgentStartProject(
+  project: CurrentProject | null,
+): { project_name: string; project_code: string } {
+  const fallback = PROJECT_LIST_MINI[0];
+  const name = (project?.name || fallback?.name || DEFAULT_PROJECT_NAME).trim();
+  const code = (
+    project?.projectCode
+    || project?.code
+    || project?.id
+    || fallback?.id
+    || 'K1903'
+  ).trim();
+  return { project_name: name, project_code: code };
+}
+
 /** 从编码字段推导业务短 id（如 PROP-2026-K1903 → K1903）。 */
 export function deriveProjectId(
   code?: string,

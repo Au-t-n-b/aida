@@ -55,18 +55,14 @@ def _build_survey_merge_metadata(
 
 
 def _build_app_wait_label(task_id: str) -> str:
-    tid = str(task_id or "").strip() or "未获取"
-    return (
-        "等待现场APP勘测回传\n"
-        f"task_id:{tid}\n"
-        "回传后自动更新进度，也可手动检测刷新"
-    )
+    _ = task_id  # 任务详情见 GKCLAW 状态卡，HITL 不重复展示 task_id
+    return "等待现场 App 勘测回传"
 
 
 def _build_app_wait_note(task_id: str, *parts: str) -> str:
-    tid = str(task_id or "").strip() or "未获取"
+    _ = task_id
     return _join_notes(
-        f"等待现场 App 回传：暂未检测到回传结果（task_id:{tid}）",
+        "等待现场 App 回传：暂未检测到回传结果",
         *parts,
     )
 
@@ -278,46 +274,38 @@ class WaitSurveyStep(BaseStep):
     name = "等待现场上传"
     artifacts_pattern = []
 
-    def _gkclaw_status_note(self, ctx: SkillContext) -> str:
-        """GKCLAW 链路钩子：有已下发任务时拉取邮件回传并返回状态行（异常不阻断流程）。
+    def _poll_gkclaw_inbound(self, ctx: SkillContext) -> None:
+        """GKCLAW 链路钩子：有已下发任务时拉取邮件回传（异常不阻断人工上传通道）。
 
-        dry-run 任务或 mailgw 未配置时只展示状态不拉取。拉取可由等待页手动刷新触发；
-        若 mailgw 开启 pop3.poll_interval + agent_notify，收到回传邮件后也会通知本接口检查。
+        dry-run 任务或 mailgw 未配置时只跳过拉取。状态展示见 SDUI「任务下发（GKCLAW）」卡，
+        不再拼进 HITL 黄字 reason。
         """
         try:
             info_path = ctx.runtime_dir / "project_info.json"
             if not info_path.exists():
-                return ""
+                return
             info = json.loads(info_path.read_text(encoding="utf-8"))
             tid = info.get(_gkclaw_task_info_key(ctx), "")
             if not tid:
-                return ""
+                return
             from ..services.gkclaw.registry import TaskRegistry
             reg = TaskRegistry(ctx.runtime_dir)
             task = reg.get(tid)
-            if task is None:
-                return ""
-            alerts: list[str] = []
-            if not task.get("dry_run"):
-                import agent.mailbox as mailbox
-                if mailbox.is_configured() and task["state"] in (
-                        "dispatched", "accepted", "staged_returned"):
-                    from ..services.gkclaw.ingest import poll_and_ingest
-                    summary = poll_and_ingest(
-                        runtime_dir=ctx.runtime_dir, input_dir=ctx.input_dir,
-                        survey_table_path=_get_survey_table(ctx))
-                    alerts = list(summary.get("alerts", []))
-                    task = reg.get(tid) or task
-            bits = [f"GKCLAW 任务 {tid} · 状态 {task['state']}"]
-            if task.get("dry_run"):
-                bits.append("dry-run 未真发")
-            if task.get("web_access_url"):
-                bits.append(f"现场 Web 入口 {task['web_access_url']}")
-            if task.get("merge_blocked"):
-                bits.append(f"⚠ 合并阻塞：{task.get('merge_blocked_reason', '')}")
-            return "；".join(bits) + ("；" + "；".join(alerts[-3:]) if alerts else "")
-        except Exception as e:  # noqa: BLE001 — 邮件链路异常绝不阻断人工上传通道
-            return f"[gkclaw] 拉取回传失败：{e}"
+            if task is None or task.get("dry_run"):
+                return
+            import agent.mailbox as mailbox
+            if not mailbox.is_configured():
+                return
+            if task["state"] not in ("dispatched", "accepted", "staged_returned"):
+                return
+            from ..services.gkclaw.ingest import poll_and_ingest
+            poll_and_ingest(
+                runtime_dir=ctx.runtime_dir,
+                input_dir=ctx.input_dir,
+                survey_table_path=_get_survey_table(ctx),
+            )
+        except Exception:  # noqa: BLE001 — 邮件链路异常绝不阻断人工上传通道
+            return
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -328,7 +316,7 @@ class WaitSurveyStep(BaseStep):
         if _is_any_app_mode(ctx):
             app_stale_note = _archive_stale_uploaded_table_for_app(ctx)
 
-        gk_note = self._gkclaw_status_note(ctx)
+        self._poll_gkclaw_inbound(ctx)
         survey_table = _get_survey_table(ctx)
 
         if resurvey_pending:
@@ -343,7 +331,7 @@ class WaitSurveyStep(BaseStep):
                         "ok": False,
                         "missing": [],
                         "need_inputs": [],
-                        "note": note + (f"\n{gk_note}" if gk_note else ""),
+                        "note": note,
                     }
                 current_tid = _current_gkclaw_task_id(ctx)
                 return {
@@ -361,7 +349,7 @@ class WaitSurveyStep(BaseStep):
                             },
                         ],
                     }],
-                    "note": _build_app_wait_note(current_tid, app_stale_note, gk_note),
+                    "note": _build_app_wait_note(current_tid, app_stale_note),
                     "hide_reason": True,
                 }
             uploaded = _find_uploaded_table(ctx)
@@ -372,7 +360,7 @@ class WaitSurveyStep(BaseStep):
                 return {
                     "ok": False,
                     "missing": ["ProjectData/Input/复勘结果表（需填写「最新检查结果」）"],
-                    "note": note + (f"\n{gk_note}" if gk_note else ""),
+                    "note": note,
                 }
             base_note = (
                 "请上传本轮复勘后的全量勘测结果表，并填写「最新检查结果」列。"
@@ -380,7 +368,7 @@ class WaitSurveyStep(BaseStep):
             return {
                 "ok": False,
                 "missing": ["ProjectData/Input/复勘结果表（需填写「最新检查结果」）"],
-                "note": base_note + (f"\n{gk_note}" if gk_note else ""),
+                "note": base_note,
             }
 
         # 首轮 App 下发：必须等待当前 task_id 的 mailgw 回传，不能复用主表历史结果。
@@ -394,7 +382,7 @@ class WaitSurveyStep(BaseStep):
                     "ok": False,
                     "missing": [],
                     "need_inputs": [],
-                    "note": note + (f"\n{gk_note}" if gk_note else ""),
+                    "note": note,
                 }
             current_tid = _current_gkclaw_task_id(ctx)
             return {
@@ -412,7 +400,7 @@ class WaitSurveyStep(BaseStep):
                         },
                     ],
                 }],
-                "note": _build_app_wait_note(current_tid, app_stale_note, gk_note),
+                "note": _build_app_wait_note(current_tid, app_stale_note),
                 "hide_reason": True,
             }
 
@@ -428,7 +416,7 @@ class WaitSurveyStep(BaseStep):
             return {
                 "ok": False,
                 "missing": ["ProjectData/Input/勘测结果表（需填写「最新检查结果」）"],
-                "note": note + (f"\n{gk_note}" if gk_note else ""),
+                "note": note,
             }
 
         base_note = (
@@ -438,7 +426,7 @@ class WaitSurveyStep(BaseStep):
         return {
             "ok": False,
             "missing": ["ProjectData/Input/勘测结果表（需填写「最新检查结果」）"],
-            "note": base_note + (f"\n{gk_note}" if gk_note else ""),
+            "note": base_note,
         }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
@@ -612,4 +600,6 @@ class WaitSurveyStep(BaseStep):
                 **merge_meta,
             },
             "project": project_diff,
+            # step_retry / 图路由：合并后强制进入 assess，避免复勘轮次停在旧五值统计
+            "route_to": "assess",
         }

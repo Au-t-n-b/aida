@@ -15,7 +15,7 @@
 | 项 | 路径 |
 |---|---|
 | 源 PDF（人工维护） | `D:\.cursor_workplace\aida\工勘报告.pdf` |
-| **项目演示资产（canonical）** | `data/projects/70e5ca737ae5433e9f0f3134d216acf7/交付作业/智慧工勘/输入文件/本地工勘报告.pdf` |
+| **项目演示资产（canonical）** | `{AIDA_BUSINESS_ROOT}/projects/70e5ca737ae5433e9f0f3134d216acf7/交付作业/智慧工勘/输入文件/本地工勘报告.pdf`（本地默认 `{仓库}/data/projects/...`） |
 | 追踪清单 | 同目录 `manifest.json` |
 | 运行时落点 | `{ZHGK_ROOT}/ProjectData/Input/本地工勘报告.pdf`（init/reset 从项目资产复制） |
 | 旧版兜底 | `agent/skills/zhgk/fixtures/本地工勘报告.pdf`（遗留，非 canonical） |

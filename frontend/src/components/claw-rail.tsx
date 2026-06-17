@@ -1101,6 +1101,14 @@ export default function ClawRail({
   }, [pathname]);
 
   const activeModuleSkillId = skillIdFromModulePath(pathname);
+  const isZhgkModule = activeModuleSkillId === 'zhgk';
+
+  // 智慧工勘：左侧仅保留技能进度卡 + HITL，不展示通用对话历史
+  useEffect(() => {
+    if (!isZhgkModule) return;
+    clearClawChatSession(pathname, projectScopeRef.current);
+    setChatMsgs([]);
+  }, [isZhgkModule, pathname, projectScope]);
 
   // 右侧模块页启动的 run：固定渲染在对话流底部（不注入消息流，避免路由切换后丢失）
   const uiSkillRun =
@@ -1355,6 +1363,7 @@ export default function ClawRail({
         skillConv.runtime.onAction({ kind: 'post_user_message', text });
         return;
       }
+      if (skillIdFromModulePath(pathname) === 'zhgk') return;
       void sendText(text);
     };
     window.addEventListener(RAIL_SEND_EVENT, onRailSend);
@@ -1456,7 +1465,7 @@ export default function ClawRail({
       <>
       {/* thread */}
       <div className="claw-thread" ref={threadRef}>
-        {allMsgs.map((m, i) => (
+        {!isZhgkModule && allMsgs.map((m, i) => (
           <div key={i} className={`cmsg ${m.role}`}>
             <div className="meta">
               {m.role === 'ai' ? 'AIDA · ' : chatMetaPrefix}{displayMsgTs(m.ts)}
@@ -1586,7 +1595,7 @@ export default function ClawRail({
       </div>
 
       {/* suggestion chips */}
-      {!hideSuggests && (
+      {!hideSuggests && !isZhgkModule && (
         <div className="claw-suggests">
           {suggestsForPath.map((s, i) => (
             <button key={i} className="sug-chip" onClick={() => setDraft(s)}>
@@ -1597,6 +1606,7 @@ export default function ClawRail({
       )}
 
       {/* input */}
+      {!isZhgkModule && (
       <div className="claw-input-wrap">
         <div className="claw-input">
           <textarea
@@ -1627,6 +1637,7 @@ export default function ClawRail({
           </div>
         </div>
       </div>
+      )}
       </>
       )}
     </aside>

@@ -17,6 +17,15 @@ from typing import Any
 from ..base import BaseSkill
 from ... import zhgk_files as _zhgk_files
 from .pipelines.resume import resolve_resume_route_to
+
+# full_restart 续跑到 assess 时须丢弃的下游 completed 记录（否则图/SDUI 沿用旧评估）
+_REASSESS_STALE_STEP_KEYS = frozenset({
+    "assess",
+    "issue_list",
+    "resurvey_gate",
+    "report_gen_run",
+    "report_distribute",
+})
 from .sdui import project as _sdui_project
 from .steps import (
     PreflightStep,
@@ -149,9 +158,16 @@ class ZhgkSkill(BaseSkill):
         """补 zhgk v4 演示默认值。"""
         p = dict(payload or {})
         p.setdefault("project_code", "K1903")
-        p.setdefault("project_name", "智算 Q3 · 客户甲一期")
-        p.setdefault("room_name", "A 机房")
+        p.setdefault("project_name", "京东三期")
         p.setdefault("activity_id", "ACT001")
+        room = str(p.get("room_name") or "").strip()
+        if room:
+            p["room_name"] = room
+        else:
+            p.setdefault("room_name", "A 机房")
+        pods = p.get("pod_names")
+        if isinstance(pods, list):
+            p["pod_names"] = [str(x).strip() for x in pods if str(x).strip()]
         # intent 留空：由 intent_select step HITL 填充
         return p
 
@@ -163,7 +179,8 @@ class ZhgkSkill(BaseSkill):
         支持的 HITL 门：
           intent_select   → project["intent"] = choice
           determine_gen   → project["generation_cooling"] = choice（用户手动指定时）
-          data_append     → project["data_append_choice"] = choice（追加/跳过）
+          data_append     → project["data_append_choice"] = choice；
+                            project["data_append_confirmed"] = True（阶段二确认或上传后）
           confirm_table   → project["table_confirmed"] = True / redo 仅清 table_confirmed
           task_dispatch   → project["dispatch_decision"] = choice（下发/跳过）；
                             表单 rows → project["assignees"]
@@ -194,8 +211,15 @@ class ZhgkSkill(BaseSkill):
         elif hitl_step == "determine_gen" and choice:
             project["generation_cooling"] = choice
 
-        elif hitl_step == "data_append" and choice:
-            project["data_append_choice"] = choice
+        elif hitl_step == "data_append":
+            if choice in ("confirm_base", "confirm_append"):
+                project["data_append_confirmed"] = True
+            elif payload.get("uploaded"):
+                # FilePicker 上传追加工勘项表后自动 resume
+                project["data_append_confirmed"] = True
+            elif choice:
+                # 阶段一：写入追加/跳过选择（append 时须再经阶段二确认）
+                project["data_append_choice"] = "append" if choice == "append_all" else choice
 
         elif hitl_step == "supplement_run" and choice:
             project["supplement_choice"] = choice
@@ -216,6 +240,7 @@ class ZhgkSkill(BaseSkill):
                 # 仅清确认标记，保留代际制冷（从 project_info.json 缓存恢复）
                 project.pop("table_confirmed", None)
                 project.pop("data_append_choice", None)  # 重建表需重新选择数据追加
+                project.pop("data_append_confirmed", None)
                 project.pop("dispatch_decision", None)   # 重建表后须重新决策是否下发
 
         elif hitl_step == "wait_survey":
@@ -251,7 +276,19 @@ class ZhgkSkill(BaseSkill):
             prev_state=prev,
         )
         if route:
-            return {"route_to": route}, project
+            extras: dict[str, Any] = {"route_to": route}
+            prev_steps = [
+                s for s in (prev.get("steps") or [])
+                if isinstance(s, dict) and s.get("status") == "completed"
+            ]
+            if route == "assess" and prev_steps:
+                prev_steps = [
+                    s for s in prev_steps
+                    if s.get("key") not in _REASSESS_STALE_STEP_KEYS
+                ]
+            if prev_steps:
+                extras["steps"] = prev_steps
+            return extras, project
 
         # 有 HITL 续跑上下文时禁止走兜底，避免 route_to 指回已完成/当前 HITL 步
         if hitl_step:

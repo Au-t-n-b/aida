@@ -58,6 +58,10 @@ BOQ_ITEM = {
     "hint": "放到 Input/，文件名须含 BOQ",
 }
 
+# wait_survey / 复勘 HITL 上传的规范落点名（与 wait_survey.UPLOADED_FILENAME 一致）
+SURVEY_RESULT_FILENAME = "已填写_全量勘测结果表.xlsx"
+SURVEY_RESULT_REL = f"ProjectData/Input/{SURVEY_RESULT_FILENAME}"
+
 
 def infer_upload_kind(filename: str) -> str:
     """根据文件名推断 upload kind（v4 映射）。"""
@@ -68,6 +72,10 @@ def infer_upload_kind(filename: str) -> str:
         return "gkclaw_assignees"
     if re.search(r"远近|人员信息|人员表|personnel", name, re.I):
         return "personnel"
+    if "追加工勘项表" in name or "追加勘测条目" in name:
+        return "extra_items"
+    if re.search(r"全量勘测结果表|复勘结果表|勘测结果表|已填写", name, re.I):
+        return "survey_result"
     if "入场评估标准" in name:
         return "template"
     if "工勘常见高风险库" in name or "风险库" in name:
@@ -89,6 +97,35 @@ def _normalize_need_pattern(path: str) -> str:
     return p.replace("\\", "/")
 
 
+def _match_input_survey_result(root: Path, rel: str) -> tuple[bool, str | None]:
+    """HITL 文案常无 .xlsx 后缀；匹配 Input 下勘测/复勘结果表。"""
+    norm = rel.replace("\\", "/")
+    if "/Input/" not in norm:
+        return False, None
+    stem = Path(_normalize_need_pattern(rel)).name
+    if not any(k in stem for k in ("勘测结果表", "复勘结果表")):
+        return False, None
+    input_dir = root / "ProjectData" / "Input"
+    if not input_dir.is_dir():
+        return False, None
+
+    candidates: list[Path] = []
+    for name in (SURVEY_RESULT_FILENAME, f"{stem}.xlsx"):
+        p = input_dir / name
+        if p.is_file():
+            candidates.append(p)
+    for pattern in (f"{stem}*.xlsx", "*全量勘测结果表*.xlsx", "*复勘结果表*.xlsx", "*勘测结果表*.xlsx"):
+        for p in sorted(input_dir.glob(pattern)):
+            if "boq" in p.name.lower():
+                continue
+            if p.is_file() and p not in candidates:
+                candidates.append(p)
+    if not candidates:
+        return False, None
+    best = candidates[0]
+    return True, str(best.relative_to(root))
+
+
 def _match_need_path(root: Path, pattern: str) -> tuple[bool, str | None]:
     rel = _normalize_need_pattern(pattern)
     if not rel:
@@ -101,6 +138,14 @@ def _match_need_path(root: Path, pattern: str) -> tuple[bool, str | None]:
     full = root / rel
     if full.is_file():
         return True, str(full.relative_to(root))
+    # HITL：ProjectData/Input/复勘结果表（无扩展名）→ 接受 *.xlsx
+    ok, matched = _match_input_survey_result(root, rel)
+    if ok:
+        return ok, matched
+    # 兼容 rel + .xlsx
+    with_xlsx = root / f"{rel}.xlsx"
+    if with_xlsx.is_file():
+        return True, str(with_xlsx.relative_to(root))
     return False, None
 
 
@@ -120,7 +165,10 @@ def check_need_files(root: Path, need_files: list[str]) -> dict[str, Any]:
         elif not ok and "/Template/" in rel:
             hint = "请上传到 Template/（底表/模板文件）"
         elif not ok and "/Input/" in rel:
-            hint = "请上传到 Input/"
+            if any(k in label for k in ("勘测结果表", "复勘结果表")):
+                hint = f"上传 .xlsx 即可（将保存为 Input/{SURVEY_RESULT_FILENAME}）"
+            else:
+                hint = "请上传到 Input/"
         elif not ok and "assignees.json" in raw:
             hint = (
                 "请上传 assignees.json 到 RunTime/gkclaw/；"
@@ -224,12 +272,18 @@ async def save_upload(root: Path, kind: str, file: UploadFile) -> dict[str, Any]
     elif kind == "gkclaw_assignees":
         dest_dir = root / "ProjectData" / "RunTime" / "gkclaw"
         fname = GKCLAW_ASSIGNEES_FILENAME
+    elif kind == "extra_items":
+        dest_dir = root / "ProjectData" / "Input"
+        fname = "追加工勘项表.xlsx"
+    elif kind == "survey_result":
+        dest_dir = root / "ProjectData" / "Input"
+        fname = SURVEY_RESULT_FILENAME
     elif kind == "input":
         dest_dir = root / "ProjectData" / "Input"
         fname = file.filename or "uploaded.xlsx"
     else:
         raise ValueError(
-            f"unknown kind: {kind!r}（已知 kind: boq / template / image / personnel / gkclaw_assignees / input）"
+            f"unknown kind: {kind!r}（已知 kind: boq / template / image / personnel / gkclaw_assignees / extra_items / survey_result / input）"
         )
 
     dest_dir.mkdir(parents=True, exist_ok=True)

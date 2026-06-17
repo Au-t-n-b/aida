@@ -7,7 +7,7 @@ agent.sdui.projector_base；本文件只保留 zhgk 自有业务：KPI 指标、
 
 Metrics 键约定（由各 step 写入）：
   assess step      → assess_total · assess_满足/不满足/不涉及/未勘测/无法识别
-  determine_gen    → generation_cooling · gen_cooling_source
+  determine_gen    → generation_cooling · gen_cooling_source · base_table_count · filtered_count (preview)
   filter_build     → filtered_count · sub_scenes · preview_rows
   method_split     → customer_feedback_count · customer_feedback_emailed
   task_dispatch    → gkclaw_task_id · gkclaw_state · gkclaw_dry_run · gkclaw_items · gkclaw_web_url
@@ -19,6 +19,7 @@ Metrics 键约定（由各 step 写入）：
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from agent.sdui.builder import (
@@ -34,6 +35,8 @@ from agent.sdui.builder import (
     SduiRiskListNode, SduiRiskItem,
     SduiDataTableNode,
     SduiZhgkGoldenMetricsNode,
+    SduiFilePickerNode, SduiChoiceCardNode,
+    SduiHitlFormNode, SduiHitlFormField,
 
     SduiMachineRoom3DNode, SduiMachineRoom, SduiRoom3DItemStats, SduiRoom3DEntry,
     SduiPostUserMessage,
@@ -49,7 +52,8 @@ from agent.sdui.builder import (
 from agent.sdui.projector_base import (
     collect_metrics, overall_status,
     build_header, build_stepper, build_stepper_for_intent,
-    build_artifacts, build_summary_card, build_hitl,
+    build_artifacts, build_summary_card,
+    choice_options,
 )
 
 # ── 步骤元数据（顺序即展示顺序）──
@@ -139,15 +143,62 @@ def _meaningful_logs(state: dict[str, Any]) -> list[str]:
 # 隐藏文件前缀：Excel 锁文件(~$)、点文件、归档/暂存目录
 _SKIP_FILE_PREFIX = ("~$", ".")
 
+# 勘测结果表文件名标记（filter_build 建表草稿 vs 现场勘测后的作业产物）
+_SURVEY_TABLE_MARKER = "全量勘测结果表"
+
+
+def _step_completed(state: dict[str, Any], step_key: str) -> bool:
+    for s in state.get("steps") or []:
+        if s.get("key") == step_key and s.get("status") == "completed":
+            return True
+    return False
+
+
+def _is_survey_table_path(path: str) -> bool:
+    return _SURVEY_TABLE_MARKER in Path(path).name
+
+
+def _survey_table_is_work_result(state: dict[str, Any]) -> bool:
+    """勘测结果表何时算「作业结果」而非建表草稿。
+
+    survey_work：wait_survey 完成前仅为待填草稿，不进作业结果。
+    report_gen / supplement：入口即基于已有结果表，允许展示。
+    """
+    if _step_completed(state, "wait_survey") or _step_completed(state, "assess"):
+        return True
+    intent = (state.get("project") or {}).get("intent", "")
+    return intent in ("report_gen", "supplement")
+
+
+def _project_input_filenames() -> frozenset[str]:
+    """项目自带演示资产（非用户上传），不进「已上传文件」。"""
+    from .demo_assets import MOCK_REPORT_FILENAME
+    return frozenset({MOCK_REPORT_FILENAME})
+
+
+def _filter_input_paths(paths: list[str]) -> list[str]:
+    skip = _project_input_filenames()
+    return [p for p in paths if Path(p).name not in skip]
+
+
+def _filter_output_paths(state: dict[str, Any], paths: list[str]) -> list[str]:
+    if _survey_table_is_work_result(state):
+        return paths
+    return [p for p in paths if not _is_survey_table_path(p)]
+
 
 def _scan_workspace_files(state: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """扫 ProjectData/Input 与 Output 顶层文件 → (已上传, 作业结果)。
+    """扫 ProjectData/Input 与 Output 顶层文件 → (用户上传, 作业结果)。
 
     ⚠️ 本函数**读磁盘**（projector_base 纯函数约定的唯一例外，刻意局限在此 skill 层）：
     工勘的文件真相在工作区目录，逐 step 登记 artifact 易漏（wait_survey 上传件、
     既有 Input 文件都不会进 metrics）。直接扫盘最全最稳。
     路径返回 work_root 相对形式（如 ProjectData/Output/xxx.xlsx），与既有 artifact
     路径及 /agent/zhgk/artifact?path= 端点一致，前端可直接预览。
+
+    分类规则：
+      - Input：排除项目演示资产（如本地工勘报告.pdf），其余视为用户上传。
+      - Output：filter_build 产出的勘测结果表在 wait_survey 完成前视为草稿，不进作业结果。
     """
     root = state.get("work_root") or ""
 
@@ -165,7 +216,9 @@ def _scan_workspace_files(state: dict[str, Any]) -> tuple[list[str], list[str]]:
                 out.append(f"{subdir}/{name}")
         return out
 
-    return _scan("ProjectData/Input"), _scan("ProjectData/Output")
+    raw_in = _scan("ProjectData/Input")
+    raw_out = _scan("ProjectData/Output")
+    return _filter_input_paths(raw_in), _filter_output_paths(state, raw_out)
 
 
 # ── zhgk 自有业务段 ──
@@ -193,18 +246,84 @@ def _build_idle_intro() -> SduiCardNode:
 
 
 
+# ── zhgk 自有业务段 ──
+
+def _with_work_root(state: dict[str, Any]) -> dict[str, Any]:
+    """SDUI 投影读盘需要 work_root；RUNS state 通常不含该字段，此处补齐。"""
+    if state.get("work_root"):
+        return state
+    from .bridge import get_zhgk_root
+    return {**state, "work_root": str(get_zhgk_root())}
+
+
+def _step_metrics(state: dict[str, Any], step_key: str) -> dict[str, Any]:
+    for step in state.get("steps") or []:
+        if step.get("key") == step_key:
+            m = step.get("metrics")
+            return m if isinstance(m, dict) else {}
+    return {}
+
+
+def _resolve_survey_counts(state: dict[str, Any]) -> tuple[int | None, list[str] | None]:
+    """勘测条目 KPI：优先 step metrics，否则从 Template 底表实时统计。"""
+    m = collect_metrics(state)
+    fb = _step_metrics(state, "filter_build")
+    dg = _step_metrics(state, "determine_gen")
+    proj = state.get("project") or {}
+
+    count = (
+        m.get("filtered_count")
+        or fb.get("filtered_count")
+        or dg.get("filtered_count")
+        or m.get("confirmed_rows")
+    )
+    sub_scenes = m.get("sub_scenes") or fb.get("sub_scenes") or dg.get("sub_scenes")
+    if count:
+        scenes = sub_scenes if isinstance(sub_scenes, list) else None
+        return int(count), scenes
+
+    gen_cooling = str(
+        m.get("generation_cooling")
+        or proj.get("generation_cooling")
+        or dg.get("generation_cooling")
+        or ""
+    ).strip() or None
+
+    if not gen_cooling:
+        base_only = m.get("base_table_count") or dg.get("base_table_count")
+        if base_only:
+            return int(base_only), None
+
+    from .services.survey_item_stats import compute_survey_item_stats
+
+    stats = compute_survey_item_stats(gen_cooling)
+    if not stats:
+        return None, None
+
+    if gen_cooling and stats.get("filtered_count") is not None:
+        scenes = stats.get("sub_scenes")
+        return int(stats["filtered_count"]), scenes if isinstance(scenes, list) else None
+
+    base = stats.get("base_table_count")
+    if base:
+        return int(base), None
+    return None, None
+
+
+_INTENT_LABEL = {
+    "survey_work":    "全流程工勘",
+    "report_gen":     "报告生成",
+    "scene_suggest":  "场景建议",
+    "supplement":     "补充勘测",
+}
+
+
 def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
     """黄金指标 KPI：意图 · 代际制冷 · 条目数 · 评估满足率 · 风险命中 · 分发干系人。"""
     m = collect_metrics(state)
     items: list[SduiStatisticRowItem] = []
 
     # 意图（intent_select 完成后出现）
-    _INTENT_LABEL = {
-        "survey_work":    "全流程工勘",
-        "report_gen":     "报告生成",
-        "scene_suggest":  "场景建议",
-        "supplement":     "补充勘测",
-    }
     intent = m.get("intent") or (state.get("project") or {}).get("intent", "")
     if intent:
         items.append(SduiStatisticRowItem(
@@ -221,14 +340,15 @@ def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
             title="代际制冷", value=gen_cooling, color="subtle"
         ))
 
-    # 底表过滤条目数（filter_build 完成后出现）
-    if m.get("filtered_count"):
+    # 底表 / 过滤条目数（determine_gen 起可读底表；filter_build 后写 filtered_count）
+    item_count, item_scenes = _resolve_survey_counts(state)
+    if item_count:
         items.append(SduiStatisticRowItem(
-            title="勘测条目", value=f"{m['filtered_count']} 条", color="subtle"
+            title="勘测条目", value=f"{item_count} 条", color="subtle"
         ))
 
-    # 细分场景（filter_build 完成后出现）
-    sub_scenes = m.get("sub_scenes")
+    # 细分场景（代际制冷选定后 / filter_build 完成后出现）
+    sub_scenes = item_scenes or m.get("sub_scenes")
     if sub_scenes:
         items.append(SduiStatisticRowItem(
             title="勘测场景", value=" / ".join(sub_scenes), color="subtle"
@@ -282,6 +402,39 @@ def _kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
             title="分发干系人", value=f"{m['recipients']} 人", color="subtle"))
 
     return items
+
+
+_KPI_PLACEHOLDER = "—"
+
+
+def _fixed_kpi_items(state: dict[str, Any]) -> list[SduiStatisticRowItem]:
+    """黄金指标固定四卡：意图 · 代际制冷 · 勘测条目 · 勘测场景（未产出时占位）。"""
+    m = collect_metrics(state)
+    proj = state.get("project") or {}
+    dg = _step_metrics(state, "determine_gen")
+    intent = str(m.get("intent") or proj.get("intent") or "").strip()
+    gen_cooling = str(
+        m.get("generation_cooling")
+        or proj.get("generation_cooling")
+        or dg.get("generation_cooling")
+        or ""
+    ).strip()
+    item_count, item_scenes = _resolve_survey_counts(state)
+
+    intent_val = _INTENT_LABEL.get(intent, intent) if intent else _KPI_PLACEHOLDER
+    gen_val = gen_cooling or _KPI_PLACEHOLDER
+    count_val = f"{item_count} 条" if item_count else _KPI_PLACEHOLDER
+    if isinstance(item_scenes, list) and item_scenes:
+        scene_val = " / ".join(str(s) for s in item_scenes)
+    else:
+        scene_val = _KPI_PLACEHOLDER
+
+    return [
+        SduiStatisticRowItem(title="意图", value=intent_val, color="accent" if intent else "subtle"),
+        SduiStatisticRowItem(title="代际制冷", value=gen_val, color="subtle" if gen_cooling else "subtle"),
+        SduiStatisticRowItem(title="勘测条目", value=count_val, color="subtle" if item_count else "subtle"),
+        SduiStatisticRowItem(title="勘测场景", value=scene_val, color="subtle" if scene_val != _KPI_PLACEHOLDER else "subtle"),
+    ]
 
 
 def _build_alerts(state: dict[str, Any]) -> SduiCardNode | None:
@@ -338,7 +491,12 @@ def _build_alerts(state: dict[str, Any]) -> SduiCardNode | None:
 
 
 def _build_summary(state: dict[str, Any]) -> SduiCardNode | None:
-    """阶段摘要 bits（随流程推进逐步丰富）；无 bits 时回退最新日志。"""
+    """阶段摘要 bits（随流程推进逐步丰富）；无 bits 时回退最新日志。
+
+    建表确认 HITL 期间不展示摘要/日志，避免挤占中间区的勘测条目预览。
+    """
+    if _is_table_phase_hitl(state):
+        return None
     m = collect_metrics(state)
     bits: list[str] = []
 
@@ -401,12 +559,7 @@ def _build_metrics_card(state: dict[str, Any]) -> SduiCardNode | None:
     if not steps:
         return None
 
-    kpi_items = _kpi_items(state)
-
-    if not kpi_items:
-        total = len(ZHGK_STEP_ORDER)
-        done  = sum(1 for s in steps if s.get("status") == "completed")
-        kpi_items = [SduiStatisticRowItem(title="已完成步骤", value=f"{done}/{total}")]
+    kpi_items = _fixed_kpi_items(state)
 
     done = sum(1 for s in steps if s.get("status") == "completed")
     pct = _effective_progress_pct(state, done)
@@ -573,21 +726,177 @@ def _build_phase_todo(state: dict[str, Any]) -> SduiCardNode | None:
 
 
 
-def _build_filter_preview(state: dict[str, Any]) -> SduiCardNode | None:
-    """勘测条目预览表（B 场景2 · filter_build 完成后出现）。
-    展示前 N 条勘测条目（细分场景 / 勘测要素 / 项目 / 勘测方法）。"""
+# 建表确认阶段 HITL：中间主区优先展示勘测条目表，不展示阶段摘要/日志回退
+_TABLE_PREVIEW_HITL_STEPS = frozenset({
+    "filter_build", "method_split", "data_append", "confirm_table",
+})
+
+
+def _hitl_step_key(state: dict[str, Any]) -> str:
+    return str((state.get("hitl") or {}).get("step") or "")
+
+
+def _is_table_phase_hitl(state: dict[str, Any]) -> bool:
+    return _hitl_step_key(state) in _TABLE_PREVIEW_HITL_STEPS
+
+
+def _resolve_survey_table_path(state: dict[str, Any]) -> str | None:
+    """定位全量勘测结果表（metrics 优先，project_info / Output glob 兜底）。"""
     m = collect_metrics(state)
-    rows = m.get("preview_rows") or []
-    if not rows:
+    cand = m.get("survey_table_path")
+    if cand:
+        p = str(cand)
+        if os.path.isfile(p):
+            return p
+        root = state.get("work_root") or ""
+        if root and not os.path.isabs(p):
+            p2 = os.path.join(root, p)
+            if os.path.isfile(p2):
+                return p2
+
+    root = state.get("work_root") or ""
+    if not root:
         return None
-    total = m.get("filtered_count", len(rows))
-    cols = ["细分场景", "勘测要素", "项目", "勘测方法"]
-    table_rows = [[str(r.get(c, "")) for c in cols] for r in rows]
-    suffix = f"（共 {total} 条，预览前 {len(rows)} 条）" if total > len(rows) else f"（共 {total} 条）"
-    return SduiCardNode(
-        id="filter-preview", title=f"勘测条目预览{suffix}",
-        children=[SduiDataTableNode(id="filter-preview-table", columns=cols, rows=table_rows)],
+
+    info_path = os.path.join(root, "ProjectData", "RunTime", "project_info.json")
+    if os.path.isfile(info_path):
+        try:
+            import json
+            raw = json.loads(Path(info_path).read_text(encoding="utf-8"))
+            path = str(raw.get("survey_table_path", "") or "").strip()
+            if path and os.path.isfile(path):
+                return path
+        except Exception:
+            pass
+
+    out_dir = os.path.join(root, "ProjectData", "Output")
+    if not os.path.isdir(out_dir):
+        return None
+    matches = sorted(
+        name for name in os.listdir(out_dir)
+        if "全量勘测结果表" in name
+        and name.endswith((".xlsx", ".xls"))
+        and not name.startswith(_SKIP_FILE_PREFIX)
     )
+    if not matches:
+        return None
+    return os.path.join(out_dir, matches[0])
+
+
+def _load_survey_item_preview(
+    state: dict[str, Any], *, limit: int = 200,
+) -> tuple[list[dict[str, Any]], int]:
+    """工勘项行（metrics / step 快照优先；建表后从 Output 表回读）。"""
+    m = collect_metrics(state)
+    fb = _step_metrics(state, "filter_build")
+    dg = _step_metrics(state, "determine_gen")
+    rows: list[dict[str, Any]] = list(
+        m.get("preview_rows") or fb.get("preview_rows") or dg.get("preview_rows") or []
+    )
+    total = int(
+        m.get("filtered_count")
+        or m.get("confirmed_rows")
+        or fb.get("filtered_count")
+        or dg.get("filtered_count")
+        or 0
+    )
+    if rows:
+        return rows[:limit], total or len(rows)
+
+    table_path = _resolve_survey_table_path(state)
+    if table_path:
+        try:
+            from .services.survey_table_builder import read_survey_table
+            all_rows = read_survey_table(table_path)
+        except Exception:
+            all_rows = []
+        if all_rows:
+            total = len(all_rows) or total
+            preview = [
+                {
+                    "序号": str(r.get("序号", i + 1) or i + 1),
+                    "细分场景": str(r.get("细分场景", "") or ""),
+                    "勘测要素": str(r.get("勘测要素", "") or ""),
+                    "项目": str(r.get("项目", "") or ""),
+                    "勘测方法": str(r.get("勘测方法", "") or ""),
+                }
+                for i, r in enumerate(all_rows[:limit])
+            ]
+            return preview, total
+
+    disk_total, _ = _resolve_survey_counts(state)
+    if not disk_total:
+        return [], total
+
+    proj = state.get("project") or {}
+    gen_cooling = str(
+        m.get("generation_cooling")
+        or proj.get("generation_cooling")
+        or dg.get("generation_cooling")
+        or ""
+    ).strip() or None
+    from .services.survey_item_stats import compute_survey_item_stats
+
+    stats = compute_survey_item_stats(gen_cooling)
+    preview_rows = list(stats.get("preview_rows") or [])
+    if preview_rows:
+        return preview_rows[:limit], disk_total
+    return [], disk_total
+
+
+def _build_survey_items_card(state: dict[str, Any]) -> SduiCardNode | None:
+    """工勘项主区：五值评估出现前始终占位；建表后展示当前清单（分页）。"""
+    m = collect_metrics(state)
+    if m.get("assess_total"):
+        return None
+
+    rows, total = _load_survey_item_preview(state)
+    cols = ["序号", "细分场景", "勘测要素", "项目", "勘测方法"]
+
+    if rows:
+        table_rows = [
+            [str(r.get("序号", i + 1) if c == "序号" else r.get(c, "")) for c in cols]
+            for i, r in enumerate(rows)
+        ]
+        title = f"工勘项（共 {total} 条）" if total else "工勘项"
+        return SduiCardNode(
+            id="filter-preview", title=title,
+            children=[SduiDataTableNode(
+                id="filter-preview-table",
+                columns=cols,
+                rows=table_rows,
+                pageSize=15,
+            )],
+        )
+
+    if total > 0:
+        return SduiCardNode(
+            id="filter-preview", title=f"工勘项（共 {total} 条）",
+            children=[SduiTextNode(
+                content="工勘项表已生成，正在读取明细…请稍后刷新。",
+                variant="body",
+            )],
+        )
+
+    intent = (state.get("project") or {}).get("intent", "")
+    filter_done = any(
+        s.get("key") == "filter_build" and s.get("status") == "completed"
+        for s in (state.get("steps") or [])
+    )
+    if intent == "survey_work" and not filter_done:
+        return SduiCardNode(
+            id="filter-preview", title="工勘项",
+            children=[SduiTextNode(
+                content="建表完成后将在此展示当前工勘项清单。",
+                variant="body",
+            )],
+        )
+    return None
+
+
+def _build_filter_preview(state: dict[str, Any]) -> SduiCardNode | None:
+    """兼容旧调用：工勘项主区。"""
+    return _build_survey_items_card(state)
 
 
 def _build_issue_table(state: dict[str, Any]) -> SduiCardNode | None:
@@ -630,6 +939,85 @@ def _build_resurvey_history(state: dict[str, Any]) -> SduiCardNode | None:
         id="resurvey-history", title=f"多轮复勘历史（共 {len(history)} 轮）",
         children=[SduiDataTableNode(id="resurvey-history-table", columns=cols, rows=table_rows)],
     )
+
+
+def build_zhgk_hitl(
+    state: dict[str, Any], *,
+    card_title: str = "需要补充",
+    default_choice_title: str = "请确认",
+) -> SduiCardNode | None:
+    """zhgk HITL 卡：不展示顶部黄字 reason（避免 GKCLAW 任务号等与操作说明混排）。
+
+    文件型说明在 FilePicker.helpText；确认/表单型说明在 ChoiceCard / HitlForm 标题与 options。
+    """
+    hitl = state.get("hitl") or {}
+    step_key = hitl.get("step")
+    if not step_key:
+        return None
+    need_files: list[str] = hitl.get("need_files") or []
+    need_inputs: list[dict] = hitl.get("need_inputs") or []
+    children: list[SduiNode] = []
+
+    if need_files:
+        children.append(SduiFilePickerNode(
+            id=f"hitl-file-{step_key}", purpose=f"hitl_{step_key}",
+            label=f"请上传缺少的文件（{len(need_files)} 项）",
+            helpText="· " + "\n· ".join(need_files),
+            accept="*/*", multiple=True, hitlRequestId=step_key, stepId=step_key,
+        ))
+    elif need_inputs:
+        inp = need_inputs[0]
+        if str(inp.get("type") or "").strip().lower() == "form":
+            fields = [
+                SduiHitlFormField(
+                    key=str(f.get("key") or ""),
+                    label=str(f.get("label") or ""),
+                    placeholder=f.get("placeholder"),
+                    required=f.get("required"),
+                    defaultValue=f.get("defaultValue"),
+                )
+                for f in (inp.get("fields") or [])
+                if isinstance(f, dict) and f.get("key")
+            ]
+            if fields:
+                children.append(SduiHitlFormNode(
+                    id=f"hitl-form-{step_key}",
+                    title=str(inp.get("label") or default_choice_title),
+                    fields=fields,
+                    payloadKey=inp.get("payloadKey"),
+                    repeatable=inp.get("repeatable"),
+                    submitLabel=inp.get("submitLabel"),
+                    helpText=inp.get("helpText"),
+                    hitlRequestId=step_key,
+                    stepId=step_key,
+                ))
+        else:
+            options = choice_options(inp.get("options"))
+            if options:
+                children.append(SduiChoiceCardNode(
+                    id=f"hitl-choice-{step_key}",
+                    title=inp.get("label", default_choice_title),
+                    options=options, hitlRequestId=step_key, stepId=step_key,
+                ))
+                upload_hint: str | None = inp.get("upload_hint")
+                upload_accept: str = inp.get("upload_accept", ".xlsx,.xls")
+                if upload_hint:
+                    children.append(SduiFilePickerNode(
+                        id=f"hitl-optional-file-{step_key}",
+                        purpose=f"hitl_{step_key}",
+                        label=upload_hint,
+                        helpText="上传后将用于追加；也可选择上方「从底表追加」跳过上传。",
+                        accept=upload_accept, multiple=False,
+                        hitlRequestId=step_key, stepId=step_key,
+                    ))
+
+    if not children:
+        return None
+
+    if state.get("error"):
+        children.append(SduiTextNode(content=f"错误：{state['error']}", variant="caption", color="error"))
+
+    return SduiCardNode(id="hitl-card", title=card_title, children=children)
 
 
 def _build_gkclaw_card(state: dict[str, Any]) -> SduiCardNode | None:
@@ -847,8 +1235,7 @@ def _build_status_banner(state: dict[str, Any]) -> SduiStatusBannerNode | None:
     step = hitl.get("step")
     if step:
         name = ZHGK_STEP_NAMES.get(step, step)
-        reason = (hitl.get("reason") or "").strip()
-        text = f"等待你的操作 · {name}" + (f" — {reason}" if reason else "")
+        text = f"等待你的操作 · {name}"
         return SduiStatusBannerNode(id="status-banner", items=[
             SduiStatusItem(status="pause", text=text),
         ])
@@ -857,7 +1244,10 @@ def _build_status_banner(state: dict[str, Any]) -> SduiStatusBannerNode | None:
 
 def _build_running_card(state: dict[str, Any]) -> SduiCardNode | None:
     """运行中实时反馈卡：填补「某步正在跑但中间区一片空白」的信息真空。
-    仅在有 step 处于 running（非 HITL）时出现：品牌横幅 + 最近 8 行日志尾巴。"""
+    仅在有 step 处于 running（非 HITL）时出现：品牌横幅 + 最近 8 行日志尾巴。
+    建表确认 HITL 期间不展示，中间区留给勘测条目预览。"""
+    if _is_table_phase_hitl(state):
+        return None
     steps = state.get("steps") or []
     running = next((s for s in steps if s.get("status") == "running"), None)
     if not running:
@@ -885,16 +1275,8 @@ _ZHGK_INTENT_ENTRIES: list[tuple[str, str, str, bool]] = [
     ("scene_suggest", "场景建议",          "sparkles", False),
 ]
 
-# 样例机房入口（忠实还原 app-shell.jsx · 勘测主线/通液电子流/液冷湿材质审核）。
-# 样例无真实 run 可路由，点击仅在左侧会话说明其为演示数据。
-_ZHGK_SAMPLE_ENTRIES: list[tuple[str, str, str, bool]] = [
-    ("main",  "勘测主线",            "cube",     True),
-    ("flow",  "通液电子流",          "sync",     False),
-    ("audit", "液冷湿材质 AI 辅助审核", "sparkles", False),
-]
-
 # 样例陪衬机房（决策：单真房 + 样例陪衬）。zhgk 当前仅勘测一个机房，这两张卡为视觉占位，
-# code 标「样例」、入口消息显式说明为演示数据；多机房并行勘测为后续规划。
+# code 标「样例」、无入口按钮；多机房并行勘测为后续规划。
 _ZHGK_SAMPLE_ROOMS: list[dict[str, Any]] = [
     {"id": "idc-b", "code": "NW-001 · 样例", "label": "B2 核心网络机房",
      "status": "active", "progress": 64, "rows": 3, "cols": 5, "racks": 15, "cdu": 0,
@@ -983,17 +1365,11 @@ def _room_statkey(r: dict[str, Any]) -> list[str]:
     return keys
 
 
-def _sample_entry_message(r: dict[str, Any]) -> str:
-    """样例机房入口点击 → 投递到左侧 Claw 会话的说明（无真实 run 可路由）。"""
-    return (f"「{r['label']}」为样例机房（演示数据），暂无真实作业数据。当前智慧工勘对单个真实"
-            f"机房做全流程勘测，多机房并行勘测为后续规划。")
-
-
 def _to_machine_room(r: dict[str, Any]) -> SduiMachineRoom:
     """机房数据 dict → SduiMachineRoom 节点。
 
     真实房：入口 = 四意图启动盘，action=/intent <value>（前端路由到 start/resume）。
-    样例房：入口 = 同事设计的三标签，action=说明性自然语言（投递左侧会话）。"""
+    样例房：仅视觉占位，无入口按钮（避免向左侧会话投递说明性气泡）。"""
     if r.get("real"):
         entries = [
             SduiRoom3DEntry(
@@ -1003,14 +1379,7 @@ def _to_machine_room(r: dict[str, Any]) -> SduiMachineRoom:
             for value, label, icon, primary in _ZHGK_INTENT_ENTRIES
         ]
     else:
-        msg = _sample_entry_message(r)
-        entries = [
-            SduiRoom3DEntry(
-                key=key, label=label, icon=icon, primary=primary,
-                action=SduiPostUserMessage(text=msg),
-            )
-            for key, label, icon, primary in _ZHGK_SAMPLE_ENTRIES
-        ]
+        entries = []
     # 机柜状态着色：真实房用五值分项；样例房用 itemStats（surveyed→done/pending→pending/unknown→active）
     st = r["itemStats"]
     buckets = r.get("_buckets") or {
@@ -1061,7 +1430,7 @@ def _build_machine_room_3d(state: dict[str, Any]) -> SduiMachineRoom3DNode | Non
     """3D 机房俯视总览：等距体素 + 机房卡片网格 + 多业务入口。
 
     决策「单真房 + 样例陪衬」：第一张卡 = 当前勘测机房（真实 state 派生，随流程实时变），
-    其余为样例占位。点击入口向左侧 Claw 会话投递接地的自然语言指令，由对话驱动下钻。"""
+    其余为样例占位（无入口，不向左侧会话写气泡）。"""
     m = collect_metrics(state)
     real = _build_real_room(state, m)
     rooms_src = [real, *_ZHGK_SAMPLE_ROOMS]
@@ -1098,6 +1467,7 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
 
     通栏放置 HITL 卡（root 的直接子节点，id=hitl-card），便于前端提取/路由。
     """
+    state = _with_work_root(state)
     status_key, _ = overall_status(state, ZHGK_STEP_ORDER, paused_badge="待补充")
     is_idle = status_key == "idle"
 
@@ -1111,7 +1481,11 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         nodes.append(_build_idle_intro())
         doc = SduiDocument(
             root=SduiStackNode(id="zhgk-root", gap="md", children=nodes),
-            meta={"skill": "zhgk", "run_id": state.get("run_id", "")},
+            meta={
+                "skill": "zhgk",
+                "run_id": state.get("run_id", ""),
+                "room_name": (state.get("project") or {}).get("room_name", ""),
+            },
         )
         return dump_sdui_json(doc)
 
@@ -1144,28 +1518,38 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         nodes.append(status_banner)
 
     # HITL 置顶通栏：待确认第一时间呈现（id=hitl-card；前端 #4 据此路由到左侧会话）
-    hitl_card = build_hitl(state, card_title="需要补充", default_choice_title="请选择")
+    hitl_card = build_zhgk_hitl(state, card_title="需要补充", default_choice_title="请选择")
     if hitl_card:
         nodes.append(hitl_card)
 
-    # 文件双栏：扫工作区 Input/Output 真实落盘（含上传件、既有件、所有生成物）
+    # 文件双栏：扫工作区 Input/Output，按阶段与资产归属过滤后展示
     _scan_in, _scan_out = _scan_workspace_files(state)
 
     # 中间主区：按「评估结果 / 产出与摘要」分节（P3 分组眉题），告别平铺卡墙。
     #   运行中实时卡置顶 → 填补「正在跑但中间空白」的信息真空；KPI 已上提，不再在中列重复。
-    eval_group: list[SduiNode] = [
-        n for n in (
-            _build_filter_preview(state),
-            _build_assessment_panel(state),
-            _build_issue_table(state),
-
-            _build_issue_drawer(state),
-            _build_resurvey_history(state),
-            _build_gkclaw_card(state),
-            _build_alerts(state),
-            _build_approval_card(state),
-        ) if n
-    ]
+    m = collect_metrics(state)
+    has_assess = bool(m.get("assess_total"))
+    filter_preview = _build_survey_items_card(state)
+    if not has_assess:
+        # 在五值评估卡出现前：中间大块始终展示「工勘项」
+        eval_group: list[SduiNode] = [filter_preview] if filter_preview else [
+            SduiCardNode(
+                id="filter-preview", title="工勘项",
+                children=[SduiTextNode(content="暂无工勘项数据。", variant="body")],
+            ),
+        ]
+    else:
+        eval_group = [
+            n for n in (
+                _build_assessment_panel(state),
+                _build_issue_table(state),
+                _build_issue_drawer(state),
+                _build_resurvey_history(state),
+                _build_gkclaw_card(state),
+                _build_alerts(state),
+                _build_approval_card(state),
+            ) if n
+        ]
     output_group: list[SduiNode] = [
         n for n in (
             build_artifacts(state, input_paths=_scan_in, output_paths=_scan_out),
@@ -1177,7 +1561,8 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
     if running_card:
         center_children.append(running_card)
     if eval_group:
-        center_children.append(SduiDividerNode(id="grp-eval", label="评估结果"))
+        eval_label = "勘测条目" if not has_assess else "评估结果"
+        center_children.append(SduiDividerNode(id="grp-eval", label=eval_label))
         center_children.extend(eval_group)
     if output_group:
         center_children.append(SduiDividerNode(id="grp-output", label="产出与摘要"))
@@ -1220,6 +1605,10 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
 
     doc = SduiDocument(
         root=SduiStackNode(id="zhgk-root", gap="md", children=nodes),
-        meta={"skill": "zhgk", "run_id": state.get("run_id", "")},
+        meta={
+            "skill": "zhgk",
+            "run_id": state.get("run_id", ""),
+            "room_name": (state.get("project") or {}).get("room_name", ""),
+        },
     )
     return dump_sdui_json(doc)

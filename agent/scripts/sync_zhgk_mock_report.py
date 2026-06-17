@@ -2,7 +2,7 @@
 将源 PDF 加工为项目演示工勘报告，并可选同步到 ZHGK 工作区 Input/。
 
 真相源（随项目 push Gitea）：
-  data/projects/{project_id}/交付作业/智慧工勘/输入文件/本地工勘报告.pdf
+  {AIDA_BUSINESS_ROOT}/projects/{project_id}/交付作业/智慧工勘/输入文件/本地工勘报告.pdf
 
 用法（仓库根目录）：
   python agent/scripts/sync_zhgk_mock_report.py
@@ -23,6 +23,7 @@ DEFAULT_SRC = REPO_ROOT.parent / "工勘报告.pdf"
 DEFAULT_OLD_NAME = "字节跳动"
 
 sys.path.insert(0, str(REPO_ROOT))
+from agent.config import BUSINESS_ROOT  # noqa: E402
 from agent.skills.zhgk.demo_assets import (  # noqa: E402
     DEFAULT_DEMO_PROJECT_ID,
     MOCK_REPORT_FILENAME,
@@ -90,7 +91,7 @@ def _write_manifest(
         "role": "zhgk report_gen_run 演示工勘报告（随项目 demo 数据入库）",
         "scope": "project",
         "project_id": project_id,
-        "project_path": str(project_pdf.relative_to(REPO_ROOT)).replace("\\", "/"),
+        "project_path": str(project_pdf.relative_to(BUSINESS_ROOT)).replace("\\", "/"),
         "runtime_path": "ProjectData/Input/本地工勘报告.pdf",
         "source_pdf": str(src),
         "project_name": project_name,
@@ -103,7 +104,7 @@ def _write_manifest(
         "sync_script": "agent/scripts/sync_zhgk_mock_report.py",
         "note": "入场评估标准表、工勘常见高风险库为组织资产，不随项目打包，由 filter_build HITL 自行上传。",
     }
-    manifest = mock_report_manifest_path(REPO_ROOT, project_id)
+    manifest = mock_report_manifest_path(project_id)
     manifest.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
@@ -130,7 +131,7 @@ def main() -> int:
         print(f"[sync-mock-report] 源文件不存在: {src}")
         return 1
 
-    project_pdf = mock_report_project_path(REPO_ROOT, args.project_id)
+    project_pdf = mock_report_project_path(args.project_id)
     replaced = _replace_project_name(
         src,
         project_pdf,
@@ -144,7 +145,6 @@ def main() -> int:
     if args.dest_workspace:
         workspace_copy = seed_mock_report_to_workspace(
             _zhgk_input_dir(),
-            repo_root=REPO_ROOT,
             project_id=args.project_id,
         )
         if workspace_copy:
@@ -158,7 +158,7 @@ def main() -> int:
         replaced=replaced,
         workspace_copy=workspace_copy,
     )
-    print(f"[sync-mock-report] 追踪清单: {mock_report_manifest_path(REPO_ROOT, args.project_id)}")
+    print(f"[sync-mock-report] 追踪清单: {mock_report_manifest_path(args.project_id)}")
     return 0
 
 

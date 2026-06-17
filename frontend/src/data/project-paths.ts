@@ -1,8 +1,6 @@
 /**
  * IPO 与平台目录路径常量（SSOT：业务数据规范 §2、§5）
  * 业务代码禁止散落路径字符串，一律从此模块引用。
- *
- * 物理根路径（Linux）：见 `@/lib/project-business-path`（`/opt/aida/aida-data/business/projects/{id}/`）
  */
 
 export const IpoLayer = {
