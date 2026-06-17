@@ -17,7 +17,8 @@
 // Webhook 防抖：options.quietPeriod=1800（30 分钟）；手动 / 定时触发不受静默期影响
 //
 // 构建失败邮件（Email Extension Plugin · emailext）：
-//   - recipientProviders 自动解析 Git 提交作者 / 触发人邮箱
+//   - 使用 Jenkins 全局/项目默认模板（$DEFAULT_SUBJECT / $DEFAULT_CONTENT）
+//   - 收件人：$DEFAULT_RECIPIENTS + 提交者/开发者/触发人等干系人
 //   - 需在 Jenkins「Extended E-mail Notification」配置 SMTP
 // ============================================================
 
@@ -198,30 +199,20 @@ EOS
             """
         }
         failure {
-            script {
-                emailext(
-                    subject: "[AIDA 构建失败] ${env.JOB_NAME} #${env.BUILD_NUMBER} (${env.GIT_BRANCH ?: 'N/A'})",
-                    mimeType: 'text/html',
-                    body: """
-                        <h3>AIDA Jenkins 构建失败</h3>
-                        <ul>
-                            <li><b>任务</b>: ${env.JOB_NAME} #${env.BUILD_NUMBER}</li>
-                            <li><b>分支</b>: ${env.GIT_BRANCH ?: 'N/A'}</li>
-                            <li><b>提交</b>: ${env.GIT_COMMIT?.take(7) ?: 'N/A'}</li>
-                            <li><b>控制台</b>: <a href="${env.BUILD_URL}console">${env.BUILD_URL}console</a></li>
-                        </ul>
-                        <p>构建日志已附在邮件中，请尽快修复。</p>
-                    """.stripIndent().trim(),
-                    recipientProviders: [
-                        culprits(),
-                        developers(),
-                        requestor(),
-                        brokenBuildSuspects(),
-                    ],
-                    attachLog: true,
-                    compressLog: true,
-                )
-            }
+            emailext(
+                to: '$DEFAULT_RECIPIENTS',
+                subject: '$DEFAULT_SUBJECT',
+                body: '$DEFAULT_CONTENT',
+                mimeType: 'text/html',
+                recipientProviders: [
+                    [$class: 'CulpritsRecipientProvider'],
+                    [$class: 'DevelopersRecipientProvider'],
+                    [$class: 'RequesterRecipientProvider'],
+                    [$class: 'FirstFailingBuildSuspectsRecipientProvider'],
+                ],
+                attachLog: true,
+                compressLog: true,
+            )
         }
         always {
             sh 'docker image prune -f || true'
