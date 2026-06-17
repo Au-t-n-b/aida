@@ -21,8 +21,11 @@
 //   - 需在 Jenkins「Extended E-mail Notification」配置 SMTP
 // ============================================================
 
+@Library('sre-pipeline-lib') _
+
 pipeline {
-    agent { label 'persistent && docker' }
+    // 支持跨池构建：优先使用 cloud-231，若不可用则回退到 cloud 池
+    agent { label getFallbackNode('cloud-231', 'cloud') }
 
     environment {
         DOCKER_BUILDKIT      = '1'
