@@ -213,7 +213,6 @@ EOS
                 ],
                 attachLog: true,
                 compressLog: true,
-                logLines: -1,
             )
         }
         always {
