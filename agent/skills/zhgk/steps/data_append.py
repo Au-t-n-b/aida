@@ -16,10 +16,11 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_input_dir, get_output_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 # 追加工勘项表的固定存储路径（相对 work_root）
-EXTRA_ITEMS_REL = "ProjectData/Input/追加工勘项表.xlsx"
+EXTRA_ITEMS_REL = "输入文件/追加工勘项表.xlsx"
 
 _APPEND_OPTIONS = [
     {
@@ -57,7 +58,7 @@ _HITL_APPEND_CONFIRM = {
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -65,7 +66,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -73,7 +74,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
     gc = ctx.project.get("generation_cooling", "")
     if gc:
         return gc
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8")).get("generation_cooling", "")
@@ -84,7 +85,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
 
 def _already_appended(ctx: SkillContext) -> bool:
     """幂等标记：本 run 是否已追加过数据条目（防 full_restart 重放重复追加）。"""
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return bool(json.loads(info_path.read_text(encoding="utf-8")).get("data_append_done"))
@@ -94,14 +95,14 @@ def _already_appended(ctx: SkillContext) -> bool:
 
 
 def _mark_appended(ctx: SkillContext, count: int) -> None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     try:
         existing = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
     except Exception:
         existing = {}
     existing["data_append_done"] = True
     existing["data_append_count"] = count
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+    get_parse_dir().mkdir(parents=True, exist_ok=True)
     info_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -158,7 +159,7 @@ class DataAppendStep(BaseStep):
             emit("[data_append] ⚠ 全量勘测结果表不存在，跳过追加")
             return {"metrics": {"data_append_skipped": True, "data_append_count": 0}}
 
-        extra_xlsx = ctx.work_root / EXTRA_ITEMS_REL
+        extra_xlsx = get_input_dir() / "追加工勘项表.xlsx"
         if extra_xlsx.is_file():
             count, total_rows = _append_from_custom_xlsx(extra_xlsx, survey_table_path, emit)
             _mark_appended(ctx, count)

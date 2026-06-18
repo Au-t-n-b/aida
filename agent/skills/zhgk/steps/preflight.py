@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_input_dir, get_parse_dir
 
 
 class PreflightStep(BaseStep):
@@ -21,15 +22,15 @@ class PreflightStep(BaseStep):
     # ── v4 前置文件清单（支持 glob 模式，含 * 时用 glob 扫描）──────────────
     REQUIRED: dict[str, list[str]] = {
         "filter_build": [
-            "ProjectData/Template/入场评估标准表.xlsx",
-            "ProjectData/Template/工勘常见高风险库.xlsx",
+            "org-assets/入场评估标准表.xlsx",
+            "org-assets/工勘常见高风险库.xlsx",
         ],
         "report_gen_run": [
-            "ProjectData/Input/*工勘报告*.pdf",
+            "输入文件/*工勘报告*.pdf",
         ],
         "report_distribute": [
             # 实际文件名含 ACT001_ 前缀，使用 glob 模式匹配
-            "ProjectData/Output/*工勘报告*.*",
+            "输出结果/*工勘报告*.*",
         ],
     }
 
@@ -62,15 +63,16 @@ class PreflightStep(BaseStep):
             all_missing.extend(miss)
 
         # BOQ 特殊扫描
-        boq_files = list(ctx.input_dir.glob("*BOQ*.xlsx")) if ctx.input_dir.exists() else []
+        input_dir = get_input_dir()
+        boq_files = list(input_dir.glob("*BOQ*.xlsx")) if input_dir.exists() else []
         if boq_files:
             summary_lines.append(f"  ✓ BOQ: 检测到 {boq_files[0].name}")
         else:
-            summary_lines.append("  ⚠ BOQ: ProjectData/Input/*BOQ*.xlsx 未发现")
-            all_missing.append("ProjectData/Input/*BOQ*.xlsx")
+            summary_lines.append("  ⚠ BOQ: 输入文件/*BOQ*.xlsx 未发现")
+            all_missing.append("输入文件/*BOQ*.xlsx")
 
         # project_info.json 状态
-        info_path = ctx.runtime_dir / "project_info.json"
+        info_path = get_parse_dir() / "project_info.json"
         if info_path.exists():
             try:
                 info = json.loads(info_path.read_text(encoding="utf-8"))

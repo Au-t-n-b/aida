@@ -17,11 +17,12 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir, get_output_dir
 from ._intent_guard import should_skip
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -29,7 +30,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -44,7 +45,7 @@ class ResurveyGateStep(BaseStep):
 
         survey_table = _get_survey_table(ctx)
         if not survey_table:
-            return {"ok": False, "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"]}
+            return {"ok": False, "missing": ["输出结果/*全量勘测结果表*.xlsx"]}
 
         # 检查是否有需要复勘的条目
         from ..services.resurvey_manager import get_items_needing_resurvey

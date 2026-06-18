@@ -22,6 +22,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_input_dir, get_output_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 # 用户需要将填好的表格放到此路径
@@ -72,7 +73,7 @@ def _join_notes(*parts: str) -> str:
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -80,23 +81,23 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
 def _find_uploaded_table(ctx: SkillContext) -> str | None:
     """在 Input/ 查找用户上传的已填写表"""
-    if ctx.input_dir.exists():
+    if get_input_dir().exists():
         # 精确名匹配
-        exact = ctx.input_dir / UPLOADED_FILENAME
+        exact = get_input_dir() / UPLOADED_FILENAME
         if exact.exists():
             return str(exact)
         # 模糊匹配（含"全量勘测结果表"且不是 BOQ）
-        for p in sorted(ctx.input_dir.glob("*全量勘测结果表*.xlsx")):
+        for p in sorted(get_input_dir().glob("*全量勘测结果表*.xlsx")):
             if "boq" not in p.name.lower():
                 return str(p)
         # 用户不应被文件名约束：只要是 schema 正确的结果表即可
-        for p in sorted(ctx.input_dir.glob("*.xlsx")):
+        for p in sorted(get_input_dir().glob("*.xlsx")):
             if "boq" in p.name.lower():
                 continue
             if not _validate_uploaded(str(p)):
@@ -105,7 +106,7 @@ def _find_uploaded_table(ctx: SkillContext) -> str | None:
 
 
 def _read_project_info(ctx: SkillContext) -> dict:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8"))
@@ -115,14 +116,14 @@ def _read_project_info(ctx: SkillContext) -> dict:
 
 
 def _write_project_info(ctx: SkillContext, info: dict) -> None:
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.runtime_dir / "project_info.json").write_text(
+    get_parse_dir().mkdir(parents=True, exist_ok=True)
+    (get_parse_dir() / "project_info.json").write_text(
         json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
 
 def _read_result_meta(ctx: SkillContext) -> dict:
-    meta_path = ctx.input_dir / RESULT_META_FILENAME
+    meta_path = get_input_dir() / RESULT_META_FILENAME
     if meta_path.exists():
         try:
             return json.loads(meta_path.read_text(encoding="utf-8"))
@@ -150,14 +151,14 @@ def _archive_stale_uploaded_table_for_app(ctx: SkillContext) -> str:
     if not uploaded or _is_current_app_result(ctx, uploaded):
         return ""
     src = Path(uploaded)
-    archive_dir = ctx.runtime_dir / "gkclaw" / "ignored_uploads"
+    archive_dir = get_parse_dir() / "gkclaw" / "ignored_uploads"
     archive_dir.mkdir(parents=True, exist_ok=True)
     dest = archive_dir / f"{src.stem}-{time.strftime('%Y%m%d%H%M%S')}{src.suffix}"
     try:
         shutil.move(str(src), str(dest))
     except Exception:
         return f"检测到历史上传表 {src.name}，它不是当前 App 复勘任务的回传结果，已忽略。"
-    meta_path = ctx.input_dir / RESULT_META_FILENAME
+    meta_path = get_input_dir() / RESULT_META_FILENAME
     if meta_path.exists():
         try:
             shutil.move(str(meta_path), str(dest.with_suffix(dest.suffix + ".meta.json")))
@@ -244,7 +245,7 @@ def _is_initial_app_mode(ctx: SkillContext) -> bool:
         return False
     try:
         from ..services.gkclaw.registry import TaskRegistry
-        task = TaskRegistry(ctx.runtime_dir).get(task_id)
+        task = TaskRegistry(get_parse_dir()).get(task_id)
     except Exception:
         task = None
     if not task:
@@ -281,7 +282,7 @@ class WaitSurveyStep(BaseStep):
         不再拼进 HITL 黄字 reason。
         """
         try:
-            info_path = ctx.runtime_dir / "project_info.json"
+            info_path = get_parse_dir() / "project_info.json"
             if not info_path.exists():
                 return
             info = json.loads(info_path.read_text(encoding="utf-8"))
@@ -289,7 +290,7 @@ class WaitSurveyStep(BaseStep):
             if not tid:
                 return
             from ..services.gkclaw.registry import TaskRegistry
-            reg = TaskRegistry(ctx.runtime_dir)
+            reg = TaskRegistry(get_parse_dir())
             task = reg.get(tid)
             if task is None or task.get("dry_run"):
                 return
@@ -300,8 +301,8 @@ class WaitSurveyStep(BaseStep):
                 return
             from ..services.gkclaw.ingest import poll_and_ingest
             poll_and_ingest(
-                runtime_dir=ctx.runtime_dir,
-                input_dir=ctx.input_dir,
+                runtime_dir=get_parse_dir(),
+                input_dir=get_input_dir(),
                 survey_table_path=_get_survey_table(ctx),
             )
         except Exception:  # noqa: BLE001 — 邮件链路异常绝不阻断人工上传通道
@@ -359,7 +360,7 @@ class WaitSurveyStep(BaseStep):
                     return {"ok": True, "missing": []}
                 return {
                     "ok": False,
-                    "missing": ["ProjectData/Input/复勘结果表（需填写「最新检查结果」）"],
+                    "missing": ["输入文件/复勘结果表（需填写「最新检查结果」）"],
                     "note": note,
                 }
             base_note = (
@@ -367,7 +368,7 @@ class WaitSurveyStep(BaseStep):
             )
             return {
                 "ok": False,
-                "missing": ["ProjectData/Input/复勘结果表（需填写「最新检查结果」）"],
+                "missing": ["输入文件/复勘结果表（需填写「最新检查结果」）"],
                 "note": base_note,
             }
 
@@ -415,17 +416,17 @@ class WaitSurveyStep(BaseStep):
                 return {"ok": True, "missing": []}
             return {
                 "ok": False,
-                "missing": ["ProjectData/Input/勘测结果表（需填写「最新检查结果」）"],
+                "missing": ["输入文件/勘测结果表（需填写「最新检查结果」）"],
                 "note": note,
             }
 
         base_note = (
             "请从 Output/ 下载全量勘测结果表，完成现场勘测后填写「最新检查结果」列，"
-            "再上传到 ProjectData/Input/"
+            "再上传到 输入文件/"
         )
         return {
             "ok": False,
-            "missing": ["ProjectData/Input/勘测结果表（需填写「最新检查结果」）"],
+            "missing": ["输入文件/勘测结果表（需填写「最新检查结果」）"],
             "note": base_note,
         }
 
@@ -495,7 +496,7 @@ class WaitSurveyStep(BaseStep):
                 "hitl": {
                     "step": self.key,
                     "reason": reason,
-                    "need_files": ["ProjectData/Input/勘测结果表（需填写「最新检查结果」）"],
+                    "need_files": ["输入文件/勘测结果表（需填写「最新检查结果」）"],
                     "need_inputs": [],
                 },
                 "metrics": {"filled_count": 0, "uploaded_rows": len(filled_rows)},
@@ -526,7 +527,7 @@ class WaitSurveyStep(BaseStep):
             emit(f"[wait_survey] 已清理上传临时文件: {os.path.basename(uploaded)}")
         except Exception:
             pass
-        meta_path = ctx.input_dir / RESULT_META_FILENAME
+        meta_path = get_input_dir() / RESULT_META_FILENAME
         if meta_path.exists():
             try:
                 os.remove(meta_path)

@@ -121,7 +121,7 @@ def seed_mock_report_to_workspace(
     project_id: str = DEFAULT_DEMO_PROJECT_ID,
     business_root: Path | None = None,
 ) -> Path | None:
-    """将项目演示 PDF 复制到 ZHGK_ROOT/ProjectData/Input/，供 report_gen_run 读取。"""
+    """将项目演示 PDF 复制到 输入文件/，供 report_gen_run 读取。"""
     src = resolve_mock_report_source(project_id, business_root=business_root)
     if src is None:
         return None

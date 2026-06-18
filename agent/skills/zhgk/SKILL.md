@@ -8,8 +8,7 @@ ui:
   order: 10
   icon: survey
   route_key: survey
-runtime:
-  workspace_env: ZHGK_ROOT
+runtime: {}
 description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心机房工勘全流程编排。支持 4 种意图：全流程工勘（建表→勘测→评估→报告）、场景建议、补充勘测、报告生成。当用户说「开始工勘 / 全流程工勘 / 生成工勘报告 / 场景建议 / 补充勘测 / 工勘审批分发 / 代际制冷 / AI评估 / 机房满足度 / 入场评估标准表 / BOQ」等时调用。
 ---
 
@@ -72,12 +71,12 @@ description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心
 ## C. 数据目录结构
 
 ```
-ProjectData/
-  Template/   ← 入场评估标准表.xlsx  工勘常见高风险库.xlsx  新版项目工勘报告模板.docx
-  Input/      ← BOQ.xlsx（用户上传）
-  Output/     ← 全量勘测结果表.xlsx  问题清单表.xlsx  风险识别结果表.xlsx  工勘报告.docx
-  RunTime/    ← project_info.json（中间数据）
-  Images/     ← 现场照片
+{AIDA_BUSINESS_ROOT}/
+  org-assets/           ← 入场评估标准表.xlsx  工勘常见高风险库.xlsx  新版项目工勘报告模板.docx（组织资产，只读）
+  project/交付作业/智慧工勘/
+    输入文件/            ← BOQ.xlsx（用户上传）、勘测图片文件夹/
+    输出结果/            ← 全量勘测结果表.xlsx  问题清单表.xlsx  风险识别结果表.xlsx  工勘报告.docx
+    解析结果/            ← project_info.json（中间数据）、gkclaw/
 ```
 
 ---
@@ -123,11 +122,11 @@ ProjectData/
 
 | 现象 | 处理 |
 |------|------|
-| `SS-TF-E-001` 底表文件不存在 | 提供 `ProjectData/Template/入场评估标准表.xlsx` |
+| `SS-TF-E-001` 底表文件不存在 | 提供 `org-assets/入场评估标准表.xlsx` |
 | `SS-BP-E-003` 无法推断代际制冷 | HITL ChoiceCard 手动指定 |
 | `SS-AE-E-001` LLM 评估超时 | 检查网络，重试 |
-| `SS-RB-E-001` 报告模板不存在 | 提供 `ProjectData/Template/新版项目工勘报告模板.docx` |
-| 换了底表仍下发旧勘测项 | `Output/` 旧表被 `filter_build` 幂等复用 → 执行 `python agent/scripts/reset_zhgk_workspace.py`（默认保留 Template/风险库），刷新后重跑 |
+| `SS-RB-E-001` 报告模板不存在 | 提供 `org-assets/新版项目工勘报告模板.docx` |
+| 换了底表仍下发旧勘测项 | `输出结果/` 旧表被 `filter_build` 幂等复用 → 清除输出结果目录后重跑 |
 | `filter_build` HITL 只传一张底表后卡住 | 须齐备两张底表；补传 `工勘常见高风险库.xlsx` 或一次选两个文件 |
 
 重置脚本：`agent/scripts/reset_zhgk_workspace.py` · `scripts/reset_zhgk.ps1` · `scripts/reset_demo.sh`（Docker）。

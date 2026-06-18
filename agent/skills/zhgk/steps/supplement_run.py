@@ -14,6 +14,7 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir, get_output_dir
 from ._intent_guard import should_skip
 
 _SUPPLEMENT_OPTIONS = [
@@ -37,7 +38,7 @@ _HITL_INPUT = {
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -45,7 +46,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -53,7 +54,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
     gc = ctx.project.get("generation_cooling", "")
     if gc:
         return gc
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8")).get("generation_cooling", "")
@@ -65,7 +66,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
 class SupplementRunStep(BaseStep):
     key = "supplement_run"
     name = "补充入口准备"
-    artifacts_pattern = ["ProjectData/Output/*全量勘测结果表*.xlsx"]
+    artifacts_pattern = ["输出结果/*全量勘测结果表*.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -79,7 +80,7 @@ class SupplementRunStep(BaseStep):
         if _get_survey_table(ctx) is None:
             return {
                 "ok": False,
-                "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"],
+                "missing": ["输出结果/*全量勘测结果表*.xlsx"],
                 "note": "补充闭环需要已有全量勘测结果表（可先完成全流程工勘，或上传已有结果表）",
             }
 

@@ -8,11 +8,12 @@ from datetime import datetime
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_input_dir, get_output_dir, get_parse_dir, get_template_dir
 from ._intent_guard import should_skip
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -20,7 +21,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -28,7 +29,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
     gc = ctx.project.get("generation_cooling", "")
     if gc:
         return gc
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8")).get("generation_cooling", "")
@@ -38,7 +39,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
 
 
 def _read_project_info(ctx: SkillContext) -> dict:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8"))
@@ -48,8 +49,8 @@ def _read_project_info(ctx: SkillContext) -> dict:
 
 
 def _write_project_info(ctx: SkillContext, info: dict) -> None:
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.runtime_dir / "project_info.json").write_text(
+    get_parse_dir().mkdir(parents=True, exist_ok=True)
+    (get_parse_dir() / "project_info.json").write_text(
         json.dumps(info, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
@@ -62,7 +63,7 @@ def _mock_report_source(ctx: SkillContext) -> Path | None:
         "*report*.pdf",
         "*report*.docx",
     ]
-    for folder in (ctx.input_dir, ctx.output_dir, ctx.work_root / "ProjectData" / "Template"):
+    for folder in (get_input_dir(), get_output_dir(), get_template_dir()):
         if not folder.exists():
             continue
         for pat in patterns:
@@ -80,7 +81,7 @@ def _mock_report_output_path(ctx: SkillContext, source: Path) -> Path:
     safe = f"{activity}_{project}_{room}_工勘报告{suffix}"
     for ch in '<>:"/\\|?*':
         safe = safe.replace(ch, "_")
-    return ctx.output_dir / safe
+    return get_output_dir() / safe
 
 
 _REPORT_REVIEW_INPUT = {
@@ -105,8 +106,8 @@ class ReportGenRunStep(BaseStep):
     key = "report_gen_run"
     name = "报告生成"
     artifacts_pattern = [
-        "ProjectData/Output/*工勘报告*.pdf",
-        "ProjectData/Output/*工勘报告*.docx",
+        "输出结果/*工勘报告*.pdf",
+        "输出结果/*工勘报告*.docx",
     ]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
@@ -115,9 +116,9 @@ class ReportGenRunStep(BaseStep):
 
         missing = []
         if _get_survey_table(ctx) is None and ctx.project.get("intent") != "report_gen":
-            missing.append("ProjectData/Output/*全量勘测结果表*.xlsx")
+            missing.append("输出结果/*全量勘测结果表*.xlsx")
         if _mock_report_source(ctx) is None:
-            missing.append("ProjectData/Input/*工勘报告*.pdf")
+            missing.append("输入文件/*工勘报告*.pdf")
 
         if missing:
             return {
@@ -145,7 +146,7 @@ class ReportGenRunStep(BaseStep):
         if source is None:
             raise RuntimeError("report_gen_run: 本地 mock 工勘报告不存在")
 
-        ctx.output_dir.mkdir(parents=True, exist_ok=True)
+        get_output_dir().mkdir(parents=True, exist_ok=True)
         report_path = _mock_report_output_path(ctx, source)
         if source.resolve() != report_path.resolve():
             shutil.copy2(source, report_path)

@@ -1,7 +1,7 @@
 {
   "artifact": "本地工勘报告.pdf",
   "role": "zhgk report_gen_run mock 工勘报告",
-  "runtime_path": "ProjectData/Input/本地工勘报告.pdf",
+  "runtime_path": "输入文件/本地工勘报告.pdf",
   "source_pdf": "D:\\.cursor_workplace\\aida\\工勘报告.pdf",
   "project_name": "京东3期",
   "replaced_from": "字节跳动",
@@ -9,7 +9,7 @@
   "fixture_path": "agent/skills/zhgk/fixtures/本地工勘报告.pdf",
   "fixture_sha256": "f1617c57edd15d1ab3d926a9b2953b253efa534f16447f23e896dc89d37e2c8b",
   "fixture_bytes": 369177,
-  "workspace_copy": "C:\\Users\\l00949836\\.nanobot\\workspace\\skills\\zhgk\\ProjectData\\Input\\本地工勘报告.pdf",
+  "workspace_copy": "C:\\Users\\l00949836\\.nanobot\\workspace\\skills\\zhgk\\输入文件\\本地工勘报告.pdf",
   "synced_at": "2026-06-15T20:38:45Z",
   "sync_script": "agent/scripts/sync_zhgk_mock_report.py"
 }

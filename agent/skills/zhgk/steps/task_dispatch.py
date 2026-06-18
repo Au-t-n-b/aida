@@ -18,9 +18,10 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir, get_output_dir
 from ._intent_guard import should_skip
 
-ASSIGNEES_FILE = "ProjectData/RunTime/gkclaw/assignees.json"
+ASSIGNEES_FILE = "解析结果/gkclaw/assignees.json"
 ASSIGNEES_FORM_INPUT = {
     "id": "gkclaw_assignees",
     "type": "form",
@@ -37,7 +38,7 @@ ASSIGNEES_FORM_INPUT = {
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -45,12 +46,12 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
 def _read_project_info(ctx: SkillContext) -> dict:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8"))
@@ -62,14 +63,14 @@ def _read_project_info(ctx: SkillContext) -> dict:
 def _update_project_info(ctx: SkillContext, key: str, value) -> None:
     info = _read_project_info(ctx)
     info[key] = value
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.runtime_dir / "project_info.json").write_text(
+    get_parse_dir().mkdir(parents=True, exist_ok=True)
+    (get_parse_dir() / "project_info.json").write_text(
         json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _write_project_info(ctx: SkillContext, info: dict) -> None:
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
-    (ctx.runtime_dir / "project_info.json").write_text(
+    get_parse_dir().mkdir(parents=True, exist_ok=True)
+    (get_parse_dir() / "project_info.json").write_text(
         json.dumps(info, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
@@ -78,7 +79,7 @@ def _load_assignees(ctx: SkillContext) -> list[dict]:
     a = ctx.project.get("assignees") or []
     if a:
         return list(a)
-    f = ctx.runtime_dir / "gkclaw" / "assignees.json"
+    f = get_parse_dir() / "gkclaw" / "assignees.json"
     if f.exists():
         try:
             data = json.loads(f.read_text(encoding="utf-8"))
@@ -92,7 +93,7 @@ def _load_assignees(ctx: SkillContext) -> list[dict]:
 def _persist_assignees(ctx: SkillContext, assignees: list[dict]) -> None:
     if not assignees:
         return
-    d = ctx.runtime_dir / "gkclaw"
+    d = get_parse_dir() / "gkclaw"
     d.mkdir(parents=True, exist_ok=True)
     (d / "assignees.json").write_text(
         json.dumps(assignees, ensure_ascii=False, indent=2),
@@ -134,7 +135,7 @@ class TaskDispatchStep(BaseStep):
 
         survey_table = _get_survey_table(ctx)
         if not survey_table:
-            return {"ok": False, "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"]}
+            return {"ok": False, "missing": ["输出结果/*全量勘测结果表*.xlsx"]}
 
         if not resurvey_mode and decision not in {"dispatch", "skip"}:
             return {
@@ -192,7 +193,7 @@ class TaskDispatchStep(BaseStep):
         info = _read_project_info(ctx)
         info_key = _task_info_key(ctx)
         existing = info.get(info_key, "")
-        reg = TaskRegistry(ctx.runtime_dir)
+        reg = TaskRegistry(get_parse_dir())
         if existing:
             task = reg.get(existing)
             if task and task.get("state") == "completed":
@@ -227,7 +228,7 @@ class TaskDispatchStep(BaseStep):
         from ..services.survey_context import resolve_survey_context
         dispatch_project = {**ctx.project, **resolve_survey_context(ctx.project, info)}
         result = dispatch_task(
-            runtime_dir=ctx.runtime_dir,
+            runtime_dir=get_parse_dir(),
             survey_table_path=survey_table,
             project=dispatch_project,
             assignees=assignees,

@@ -114,6 +114,14 @@ def _resume_route_from_previous_state(prev: dict[str, Any], keys: list[str]) -> 
 
 class ZhgkSkill(BaseSkill):
     name = "zhgk"
+
+    def prepare_work_root(self) -> None:
+        """创建标准目录结构（输入文件/解析结果/输出结果/勘测图片文件夹）。"""
+        from .path_config import get_input_dir, get_output_dir, get_parse_dir, get_images_dir
+        get_input_dir()
+        get_output_dir()
+        get_parse_dir()
+        get_images_dir()
     description = (
         "智慧工勘 v4 · 意图驱动单流水线。支持 4 种意图：\n"
         "  scene_suggest（场景建议）/ survey_work（全流程工勘）/ "
@@ -304,4 +312,4 @@ def get_zhgk_skill() -> ZhgkSkill:
     """单例工厂 · 延迟加载 llm_factory"""
     from ...llm import get_llm
     from .bridge import get_zhgk_root
-    return ZhgkSkill(work_root=Path(get_zhgk_root()), llm_factory=get_llm)
+    return ZhgkSkill(work_root=get_zhgk_root(), llm_factory=get_llm)

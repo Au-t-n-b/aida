@@ -17,6 +17,7 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_output_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 
@@ -25,7 +26,7 @@ def _get_generation_cooling(ctx: SkillContext, state: SkillState) -> str:
     gc = ctx.project.get("generation_cooling", "")
     if gc:
         return gc
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             gc = json.loads(info_path.read_text(encoding="utf-8")).get(
@@ -54,7 +55,7 @@ def _update_project_info(runtime_dir, key: str, value) -> None:
 class FilterBuildStep(BaseStep):
     key = "filter_build"
     name = "底表过滤建表"
-    artifacts_pattern = ["ProjectData/Output/*全量勘测结果表*.xlsx"]
+    artifacts_pattern = ["输出结果/*全量勘测结果表*.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -65,14 +66,14 @@ class FilterBuildStep(BaseStep):
         # 1. Template 底表（共用一次 HITL 同时上传）
         from ..path_config import get_base_table_path, get_risk_library_path
         if not os.path.exists(get_base_table_path()):
-            missing.append("ProjectData/Template/入场评估标准表.xlsx")
+            missing.append("org-assets/入场评估标准表.xlsx")
         if not os.path.exists(get_risk_library_path()):
-            missing.append("ProjectData/Template/工勘常见高风险库.xlsx")
+            missing.append("org-assets/工勘常见高风险库.xlsx")
 
         # 2. generation_cooling
         gc = ctx.project.get("generation_cooling", "")
         if not gc:
-            info_path = ctx.runtime_dir / "project_info.json"
+            info_path = get_parse_dir() / "project_info.json"
             if info_path.exists():
                 try:
                     gc = json.loads(info_path.read_text(encoding="utf-8")).get(
@@ -125,7 +126,7 @@ class FilterBuildStep(BaseStep):
         )
         emit(f"[filter_build] 过滤后条目: {len(filtered)} 条（标准类，{gen_cooling}）")
 
-        output_dir = str(ctx.output_dir)
+        output_dir = str(get_output_dir())
         # 幂等：resume 走 full_restart 会重放本步。若结果表已存在则复用、不重建，
         # 否则会覆盖 wait_survey 已合并的「最新检查结果 / 第N轮」列 → assess 评空表全判「未勘测」。
         expected_path = survey_table_path_for(output_dir, activity_id, project_name, room_name)
@@ -143,7 +144,7 @@ class FilterBuildStep(BaseStep):
             emit(f"[filter_build] ✓ 全量勘测结果表: {os.path.basename(survey_table_path)}")
 
         # 写路径到 project_info.json
-        _update_project_info(ctx.runtime_dir, "survey_table_path", survey_table_path)
+        _update_project_info(get_parse_dir(), "survey_table_path", survey_table_path)
 
         # 前 10 条进 metrics（SDUI 条目预览 Table）
         preview_rows = [

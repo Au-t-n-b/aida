@@ -15,6 +15,7 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_input_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 GEN_COOLING_OPTIONS = [
@@ -83,11 +84,11 @@ class DetermineGenStep(BaseStep):
             return {"ok": True, "missing": []}
 
         # 2. 已缓存在 project_info.json
-        if _read_cached_gc(ctx.runtime_dir):
+        if _read_cached_gc(get_parse_dir()):
             return {"ok": True, "missing": []}
 
         # 3. BOQ 文件存在 → run() 会自动解析
-        boq_files = list(ctx.input_dir.glob("*BOQ*.xlsx")) if ctx.input_dir.exists() else []
+        boq_files = list(get_input_dir().glob("*BOQ*.xlsx")) if get_input_dir().exists() else []
         if boq_files:
             return {"ok": True, "missing": []}
 
@@ -108,14 +109,14 @@ class DetermineGenStep(BaseStep):
 
         # ── 2. 已缓存在 project_info.json ─────────────────────────────────
         if not gen_cooling:
-            gen_cooling = _read_cached_gc(ctx.runtime_dir)
+            gen_cooling = _read_cached_gc(get_parse_dir())
             if gen_cooling:
                 source = "缓存（project_info.json）"
 
         # ── 3. 自动解析 BOQ ────────────────────────────────────────────────
         if not gen_cooling:
             from ..services.boq_parser import parse_boq, BOQParseError
-            boq_files = sorted(ctx.input_dir.glob("*BOQ*.xlsx")) if ctx.input_dir.exists() else []
+            boq_files = sorted(get_input_dir().glob("*BOQ*.xlsx")) if get_input_dir().exists() else []
             if boq_files:
                 boq_path = str(boq_files[0])
                 emit(f"[determine_gen] 解析 BOQ: {boq_files[0].name}")
@@ -165,7 +166,7 @@ class DetermineGenStep(BaseStep):
             }
 
         # ── 5. 写 project_info.json ────────────────────────────────────────
-        _write_project_info(ctx.runtime_dir, ctx.project, gen_cooling)
+        _write_project_info(get_parse_dir(), ctx.project, gen_cooling)
         emit(f"[determine_gen] ✓ 代际制冷: {gen_cooling}（来源: {source}）")
         emit(f"[determine_gen] project_info.json 已写入 RunTime/")
 

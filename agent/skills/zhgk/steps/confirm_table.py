@@ -13,11 +13,12 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_output_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -25,7 +26,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -65,7 +66,7 @@ class ConfirmTableStep(BaseStep):
         # 勘测表尚未生成
         survey_table = _get_survey_table(ctx)
         if not survey_table:
-            return {"ok": False, "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"]}
+            return {"ok": False, "missing": ["输出结果/*全量勘测结果表*.xlsx"]}
 
         # 生成摘要提示
         stats = _survey_table_stats(survey_table)
@@ -122,7 +123,7 @@ class ConfirmTableStep(BaseStep):
                     build_survey_task_package, collect_on_site_items,
                 )
                 info: dict = {}
-                info_path = ctx.runtime_dir / "project_info.json"
+                info_path = get_parse_dir() / "project_info.json"
                 if info_path.exists():
                     try:
                         info = json.loads(info_path.read_text(encoding="utf-8"))
@@ -132,7 +133,7 @@ class ConfirmTableStep(BaseStep):
                 on_site = collect_on_site_items(survey_table)
                 package_path = build_survey_task_package(
                     survey_table,
-                    str(ctx.output_dir),
+                    str(get_output_dir()),
                     project_name=ctx_fields["project_name"],
                     room_name=ctx_fields["room_name"],
                     activity_id=ctx_fields["activity_id"],

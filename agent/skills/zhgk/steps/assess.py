@@ -16,6 +16,7 @@ import os
 from typing import Any
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_output_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 
@@ -23,7 +24,7 @@ ASSESSMENT_LABELS = ("满足", "不满足", "不涉及", "未勘测", "无法识
 
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -31,7 +32,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -100,13 +101,13 @@ def _build_assessment_detail_groups(survey_table: str) -> dict[str, list[dict[st
 class AssessStep(BaseStep):
     key = "assess"
     name = "AI 五值评估"
-    artifacts_pattern = ["ProjectData/Output/*全量勘测结果表*.xlsx"]
+    artifacts_pattern = ["输出结果/*全量勘测结果表*.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
             return {"ok": True, "missing": []}
         if _get_survey_table(ctx) is None:
-            return {"ok": False, "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"]}
+            return {"ok": False, "missing": ["输出结果/*全量勘测结果表*.xlsx"]}
         return {"ok": True, "missing": []}
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:

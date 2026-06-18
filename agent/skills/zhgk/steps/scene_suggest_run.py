@@ -16,6 +16,7 @@ import json
 import os
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir
 from ._intent_guard import should_skip
 
 
@@ -23,7 +24,7 @@ def _get_generation_cooling(ctx: SkillContext) -> str:
     gc = ctx.project.get("generation_cooling", "")
     if gc:
         return gc
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8")).get("generation_cooling", "")

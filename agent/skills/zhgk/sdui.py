@@ -188,17 +188,17 @@ def _filter_output_paths(state: dict[str, Any], paths: list[str]) -> list[str]:
 
 
 def _scan_workspace_files(state: dict[str, Any]) -> tuple[list[str], list[str]]:
-    """扫 ProjectData/Input 与 Output 顶层文件 → (用户上传, 作业结果)。
+    """扫 输入文件/ 与 输出结果/ 顶层文件 → (用户上传, 作业结果)。
 
     ⚠️ 本函数**读磁盘**（projector_base 纯函数约定的唯一例外，刻意局限在此 skill 层）：
     工勘的文件真相在工作区目录，逐 step 登记 artifact 易漏（wait_survey 上传件、
-    既有 Input 文件都不会进 metrics）。直接扫盘最全最稳。
-    路径返回 work_root 相对形式（如 ProjectData/Output/xxx.xlsx），与既有 artifact
+    既有输入文件都不会进 metrics）。直接扫盘最全最稳。
+    路径返回 work_root 相对形式（如 输出结果/xxx.xlsx），与既有 artifact
     路径及 /agent/zhgk/artifact?path= 端点一致，前端可直接预览。
 
     分类规则：
-      - Input：排除项目演示资产（如本地工勘报告.pdf），其余视为用户上传。
-      - Output：filter_build 产出的勘测结果表在 wait_survey 完成前视为草稿，不进作业结果。
+      - 输入文件：排除项目演示资产（如本地工勘报告.pdf），其余视为用户上传。
+      - 输出结果：filter_build 产出的勘测结果表在 wait_survey 完成前视为草稿，不进作业结果。
     """
     root = state.get("work_root") or ""
 
@@ -216,8 +216,8 @@ def _scan_workspace_files(state: dict[str, Any]) -> tuple[list[str], list[str]]:
                 out.append(f"{subdir}/{name}")
         return out
 
-    raw_in = _scan("ProjectData/Input")
-    raw_out = _scan("ProjectData/Output")
+    raw_in = _scan("输入文件")
+    raw_out = _scan("输出结果")
     return _filter_input_paths(raw_in), _filter_output_paths(state, raw_out)
 
 
@@ -758,7 +758,7 @@ def _resolve_survey_table_path(state: dict[str, Any]) -> str | None:
     if not root:
         return None
 
-    info_path = os.path.join(root, "ProjectData", "RunTime", "project_info.json")
+    info_path = os.path.join(root, "解析结果", "project_info.json")
     if os.path.isfile(info_path):
         try:
             import json
@@ -769,7 +769,7 @@ def _resolve_survey_table_path(state: dict[str, Any]) -> str | None:
         except Exception:
             pass
 
-    out_dir = os.path.join(root, "ProjectData", "Output")
+    out_dir = os.path.join(root, "输出结果")
     if not os.path.isdir(out_dir):
         return None
     matches = sorted(

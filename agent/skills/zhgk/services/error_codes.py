@@ -8,7 +8,7 @@ ERROR_REGISTRY: dict[str, dict] = {
     # ─── table_filter (TF) ───
     "SS-TF-E-001": {
         "message": "底表文件不存在",
-        "suggestion": "检查 ProjectData/Template/入场评估标准表.xlsx 是否存在",
+        "suggestion": "检查 org-assets/入场评估标准表.xlsx 是否存在",
     },
     "SS-TF-E-002": {
         "message": "底表中 Sheet '入场评估标准' 不存在",
@@ -26,7 +26,7 @@ ERROR_REGISTRY: dict[str, dict] = {
     # ─── boq_parser (BP) ───
     "SS-BP-E-001": {
         "message": "BOQ 文件不存在",
-        "suggestion": "请用户上传 BOQ.xlsx 到 ProjectData/Input/ 目录",
+        "suggestion": "请用户上传 BOQ.xlsx 到 输入文件/ 目录",
     },
     "SS-BP-E-002": {
         "message": "BOQ 中未找到设备型号信息",
@@ -64,7 +64,7 @@ ERROR_REGISTRY: dict[str, dict] = {
     },
     "SS-ST-E-003": {
         "message": "模板文件不存在",
-        "suggestion": "检查 ProjectData/Template/ 目录下模板文件",
+        "suggestion": "检查 org-assets/ 目录下模板文件",
     },
 
     # ─── assessment_engine (AE) ───
@@ -98,7 +98,7 @@ ERROR_REGISTRY: dict[str, dict] = {
     # ─── risk_engine (RE) ───
     "SS-RE-E-001": {
         "message": "高风险库文件不存在",
-        "suggestion": "检查 ProjectData/Template/工勘常见高风险库.xlsx",
+        "suggestion": "检查 org-assets/工勘常见高风险库.xlsx",
     },
     "SS-RE-E-002": {
         "message": "LLM 风险判断失败",
@@ -112,7 +112,7 @@ ERROR_REGISTRY: dict[str, dict] = {
     # ─── report_builder (RB) ───
     "SS-RB-E-001": {
         "message": "报告模板文件不存在",
-        "suggestion": "检查 ProjectData/Template/ 下报告模板 .docx",
+        "suggestion": "检查 org-assets/ 下报告模板 .docx",
     },
     "SS-RB-E-002": {
         "message": "报告模板表格数量不匹配（期望9个）",
@@ -154,7 +154,7 @@ ERROR_REGISTRY: dict[str, dict] = {
     },
     "SS-DR-E-002": {
         "message": "流程执行异常",
-        "suggestion": "查看 exec_log.json 详细日志",
+        "suggestion": "查看 agent/runtime/logs/zhgk/exec_log.json 详细日志",
     },
 }
 

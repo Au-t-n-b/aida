@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir, get_output_dir
 from ._intent_guard import should_skip
 
 
@@ -44,7 +45,7 @@ def _find_output_file(output_dir: Path, pattern: str) -> Path | None:
 
 
 def _read_project_info(ctx: SkillContext) -> dict:
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             return json.loads(info_path.read_text(encoding="utf-8"))
@@ -88,8 +89,8 @@ class ReportDistributeStep(BaseStep):
         if saved and Path(saved).is_file():
             return Path(saved)
         return (
-            _find_output_file(ctx.output_dir, "*工勘报告*.pdf")
-            or _find_output_file(ctx.output_dir, "*工勘报告*.docx")
+            _find_output_file(get_output_dir(), "*工勘报告*.pdf")
+            or _find_output_file(get_output_dir(), "*工勘报告*.docx")
         )
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
@@ -100,7 +101,7 @@ class ReportDistributeStep(BaseStep):
         if report is None:
             return {
                 "ok": False,
-                "missing": ["ProjectData/Output/*工勘报告*.pdf"],
+                "missing": ["输出结果/*工勘报告*.pdf"],
                 "note": "工勘报告附件未就绪，请先执行报告生成",
             }
 

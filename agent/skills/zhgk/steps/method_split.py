@@ -19,6 +19,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_output_dir, get_parse_dir
 from ._intent_guard import should_skip
 
 
@@ -57,7 +58,7 @@ def _send_customer_feedback_email(
 
     # 项目信息（从 project_info.json 取，缺则用占位）
     info: dict = {}
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             info = json.loads(info_path.read_text(encoding="utf-8"))
@@ -105,7 +106,7 @@ def _send_customer_feedback_email(
 
 def _get_survey_table(ctx: SkillContext) -> str | None:
     """找到全量勘测结果表：优先 project_info.json，退而 glob"""
-    info_path = ctx.runtime_dir / "project_info.json"
+    info_path = get_parse_dir() / "project_info.json"
     if info_path.exists():
         try:
             path = json.loads(info_path.read_text(encoding="utf-8")).get("survey_table_path", "")
@@ -113,7 +114,7 @@ def _get_survey_table(ctx: SkillContext) -> str | None:
                 return path
         except Exception:
             pass
-    tables = sorted(ctx.output_dir.glob("*全量勘测结果表*.xlsx")) if ctx.output_dir.exists() else []
+    tables = sorted(get_output_dir().glob("*全量勘测结果表*.xlsx")) if get_output_dir().exists() else []
     return str(tables[0]) if tables else None
 
 
@@ -126,7 +127,7 @@ class MethodSplitStep(BaseStep):
         if should_skip(self.key, ctx.project):
             return {"ok": True, "missing": []}
         if _get_survey_table(ctx) is None:
-            return {"ok": False, "missing": ["ProjectData/Output/*全量勘测结果表*.xlsx"]}
+            return {"ok": False, "missing": ["输出结果/*全量勘测结果表*.xlsx"]}
         return {"ok": True, "missing": []}
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
@@ -162,14 +163,14 @@ class MethodSplitStep(BaseStep):
             fb_result = _send_customer_feedback_email(ctx, feedback_rows, emit)
 
         # 写统计到 project_info.json
-        info_path = ctx.runtime_dir / "project_info.json"
+        info_path = get_parse_dir() / "project_info.json"
         try:
             existing = json.loads(info_path.read_text(encoding="utf-8")) if info_path.exists() else {}
         except Exception:
             existing = {}
         existing["method_groups"] = dict(groups)
         existing["total_items"] = total
-        ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+        get_parse_dir().mkdir(parents=True, exist_ok=True)
         info_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
 
         emit(f"[method_split] ✓ 分流完成，{len(groups)} 种勘测方法")
