@@ -25,6 +25,7 @@ from agent.schedule.contracts.outputs import (
     StrategyPlan,
     UnmetItem,
 )
+from agent.schedule.settings import get_as_of_date
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,7 @@ class _DemandTarget:
     target_desc: str
     desired_end: date
     gap_days: int
+    direction: str = "某日期前完成"
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,13 @@ class _DurationBound:
 class _IneffectiveCompressionNotice:
     risk: RiskItem
     reason: str
+
+
+@dataclass(frozen=True)
+class _PulledInputUpdate:
+    kind: str
+    ref_id: str
+    item: PulledInput
 
 
 def build_adjustment_options(
@@ -101,7 +110,7 @@ def build_adjustment_options(
             "concentrated",
             list(seed_risks),
         )
-        c_option, c_unmet = _pull_inputs_option(inputs, base_plan, list(seed_risks), demand)
+        c_option, c_unmet = _pull_inputs_option(inputs, changes, base_plan, list(seed_risks), demand)
         bounds = _duration_bounds(inputs)
         options = [
             _make_option(
@@ -117,6 +126,7 @@ def build_adjustment_options(
                 added_crew=_added_crew(a_added_crews, bounds),
                 has_unmet=bool(a_unmet),
                 target_date=demand.desired_end,
+                target=demand.target,
             ),
             _make_option(
                 option_id="B",
@@ -131,23 +141,34 @@ def build_adjustment_options(
                 added_crew=_added_crew(b_added_crews, bounds),
                 has_unmet=bool(b_unmet),
                 target_date=demand.desired_end,
+                target=demand.target,
             ),
             c_option,
         ]
         return AdjustmentOptions(options=options, unmet=_merge_unmet([*a_unmet, *b_unmet, *c_unmet]), gap=gap)
 
-    if demand.gap_days < 0:
+    if demand.gap_days < 0 and demand.direction == "延后":
+        # 仅「显式延后 N 天」（用户明确要留缓冲）才把富余回灌成 buffer
         option, unmet = _buffer_option(inputs, changes, seed_plan, list(seed_risks), demand)
         return AdjustmentOptions(options=[option], unmet=unmet, gap=gap)
 
+    # gap_days == 0，或 gap_days < 0 但只是「某日期前完成」已满足（目标留有富余）：达标，
+    # 给单张稳定方案、不动活动。修订 T-064：把上线/移交目标往后拖 = 放宽要求，应显示
+    # 「依旧达标·余量不动」，不再误判成有富余而进 buffer 延长去消化它（曾致拉错活动失控超 500 天）。
+    advice = (
+        "调整后已满足目标节点，暂不需要额外压缩。"
+        if demand.gap_days == 0
+        else "目标已满足且留有富余，当前基线可直接下发。"
+    )
     option = _make_option(
         option_id="A",
         strategy="均匀压缩",
         plan=base_plan,
         inputs=inputs,
         risks=list(seed_risks),
-        advice="调整后已经满足目标节点，暂不需要额外压缩。",
+        advice=advice,
         target_date=demand.desired_end,
+        target=demand.target,
     )
     return AdjustmentOptions(options=[option], unmet=[], gap=gap)
 
@@ -312,20 +333,33 @@ def _buffer_option(
     guard = 0
 
     while _target_end(plan, demand.target) < demand.desired_end and guard < 500:
-        guard += 1
-        candidates = _buffer_candidates(plan, bounds, demand.target)
-        if not candidates:
+        current_target_end = _target_end(plan, demand.target)
+        progressed = False
+        # 逐个候选试：采纳第一个「不越过目标、且确实把目标往后推进」的延长；
+        # 越界的跳过（留给影响更小的候选），推不动目标的也跳过（不在该目标的真正前置链上）。
+        for bound in _buffer_candidates(plan, bounds, demand.target):
+            guard += 1
+            if guard >= 500:
+                break
+            current = overrides.get(bound.instance_id, bound.standard_work_days)
+            trial = dict(overrides)
+            trial[bound.instance_id] = current + 1.0
+            trial_plan, trial_risks = _run_variant(inputs, changes, seed_plan, trial)
+            new_target_end = _target_end(trial_plan, demand.target)
+            if new_target_end > demand.desired_end:
+                continue
+            if new_target_end <= current_target_end:
+                continue
+            overrides = trial
+            plan = trial_plan
+            risks = trial_risks
+            progressed = True
             break
-        bound = candidates[0]
-        current = overrides.get(bound.instance_id, bound.standard_work_days)
-        trial = dict(overrides)
-        trial[bound.instance_id] = current + 1.0
-        trial_plan, trial_risks = _run_variant(inputs, changes, seed_plan, trial)
-        if _target_end(trial_plan, demand.target) > demand.desired_end:
+        if not progressed:
+            # 本轮没有任何候选能在不越界前提下推进目标 → 停。
+            # 防失控护栏：缺它时，延长「不在前置链上」的活动推不动目标，会一路撞到 guard=500、
+            # 把某个活动拉长约 500 天（T-064 实测「集群验收方案设计」25→525 天、项目崩到次年）。
             break
-        overrides = trial
-        plan = trial_plan
-        risks = trial_risks
 
     remaining_days = max(0, (demand.desired_end - _target_end(plan, demand.target)).days)
     unmet = []
@@ -346,17 +380,20 @@ def _buffer_option(
         advice="建议把富余时间回灌为关键路径 buffer，降低现场扰动风险。",
         has_unmet=bool(unmet),
         target_date=demand.desired_end,
+        target=demand.target,
     )
     return option, unmet
 
 
 def _pull_inputs_option(
     inputs: InputBundle,
+    changes: ChangeSet,
     plan: PlanResult,
     risks: list[RiskItem],
     demand: _DemandTarget,
 ) -> tuple[StrategyPlan, list[UnmetItem]]:
-    pulled_inputs: list[PulledInput] = []
+    pull_updates: list[_PulledInputUpdate] = []
+    as_of_date = get_as_of_date()
     activity_by_id = {activity.instance_id: activity for activity in plan.activities}
     critical_prefix = _critical_prefix(plan, demand.target)
     candidate_ids: list[str] = []
@@ -373,31 +410,45 @@ def _pull_inputs_option(
         ref_id = activity.scope_ref.ref_id
         if ref_id is None:
             continue
-        suggested_date = activity.end_date - timedelta(days=demand.gap_days)
+        suggested_date = _clamp_pulled_date(activity.end_date - timedelta(days=demand.gap_days), as_of_date)
         if activity.milestone_kind == "到货":
-            if _arrival_locked(inputs, ref_id, activity.end_date):
+            if _arrival_locked(inputs, ref_id, activity.end_date, as_of_date):
                 continue
-            pulled_inputs.append(
-                PulledInput(
-                    target_desc=f"到货({ref_id})",
-                    current_date=activity.end_date,
-                    suggested_date=suggested_date,
+            target_desc = f"到货({ref_id})"
+            pull_updates.append(
+                _PulledInputUpdate(
+                    kind="arrival",
+                    ref_id=ref_id,
+                    item=PulledInput(
+                        target_desc=target_desc,
+                        current_date=activity.end_date,
+                        suggested_date=suggested_date,
+                    ),
                 )
             )
         elif activity.milestone_kind == "机房就位":
-            if _room_locked(activity.end_date):
+            if _room_locked(activity.end_date, as_of_date):
                 continue
-            pulled_inputs.append(
-                PulledInput(
-                    target_desc=f"机房就位({ref_id})",
-                    current_date=activity.end_date,
-                    suggested_date=suggested_date,
+            target_desc = f"机房就位({ref_id})"
+            pull_updates.append(
+                _PulledInputUpdate(
+                    kind="room",
+                    ref_id=ref_id,
+                    item=PulledInput(
+                        target_desc=target_desc,
+                        current_date=activity.end_date,
+                        suggested_date=suggested_date,
+                    ),
                 )
             )
 
-    pulled_inputs = _dedupe_pulled_inputs(pulled_inputs)
+    pull_updates = _dedupe_pulled_input_updates(pull_updates)
+    pulled_inputs = [update.item for update in pull_updates]
+    option_inputs = inputs
+    option_plan = plan
+    option_risks = risks
     unmet = []
-    if not pulled_inputs:
+    if not pull_updates:
         unmet.append(
             UnmetItem(
                 target_desc=demand.target_desc,
@@ -405,16 +456,26 @@ def _pull_inputs_option(
                 gap_days=demand.gap_days,
             )
         )
+    else:
+        option_inputs = _apply_pulled_input_updates(inputs, pull_updates, as_of_date)
+        option_inputs = _apply_demand_target(option_inputs, demand)
+        option_plan, option_risks = _run_variant(option_inputs, changes, plan, {})
+        unmet = _unmet_for_gap(
+            option_plan,
+            demand,
+            reason="全量提拉站/货前置后仍无法满足目标。",
+        )
     option = _make_option(
         option_id="C",
         strategy="站货提拉",
-        plan=plan,
-        inputs=inputs,
-        risks=risks,
+        plan=option_plan,
+        inputs=option_inputs,
+        risks=option_risks,
         advice="建议优先协调机房就位或到货时间，不压缩现场施工。",
         pulled_inputs=pulled_inputs,
         has_unmet=bool(unmet),
         target_date=demand.desired_end,
+        target=demand.target,
     )
     return option, unmet
 
@@ -438,6 +499,7 @@ def _select_primary_demand(plan: PlanResult, changes: ChangeSet) -> _DemandTarge
                 target_desc=_target_desc(demand.target),
                 desired_end=desired_end,
                 gap_days=(current_end - desired_end).days,
+                direction=demand.direction,
             )
         )
     if not targets:
@@ -543,12 +605,13 @@ def _make_option(
     pulled_inputs: Sequence[PulledInput] | None = None,
     has_unmet: bool = False,
     target_date: date | None = None,
+    target: TargetRef | None = None,
 ) -> StrategyPlan:
     merged_risks = _merge_risks(risks)
     return StrategyPlan(
         option_id=option_id,
         strategy=strategy,
-        kpis=_plan_kpis(plan, inputs, added_crew=added_crew, target_date=target_date),
+        kpis=_plan_kpis(plan, inputs, added_crew=added_crew, target_date=target_date, target=target),
         plan=plan,
         risk_level=_risk_level(merged_risks, has_unmet=has_unmet),
         advice=advice,
@@ -563,6 +626,7 @@ def _plan_kpis(
     *,
     added_crew: int = 0,
     target_date: date | None = None,
+    target: TargetRef | None = None,
 ) -> PlanKpis:
     dates = [(activity.start_date, activity.end_date) for activity in plan.activities]
     if dates:
@@ -580,7 +644,7 @@ def _plan_kpis(
         total_duration_days=total_duration_days,
         compressed_days=compressed_days,
         added_crew=added_crew,
-        gap_days=_plan_gap_days(plan, target_date),
+        gap_days=_plan_gap_days(plan, target_date, target=target),
     )
 
 
@@ -591,20 +655,27 @@ def _gap_summary(plan: PlanResult, demand: _DemandTarget | None) -> GapSummary:
             target_date=None,
             gap_days=0,
         )
+    # 与 _select_primary_demand 同口径：缺口/基线完成都按「所选诉求 target 的当前完成日」算，
+    # 而非项目整体完成日——否则批次级目标（如某批次上线）会拿项目移交日去比，导致 banner 说「超期·需压缩」
+    # 而分支按 target 自身判为「有富余」，自相矛盾（T-064 实测：批次2上线延后→banner +61 vs 选定 -15）。
+    # 对项目移交/末活动类目标 _target_end == project_finish_date，口径不变（兼容 T-045）。
+    target_end = _target_end(plan, demand.target)
     return GapSummary(
-        baseline_finish_date=plan.project_finish_date,
+        baseline_finish_date=target_end,
         target_date=demand.desired_end,
-        # 自洽：按 (基线预计完成 − 目标).days 重算，与 baseline_finish_date/target_date 及各卡
-        # kpis.gap_days(均走 _plan_gap_days) 同一口径；不再取可能陈旧的 demand.gap_days
-        # （拖动目标后 demand.gap_days 与 desired_end 会 desync→banner 自相矛盾。T-045 验收实测授权修）
-        gap_days=_plan_gap_days(plan, demand.desired_end),
+        gap_days=(target_end - demand.desired_end).days,
     )
 
 
-def _plan_gap_days(plan: PlanResult, target_date: date | None) -> int:
-    if plan.project_finish_date is None or target_date is None:
+def _plan_gap_days(plan: PlanResult, target_date: date | None, *, target: TargetRef | None = None) -> int:
+    if target_date is None:
         return 0
-    return (plan.project_finish_date - target_date).days
+    # 给定 target 时按该目标的完成日算缺口（与 _select/_gap_summary 同口径）；
+    # 不给则退回项目整体完成日（无诉求/兼容旧调用）。
+    end = _target_end(plan, target) if target is not None else plan.project_finish_date
+    if end is None:
+        return 0
+    return (end - target_date).days
 
 
 def _compression_risks(plan: PlanResult) -> list[RiskItem]:
@@ -839,23 +910,87 @@ def _target_desc(target: TargetRef) -> str:
     return f"{target.kind}({target.ref_id})" if target.ref_id else target.kind
 
 
-def _arrival_locked(inputs: InputBundle, pod_id: str, current_date: date) -> bool:
+def _arrival_locked(inputs: InputBundle, pod_id: str, current_date: date, as_of_date: date | None = None) -> bool:
     if any(arrival.pod_id == pod_id and arrival.arrival_status == "已到货" for arrival in inputs.arrivals):
         return True
-    return current_date <= date.today()
+    return current_date <= (as_of_date or get_as_of_date())
 
 
-def _room_locked(current_date: date) -> bool:
-    return current_date <= date.today()
+def _room_locked(current_date: date, as_of_date: date | None = None) -> bool:
+    return current_date <= (as_of_date or get_as_of_date())
 
 
-def _dedupe_pulled_inputs(items: Sequence[PulledInput]) -> list[PulledInput]:
-    by_target: dict[str, PulledInput] = {}
-    for item in items:
-        current = by_target.get(item.target_desc)
-        if current is None or item.suggested_date < current.suggested_date:
-            by_target[item.target_desc] = item
+def _dedupe_pulled_input_updates(updates: Sequence[_PulledInputUpdate]) -> list[_PulledInputUpdate]:
+    by_target: dict[str, _PulledInputUpdate] = {}
+    for update in updates:
+        current = by_target.get(update.item.target_desc)
+        if current is None or update.item.suggested_date < current.item.suggested_date:
+            by_target[update.item.target_desc] = update
     return list(by_target.values())
+
+
+def _clamp_pulled_date(suggested_date: date, as_of_date: date) -> date:
+    if suggested_date <= as_of_date:
+        return as_of_date + timedelta(days=1)
+    return suggested_date
+
+
+def _apply_pulled_input_updates(
+    inputs: InputBundle,
+    updates: Sequence[_PulledInputUpdate],
+    as_of_date: date,
+) -> InputBundle:
+    room_dates = {
+        update.ref_id: update.item.suggested_date
+        for update in updates
+        if update.kind == "room"
+    }
+    arrival_dates = {
+        update.ref_id: update.item.suggested_date
+        for update in updates
+        if update.kind == "arrival"
+    }
+    return inputs.model_copy(
+        update={
+            "rooms": [
+                room.model_copy(update={"install_ready_date": room_dates[room.room_id]})
+                if room.room_id in room_dates
+                else room
+                for room in inputs.rooms
+            ],
+            "arrivals": [
+                arrival.model_copy(
+                    update={
+                        "arrival_date": arrival_dates[arrival.pod_id],
+                        "arrival_status": _arrival_status_for_date(arrival_dates[arrival.pod_id], as_of_date),
+                    }
+                )
+                if arrival.pod_id in arrival_dates
+                else arrival
+                for arrival in inputs.arrivals
+            ],
+        }
+    )
+
+
+def _apply_demand_target(inputs: InputBundle, demand: _DemandTarget) -> InputBundle:
+    if demand.target.ref_id is None or demand.target.kind not in {"批次上电", "批次上线"}:
+        return inputs
+    field_name = "power_on_target_date" if demand.target.kind == "批次上电" else "online_target_date"
+    return inputs.model_copy(
+        update={
+            "batches": [
+                batch.model_copy(update={field_name: demand.desired_end})
+                if batch.batch_id == demand.target.ref_id
+                else batch
+                for batch in inputs.batches
+            ]
+        }
+    )
+
+
+def _arrival_status_for_date(arrival_date: date, as_of_date: date) -> str:
+    return "已到货" if arrival_date <= as_of_date else "在途"
 
 
 def _apply_reworks(plan: PlanResult, reworks: Sequence[ReworkEvent]) -> PlanResult:

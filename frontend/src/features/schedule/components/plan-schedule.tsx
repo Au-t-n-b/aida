@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { readScheduleUploadPersistenceMode, shouldPersistUploadedScheduleChanges } from '@/features/schedule/config/schedule-stage';
 import { ensureScheduleBaseline, loadProjectData } from '@/features/schedule/services/schedule';
 import { INITIAL_BATCHES, INITIAL_ROOMS, INITIAL_TEAMS, type BatchRow, type RoomRow, type TeamRow } from './plan-board/data/plan';
 import { PlanBoard, type PlanBoardInitialData, type PlanBoardMode } from './plan-board/plan-board';
@@ -15,6 +16,7 @@ type StageResolution = {
   data: PlanBoardInitialData;
   dataSource: 'api' | 'mock';
   batchStages: BatchStage[];
+  mountKey: string;
 };
 
 function cloneRows<T>(value: T): T {
@@ -63,6 +65,14 @@ function resolveMode(batchStages: BatchStage[], baselineReady: boolean): PlanBoa
   return baselineReady ? 'adjust' : 'init';
 }
 
+function hasInitStage(batchStages: BatchStage[]): boolean {
+  return batchStages.some((batch) => batch.stage === 'init');
+}
+
+function mountKeyFor(legacyStage: PlanBoardMode | undefined, dataSource: StageResolution['dataSource']): string {
+  return `loaded:${legacyStage ?? 'auto'}:${dataSource}`;
+}
+
 function mockScheduleData(): PlanBoardInitialData {
   return {
     rooms: cloneRows(INITIAL_ROOMS),
@@ -95,6 +105,7 @@ function mockInitScheduleData(): PlanBoardInitialData {
 
 export default function PlanScheduleScreen({ legacyStage }: { legacyStage?: PlanBoardMode }) {
   const [resolution, setResolution] = useState<StageResolution | null>(null);
+  const runtimeStageSeq = useRef(0);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -109,7 +120,7 @@ export default function PlanScheduleScreen({ legacyStage }: { legacyStage?: Plan
           : mockScheduleData();
       const dataSource = projectResult.source === 'api' ? 'api' : 'mock';
       const batchStages = batchStagesFor(data.batches, data.rooms);
-      const needsInit = batchStages.some((batch) => batch.stage === 'init');
+      const needsInit = hasInitStage(batchStages);
       let baselineReady = (dataSource === 'mock' && !needsInit) || legacyStage === 'adjust';
 
       if (!needsInit && dataSource === 'api') {
@@ -120,20 +131,60 @@ export default function PlanScheduleScreen({ legacyStage }: { legacyStage?: Plan
 
       const mode = legacyStage ?? resolveMode(batchStages, baselineReady);
       console.info('[T-022] /plan stage resolved', { mode, legacy_stage: legacyStage, data_source: dataSource, baseline_ready: baselineReady, batch_stages: batchStages });
-      setResolution({ mode, data, dataSource, batchStages });
+      setResolution({ mode, data, dataSource, batchStages, mountKey: mountKeyFor(legacyStage, dataSource) });
     })();
 
     return () => controller.abort();
   }, [legacyStage]);
 
+  const handleRuntimeDataChange = useCallback(async (data: PlanBoardInitialData, reason: 'upload') => {
+    const seq = ++runtimeStageSeq.current;
+    const dataSource = resolution?.dataSource ?? 'mock';
+    const persistenceMode = readScheduleUploadPersistenceMode();
+    const persistRequested = shouldPersistUploadedScheduleChanges(persistenceMode);
+    const batchStages = batchStagesFor(data.batches, data.rooms);
+    const needsInit = hasInitStage(batchStages);
+    let baselineReady = dataSource === 'mock' && !needsInit;
+    let baselineSource: 'api' | 'mock' | 'skipped' = needsInit ? 'skipped' : dataSource === 'mock' ? 'mock' : 'skipped';
+
+    if (persistRequested) {
+      console.info('[T-053] PROD upload persistence selected; persistent write is reserved for T-054', { reason });
+    }
+
+    if (!needsInit && dataSource === 'api') {
+      const baseline = await ensureScheduleBaseline(data);
+      if (runtimeStageSeq.current !== seq) return;
+      baselineReady = baseline.source === 'api';
+      baselineSource = baseline.source;
+    }
+
+    const mode = legacyStage ?? resolveMode(batchStages, baselineReady);
+    console.info('[T-053] /plan runtime stage resolved', {
+      mode,
+      reason,
+      legacy_stage: legacyStage,
+      data_source: dataSource,
+      upload_persistence_mode: persistenceMode,
+      baseline_ready: baselineReady,
+      baseline_source: baselineSource,
+      batch_stages: batchStages,
+    });
+    setResolution(prev => ({
+      mode,
+      data,
+      dataSource,
+      batchStages,
+      mountKey: prev?.mountKey ?? mountKeyFor(legacyStage, dataSource),
+    }));
+  }, [legacyStage, resolution?.dataSource]);
+
   const boardKey = useMemo(() => {
-    if (!resolution) return 'loading';
-    return `${resolution.mode}:${resolution.dataSource}:${resolution.batchStages.map((batch) => `${batch.batchId}-${batch.stage}`).join('|')}`;
-  }, [resolution]);
+    return resolution?.mountKey ?? 'loading';
+  }, [resolution?.mountKey]);
 
   if (!resolution) {
-    return <PlanBoard mode="init" />;
+    return <PlanBoard key={boardKey} mode="init" />;
   }
 
-  return <PlanBoard key={boardKey} mode={resolution.mode} initialData={resolution.data} />;
+  return <PlanBoard key={boardKey} mode={resolution.mode} initialData={resolution.data} onRuntimeDataChange={handleRuntimeDataChange} />;
 }

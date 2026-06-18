@@ -31,11 +31,18 @@ export type PlanBoardInitialData = {
   teams: TeamRow[];
 };
 
+type PlanBoardRuntimeDataChangeReason = "upload";
+type PlanBoardProps = {
+  mode?: PlanBoardMode;
+  initialData?: PlanBoardInitialData;
+  onRuntimeDataChange?: (data: PlanBoardInitialData, reason: PlanBoardRuntimeDataChangeReason) => void;
+};
+
 /* ===================== icons ===================== */
 const I = {
-  mark:()=>(<svg width="20" height="20" viewBox="0 0 28 28" fill="none">
-    <path d="M5 24 L13 4 L15 4 L23 24" stroke="#fff" strokeWidth="1.7" strokeLinejoin="miter"/>
-    <path d="M8 16.2 L20 16.2" stroke="#CE382F" strokeWidth="2.4"/></svg>),
+  // 品牌 A 峰标志（白路径，照 brand-logo.svg；底座蓝渐变圆由 .cr-mark CSS 提供）
+  mark:()=>(<svg width="22" height="22" viewBox="0 0 100 100" fill="none">
+    <path d="M 50 6 L 11 92 L 26 92 L 50 36 L 74 92 L 89 92 Z" fill="#fff"/></svg>),
   site:(s=16)=>(<svg width={s} height={s} viewBox="0 0 18 18" fill="none"><path d="M2 7 L9 3 L16 7 L16 15 L2 15 Z" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M2 15 L16 15" stroke="currentColor" strokeWidth="1.3"/><rect x="5" y="9" width="2" height="2" stroke="currentColor" strokeWidth=".9"/><rect x="8" y="9" width="2" height="2" stroke="currentColor" strokeWidth=".9"/><rect x="11" y="9" width="2" height="2" stroke="currentColor" strokeWidth=".9"/></svg>),
   goods:(s=16)=>(<svg width={s} height={s} viewBox="0 0 18 18" fill="none"><path d="M2.5 5 L9 2 L15.5 5 L15.5 13 L9 16 L2.5 13 Z" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M2.5 5 L9 8 L15.5 5 M9 8 L9 16" stroke="currentColor" strokeWidth="1.3"/></svg>),
   people:(s=16)=>(<svg width={s} height={s} viewBox="0 0 18 18" fill="none"><circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.3"/><circle cx="12.5" cy="6.5" r="1.7" stroke="currentColor" strokeWidth="1.3"/><path d="M2 14 C2 11.2 3.8 10 6 10 C8.2 10 10 11.2 10 14" stroke="currentColor" strokeWidth="1.3" fill="none"/><path d="M10 14 C10.4 12 12 11 12.5 11 C14.5 11 16 12.2 16 14" stroke="currentColor" strokeWidth="1.3" fill="none"/></svg>),
@@ -181,7 +188,7 @@ type Plan = {
   gapDays?: number | null; finishDate?: string | null;
 };
 type PlanRisk = Plan["risks"][number];
-const PLAN_CARD_RISK_LIMIT = 4;
+const PLAN_CARD_RISK_LIMIT = 2;   // T-060：方案卡默认只展示 2 条风险（原 4 条太长），其余收进「+N 条更多」
 const PLAN_CARD_RISK_ORDER: Record<string, number> = { "高": 0, "中": 1, "低": 2 };
 
 function sortPlanRisks(risks: PlanRisk[]): PlanRisk[] {
@@ -431,21 +438,22 @@ const stepStatus=(n: number, clk: number)=>{ const s=STEPS[n-1]!; if(clk<s.start
 
 /* ===================== Claw rail ===================== */
 // 「计划调整」自适应卡（init/adjust 共用，置顶于 Claw 线程上方）· 移植自源 C chrome.tsx · 用户决策 2026-05-31
-// 漏斗入口：①上传变更表(onUpload→UploadModal→aida:plan-ingest 回灌) / ②点缺口行(aida:plan-goto 跳步) / ③面板批量调整(aida:plan-open-panel)
+// 漏斗入口：①上传调整表(onUpload→UploadModal→aida:plan-ingest 回灌) / ②点缺口行(aida:plan-goto 跳步) / ③面板批量调整(aida:plan-open-panel)
 // 三入口都 → 累计变更 → 主区跨步飘红条确认 → Agent 推演
 function ClawTodo({ state, onUpload }: { state: { site: number; goods: number; people: number; changes: number; mode: string } | null; onUpload?: () => void }) {
   const [open, setOpen] = useState(true);
+  if (!state) return null;
   const raw = [
-    { k: "site",   step: 1, dim: "站", n: state ? state.site : 0,   label: "机房 ready 待确认" },
-    { k: "goods",  step: 2, dim: "货", n: state ? state.goods : 0,  label: "PoD 到货待补 ETA" },
-    { k: "people", step: 3, dim: "人", n: state ? state.people : 0, label: "支队伍待分配" },
+    { k: "site",   step: 1, dim: "站", n: state.site,   label: "机房 ready 待确认" },
+    { k: "goods",  step: 2, dim: "货", n: state.goods,  label: "PoD 到货待补 ETA" },
+    { k: "people", step: 3, dim: "人", n: state.people, label: "支队伍待分配" },
   ];
   const items = raw.filter(it => it.n > 0);
-  if (items.length === 0) return null;
+  const hasItems = items.length > 0;
   const goTo = (step: number) => window.dispatchEvent(new CustomEvent('aida:plan-goto', { detail: { step } }));
   const openPanel = () => window.dispatchEvent(new Event('aida:plan-open-panel'));
   // 确认重排已收敛为主区跨步飘红条（.resched-banner）· 本卡只做漏斗入口（缺口跳转 + 面板批量调整）· 用户决策 2026-05-31
-  const hint = "点某项跳到对应步就地改，或开「面板批量调整」集中改 站 / 货 / 人";
+  const hint = hasItems ? "点某项跳到对应步就地改，或开「面板批量调整」集中改 站 / 货 / 人" : "暂无待确认项 · 可随时上传调整表 / 批量调整";
   return (
     <div className={`claw-todo ${open ? 'open' : ''}`}>
       <button className="ct-head" onClick={() => setOpen(o => !o)}>
@@ -456,17 +464,23 @@ function ClawTodo({ state, onUpload }: { state: { site: number; goods: number; p
       </button>
       {open && (
         <div className="ct-body">
-          <div className="ct-hint">{hint}</div>
-          {items.map((it) => (
-            <div className={`ct-item d-${it.k}`} key={it.k} onClick={() => goTo(it.step)} title={`去「${it.dim}」步就地修改`}>
-              <span className="ct-dim">{it.dim}</span>
-              <span className="ct-n">{it.n}</span>
-              <span className="ct-label">{it.label}</span>
-              <span className="ct-act">调整 →</span>
-            </div>
-          ))}
+          {hasItems ? (
+            <>
+              <div className="ct-hint">{hint}</div>
+              {items.map((it) => (
+                <div className={`ct-item d-${it.k}`} key={it.k} onClick={() => goTo(it.step)} title={`去「${it.dim}」步就地修改`}>
+                  <span className="ct-dim">{it.dim}</span>
+                  <span className="ct-n">{it.n}</span>
+                  <span className="ct-label">{it.label}</span>
+                  <span className="ct-act">调整 →</span>
+                </div>
+              ))}
+            </>
+          ) : (
+            <div className="ct-empty">{hint}</div>
+          )}
           <div className="ct-entries">
-            <button className="ct-entry" onClick={onUpload}>{I.attach(11)} 上传变更表</button>
+            <button className="ct-entry" onClick={onUpload}>{I.attach(11)} 上传调整表</button>
             <button className="ct-entry" onClick={openPanel}>{I.cog(11)} 面板批量调整</button>
           </div>
         </div>
@@ -475,7 +489,7 @@ function ClawTodo({ state, onUpload }: { state: { site: number; goods: number; p
   );
 }
 
-// 变更表上传弹窗：下载固定模板 → 上传单个 Excel → 后端确定性解析为 ChangeSet
+// 调整表上传弹窗：下载固定模板 → 上传单个 Excel → 后端确定性解析为 ChangeSet
 function UploadModal({ onClose }: { onClose: () => void }) {
   const [files, setFiles] = useState<{ file: File; name: string; size: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
@@ -502,7 +516,7 @@ function UploadModal({ onClose }: { onClose: () => void }) {
     <div className="up-mask" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="up-modal" role="dialog" aria-modal="true">
         <div className="up-head">
-          <span className="up-title">{I.attach(14)} 上传变更表</span>
+          <span className="up-title">{I.attach(14)} 上传调整表</span>
           <button className="up-close" onClick={onClose} aria-label="关闭">×</button>
         </div>
         <div className={"up-drop" + (dragOver ? " over" : "")}
@@ -720,8 +734,10 @@ function ScheduleClawRail({ width, side, stats, adjustmentReport, onOpenAdjustme
   const [planState, setPlanState] = useState<PlanState | null>(null);
   useEffect(() => { const h = (e: Event) => { const d = (e as CustomEvent<PlanState>).detail; if (d) setPlanState(d); }; window.addEventListener('aida:plan-state', h); return () => window.removeEventListener('aida:plan-state', h); }, []);
   const [uploadOpen, setUploadOpen] = useState(false);
-  // 从项目孪生加载方案（8 类信息）：点按钮 → 逐条加载动画 → 完成（移植自源 C chrome.tsx）
-  const [twinPhase, setTwinPhase] = useState<'idle' | 'loading' | 'done'>('idle');
+  // 从项目孪生加载方案（8 类信息）：进页（mount）即自动逐条加载动画 → 完成（T-060 改进页自动播·无需手点）
+  // 纯前端装饰动画：8 条写死 TWIN_ITEMS 逐个点亮，零后台——真项目数据走进页 /project-data 自动加载，与此无关（零合成红线）。
+  // 初值 = 'loading'：mount 即起，下方 idle 手动按钮分支留作即时兜底（正常进页不出现）。
+  const [twinPhase, setTwinPhase] = useState<'idle' | 'loading' | 'done'>('loading');
   const [twinN, setTwinN] = useState(0);
   useEffect(() => {
     if (twinPhase !== 'loading') return;
@@ -738,9 +754,12 @@ function ScheduleClawRail({ width, side, stats, adjustmentReport, onOpenAdjustme
       <div className="cr-head">
         <div className="cr-brand">
           <div className="cr-mark">{I.mark()}</div>
-          <div><div className="nm">AIDA-排期助手</div><div className="sub">{twinPhase === 'done' ? '孪生方案已加载 · 待发送开始排期' : '排期初始化 · 从项目孪生加载方案'}</div></div>
+          <div className="cr-id">
+            <span className="nm">AIDA-排期助手</span>
+            <span className="cr-pill">{planState?.mode === 'adjust' ? '计划调整' : '排期初始化'}</span>
+          </div>
         </div>
-        <div className="cr-scope">{I.flow(13)}<span>交付盘子 · <b>{stats.group}</b></span></div>
+        <div className="cr-scope"><span className="cr-scope-ic">{I.flow(13)}</span><span>交付盘子 · <b>{stats.group}</b></span></div>
       </div>
       <div className="cr-body">
         {planState?.ready && <ClawTodo state={planState} onUpload={() => setUploadOpen(true)} />}
@@ -805,7 +824,7 @@ function stepPending(n: number, clk: number, rooms: RoomRow[]){
   if (n === 4) return clk < STEPS[3]!.end ? 1 : 0;                         // 排期：未推完 = 1 件待生成
   return 0;
 }
-function Stepper({ clk, view, onPick, rooms, isAdjust }: { clk: number; view: number; onPick: (n: number)=>void; rooms: RoomRow[]; isAdjust?: boolean }){
+function Stepper({ clk, view, onPick, rooms, isAdjust, planLabel }: { clk: number; view: number; onPick: (n: number)=>void; rooms: RoomRow[]; isAdjust?: boolean; planLabel?: string }){
   return (
     <div className="stepper">
       {STEPS.map((s,i)=>{
@@ -822,7 +841,7 @@ function Stepper({ clk, view, onPick, rooms, isAdjust }: { clk: number; view: nu
                 {showBadge && <span className="step-badge" aria-label={pCount+" 项待补"}>{pCount}</span>}
                 {st==="done" && <span className="step-redo" aria-label="可重新编辑">✎</span>}
               </div>
-              <div className="lbl">{(s.key==="plan" && !isAdjust) ? "排期 · 到货 / 机房就位" : s.lbl}</div>
+              <div className="lbl">{s.key==="plan" ? (planLabel ?? (!isAdjust ? "排期 · 到货 / 机房就位" : s.lbl)) : s.lbl}</div>
               {/* .en 英文描述 SITE/GOODS/... 已去除 · 用户决策 2026-05-28 */}
               {showBadge && <div className="step-hint">{pCount} 项待补</div>}
               {st==="done" && <div className="step-hint done">可重新编辑</div>}
@@ -1755,19 +1774,27 @@ function Gantt({ rows }: { rows: GanttRow[] }){
     </div>
   );
 }
-/* ScheduleView 已删除：adjust 改走 基线→调整推演→ABC，不再用旧批次摘要 · 2026-05-30 */
+/* ScheduleView 已删除：adjust 改走 基线→调整推演→方案区，不再用旧批次摘要 · 2026-05-30 */
 
 /* ===================== 压缩策略：缺口 + 多策略方案 + 操作 ===================== */
 /* 方案卡：渲染在排期内容区顶部（时间轴正下方、clock stage-head 之上）· 仅 adjust 用 */
-function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, plans = PLANS, gap }: { clk: number; selPlan: string|null; onSelPlan: (id: string)=>void; onOpenGantt?: (id: string)=>void; onDispatch?: (id: string)=>void; plans?: Plan[]; gap?: GapSummary | null }){
+function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, plans = PLANS, gap, showPlanCards = true }: { clk: number; selPlan: string|null; onSelPlan: (id: string)=>void; onOpenGantt?: (id: string)=>void; onDispatch?: (id: string)=>void; plans?: Plan[]; gap?: GapSummary | null; showPlanCards?: boolean }){
   // banner = 基线问题一句话（接 GapSummary·零派生）：gap>0 显超期 banner；gap≤0 改显「已达标」绿条（议题1/2 拍板·根治「一会ABC一会只A」）
   const gapDays = gap?.gap_days ?? 0;
+  const hasGap = gap != null;
   const hasTarget = gap?.target_date != null;
-  const needCompress = clk>=17 && hasTarget && gapDays > 0;   // 基线超期·要压缩
-  const baselineMet = clk>=17 && hasTarget && gapDays <= 0;   // 基线已满足目标·无需压缩
-  // 不达标置灰：仅当存在「可达标」方案时才把不达标卡压灰形成对比（全不达标则只靠徽章标注·不灰成一片）
+  const needCompress = clk>=17 && hasGap && gapDays > 0;   // 基线超期·要压缩
+  const baselineMet = clk>=17 && hasGap && gapDays <= 0;   // 基线已满足目标·无需压缩
+  // 不达标一律置灰（T-066·指挥人口径「不能达成目标的方案才置灰·只有可用的才亮」）：去 hasAchievable 护栏·哪怕全不达标也全灰
+  // hasAchievable 保留仅用于「全不达标」判定 → 全灰时给醒目「无方案达成」横幅（见下方 plans-none-met）
   const hasAchievable = plans.some(p => p.finishDate != null && (p.gapDays ?? 1) <= 0);
-  const plansIn = clk>=18;
+  const plansIn = showPlanCards && clk>=18;
+  const stablePlanId = plans[0]?.id ?? null;
+  const openStablePlan = () => {
+    if (!stablePlanId || !onOpenGantt) return;
+    onSelPlan(stablePlanId);
+    onOpenGantt(stablePlanId);
+  };
   const [expandedRiskPlanIds, setExpandedRiskPlanIds] = useState<Set<string>>(() => new Set());
   const toggleRiskList = useCallback((planId: string) => {
     setExpandedRiskPlanIds(prev => {
@@ -1783,24 +1810,40 @@ function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, pl
         <div className="gap-banner fade">
           <div className="gx late"><div className="lab">基线预计完成</div><div className="val">{fmtMD(gap.baseline_finish_date)}</div></div>
           <div className="arrow-mid"><div className="gd">超出 +{gapDays} 天 · 需压缩</div></div>
-          <div className="gx deadline"><div className="lab">整体移交目标</div><div className="val">{fmtMD(gap.target_date)}</div></div>
+          <div className="gx deadline"><div className="lab">当前诉求目标</div><div className="val">{fmtMD(gap.target_date)}</div></div>
         </div>
       )}
       {baselineMet && gap && (
         <div className="gap-met fade">
           <span className="gm-ic">✓</span>
-          <span>基线预计完成 <b>{fmtMD(gap.baseline_finish_date)}</b> · 已满足整体移交目标 <b>{fmtMD(gap.target_date)}</b>{gapDays < 0 ? `（提前 ${-gapDays} 天）` : ""} · 无需压缩</span>
+          <span className="gm-text">基线预计完成 <b>{fmtMD(gap.baseline_finish_date)}</b> · {hasTarget ? <>已满足当前诉求目标 <b>{fmtMD(gap.target_date)}</b>{gapDays < 0 ? `（提前 ${-gapDays} 天）` : ""}</> : "当前无超期缺口"} · 无需压缩</span>
+          {!showPlanCards && stablePlanId && (
+            <span className="gm-actions">
+              {onOpenGantt && <button type="button" className="gm-action" onClick={openStablePlan}>{I.schedule(13)} 查看排期详情</button>}
+              {onDispatch && <button type="button" className="gm-action primary" onClick={()=>{ onSelPlan(stablePlanId); onDispatch(stablePlanId); }}>确认&下发</button>}
+            </span>
+          )}
         </div>
       )}
 
-      {clk>=17 && (
+      {showPlanCards && clk>=17 && (
         <div className="stage-head" style={{margin:"4px 2px 12px"}}>
           <span className="k">构建 <span className="dim">{plans.length}</span> 套调整策略供选择</span>
           <span className="d">{plans.length > 1 ? "压缩通过给「受人数约束」的活动加人实现" : "当前基线满足目标，可作为稳定方案下发"}</span>
         </div>
       )}
 
-      <div className="plans">
+      {/* 全不达标·醒目横幅（T-066②）：所有方案都超期→AIDA 诚实告知达不成 + 给方向（放宽目标 / 协调上游），避免三张死灰卡干瞪眼 */}
+      {showPlanCards && needCompress && gap && !hasAchievable && plans.length > 0 && (
+        <div className="plans-none-met fade" role="status">
+          <span className="pnm-ic">!</span>
+          <span className="pnm-text">
+            当前无方案达成目标{hasTarget ? <> <b>{fmtMD(gap.target_date)}</b></> : ""} · 建议放宽目标日期，或协调上游机房就位 / 到货（方案C）
+          </span>
+        </div>
+      )}
+
+      {showPlanCards && <div className="plans">
         {plans.map((p,i)=>{
           const sortedRisks = sortPlanRisks(p.risks);
           const riskListExpanded = expandedRiskPlanIds.has(p.id);
@@ -1808,7 +1851,7 @@ function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, pl
           const hiddenRiskCount = sortedRisks.length - visibleRisks.length;
           const cardMet = p.finishDate != null && (p.gapDays ?? 1) <= 0;   // 该方案达标（预计完成 ≤ 目标）
           const cardOver = p.finishDate != null && (p.gapDays ?? 0) > 0;   // 该方案不达标（超 N 天）
-          const dim = needCompress && hasAchievable && cardOver && selPlan !== p.id;  // 有可达标方案时·不达标卡压灰（选中态不灰）
+          const dim = needCompress && cardOver && selPlan !== p.id;  // 不达标即置灰·哪怕全不达标也全灰（达标态/选中态不灰·T-066）
           return (
           <div key={p.id} className={"plan "+(plansIn?"in ":"")+(dim?"dim ":"")+(selPlan===p.id?"sel":"")}
             style={{transitionDelay:(i*120)+"ms"}} onClick={()=>onSelPlan(p.id)}>
@@ -1855,7 +1898,7 @@ function CompressionPlans({ clk, selPlan, onSelPlan, onOpenGantt, onDispatch, pl
             </div>
           </div>
         )})}
-      </div>
+      </div>}
     </>
   );
 }
@@ -1903,8 +1946,8 @@ function GuideOverlay({ onClose }: { onClose: ()=>void }){
 }
 
 /* ===================== BackwardSchedule · 批次目标图（init 倒排结果 / adjust 基线，两页共用）=====================
-   variant=suggest（init）：红旗倒推「建议到货 / 机房 ready」(✦AI)；variant=given（adjust）：到货/机房显示为已知。
-   拖「上线/上电」红旗 → 据 batches 实时重算倒推；init 点批次开甘特，adjust 点「调整推演」→ thinking → ABC。 */
+   variant=suggest（init）：显示后端「建议到货 / 机房 ready」(✦AI)；variant=given（adjust）：到货/机房显示为已知。
+   拖「上线/上电」红旗只调整目标；init 点确认后重打 /generate 刷新建议，adjust 点「调整推演」→ thinking → 按 gap 分叉。 */
 const MOCK_LIVE_TO_ARRIVE_DAYS = 31;   // 仅 mock 回退：上线 −31 天 = 货最晚到
 const MOCK_LIVE_TO_ROOM_DAYS   = 35;   // 仅 mock 回退：机房须先于到货就绪，留改造验收缓冲
 
@@ -1916,27 +1959,31 @@ const bwdDays = (a: string, b: string) =>
   Math.round((new Date(a + "T00:00:00Z").getTime() - new Date(b + "T00:00:00Z").getTime()) / 86400000);
 const bwdMD = (iso: string) => (iso ? iso.slice(5) : "—");
 
-// 红旗：建议到货 / 建议机房 ready 的「必达目标」标记（视觉突出，用户决策 2026-05-29）
+// 红旗：上电 / 上线「必达目标」标记（视觉突出，用户决策 2026-05-29）
 const BWD_FLAG = (
   <svg className="bwd-flag-svg" width="11" height="12" viewBox="0 0 11 12" fill="none" aria-hidden="true">
     <path d="M2 1.4V11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
     <path d="M2.7 1.6H9.4L7.6 3.7L9.4 5.8H2.7Z" fill="currentColor"/>
   </svg>
 );
-function BwdMk({ x, cls, lab, date, sug, big, below, color, draggable, onGrab, dragging, flag, dragTitle }: {
+function BwdMk({ x, cls, lab, date, sug, pending, big, below, color, draggable, onGrab, dragging, flag, dragTitle }: {
   x: number; cls: string; lab: string; date: string;
-  sug?: boolean; big?: boolean; below?: boolean; color?: string;
+  sug?: boolean; pending?: boolean; big?: boolean; below?: boolean; color?: string;
   draggable?: boolean; onGrab?: (e: React.MouseEvent) => void; dragging?: boolean; flag?: boolean; dragTitle?: string;
 }) {
+  const title = draggable
+    ? (dragTitle ?? lab + " · 按住左右拖动调整目标日期")
+    : pending ? "目标已调整，确认推演后刷新建议日期" : undefined;
   return (
-    <div className={"bwd-mk " + cls + (sug ? " sug" : "") + (big ? " big" : "") + (below ? " below" : "") + (draggable ? " draggable" : "") + (dragging ? " dragging" : "") + (flag ? " flagged" : "")}
+    <div className={"bwd-mk " + cls + (sug ? " sug" : "") + (pending ? " pending" : "") + (big ? " big" : "") + (below ? " below" : "") + (draggable ? " draggable" : "") + (dragging ? " dragging" : "") + (flag ? " flagged" : "")}
       style={{ left: x + "%" }}
       onMouseDown={draggable ? onGrab : undefined}
-      title={draggable ? (dragTitle ?? lab + " · 按住左右拖动调整目标日期") : undefined}>
+      title={title}>
       <span className="bwd-dot" style={color ? { background: color, borderColor: color } : undefined} />
       <div className="bwd-cap">
         <span className="bwd-mlab">{flag && <i className="bwd-flag">{BWD_FLAG}</i>}{sug && <i className="bwd-ai" aria-hidden="true">{I.spark(10)}</i>}{lab}{draggable && <i className="bwd-grip" aria-hidden="true">⇆</i>}</span>
         <span className="bwd-mdate">{date}</span>
+        {pending && <span className="bwd-pending-tag">待推演</span>}
       </div>
     </div>
   );
@@ -1944,9 +1991,6 @@ function BwdMk({ x, cls, lab, date, sug, big, below, color, draggable, onGrab, d
 
 type BwdRow = BatchRow & { pods: string[]; arrive: string; room: string };
 type GeneratedBwdRow = BwdRow & { ai?: { arrive?: boolean; room?: boolean } };
-type SuggestionKind = "room" | "arrive";
-type ConfirmSuggestionInput = { batchId: string; kind: SuggestionKind; date: string; podIds: string[] };
-const suggestionKey = (kind: SuggestionKind, batchId: string) => kind + ":" + batchId;
 // 倒排时间轴范围：含 6 天留白；拖拽时冻结，避免轴随被拖日期跳动
 function axisOf(rows: BwdRow[]) {
   const ds = rows.flatMap(r => [r.room, r.arrive, r.powerOnDate, r.goLiveDate].filter(Boolean));
@@ -1986,53 +2030,27 @@ function bwdRowsFromPlan(batches: BatchRow[], rooms: RoomRow[], sug: boolean): B
     .sort((a, b) => (a.goLiveDate < b.goLiveDate ? -1 : 1));
 }
 
-function applyBatchTargetsToSuggestionRows(rows: GeneratedBwdRow[], batches: BatchRow[]): GeneratedBwdRow[] {
+function applyBatchTargetDatesToRows(rows: GeneratedBwdRow[], batches: BatchRow[]): GeneratedBwdRow[] {
   const batchTargetsById = new Map(batches.map(batch => [batch.id, { powerOnDate: batch.powerOnDate, goLiveDate: batch.goLiveDate }]));
   return rows.map(row => {
     const target = batchTargetsById.get(row.id);
     if (!target) return row;
-    const goLiveDelta = target.goLiveDate && row.goLiveDate ? bwdDays(target.goLiveDate, row.goLiveDate) : 0;
-    const powerDelta = target.powerOnDate && row.powerOnDate ? bwdDays(target.powerOnDate, row.powerOnDate) : 0;
-    const targetDelta = goLiveDelta !== 0 ? goLiveDelta : powerDelta;
     return {
       ...row,
-      arrive: targetDelta ? bwdShift(row.arrive, targetDelta) : row.arrive,
-      room: targetDelta ? bwdShift(row.room, targetDelta) : row.room,
       powerOnDate: target.powerOnDate,
       goLiveDate: target.goLiveDate,
     };
   });
 }
 
-function overlayConfirmedSuggestionRows(sourceRows: GeneratedBwdRow[], batches: BatchRow[], rooms: RoomRow[], confirmedSuggestions?: ReadonlySet<string>): GeneratedBwdRow[] {
-  if (!confirmedSuggestions?.size) return sourceRows;
-  const stateRowsById = new Map(bwdRowsFromPlan(batches, rooms, false).map(row => [row.id, row]));
-  return sourceRows.map(row => {
-    const stateRow = stateRowsById.get(row.id);
-    const roomConfirmed = confirmedSuggestions.has(suggestionKey("room", row.id));
-    const arriveConfirmed = confirmedSuggestions.has(suggestionKey("arrive", row.id));
-    return {
-      ...row,
-      room: roomConfirmed && stateRow ? stateRow.room : row.room,
-      arrive: arriveConfirmed && stateRow ? stateRow.arrive : row.arrive,
-      ai: {
-        ...row.ai,
-        room: roomConfirmed ? false : row.ai?.room,
-        arrive: arriveConfirmed ? false : row.ai?.arrive,
-      },
-    };
-  });
-}
-
-function currentInitSuggestionRows(batches: BatchRow[], rooms: RoomRow[], generatedRows?: GeneratedBwdRow[] | null, confirmedSuggestions?: ReadonlySet<string>): GeneratedBwdRow[] {
-  const sourceRows = applyBatchTargetsToSuggestionRows(
+function currentInitSuggestionRows(batches: BatchRow[], rooms: RoomRow[], generatedRows?: GeneratedBwdRow[] | null): GeneratedBwdRow[] {
+  return applyBatchTargetDatesToRows(
     generatedRows?.length ? generatedRows : bwdRowsFromPlan(batches, rooms, true),
     batches,
   );
-  return overlayConfirmedSuggestionRows(sourceRows, batches, rooms, confirmedSuggestions);
 }
 
-function materializeInitSuggestionRows(rooms: RoomRow[], batches: BatchRow[], rows: GeneratedBwdRow[], confirmedSuggestions?: ReadonlySet<string>): RoomRow[] {
+function materializeInitSuggestionRows(rooms: RoomRow[], batches: BatchRow[], rows: GeneratedBwdRow[]): RoomRow[] {
   const rowByBatchId = new Map(rows.map(row => [row.id, row]));
   const batchIdByPodId = new Map<string, string>();
   batches.forEach(batch => batch.podIds.forEach(podId => batchIdByPodId.set(podId, batch.id)));
@@ -2042,12 +2060,11 @@ function materializeInitSuggestionRows(rooms: RoomRow[], batches: BatchRow[], ro
       .map(pod => rowByBatchId.get(batchIdByPodId.get(pod.id) ?? ""))
       .filter((row): row is GeneratedBwdRow => Boolean(row));
     const roomReady = rowsForRoom.length ? rowsForRoom.map(row => row.room).reduce((latest, date) => (date > latest ? date : latest), rowsForRoom[0]!.room) : null;
-    const shouldWriteRoom = Boolean(roomReady) && (!hasAnyReady(room) || rowsForRoom.some(row => confirmedSuggestions?.has(suggestionKey("room", row.id))));
+    const shouldWriteRoom = Boolean(roomReady) && !hasAnyReady(room);
     const nextPods = room.pods.map(pod => {
       const row = rowByBatchId.get(batchIdByPodId.get(pod.id) ?? "");
       if (!row || pod.arrival === "arrived") return pod;
-      const shouldWriteArrival = pod.arrival === "unknown" || confirmedSuggestions?.has(suggestionKey("arrive", row.id));
-      return shouldWriteArrival
+      return pod.arrival === "unknown"
         ? { ...pod, arrival: "eta" as const, etaLabel: "在途 " + row.arrive.slice(5), etaDate: row.arrive }
         : pod;
     });
@@ -2212,7 +2229,7 @@ function WindowReadout({ rows, dim, axis, collapsible = false }: { rows: BwdRow[
   );
 }
 
-function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "suggest", onPickBatch, showConfirm = true, confirmTitle = "确认上线 / 上电目标", confirmDesc = "系统据此倒推建议到货 / 机房就位，并生成 A / B / C 多策略排期方案", confirmLabel = "确认目标 · 生成排期方案 →", events = [], onAddEvent, onRemoveEvent, generatedRows, onConfirmSuggestion, confirmedSuggestions }: {
+function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "suggest", onPickBatch, showConfirm = true, confirmTitle = "确认上线 / 上电目标", confirmDesc = "系统据此倒推建议到货 / 机房就位，并进入排期详情核查", confirmLabel = "确认目标 · 生成排期方案 →", events = [], onAddEvent, onRemoveEvent, skipWeekends = false, onToggleSkipWeekends, generatedRows, pendingSuggestionBatchIds }: {
   batches: BatchRow[]; rooms: RoomRow[];
   updateBatch: (id: string, patch: Partial<BatchRow>) => void;
   onConfirm: () => void;
@@ -2225,13 +2242,13 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
   events?: SchedEvent[];                    // 已注入的意外事件（adjust）
   onAddEvent?: (ev: SchedEventDraft) => void;   // 草稿（无 id）→ PlanBoard 发号
   onRemoveEvent?: (id: string) => void;
+  skipWeekends?: boolean;                    // 全局工作日历开关（同时影响甘特预览与推演请求）
+  onToggleSkipWeekends?: (checked: boolean) => void;
   generatedRows?: GeneratedBwdRow[];
-  onConfirmSuggestion?: (input: ConfirmSuggestionInput) => void;
-  confirmedSuggestions?: ReadonlySet<string>;
+  pendingSuggestionBatchIds?: Set<string>;
 }) {
   const sug = variant === "suggest";
   const [dragKey, setDragKey] = useState<string | null>(null); // 正在拖的标记
-  const [suggestDrag, setSuggestDrag] = useState<{ key: string; date: string } | null>(null);
   const [dim, setDim] = useState<"all" | string>("all");       // 全部 / 单批次 视图切换
   const frozenAxis = useRef<{ min: string; max: string; span: number } | null>(null);
 
@@ -2255,16 +2272,14 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
   const sourceRows: GeneratedBwdRow[] = useMemo(
     () => {
       const rows = sug && generatedRows?.length ? generatedRows : bwdRowsFromPlan(batches, rooms, sug);
-      return sug ? applyBatchTargetsToSuggestionRows(rows, batches) : rows;
+      return sug ? applyBatchTargetDatesToRows(rows, batches) : rows;
     },
     [batches, generatedRows, rooms, sug],
   );
-  const allRows: GeneratedBwdRow[] = useMemo(() => {
-    return sug ? overlayConfirmedSuggestionRows(sourceRows, batches, rooms, confirmedSuggestions) : sourceRows;
-  }, [batches, confirmedSuggestions, rooms, sourceRows, sug]);
+  const allRows = sourceRows;
 
   // given(adjust)：到货 / 机房 ready 冻结在基线快照——拖「上电 / 上线」目标只动该旗，不联动它们；
-  // 再排期(组件重挂载)时按新结果刷新 · 用户决策 2026-05-31。suggest(init)保持实时倒推。
+  // init 同样只动目标旗；建议值等确认推演后由新版 /generate 刷新。
   const baseRef = useRef<Record<string, { arrive: string; room: string }> | null>(null);
   if (!sug && baseRef.current === null && allRows.length) {
     const snap: Record<string, { arrive: string; room: string }> = {};
@@ -2295,7 +2310,7 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
   const lastLive = dispRows.reduce((m, r) => (r.goLiveDate > m ? r.goLiveDate : m), dispRows[0]!.goLiveDate);
   const liveToArriveDays = bwdDays(lastLive, latestArrive);
 
-  // ② 拖动 上电/上线 红旗 → 改 batch 日期 → 建议（到货/机房ready）实时倒推
+  // ② 拖动 上电/上线 红旗 → 改 batch 日期；建议（到货/机房ready）等确认推演后由后端刷新
   const beginDrag = (e: React.MouseEvent, row: BwdRow, field: "powerOnDate" | "goLiveDate") => {
     e.preventDefault(); e.stopPropagation();
     const trackEl = (e.currentTarget as HTMLElement).closest(".bwd-track") as HTMLElement | null;
@@ -2331,44 +2346,6 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
     window.addEventListener("mouseup", onUp);
   };
 
-  const beginSuggestionDrag = (e: React.MouseEvent, row: BwdRow, kind: SuggestionKind) => {
-    if (!onConfirmSuggestion) return;
-    e.preventDefault(); e.stopPropagation();
-    const trackEl = (e.currentTarget as HTMLElement).closest(".bwd-track") as HTMLElement | null;
-    if (!trackEl) return;
-    const rect = trackEl.getBoundingClientRect();
-    const pxPerDay = (rect.width * (100 - 2 * PAD) / 100) / axis.span;
-    const startX = e.clientX;
-    const startDate = kind === "room" ? row.room : row.arrive;
-    const key = suggestionKey(kind, row.id);
-    const maxDate = bwdShift(row.goLiveDate, -1);
-    let landingDate = clampDate(startDate);
-    frozenAxis.current = liveAxis;
-    setDragKey(key);
-    setSuggestDrag({ key, date: landingDate });
-
-    function clampDate(date: string): string {
-      if (date > maxDate) return maxDate;
-      return date;
-    }
-
-    const onMove = (mv: MouseEvent) => {
-      const delta = Math.round((mv.clientX - startX) / pxPerDay);
-      landingDate = clampDate(bwdShift(startDate, delta));
-      setSuggestDrag({ key, date: landingDate });
-    };
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-      document.body.style.cursor = ""; document.body.style.userSelect = "";
-      frozenAxis.current = null; setDragKey(null); setSuggestDrag(null);
-      onConfirmSuggestion({ batchId: row.id, kind, date: landingDate, podIds: row.pods });
-    };
-    document.body.style.cursor = "ew-resize"; document.body.style.userSelect = "none";
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
-
   return (
     <div className="bwd">
       {/* 倒排说明条 · gap-banner 的镜像：右端给定目标 → 向左反推建议 */}
@@ -2384,7 +2361,7 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
           <div className="bch-titles">
             <div className="bch-title">{I.schedule(15)}<span>{sug ? "上线目标 · 倒推就位建议" : "当前基线排期 · 计划调整"}</span></div>
             <div className="bch-sub">{I.spark(11)} {sug
-              ? "拖「上电 / 上线」红旗调整目标，建议实时倒推；点批次查看排期详情"
+              ? "拖「上电 / 上线」红旗调整目标，建议待确认推演后刷新；点批次查看排期详情"
               : "拖「上电 / 上线」红旗调整目标、注入意外事件，确认后由 Agent 重排"}</div>
           </div>
           <div className="bwd-seg">
@@ -2397,14 +2374,11 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
         </div>
         {rows.map((r, ri) => {
           const i = dispRows.findIndex(rr => rr.id === r.id);
-          const roomKey = suggestionKey("room", r.id);
-          const arriveKey = suggestionKey("arrive", r.id);
-          const roomDate = suggestDrag?.key === roomKey ? suggestDrag.date : r.room;
-          const arriveDate = suggestDrag?.key === arriveKey ? suggestDrag.date : r.arrive;
-          const roomConfirmed = !!confirmedSuggestions?.has(roomKey);
-          const arriveConfirmed = !!confirmedSuggestions?.has(arriveKey);
-          const roomSuggested = sug && !roomConfirmed && (r.ai?.room ?? true);
-          const arriveSuggested = sug && !arriveConfirmed && (r.ai?.arrive ?? true);
+          const roomDate = r.room;
+          const arriveDate = r.arrive;
+          const roomSuggested = sug && (r.ai?.room ?? true);
+          const arriveSuggested = sug && (r.ai?.arrive ?? true);
+          const suggestionPending = Boolean(sug && pendingSuggestionBatchIds?.has(r.id));
           return (
           <div className="bwd-row" key={r.id} style={{ transitionDelay: ri * 90 + "ms" }}>
             <span className={"bwd-name" + (onPickBatch ? " clickable" : "")}
@@ -2414,12 +2388,10 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
             </span>
             <div className="bwd-track">
               <div className="bwd-lead" style={{ left: x(roomDate) + "%", width: (x(r.goLiveDate) - x(roomDate)) + "%", background: r.color }} />
-              <BwdMk x={x(roomDate)} cls="mk-room" lab={roomSuggested ? "建议机房 ready" : "机房 ready"} date={bwdMD(roomDate)} sug={roomSuggested} below
-                draggable={(roomSuggested || roomConfirmed) && !!onConfirmSuggestion} dragging={dragKey === roomKey} onGrab={(e) => beginSuggestionDrag(e, r, "room")}
-                dragTitle={(roomConfirmed ? "机房 ready" : "建议机房 ready") + " · 拖动落点即确认日期"} />
-              <BwdMk x={x(arriveDate)} cls="mk-arrive" lab={arriveSuggested ? "建议到货" : "到货"} date={bwdMD(arriveDate)} sug={arriveSuggested}
-                draggable={(arriveSuggested || arriveConfirmed) && !!onConfirmSuggestion} dragging={dragKey === arriveKey} onGrab={(e) => beginSuggestionDrag(e, r, "arrive")}
-                dragTitle={(arriveConfirmed ? "到货" : "建议到货") + " · 拖动落点即确认日期"} />
+              <BwdMk x={x(roomDate)} cls="mk-room" lab={roomSuggested ? "建议机房 ready" : "机房 ready"} date={bwdMD(roomDate)} sug={roomSuggested} pending={roomSuggested && suggestionPending} below
+              />
+              <BwdMk x={x(arriveDate)} cls="mk-arrive" lab={arriveSuggested ? "建议到货" : "到货"} date={bwdMD(arriveDate)} sug={arriveSuggested} pending={arriveSuggested && suggestionPending}
+              />
               {r.powerOnDate && <BwdMk x={x(r.powerOnDate)} cls="mk-power" lab="上电目标" date={bwdMD(r.powerOnDate)} below flag
                 draggable dragging={dragKey === r.id + "powerOnDate"} onGrab={(e) => beginDrag(e, r, "powerOnDate")} />}
               <BwdMk x={x(r.goLiveDate)} cls="mk-live" lab="上线目标" date={bwdMD(r.goLiveDate)} big color={r.color} flag
@@ -2433,8 +2405,8 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
 
       {/* 区间交付看板已移到「排期详情」甘特顶部（见 GanttDetailOverlay）· 用户决策 2026-06-01 */}
 
-      {/* 意外事件入口（adjust）：可配置 2 种类型(效率打折/假期停工)，每条填 原因/影响时间，效率打折选档 → 影响排期 · 用户决策 2026-06-02 */}
-      {!sug && onAddEvent && (
+      {/* 意外事件入口：可配置 2 种类型(效率打折/假期停工)，每条填 原因/影响时间，效率打折选档 → 确认推演时纳入 */}
+      {onAddEvent && (
         <div className="bwd-events fade">
           <div className="be-head">
             <div className="be-titles">
@@ -2442,12 +2414,19 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
               <div className="be-sub">配置突发事件（效率打折 / 假期停工 · 可填原因与影响时间），确认重排时纳入影响、甘特高亮受影响活动</div>
             </div>
             <div className="be-add">
+              {onToggleSkipWeekends && (
+                <label className="be-weekend-toggle" title="周末按 0 产能参与排期推演和甘特预览">
+                  <input aria-label="周末停工" type="checkbox" checked={skipWeekends} onChange={e => onToggleSkipWeekends(e.target.checked)} />
+                  <span className="be-switch" aria-hidden="true"><i /></span>
+                  <span>周末停工</span>
+                </label>
+              )}
               <button className={"be-add-btn eff" + (evDraft?.kind === "efficiency" ? " active" : "")}
                 onClick={() => openEvForm("efficiency")} title="效率打折：窗口内产能按比例下降（如台风 / 高温限电）">
                 {I.warn(13)} ＋ 效率打折
               </button>
               <button className={"be-add-btn hol" + (evDraft?.kind === "holiday" ? " active" : "")}
-                onClick={() => openEvForm("holiday")} title="假期停工：机房不开放、窗口内无法施工（如国庆 / 春节）">
+                onClick={() => openEvForm("holiday")} title="假期停工：机房不开放、窗口内无法施工（如春节 / 国庆）">
                 {I.cal(13)} ＋ 假期停工
               </button>
             </div>
@@ -2465,7 +2444,7 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
                 <label className="be-fld">
                   <span className="be-fld-lab">原因</span>
                   <input className="be-input" type="text" value={evDraft.label} maxLength={16}
-                    placeholder={evDraft.kind === "efficiency" ? "如：台风登陆 / 高温限电" : "如：国庆假期 / 春节"}
+                    placeholder={evDraft.kind === "efficiency" ? "如：台风登陆 / 高温限电" : "如：春节假期 / 国庆"}
                     onChange={e => setEvDraft(d => d && { ...d, label: e.target.value })} />
                 </label>
                 <label className="be-fld">
@@ -2522,7 +2501,7 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
       <div className="bwd-foot fade">
         <span><i className={sug ? "sug" : "given"} />{sug ? "AI 建议（货到 / 机房就位）" : "已知（货到 / 机房就位）"}</span>
         <span><i className="given" />{sug ? "给定目标（上电 / 上线）" : "目标（上电 / 上线）"}</span>
-        <span className="bwd-tip">{sug ? "拖红旗调整目标；人工改过的 ready / 到货保持人设" : "拖红旗调整目标 → 点「调整推演」重新计算方案"}</span>
+        <span className="bwd-tip">{sug ? "拖红旗调整目标；到货 / 机房就位建议确认后刷新" : "拖红旗调整目标 → 点「调整推演」重新计算方案"}</span>
       </div>
 
       {/* 确认目标 → 生成多策略方案（init 倒排直出，showConfirm=false 时不显示） */}
@@ -2540,12 +2519,12 @@ function BackwardSchedule({ batches, rooms, updateBatch, onConfirm, variant = "s
 }
 
 /* ===================== 排期计算 · 思考过程（确认 → 方案 之间的 AI 可解释）===================== */
-// 思考步骤：adjust 多策略(ABC) / init 首次排期(标准 SLA → 就位建议，不出现"正排/倒排"字样)
-const THINK_STEPS_ABC = [
-  { t: "解析约束链", d: "上线 / 上电目标 → 倒推到货 / 机房就位窗口" },
-  { t: "识别压缩着力点", d: "标记受人数约束的弹性活动（可加人压缩）" },
-  { t: "多策略寻优", d: "均摊 / TopK极限 / 货期提拉 三条路径并行试算" },
-  { t: "生成 A / B / C 方案", d: "按工期、增员、风险三维择优排序" },
+// 思考步骤：adjust 推演 / init 首次排期(标准 SLA → 就位建议，不出现"正排/倒排"字样)
+const THINK_STEPS_ADJUST = [
+  { t: "解析约束链", d: "读取上线 / 上电目标、到货与机房就位窗口" },
+  { t: "计算基线缺口", d: "对照当前诉求目标校核预计完成时间" },
+  { t: "判断压缩必要性", d: "基线满足目标则保留稳定方案，超期才进入压缩" },
+  { t: "生成排期结论", d: "达标进入甘特核查；超标提供压缩方案供选择" },
 ];
 const THINK_STEPS_SUGGEST = [
   { t: "解析人货站约束", d: "读取机房、PoD、队伍与上线 / 上电目标" },
@@ -2553,7 +2532,7 @@ const THINK_STEPS_SUGGEST = [
   { t: "校核资源与依赖", d: "检查队伍产能与活动先后顺序是否冲突" },
   { t: "生成就位建议", d: "给出每批次 建议机房 ready / 建议到货时间" },
 ];
-function ScheduleThinking({ onDone, steps = THINK_STEPS_ABC, title = "AIDA 正在排期计算…" }: { onDone: () => void; steps?: { t: string; d: string }[]; title?: string }) {
+function ScheduleThinking({ onDone, steps = THINK_STEPS_ADJUST, title = "AIDA 正在排期计算…" }: { onDone: () => void; steps?: { t: string; d: string }[]; title?: string }) {
   const STEPS = steps;
   const [step, setStep] = useState(0);
   useEffect(() => {
@@ -2617,6 +2596,7 @@ type GdAct = {
 type DurationOverrides = Record<string, number>;
 type GdPhase = typeof GD_PHASES[number];
 type GdRow = { type: "phase"; phase: GdPhase; items: GdAct[] } | { type: "task"; a: GdAct };
+type GdPhaseRange = { start: string; end: string; days: number; left: number; width: number };
 const EXPERIENCE_EFFICIENCY: Record<"丰富" | "一般" | "缺乏", number> = { "丰富": 1, "一般": 0.8, "缺乏": 0.7 };
 const GD_ACTS: GdAct[] = [
   { id: "G00", phase: "plan", name: "项目立项 · 采购冻结",       batch: "—", start: "2026-06-01", end: "2026-06-08", deps: [], progress: 1 },
@@ -2807,20 +2787,20 @@ function experienceEfficiency(experience: "丰富" | "一般" | "缺乏" | undef
 
 /* ===================== 意外事件（效率打折 / 假期停工）· 用户决策 2026-06-01；2026-06-02 改可配置 =====================
    从「当前基线」处配置注入 → 影响甘特 CPM（efficiency=窗口内产能系数：停工 0 / 降效 0~1） → 受影响活动/批次高亮。
-   事件是**时间窗口**扰动，作用于窗口内**实际在施工**的活动（甘特按 eff 动态判定）：8 月降效推迟工期、10 月停工再咬住被推迟的尾段。
+   事件是**时间窗口**扰动，作用于窗口内**实际在施工**的活动（甘特按 eff 动态判定）：春节停工 + 返岗爬坡落在交付窗口内，可直接演示级联顺延。
    2026-06-02：由「2 预置一键注入」改为**可配置表单**——2 种类型(效率打折/假期停工)，每条可填 原因 / 影响时间，效率打折再选档位，可加多条。 */
 type SchedEvent = { id: string; kind: "efficiency" | "holiday"; label: string; start: string; end: string; efficiency: number };
 type SchedEventDraft = { kind: "efficiency" | "holiday"; label: string; start: string; end: string; efficiency: number };
-// 表单预填默认（仍复现经典级联：效率打折→台风 8 月减半 / 假期停工→国庆 10 月停工），均可改 · 用户决策 2026-06-02
+// 表单预填默认（效率打折→春节后返岗爬坡；假期停工→春节 7 天停工；均可改，非项目实例值）· 用户决策 2026-06-16
 const EVENT_FORM_DEFAULTS: Record<"efficiency" | "holiday", { label: string; start: string; end: string; efficiency: number }> = {
-  efficiency: { label: "台风登陆", start: "2026-08-15", end: "2026-08-25", efficiency: 0.5 },
-  holiday:    { label: "国庆假期", start: "2026-10-01", end: "2026-10-07", efficiency: 0 },
+  efficiency: { label: "春节后返岗爬坡", start: "2026-02-23", end: "2026-03-02", efficiency: 0.6 },
+  holiday:    { label: "春节假期", start: "2026-02-16", end: "2026-02-22", efficiency: 0 },
 };
 const EFF_PRESETS = [0.75, 0.5, 0.25];  // 效率打折固定档（75/50/25），另支持自定义 1~99%
 // 受影响高亮**只在排期推演完成后**呈现（甘特 affectedActs，按 eff 动态判定）· 用户决策 2026-06-02
 // 基线「新增调整需求」阶段不再预判受影响批次（原 affectedBatchSet 已删）。
 
-function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved, batches, rooms, events, acts, criticalIds, initialDurationOverrides = {} }: { title: string; backLabel?: string; onClose: () => void; onSaved: (overrides: DurationOverrides) => void; batches: BatchRow[]; rooms: RoomRow[]; events: SchedEvent[]; acts?: GdAct[]; criticalIds?: Set<string>; initialDurationOverrides?: DurationOverrides }) {
+function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved, batches, rooms, events, skipWeekends = false, acts, criticalIds, initialDurationOverrides = {} }: { title: string; backLabel?: string; onClose: () => void; onSaved: (overrides: DurationOverrides) => void; batches: BatchRow[]; rooms: RoomRow[]; events: SchedEvent[]; skipWeekends?: boolean; acts?: GdAct[]; criticalIds?: Set<string>; initialDurationOverrides?: DurationOverrides }) {
   const usesMockActs = !acts?.length;
   const gdActs = usesMockActs ? GD_ACTS : acts;
   const critIds = usesMockActs ? GD_CRIT : (criticalIds ?? GD_CRIT);
@@ -2831,10 +2811,10 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   const [dragPreview, setDragPreview] = useState<{ id: string; days: number } | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
+  const [barPopover, setBarPopover] = useState<{ id: string; left: number; top: number } | null>(null);
   const [showDeps, setShowDeps] = useState(true);
   const [showCrit, setShowCrit] = useState(true);
-  // 意外事件由「当前基线」处注入 → props.events（甘特只渲染影响）；跳周末仍是甘特本地开关 · 用户决策 2026-06-01
-  const [skipWeekends, setSkipWeekends] = useState(false);
+  // 意外事件与跳周末由基线处配置 → props 注入；甘特只负责读取并渲染影响 · 用户决策 2026-06-16
   const [batchFilter, setBatchFilter] = useState<string>("all");  // #3 详情甘特按批次筛选（all=全部·自动列真实批次）· T-046
   const batchOptions = useMemo<string[]>(() => Array.from(new Set(gdActs.map(a => a.batch).filter((b): b is string => Boolean(b) && b !== "—"))).sort((a, b) => a.localeCompare(b)), [gdActs]);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -2928,6 +2908,25 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
     return out;
   }, [gdActs, batchFilter, collapsedPhases]);
   const rowIndex = (id: string) => rows.findIndex(r => r.type === "task" && r.a.id === id);
+  const phaseRanges = useMemo<Record<string, GdPhaseRange>>(() => {
+    const next: Record<string, GdPhaseRange> = {};
+    rows.forEach((row) => {
+      if (row.type !== "phase") return;
+      const starts = row.items.map((activity) => eff.start[activity.id] || activity.start);
+      const ends = row.items.map((activity) => eff.end[activity.id] || activity.end);
+      const start = starts.reduce((min, date) => (date < min ? date : min), starts[0]!);
+      const end = ends.reduce((max, date) => (date > max ? date : max), ends[0]!);
+      const days = GD.between(start, end);
+      next[row.phase.key] = {
+        start,
+        end,
+        days,
+        left: GD.diff(range.start, GD.parse(start)) * dayW,
+        width: Math.max(days * dayW, dayW),
+      };
+    });
+    return next;
+  }, [rows, eff, range, dayW]);
   const togglePhase = useCallback((phaseKey: string) => {
     setCollapsedPhases(prev => {
       const next = new Set(prev);
@@ -2960,6 +2959,29 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
       if (axisRef.current) axisRef.current.style.transform = `translateX(${-canvas.scrollLeft}px)`;
     });
   }, [eff, range, dayW, gdActs]);
+  // 悬浮即显（T-058）：鼠标进活动条 → 算位置显卡；移开 → 隐。纯 tooltip（卡 pointer-events:none·不可点·不钉住），
+  // 复用 T-056 的锚 .gd-panel + 视口夹取 + 上下翻转定位。四行（活动名/开始/结束/工期）→ height 150。
+  const showBarHover = useCallback((e: React.MouseEvent<HTMLDivElement>, activity: GdAct) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = 236;
+    const height = 150;
+    const panelRect = (e.currentTarget.closest(".gd-panel") as HTMLElement | null)?.getBoundingClientRect();
+    const originLeft = panelRect?.left ?? 0;
+    const originTop = panelRect?.top ?? 0;
+    const viewportW = window.visualViewport?.width ?? document.documentElement.clientWidth ?? window.innerWidth;
+    const viewportH = window.visualViewport?.height ?? document.documentElement.clientHeight ?? window.innerHeight;
+    const boundsW = panelRect?.width ?? viewportW;
+    const boundsH = panelRect?.height ?? viewportH;
+    const rawLeft = rect.left - originLeft + Math.min(rect.width, 28) / 2;
+    const maxLeft = Math.max(12, boundsW - width - 12);
+    const left = Math.min(maxLeft, Math.max(12, rawLeft));
+    const below = rect.bottom - originTop + 8;
+    const top = below + height > boundsH - 12 ? Math.max(12, rect.top - originTop - height - 8) : below;
+    setBarPopover({ id: activity.id, left, top });
+  }, []);
+  const hideBarHover = useCallback((id: string) => {
+    setBarPopover((prev) => (prev?.id === id ? null : prev));
+  }, []);
 
   const barRect = (a: GdAct) => {
     const s = GD.diff(range.start, GD.parse(eff.start[a.id] || a.start));
@@ -2978,6 +3000,29 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
     }
     return out;
   }, [range]);
+  const gridStyle = useMemo<React.CSSProperties>(() => ({
+    height: rows.length * ROW_H,
+    backgroundImage: `linear-gradient(90deg, transparent 0 ${dayW * 7}px, rgba(21,35,59,.035) ${dayW * 7}px ${dayW * 14}px)`,
+    backgroundSize: `${dayW * 14}px 100%`,
+  }), [rows.length, dayW]);
+  const popoverActivity = barPopover ? gdActs.find((activity) => activity.id === barPopover.id) : null;
+  useEffect(() => {
+    if (!barPopover) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest(".gd-popover") || target?.closest(".gd-bar")) return;
+      setBarPopover(null);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setBarPopover(null);
+    };
+    window.addEventListener("pointerdown", closeOnOutside);
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("pointerdown", closeOnOutside);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [barPopover]);
 
   const depPaths = useMemo(() => {
     if (!showDeps) return [];
@@ -2999,6 +3044,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   }, [showDeps, eff, rows, gdActs, critIds]);
 
   const beginDrag = (e: React.MouseEvent, a: GdAct) => {
+    setBarPopover(null);
     e.stopPropagation(); e.preventDefault(); if (a.milestone) return;
     const startX = e.clientX, startDays = eff.dur[a.id]!; let cur = startDays;
     const onMove = (mv: MouseEvent) => { cur = clampDuration(a.id, startDays + Math.round((mv.clientX - startX) / dayW)); setDragPreview({ id: a.id, days: cur }); };
@@ -3016,7 +3062,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
   const goDelta = GD.diff(baseGo, projGo);
   const projAccept = finalActId ? (eff.start[finalActId] || base.start[finalActId] || projGo) : projGo;
   const modCount = Object.keys(durations).length;
-  const gdDirty = modCount > 0 || skipWeekends;  // 做了调整(改工期/跳周末)才显「取消 / 保存并写回」（意外事件在基线处管理）· 用户决策 2026-06-01
+  const gdDirty = modCount > 0;  // 仅改工期才显「取消 / 保存并写回」；跳周末是前端预览开关，不写回 · 用户决策 2026-06-16
   const canvasW = range.days * dayW, canvasH = rows.length * ROW_H;
   const todayLeft = GD.diff(range.start, PROJECT_START) * dayW + dayW / 2; // 甘特 mock 指针；不参与倒排拖拽约束
   const totalPods = rooms.reduce((sum, room) => sum + room.pods.length, 0);
@@ -3067,19 +3113,6 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
             <div className="gd-kpi-v">{modCount}<span className="u"> 项</span></div>
             <div className="gd-kpi-d">{modCount > 0 ? "下游已级联重算" : "拖动活动条试试"}</div>
           </div>
-          <div className="gd-toolbar">
-            <label><input type="checkbox" checked={showDeps} onChange={e => setShowDeps(e.target.checked)} /> 依赖线</label>
-            <label><input type="checkbox" checked={showCrit} onChange={e => setShowCrit(e.target.checked)} /> 关键路径</label>
-            <label><input type="checkbox" checked={skipWeekends} onChange={e => setSkipWeekends(e.target.checked)} /> 跳周末</label>
-            {batchOptions.length > 1 && (
-              <label className="gd-batch-filter">批次
-                <select value={batchFilter} onChange={e => setBatchFilter(e.target.value)}>
-                  <option value="all">全部</option>
-                  {batchOptions.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </label>
-            )}
-          </div>
         </div>
 
         <CriticalPathTimeline
@@ -3122,13 +3155,25 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
               <span className="gd-leg-i"><i className="gd-leg-aff" /> 受影响</span>
               <span className="gd-leg-i"><i className="gd-ai-pill">AI</i> 倒推建议日</span>
               <span className="gd-leg-i"><i className="gd-leg-dep" /> 依赖线</span>
+              <div className="gd-toolbar" aria-label="甘特显示选项">
+                <label><input type="checkbox" checked={showDeps} onChange={e => setShowDeps(e.target.checked)} /> 依赖线</label>
+                <label><input type="checkbox" checked={showCrit} onChange={e => setShowCrit(e.target.checked)} /> 关键路径</label>
+                {batchOptions.length > 1 && (
+                  <label className="gd-batch-filter">批次
+                    <select value={batchFilter} onChange={e => setBatchFilter(e.target.value)}>
+                      <option value="all">全部</option>
+                      {batchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                    </select>
+                  </label>
+                )}
+              </div>
             </div>
             <div className="gd-headrow">
               <div className="gd-list-h"><span>活动</span><span>批次</span><span className="r">工期</span></div>
               <div className="gd-axis-clip">
                 <div className="gd-chead" ref={axisRef} style={{ width: canvasW }}>
                   <div className="gd-months">{months.map((m, i) => <div key={i} className="gd-month" style={{ width: m.days * dayW }}>{m.label}</div>)}</div>
-                  <div className="gd-days">{Array.from({ length: range.days }).map((_, i) => { const dt = GD.add(range.start, i); const we = GD.weekend(dt); const today = GD.iso(dt) === PROJECT_START; return <div key={i} className={"gd-day" + (we ? " we" : "") + (today ? " today" : "")} style={{ width: dayW }}>{dt.getUTCDate() % 2 === 0 ? dt.getUTCDate() : ""}</div>; })}</div>
+                  <div className="gd-days">{Array.from({ length: range.days }).map((_, i) => { const dt = GD.add(range.start, i); const we = GD.weekend(dt); const today = GD.iso(dt) === PROJECT_START; const alt = Math.floor(i / 7) % 2 === 1; return <div key={i} className={"gd-day" + (alt ? " week-alt" : "") + (we ? " we" : "") + (today ? " today" : "")} style={{ width: dayW }}>{dt.getUTCDate() % 2 === 0 ? dt.getUTCDate() : ""}</div>; })}</div>
                 </div>
               </div>
             </div>
@@ -3137,6 +3182,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
           <div className="gd-list" ref={listRef} onScroll={(e) => { if (canvasRef.current) canvasRef.current.scrollTop = e.currentTarget.scrollTop; }}>
             {rows.map((r) => {
               const collapsed = r.type === "phase" && collapsedPhases.has(r.phase.key);
+              const span = r.type === "phase" ? phaseRanges[r.phase.key] : null;
               if (r.type === "phase") return (
                 <div className="gd-lrow phase" key={"p" + r.phase.key}>
                   <button
@@ -3145,8 +3191,12 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                     aria-expanded={!collapsed}
                     onClick={() => togglePhase(r.phase.key)}
                   >
-                    <span className="gd-phase-caret" aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
-                    <span className="gd-lname"><i className="gd-sw" style={{ background: r.phase.color }} />{r.phase.name}<em>· {r.items.length}</em></span>
+                    <span className="gd-phase-name">
+                      <span className="gd-phase-caret" aria-hidden="true">{collapsed ? "▸" : "▾"}</span>
+                      <span className="gd-lname"><i className="gd-sw" style={{ background: r.phase.color }} />{r.phase.name}<em>· {r.items.length}</em></span>
+                    </span>
+                    <span className="gd-lbatch phase" aria-hidden="true" />
+                    <span className="gd-ldur phase">{span ? `${span.days} 天` : "—"}</span>
                   </button>
                 </div>
               );
@@ -3156,7 +3206,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                   className={"gd-lrow" + (sel === a.id ? " sel" : "") + (aff ? " affected" : "")}
                   key={a.id}
                   ref={(el) => { ganttRowRefs.current[a.id] = el; }}
-                  onClick={() => focusGanttAct(a.id)}
+                  onClick={() => { setBarPopover(null); focusGanttAct(a.id); }}
                 >
                   <span className="gd-lname task" title={a.name}>{a.milestone && <i className="gd-dia" />}{a.name}{a.ai && <i className="gd-ai-pill">AI</i>}{crit && <i className="gd-crit-pill">关键</i>}{aff && <i className="gd-aff-pill">受影响</i>}</span>
                   <span className="gd-lbatch">{a.batch}</span>
@@ -3177,7 +3227,7 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
               if (axisRef.current) axisRef.current.style.transform = `translateX(${-e.currentTarget.scrollLeft}px)`;
             }}>
             <div style={{ width: canvasW, position: "relative" }}>
-              <div className="gd-grid" style={{ height: rows.length * ROW_H }}>
+              <div className="gd-grid" style={gridStyle}>
                 <div className="gd-today" style={{ left: todayLeft, height: rows.length * ROW_H }} />
                 {events.map(ev => (
                   <div className={"gd-exc-band" + (ev.kind === "efficiency" ? " eff" : "")} key={ev.id} title={ev.label}
@@ -3191,7 +3241,20 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                   {depPaths.map(p => <path key={p.key} d={p.d} className={"gd-dep" + (p.crit && showCrit ? " crit" : "")} markerEnd={p.crit && showCrit ? "url(#gd-arrc)" : "url(#gd-arr)"} />)}
                 </svg>}
                 {rows.map((r, i) => {
-                  if (r.type === "phase") return <div className="gd-grow phase" key={"p" + r.phase.key} style={{ top: i * ROW_H }} />;
+                  if (r.type === "phase") {
+                    const span = phaseRanges[r.phase.key];
+                    return (
+                      <div className="gd-grow phase" key={"p" + r.phase.key} style={{ top: i * ROW_H }}>
+                        {span && (
+                          <div
+                            className="gd-phase-summary"
+                            aria-hidden="true"
+                            style={{ left: span.left, width: span.width, "--gd-phase-color": r.phase.color } as React.CSSProperties}
+                          />
+                        )}
+                      </div>
+                    );
+                  }
                   const a = r.a as GdAct; const rect = barRect(a); const crit = showCrit && critIds.has(a.id);
                   const dragging = !!(dragPreview && dragPreview.id === a.id); const mod = durations[a.id] != null; const aff = affectedActs.has(a.id);
                   return (
@@ -3200,9 +3263,9 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
                         ? <div className={"gd-ms" + (crit ? " crit" : "")} style={{ left: rect.left }} title={a.name + " · " + (eff.start[a.id] || a.start)} />
                         : <div className={"gd-bar" + (crit ? " crit" : "") + (sel === a.id ? " sel" : "") + (dragging ? " dragging" : "") + (mod ? " mod" : "") + (aff ? " affected" : "")}
                             style={{ left: rect.left, width: rect.width, background: gdPhase(a.phase).color }}
-                            onClick={() => focusGanttAct(a.id)} title={a.name}>
+                            onMouseEnter={(e) => showBarHover(e, a)} onMouseLeave={() => hideBarHover(a.id)} onClick={() => setSel(a.id)} title={a.name}>
                             <div className="gd-prog" style={{ width: (a.progress * 100) + "%" }} />
-                            <div className="gd-grip" title="拖拽改工期" onMouseDown={(e) => beginDrag(e, a)} />
+                            <div className="gd-grip" title="拖拽改工期" onMouseDown={(e) => beginDrag(e, a)} onClick={(e) => e.stopPropagation()} />
                           </div>}
                       {!a.milestone && <div className={"gd-dur" + (mod ? " mod" : "") + (dragging ? " dragging" : "")} style={{ left: rect.left + rect.width + 5 }}
                         onClick={(e) => { e.stopPropagation(); setEditing(a.id); }} title="点击改工期">
@@ -3218,6 +3281,14 @@ function GanttDetailOverlay({ title, backLabel = "← 返回", onClose, onSaved,
           </div>
           </div>
         </div>
+        {barPopover && popoverActivity && (
+          <div className="gd-popover" role="tooltip" aria-label="活动信息" style={{ left: barPopover.left, top: barPopover.top }}>
+            <div className="gd-pop-title">{popoverActivity.name}</div>
+            <div className="gd-pop-row"><span>开始</span><b>{eff.start[popoverActivity.id] || popoverActivity.start}</b></div>
+            <div className="gd-pop-row"><span>结束</span><b>{eff.end[popoverActivity.id] || popoverActivity.end}</b></div>
+            <div className="gd-pop-row"><span>工期</span><b>{popoverActivity.milestone ? "里程碑" : `${eff.dur[popoverActivity.id] ?? base.dur[popoverActivity.id] ?? 0} 天`}</b></div>
+          </div>
+        )}
       </div>
   );
 }
@@ -3324,7 +3395,7 @@ function AdjustPanel({ rooms, teams, updateRoom, updatePod, updateTeam, onClose 
   );
 }
 
-function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initialData?: PlanBoardInitialData }){
+function PlanBoard({ mode = "init", initialData, onRuntimeDataChange }: PlanBoardProps){
   const isAdjust = mode === "adjust";
   const [started,setStarted] = useState(false);
   const [clk,setClk] = useState(0);
@@ -3332,10 +3403,10 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
   const [sel,setSel] = useState<number | null>(null);  // 用户点击回看的 step（null=跟随直播）
   const [picked,setPicked] = useState<string | null>(null);  // 选中机房
   const [selPlan,setSelPlan] = useState<string | null>(null);
-  // 排期步内部状态机：init 首版先出倒排建议；人工确认调整后复用推演 → 多策略方案。
+  // 排期步内部状态机：init 首版先出倒排建议；人工确认调整后仍停在就位建议与甘特；adjust 推演后按 gap 分叉。
   // 排期步状态机 · 用户决策 2026-05-30：
-  //   init（信息少）：thinking（思考动画）→ result（倒排结果）；人工改动后 thinking → plans（ABC）
-  //   adjust（信息全）：backward（基线·可拖）→ thinking → plans（ABC）→ 甘特
+  //   init（信息少）：thinking（思考动画）→ result（倒排结果）；人工改动后 thinking → result
+  //   adjust（信息全）：backward（基线·可拖）→ thinking → plans（gap>0 出方案，gap≤0 只给基线达标）→ 甘特
   const phase0: "backward" | "result" | "thinking" | "plans" = mode === "adjust" ? "backward" : "thinking";
   const [schedPhase,setSchedPhase] = useState<"backward" | "result" | "thinking" | "plans">(phase0);
   const [initAdjustFlow, setInitAdjustFlow] = useState(false);
@@ -3375,15 +3446,13 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
   };
   // 待推演变更：跨 站/货/人/排期 累计（按实体去重）；单一「调整推演」消费并清零 · 用户决策 2026-05-31
   const [changes, setChanges] = useState<Set<string>>(new Set());
-  // 意外事件（效率打折 / 假期停工）· 用户决策 2026-06-01：基线处注入、甘特读取并影响 CPM；2026-06-02 改可配置表单（id 由 evSeq 发号）
+  // 意外事件（效率打折 / 假期停工）+ 周末停工 · 基线处配置、甘特读取并影响 CPM；周末停工也进入 rule_config.skip_weekends
   const [schedEvents, setSchedEvents] = useState<SchedEvent[]>([]);
+  const [skipWeekends, setSkipWeekends] = useState(false);
   const evSeq = useRef(0);
   const [generateStatus, setGenerateStatus] = useState<"idle" | "loading" | "api" | "mock" | "fallback">("idle");
   const [generateResponse, setGenerateResponse] = useState<GenerateResponse | null>(null);
   const generateSeq = useRef(0);
-  const confirmedReadyRooms = useRef<Set<string>>(new Set());
-  const confirmedArrivalPods = useRef<Set<string>>(new Set());
-  const [confirmedSuggestions, setConfirmedSuggestions] = useState<Set<string>>(new Set());
   useEffect(() => {
     if (initialData) {
       console.info("[T-022] PlanBoard mounted with resolved /plan data", {
@@ -3427,6 +3496,10 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
   const [adjustmentReport, setAdjustmentReport] = useState<AdjustmentReport | null>(null);
   const [adjustmentReportOpen, setAdjustmentReportOpen] = useState(false);
   const adjustPlans = useMemo(() => plansFromAdjustResponse(adjustResponse), [adjustResponse]);
+  const adjustGapDays = adjustResponse?.gap?.gap_days ?? 0;
+  const hasAdjustGap = adjustResponse?.gap != null;
+  const stage2BaselineMet = Boolean(isAdjust && adjustResponse?.gap && adjustGapDays <= 0);
+  const showStage2CompressionCards = !adjustResponse || !hasAdjustGap || adjustGapDays > 0;
   const selectedAdjustOption = useMemo(
     () => adjustResponse?.options.find(option => option.option_id === selPlan) ?? null,
     [adjustResponse, selPlan],
@@ -3442,6 +3515,43 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     }, batches, rooms, ganttInputs);
   }, [batches, rooms, selectedAdjustOption, ganttInputs]);
   const activeSchedule = selectedAdjustSchedule ?? generatedSchedule;
+  const pendingInitSuggestionBatchIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (isAdjust) return ids;
+    const lastRowsById = new Map((generatedSchedule?.rows ?? []).map(row => [row.id, row]));
+    changes.forEach(key => {
+      const [kind, id] = key.split(":");
+      if (kind !== "batch" || !id || id === "new") return;
+      const batch = batches.find(item => item.id === id);
+      if (!batch) return;
+      const lastRow = lastRowsById.get(id);
+      if (!lastRow || batch.powerOnDate !== lastRow.powerOnDate || batch.goLiveDate !== lastRow.goLiveDate) {
+        ids.add(id);
+      }
+    });
+    return ids;
+  }, [batches, changes, generatedSchedule?.rows, isAdjust]);
+  const previousMode = useRef(mode);
+  useEffect(() => {
+    if (previousMode.current === mode) return;
+    previousMode.current = mode;
+    setStarted(true);
+    setPaused(true);
+    setClk(TOTAL);
+    setSel(null);
+    setPicked(null);
+    setSelPlan(null);
+    setSchedPhase(phase0);
+    setInitAdjustFlow(false);
+    setGantt(null);
+    setGanttReturn(null);
+    setAdjustResponse(null);
+    setAdjustmentReport(null);
+    setAdjustmentReportOpen(false);
+    setDurationOverridesByOption({});
+    setAdjustStatus("idle");
+    console.info("[T-053] PlanBoard mode switched in-session", { mode });
+  }, [mode, phase0]);
   // 默认选中第一张（删★写死推荐后·三卡平等·业务自选；保留默认选中以维持「确认&下发」流程不空）
   const defaultPlanId = useMemo(
     () => adjustPlans[0]?.id ?? null,
@@ -3453,7 +3563,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
   const closeGuide = () => { setGuideOpen(false); try { localStorage.setItem("aida_guide_v1","1"); } catch(e){} };
   useEffect(()=>{ if(started){ try { if(!localStorage.getItem("aida_guide_v1")) setGuideOpen(true); } catch(e){} } }, [started]);
   const markDirty = (key: string) => setChanges(s => { const n = new Set(s); n.add(key); return n; });
-  const runGenerateSchedule = useCallback((input: { rooms: RoomRow[]; batches: BatchRow[]; teams: TeamRow[] }, logTag: string) => {
+  const runGenerateSchedule = useCallback((input: { rooms: RoomRow[]; batches: BatchRow[]; teams: TeamRow[]; skipWeekends?: boolean }, logTag: string) => {
     const seq = ++generateSeq.current;
     setGenerateStatus("loading");
     void generateInitialSchedule(input).then((result) => {
@@ -3468,70 +3578,9 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       }
     });
   }, []);
-  const confirmSuggestedDate = useCallback((input: ConfirmSuggestionInput) => {
-    const podIds = new Set(input.podIds);
-    const key = suggestionKey(input.kind, input.batchId);
-    const changedReadyRooms: string[] = [];
-    const changedArrivalPods: string[] = [];
-    const nextRooms = rooms.map(room => {
-      const inBatch = room.pods.some(pod => podIds.has(pod.id));
-      if (!inBatch) return room;
-      if (input.kind === "room") {
-        if (hasAnyReady(room) && !confirmedReadyRooms.current.has(room.code)) return room;
-        changedReadyRooms.push(room.code);
-        return {
-          ...room,
-          site: "ready" as const,
-          readyUnknown: false,
-          cableReadyAt: input.date,
-          equipReadyAt: input.date,
-          liquidReadyAt: input.date,
-        };
-      }
-      let touched = false;
-      const pods = room.pods.map(pod => {
-        if (!podIds.has(pod.id)) return pod;
-        if (pod.etaDate && !confirmedArrivalPods.current.has(pod.id)) return pod;
-        touched = true;
-        changedArrivalPods.push(pod.id);
-        return {
-          ...pod,
-          arrival: "eta" as const,
-          etaLabel: "在途 " + input.date.slice(5),
-          etaDate: input.date,
-        };
-      });
-      return touched ? { ...room, pods } : room;
-    });
-    if (changedReadyRooms.length === 0 && changedArrivalPods.length === 0) {
-      console.info("[T-012] suggested date confirmation skipped", { key, date: input.date });
-      return;
-    }
-    changedReadyRooms.forEach(code => confirmedReadyRooms.current.add(code));
-    changedArrivalPods.forEach(id => confirmedArrivalPods.current.add(id));
-    setConfirmedSuggestions(prev => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    setRooms(nextRooms);
-    setChanges(prev => {
-      const next = new Set(prev);
-      changedReadyRooms.forEach(code => next.add("room:" + code));
-      changedArrivalPods.forEach(id => next.add("pod:" + id));
-      return next;
-    });
-    console.info("[T-030] suggested date pinned", { kind: input.kind, batch_id: input.batchId, date: input.date, rooms: changedReadyRooms, pods: changedArrivalPods });
-  }, [rooms]);
-  // 单一触发：跨页累计的变更交 Agent 重新推演（→ 排期步 → 思考 → ABC），并清零（若在看甘特则先收起）
+  // 单一触发：跨页累计的变更交 Agent 重新推演（→ 排期步 → 思考 → 按阶段/gap 呈现），并清零（若在看甘特则先收起）
   const runReschedule = () => {
     const changeKeys = Array.from(changes);
-    const initRows = !isAdjust ? currentInitSuggestionRows(batches, rooms, generatedSchedule?.rows, confirmedSuggestions) : [];
-    const rescheduleRooms = !isAdjust ? materializeInitSuggestionRows(rooms, batches, initRows, confirmedSuggestions) : rooms;
-    if (!isAdjust) {
-      setInitAdjustFlow(true);
-      setRooms(rescheduleRooms);
-    }
     setGantt(null);
     setGanttReturn(null);
     setSel(4);
@@ -3542,17 +3591,40 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     setAdjustmentReportOpen(false);
     setDurationOverridesByOption({});
     setAdjustStatus("loading");
-    void adjustSchedule({ rooms: rescheduleRooms, batches, teams, changeKeys, incidents: schedEvents }).then((result) => {
-      const logTag = isAdjust ? "[T-011]" : "[T-030]";
-      if (result.source === "api") {
-        setAdjustResponse(result.response);
-        setAdjustStatus("api");
-        console.info(`${logTag} /adjust api connected`, { options: result.response.options.map(option => option.option_id), baseline: result.baseline });
-      } else {
-        setAdjustStatus(result.reason === "forced" ? "mock" : "fallback");
-        console.warn(`${logTag} /adjust fallback to mock`, { reason: result.reason, error: result.error, detail: logDetail(result.error) });
-      }
-    });
+    const runAdjust = (rescheduleRooms: RoomRow[], logTag: string) => {
+      void adjustSchedule({ rooms: rescheduleRooms, batches, teams, changeKeys, incidents: schedEvents, skipWeekends }).then((result) => {
+        if (result.source === "api") {
+          setAdjustResponse(result.response);
+          setAdjustStatus("api");
+          console.info(`${logTag} /adjust api connected`, { options: result.response.options.map(option => option.option_id), baseline: result.baseline });
+        } else {
+          setAdjustStatus(result.reason === "forced" ? "mock" : "fallback");
+          console.warn(`${logTag} /adjust fallback to mock`, { reason: result.reason, error: result.error, detail: logDetail(result.error) });
+        }
+      });
+    };
+    if (!isAdjust) {
+      setInitAdjustFlow(true);
+      setGenerateStatus("loading");
+      void generateInitialSchedule({ rooms, batches, teams, skipWeekends }).then((generateResult) => {
+        let initRows = currentInitSuggestionRows(batches, rooms, generatedSchedule?.rows);
+        if (generateResult.source === "api") {
+          initRows = mapGenerateResponseToBwdRows(generateResult.response, batches, rooms);
+          setGenerateResponse(generateResult.response);
+          setGenerateStatus("api");
+          console.info("[T-055] /generate api connected for init reschedule", { plan_version: generateResult.response.plan.version });
+        } else {
+          setGenerateStatus(generateResult.reason === "forced" ? "mock" : "fallback");
+          console.warn("[T-055] /generate fallback during init reschedule", { reason: generateResult.reason, error: generateResult.error });
+        }
+        const rescheduleRooms = materializeInitSuggestionRows(rooms, batches, initRows);
+        setRooms(rescheduleRooms);
+        runAdjust(rescheduleRooms, "[T-055]");
+      });
+      setChanges(new Set());
+      return;
+    }
+    runAdjust(rooms, "[T-011]");
     setChanges(new Set());
   };
   // 意外事件 · 用户决策 2026-06-02：从基线配置表注入草稿（无 id）→ evSeq 发号 → 计入待重排变更（甘特按 eff 动态级联 + 高亮），可加多条
@@ -3562,6 +3634,10 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     markDirty("event:" + id);
   };
   const removeSchedEvent = (id: string) => { setSchedEvents(es => es.filter(e => e.id !== id)); markDirty("event:" + id); };
+  const toggleSkipWeekends = (checked: boolean) => {
+    setSkipWeekends(checked);
+    markDirty("rule:skip-weekends");
+  };
   // 「确认&下发」：选定方案 → 确认并下发执行（mock toast；真下发=派工单属后端）· 用户决策 2026-05-31
   const runDispatch = (id: string) => {
     const p = adjustPlans.find(pl => pl.id === id);
@@ -3617,19 +3693,19 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     setToast("排期已写回系统");
     setTimeout(()=>setToast(null),1800);
   };
-  // 路径①：上传固定变更表 → 后端解析 ChangeSet → 写回当前盘子 → 复用既有确认重排条
+  // 路径①：上传固定调整表 → 后端解析 ChangeSet → 写回当前盘子 → 复用既有确认重排条
   const runIngest = (files: File[]) => {
     const file = files[0];
     if (!file) {
-      setToast("请选择变更表模板文件");
+      setToast("请选择调整表模板文件");
       setTimeout(() => setToast(null), 2200);
       return;
     }
-    setToast("正在解析变更表…");
+    setToast("正在解析调整表…");
     void parseChangeTemplate({ file, rooms, batches, teams }).then(result => {
       if (result.source !== "api") {
         console.warn("[T-013] /parse-changes failed", { reason: result.reason, error: result.error });
-        setToast("变更表解析失败，请检查模板列和日期格式");
+        setToast("调整表解析失败，请检查模板列和日期格式");
         setTimeout(() => setToast(null), 3200);
         return;
       }
@@ -3647,13 +3723,14 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
         setAdjustResponse(null);
         setDurationOverridesByOption({});
         setGantt(null);
+        onRuntimeDataChange?.({ rooms: applied.rooms, batches: applied.batches, teams }, "upload");
         console.info("[T-013] change template parsed", { keys: applied.keys, warnings });
-        setToast(`已解析变更表：${applied.parts.join(" · ")}${parseWarningSuffix(warnings)}`);
+        setToast(`已解析调整表：${applied.parts.join(" · ")}${parseWarningSuffix(warnings)}`);
       } else if (warnings.length) {
         console.warn("[T-013] change template parsed with warnings only", { warnings });
-        setToast(`变更表未写入盘子${parseWarningSuffix(warnings)}`);
+        setToast(`调整表未写入盘子${parseWarningSuffix(warnings)}`);
       } else {
-        setToast("变更表没有可写入的变更");
+        setToast("调整表没有可写入的变更");
       }
       setTimeout(() => setToast(null), 3600);
     });
@@ -3738,7 +3815,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       changes: changes.size,                                    // 待推演变更数（仅 adjust 用）
       mode,                                                     // init 实时 / adjust 攒变更
     }}));
-  },[clk, rooms, teams, changes]);
+  },[clk, rooms, teams, changes, mode]);
   // 货步默认不预选：全部项目正常高亮，由用户点击聚焦某项目
 
   const activeStep = useMemo(()=>{
@@ -3764,9 +3841,9 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     setAdjustStatus(isAdjust ? "loading" : "idle");
 
     if (!isAdjust) {
-      runGenerateSchedule({ rooms, batches, teams }, "[T-005]");
+      runGenerateSchedule({ rooms, batches, teams, skipWeekends }, "[T-005]");
     } else {
-      void ensureScheduleBaseline({ rooms, batches, teams }).then((result) => {
+      void ensureScheduleBaseline({ rooms, batches, teams, skipWeekends }).then((result) => {
         if (result.source === "api") {
           setAdjustStatus("idle");
           console.info("[T-011] /generate baseline ready", { plan_version: result.response.plan.version });
@@ -3776,7 +3853,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
         }
       });
     }
-  }, [batches, isAdjust, phase0, rooms, runGenerateSchedule, teams]);
+  }, [batches, isAdjust, phase0, rooms, runGenerateSchedule, skipWeekends, teams]);
   const replay = ()=>{ setClk(0); setSel(null); setPicked(null); setSelPlan(null); setSchedPhase(phase0); setInitAdjustFlow(false); setGantt(null); setAdjustResponse(null); setDurationOverridesByOption({}); setAdjustStatus("idle"); setPaused(false); };
   // 调试钩子（预览用：jump/end 会暂停时钟以定格在目标步，便于查 DOM）
   useEffect(()=>{ window.__aida = {
@@ -3797,12 +3874,12 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     window.addEventListener('aida:plan-open-panel', openPanel);
     return ()=>{ window.removeEventListener('aida:plan-goto', goTo); window.removeEventListener('aida:plan-open-panel', openPanel); };
   },[]);
-  // 路径①：上传固定模板变更表（deps 含当前盘子，解析时用于 id 校验）
+  // 路径①：上传固定模板调整表（deps 含当前盘子，解析时用于 id 校验）
   useEffect(()=>{
     const onIngest=(e: Event)=>runIngest((e as CustomEvent<{ files?: File[] }>).detail?.files || []);
     window.addEventListener('aida:plan-ingest', onIngest);
     return ()=>window.removeEventListener('aida:plan-ingest', onIngest);
-  },[rooms, batches, teams]);
+  },[rooms, batches, teams, onRuntimeDataChange]);
 
   const curStep = STEPS[view-1]!;
   // tb-stats 动态化：机房 / PoD / 队伍 / 人数 / 上线目标 跟随真实 rooms·teams·batches 状态 · 用户决策 2026-05-30
@@ -3820,6 +3897,9 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
     people:["队伍就绪与活动 SLA 的人力换算","识别哪些硬装活动的工期受人数约束——它们是后续压缩的着力点。"],
     plan:["排期对照移交目标，构建多策略方案","信息已足够：必要项齐备、其他项由系统建议，给出第一版排期供选择。"],
   };
+  const planStepLabel = !isAdjust ? "排期 · 到货 / 机房就位" : stage2BaselineMet ? "排期 · 基线满足目标" : "排期 · 多策略方案";
+  const adjustTitle = stage2BaselineMet ? "改交付条件，Agent 验证：基线满足目标" : "改交付条件，Agent 重排多策略方案";
+  const adjustSubtitle = stage2BaselineMet ? "可进排期详情微调" : "比选 A / B / C 择优";
 
   // claw 宽度可拖 + 左右互换（排期页内联 claw 自管，不走 B 的 AppShell claw 机制）
   const [clawWidth, setClawWidth] = useState(312);
@@ -3839,9 +3919,8 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
       <div className="main">
         <div className="topbar">
           <div className="tb-left">
-            <div className="crumb">交付 Claw <span className="sep">›</span> 计划排期 <span className="sep">·</span> <span className="on">{isAdjust ? "计划调整" : "初始化"}</span></div>
-            <h1>{isAdjust ? "改交付条件，Agent 重排多策略方案" : "从交付资料，自动排出第一版排期"}</h1>
-            <div className="tb-sub">{isAdjust ? "比选 A / B / C 择优" : "上线目标倒推「货到 / 机房就位」"}</div>
+            <h1>{isAdjust ? adjustTitle : "从交付资料，自动排出第一版排期"}</h1>
+            <div className="tb-sub">{isAdjust ? adjustSubtitle : "上线目标倒推「货到 / 机房就位」"}</div>
             {started && <div className="tb-stats">
               <span className="tb-stat"><b className="tnum">{statRooms}</b><span className="u">机房</span></span>
               <span className="tb-stat"><b className="tnum">{statPods}</b><span className="u">PoD</span></span>
@@ -3860,7 +3939,7 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
           </div>}
         </div>
 
-        {started && <Stepper clk={clk} view={view} onPick={(n)=>setSel(n===activeStep?null:n)} rooms={rooms} isAdjust={isAdjust}/>}
+        {started && <Stepper clk={clk} view={view} onPick={(n)=>setSel(n===activeStep?null:n)} rooms={rooms} isAdjust={isAdjust} planLabel={planStepLabel}/>}
 
         {/* 跨步常驻飘红：站/货/人/排期 任一步有数据变动即提示确认推演 · init/adjust 共用 */}
         {started && changes.size > 0 && (
@@ -3884,8 +3963,8 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
                       ? (schedPhase==="thinking" ? "排期 · 正在排期推演…" : schedPhase==="plans" ? "排期 · 多策略方案 · 择优进入排期详情" : "排期 · 上线目标 → 建议到货 / 机房就位")
                       : (schedPhase==="thinking" ? "排期 · 正在推算就位建议…" : "排期 · 上线目标 → 建议到货 / 机房就位"))
                   : (schedPhase==="backward" ? "排期 · 当前基线 · 拖动目标后点「调整推演」"
-                     : schedPhase==="thinking" ? "排期 · 正在重新计算多策略方案…"
-                     : "排期 · 多策略方案 · 择优进入排期详情")
+                     : schedPhase==="thinking" ? "排期 · 正在校核基线缺口…"
+                     : showStage2CompressionCards ? "排期 · 多策略方案 · 择优进入排期详情" : "排期 · 基线满足目标 · 进入排期详情")
               }</span>
               <span className="tick mono">clock {clk}/{TOTAL}</span>
             </div>}
@@ -3896,37 +3975,39 @@ function PlanBoard({ mode = "init", initialData }: { mode?: PlanBoardMode; initi
             {view===3 && <PeopleView clk={clk} teams={teams} updateTeam={updateTeam} addTeam={addTeam} removeTeam={removeTeam}/>}
             {/* —— 排期详情甘特：内联展示（替换排期内容区，可返回）· 用户决策 2026-05-31 —— */}
             {view===4 && gantt &&
-              <GanttDetailOverlay title={gantt.title} backLabel={gantt.back} batches={batches} rooms={rooms} events={schedEvents}
+              <GanttDetailOverlay title={gantt.title} backLabel={gantt.back} batches={batches} rooms={rooms} events={schedEvents} skipWeekends={skipWeekends}
                 acts={activeSchedule?.acts} criticalIds={activeSchedule?.criticalIds}
                 initialDurationOverrides={gantt.optionId ? durationOverridesByOption[gantt.optionId] : undefined}
                 onClose={()=>{ setGantt(null); if(ganttReturn!=null){ setSel(ganttReturn===activeStep?null:ganttReturn); setGanttReturn(null); } }}
                 onSaved={saveGanttDurationOverrides}/>}
-            {/* —— init（信息少 / 倒排）：首版思考 → 倒排结果；人工确认调整后 → ABC —— */}
+            {/* —— init（信息少 / 倒排）：首版思考 → 倒排结果；人工确认调整后仍不出 ABC —— */}
             {view===4 && !isAdjust && !gantt && schedPhase==="thinking" &&
               <ScheduleThinking
-                steps={initAdjustFlow ? THINK_STEPS_ABC : THINK_STEPS_SUGGEST}
+                steps={THINK_STEPS_SUGGEST}
                 title={initAdjustFlow ? "AIDA 正在排期推演…" : "AIDA 正在推算就位建议…"}
-                onDone={()=>setSchedPhase(initAdjustFlow ? "plans" : "result")}/>}
+                onDone={()=>setSchedPhase("result")}/>}
             {view===4 && !isAdjust && !gantt && schedPhase==="result" &&
               <BackwardSchedule batches={batches} rooms={rooms} updateBatch={updateBatch}
                 generatedRows={generatedSchedule?.rows}
-                onConfirmSuggestion={confirmSuggestedDate}
-                confirmedSuggestions={confirmedSuggestions}
+                pendingSuggestionBatchIds={pendingInitSuggestionBatchIds}
                 variant="suggest" showConfirm={false} onConfirm={()=>{}}
+                events={schedEvents} onAddEvent={addSchedEvent} onRemoveEvent={removeSchedEvent}
+                skipWeekends={skipWeekends} onToggleSkipWeekends={toggleSkipWeekends}
                 onPickBatch={(idx)=> setGantt({ title: `批次 ${idx+1}`, back: "← 返回排期" })}/>}
-            {/* —— adjust（信息全 / 调整）：基线(已知) → 调整推演 → 思考 → ABC → 甘特 —— */}
+            {/* —— adjust（信息全 / 调整）：基线(已知) → 调整推演 → 思考 → gap 分叉 → 甘特 —— */}
             {view===4 && isAdjust && !gantt && schedPhase==="backward" &&
               <BackwardSchedule batches={batches} rooms={rooms} updateBatch={updateBatch}
                 variant="given" showConfirm={false} onConfirm={()=>{}}
-                events={schedEvents} onAddEvent={addSchedEvent} onRemoveEvent={removeSchedEvent}/>}
+                events={schedEvents} onAddEvent={addSchedEvent} onRemoveEvent={removeSchedEvent}
+                skipWeekends={skipWeekends} onToggleSkipWeekends={toggleSkipWeekends}/>}
             {view===4 && isAdjust && !gantt && schedPhase==="thinking" &&
               <ScheduleThinking onDone={()=>setSchedPhase("plans")}/>}
-            {view===4 && (isAdjust || initAdjustFlow) && !gantt && schedPhase==="plans" && (<>
+            {view===4 && isAdjust && !gantt && schedPhase==="plans" && (<>
               <div className="sched-back fade">
-                <button className="sched-back-btn" onClick={()=>setSchedPhase(isAdjust ? "backward" : "result")}>{isAdjust ? "← 返回调整目标" : "← 返回就位建议"}</button>
-                <span className="sched-back-tip">选定方案后点「排期详情」进入可编辑甘特</span>
+                <button className="sched-back-btn" onClick={()=>setSchedPhase("backward")}>← 返回调整目标</button>
+                <span className="sched-back-tip">{showStage2CompressionCards ? "选定方案后点「排期详情」进入可编辑甘特" : "基线已满足目标，可直接进入排期详情微调"}</span>
               </div>
-              <CompressionPlans clk={TOTAL} selPlan={selPlan} onSelPlan={setSelPlan} onDispatch={runDispatch} plans={adjustPlans} gap={adjustResponse?.gap ?? null} onOpenGantt={(id)=> setGantt({ title: adjustPlans.find(p=>p.id===id)?.name ?? id, back: "← 返回方案", optionId: id })}/>
+              <CompressionPlans clk={TOTAL} selPlan={selPlan} onSelPlan={setSelPlan} onDispatch={runDispatch} plans={adjustPlans} gap={adjustResponse?.gap ?? null} showPlanCards={showStage2CompressionCards} onOpenGantt={(id)=> setGantt({ title: adjustPlans.find(p=>p.id===id)?.name ?? id, back: showStage2CompressionCards ? "← 返回方案" : "← 返回排期", optionId: id })}/>
             </>)}
           </>)}
         </div>

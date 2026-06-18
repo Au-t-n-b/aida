@@ -37,6 +37,7 @@ type FdySubItem = SharedNavSubItem & {
   disabled?: boolean;
   n?: string;
   active?: boolean;
+  hidden?: boolean;
 };
 
 type NavGroupConfig = {
@@ -433,7 +434,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
     { name: '交付预案', href: '/proposal', status: 'warn', statusLabel: '版本号切换' },
   ];
   const navPlan: FdySubItem[] = [
-    { name: '基本信息', href: '/plan?view=info', status: 'ok' },
+    { name: '基本信息', href: '/plan?view=info', status: 'ok', hidden: true },
     { name: '计划排期', href: '/plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
     { name: '风险报告', href: '/plan-risk-report', status: 'alert', statusLabel: '待办' },
   ];
@@ -480,7 +481,7 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
         icon: FolderKanban,
         tone: 'amber',
         active: isPlan,
-        sub: navPlan,
+        sub: navPlan.filter((item) => !item.hidden),
       },
     },
     {
