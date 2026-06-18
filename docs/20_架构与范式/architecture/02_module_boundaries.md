@@ -8,15 +8,18 @@
 
 ## 1. 模块清单（已注册业务场景 Skill）
 
-> 真相 = `agent/skills/__init__.py` 的 `registry.register(...)`。新增/删除模块时本表与注册表同步（`lint_module_boundaries` 校验每个注册 id 都在本图出现）。
+> 真相 = 目录发现（`agent/skills/discovery.py` 扫 `agent/skills/<id>/` 含 `skill.py` 的目录；**P3 起替代硬编码 `_specs`**）。新增/删除模块 = 增删目录，本表随之同步（`lint_module_boundaries` 校验每个发现的内置 id 都在本图出现）。
 
 | 模块 id | 中文 | 编排形态 | step 数 | 入口 | 前端 module key | A 层契约 | 状态 |
 |---------|------|---------|--------|------|----------------|---------|------|
 | `zhgk` | 智慧工勘 | 线性 DAG · **意图驱动** | 14 (+preflight) | `intent`（4 意图） | `survey` | [SKILL.md](../../../skills/zhgk/SKILL.md) | ✅ 端到端样板 |
 | `guihua` | 规划设计（建模仿真） | 线性 DAG | 5 | `{}`（顺序执行） | `modeling` | [SKILL.md](../../../skills/guihua/SKILL.md) | ✅ |
-| `xtsj` | 系统设计（网络开局） | **dispatch 分发** | 2 (+路线图) | `command`（菜单命令） | `design` | [SKILL.md](../../../skills/xtsj/SKILL.md) | ✅ PoC |
+| `system_design` | 系统设计（A3 网络开局） | 线性 DAG | 7 段 | `input_check`（消费 guihua 007/001/004） | `design`（与 xtsj 同键·配置切换） | [SKILL.md](../../../agent/skills/system_design/SKILL.md) | ✅ |
+| `xtsj` | 系统设计（网络开局 PoC） | **dispatch 分发** | 2 (+路线图) | `command`（菜单命令） | `design`（PoC·`VITE_DESIGN_SKILL` 切换） | [SKILL.md](../../../skills/xtsj/SKILL.md) | ✅ PoC |
 | `device_install` | 设备安装 | 线性 DAG | 待定 | 待定 | `install` | [SKILL.md](../../../skills/device_install/SKILL.md) | 🟡 B 层可选注册 |
 | `software_deployment` | 软件部署与调测 | 线性 DAG + **resume 单步调度** | 13 | `entry_mode`（全量 / 直达命令调测） | `deploy` | [SKILL.md](../../../skills/software_deployment/SKILL.md) | ✅ E2E |
+| `contract_boq` | 合同 BOQ 解析（早期介入） | 线性 DAG | 5 | `{}`（顺序执行） | —（early·无导航入口） | [SKILL.md](../../../skills/contract_boq/SKILL.md) | ✅ |
+| `proposal_gen` | 交付预案生成（早期介入） | 线性 DAG + **resume 续跑** | 7 | `{}`（顺序执行） | —（early·无导航入口） | [SKILL.md](../../../skills/proposal_gen/SKILL.md) | ✅ |
 | `delivery` | 交付编排 | 待定 | 待定 | 待定 | 待定 | ❌ 待建 | 🟡 试点目标 |
 
 > **每模块的权威节点表（step.key 逐一）在各自 `SKILL.md` 的「后端节点」列** —— 本图只聚合「数量 + 形态 + 入口」，不复制节点清单（避免第二份会漂移的真相）。要看 zhgk 的 14 个节点，读 [`skills/zhgk/SKILL.md` §A](../../../skills/zhgk/SKILL.md)。
@@ -74,13 +77,13 @@
 
 ## 4. 高冲突文件登记表 ⭐（加模块必碰 · 并行开发的冲突面）
 
-AIDA 运行时已 1→N 泛化（注册即得图+端点），消除了改 `main.py`/`graph.py` 的需要 —— 但把「加一个模块」的改动**挤压到了 3 个共享注册/路由文件**上。多人并行做 delivery / 新模块时，**这 3 个文件就是 AI 互相打架的地方**。每个 TASK 必须把对它们的改动写成**行级范围**，由架构师统一合并。
+AIDA 运行时已 1→N 泛化（注册即得图+端点），消除了改 `main.py`/`graph.py` 的需要；**P3（目录发现）又消除了改 `agent/skills/__init__.py`，P2（导航元数据驱动）消除了改 `frontend/src/routes/module.tsx`**。如今「加一个模块」基本是**新增一个自包含目录 + 写好 SKILL.md manifest**（见 §6），共享文件冲突面已大幅收敛 —— 仅剩 `modules-data.ts`（可选 schema）等软触点。下表保留登记以便追踪。
 
 | 共享文件 | 改什么 | 位置锚点 | 冲突级别 | 合并协议 |
 |---------|--------|---------|:---:|---------|
-| `agent/skills/__init__.py` | `_register_all()` 内加 `import` + `registry.register("<id>", get_<id>_skill)` | 函数体内追加 2 行 | 🔴 高 | 各 TASK 在函数末尾追加，架构师合并 |
-| `frontend/src/routes/module.tsx` | `MODULE_TO_SKILL` 加 `<moduleKey>: '<id>'` | 对象字面量（约 L12–16） | 🔴 高 | 各 TASK 加 1 行键值 |
-| `frontend/src/data/modules-data.ts` | `MODULE_SCHEMAS` 加 `<moduleKey>: {…}` 一条 | 对象字面量（现有键 survey/modeling/job） | 🔴 高 | 各 TASK 加 1 条 schema 块 |
+| `agent/skills/__init__.py` | ~~加 `import` + `registry.register`~~ **P3 起零改**：放 `agent/skills/<id>/`（含 `skill.py`→`get_<id>_skill`）即被目录发现 | — | 🟢 已消除 | 不再触碰 |
+| `frontend/src/routes/module.tsx` | ~~`MODULE_TO_SKILL` 加键值~~ **P2 起零改**：导航/路由由 `/agent/skills` manifest 驱动 | — | 🟢 已消除 | 不再触碰 |
+| `frontend/src/data/modules-data.ts` | `MODULE_SCHEMAS` 加 `<moduleKey>: {…}`（**可选**，仅自定义副屏时） | 对象字面量 | 🟡 中 | 各 TASK 加 1 条 schema 块 |
 | `agent/tools/run_<id>.py` + `chat_engine`（可选） | skill-as-tool 会话唤起 | 新文件 + 分发分支 | 🟡 中 | 仅做会话唤起时碰 |
 
 > 📌 **front-end module key ≠ skill id**：前端用 `survey/modeling/design` 等 UI key，经 `MODULE_TO_SKILL` 映射到 `zhgk/guihua/xtsj`。加 delivery 时两边都要登记（见 [§8 漂移](#8-已知漂移与待办)）。
@@ -95,6 +98,11 @@ AIDA 运行时已 1→N 泛化（注册即得图+端点），消除了改 `main.
 |----|---------|------------|
 | 后端路由 | `agent/main.py` | FastAPI 端点已泛化 `/agent/{skill}/*`，加模块零改 |
 | 后端构图 | `agent/graph.py` | 按 `skill_id` 经 registry 自动构图 |
+| 后端工厂表 | `agent/skills/__init__.py` | P3 起改为**目录发现**（`discovery.py` 驱动），加模块零改、不再手填 `_specs` |
+
+> **P4 例外（已评估·附加不改泛化）**：热加载是平台级横切运维，非模块 TASK——
+> 新增 `agent/admin_routes.py`（`POST /admin/skills/reload`，独立 router + `main.py` 一行 `include_router`）与 `agent/graph.py` 的 `invalidate()`（附加缓存失效函数）。
+> 红线本质=**不得改既有泛化分发 / `build_graph` 构图逻辑、不得加 per-skill 特判**；纯附加的横切运维端点（经架构评估）不在禁改之列。模块开发者仍**一行都不碰**这些文件。
 | 后端基类 | `agent/skills/base.py` | `BaseSkill`/`BaseStep`/`SkillContext`/`build_graph` + 钩子 |
 | 前端工作台 | `frontend/src/components/screens/survey-agent.tsx`（`SkillAgentScreen`） | 通用模块运行器，所有模块共用 |
 | 前端流 | `frontend/src/hooks/useSduiStream.ts` | SSE + REST 流处理 |
@@ -109,19 +117,18 @@ AIDA 运行时已 1→N 泛化（注册即得图+端点），消除了改 `main.
 > 这是 [AGENTS.md「新业务场景 Skill·碰这些文件」](../../../AGENTS.md) 的边界视角投影。完整可操作版见 [`AGENT_QUICKSTART.md`](../../10_快速开始/AGENT_QUICKSTART.md) + [`START_HERE.md`](../../10_快速开始/START_HERE.md)。
 
 ```
-NEW（只属于你的模块 · 别人不碰）
-  agent/skills/<id>/**            skill.py + steps/*.py + sdui.py
-  skills/<id>/SKILL.md            A 层契约（＋ ~/.claude/skills/<id>/SKILL.md 双部署）
+NEW（只属于你的模块 · 别人不碰 · 一个自包含目录）
+  agent/skills/<id>/**            skill.py(get_<id>_skill) + steps/*.py + sdui.py  ← 目录发现自动注册
+  skills/<id>/SKILL.md            A 层契约 + frontmatter manifest(version/ui/runtime → 驱动导航)（＋ ~/.claude/skills/<id>/ 双部署）
   agent/evals/eval_<id>.py        + fixtures/<id>-golden.json（可选）
   agent/tools/run_<id>.py         skill-as-tool（可选）
 
-MODIFY（高冲突共享 · 行级范围 · 架构师合并 —— 见 §4）
-  agent/skills/__init__.py
-  frontend/src/routes/module.tsx
-  frontend/src/data/modules-data.ts
+MODIFY（可选软触点 —— §4；__init__.py / module.tsx 已 P3/P2 零改）
+  frontend/src/data/modules-data.ts   仅当需要 MODULE_SCHEMAS 自定义副屏（可选）
 
-零改（红线 · 见 §5）
-  agent/main.py · graph.py · base.py · 前端 SkillAgentScreen/useSduiStream/SduiNodeView
+零改（红线 · 见 §5 ＋ P2/P3 新增）
+  agent/main.py · graph.py · base.py · agent/skills/__init__.py（目录发现）
+  前端 SkillAgentScreen/useSduiStream/SduiNodeView · 导航/路由（/agent/skills manifest 驱动）
 ```
 
 ---
@@ -152,7 +159,9 @@ ProjectData/  （或数据中心 runs/<runId>/ 三级隔离）
 |---|------|--------------|------|------|
 | D1 | 前端 module key ↔ skill 映射不齐 | `MODULE_TO_SKILL` = {survey→zhgk, modeling→guihua, design→xtsj, **deploy**→software_deployment, install→device_install}；`MODULE_SCHEMAS` 键 = {survey, modeling, **job**} | `design`/`deploy` 有 skill 但 schema 不全 → 标题走 `MODULE_DISPLAY_NAMES` 回退；`job` 有 schema 无 skill → mock | `deploy` 补 `MODULE_SCHEMAS`；`design`/`job` 二选一对齐 |
 | D2 | `delivery` 尚未建 | 仅前端在合产品 UI（`feat/merge-delivery-frontend`），后端无 `delivery` skill | 试点目标，非缺陷 | 走 Workflow A 生成 `TASK_delivery.md` 后开建 |
-| D3 | `device_install` 前端已映射、B 层未注册 | `module.tsx` 有 install→device_install，但 `__init__.py` 未 register | 设备安装页启动会失败 | B 层合入后补 register + 边界图登记 |
+| D3 | ~~`device_install` 未注册~~ **已解决** | B 层已合入，目录发现自动注册（`install`→device_install） | — | ✅ 关闭 |
+| D4 | 依赖矩阵 §3 仅覆盖 5 个导航模块 | `contract_boq`/`proposal_gen`/`system_design` 已在 §1 登记，但未列入 §3 矩阵 | 矩阵不全（不影响守门：三者遵循同一零横向依赖规则，由 `lint_module_boundaries` 同等强制） | Workflow C 基线重置时补全 8×8 矩阵 |
+| D5 | P2/P3 解耦后部分条目过时 | `__init__.py`（P3 目录发现）/`module.tsx`（P2 manifest 驱动）已无需改；D1 的 `MODULE_TO_SKILL` 硬编码随 P2 收敛 | §4/§6 已更新；D1 基本关闭 | 余下 §3 矩阵随 D4 一并刷新 |
 
 ---
 
@@ -165,3 +174,4 @@ ProjectData/  （或数据中心 runs/<runId>/ 三级隔离）
 |------|------|------|
 | v1.0 | 2026-06-07 | 基线重置：zhgk/guihua/xtsj 三模块边界 + 依赖矩阵 + 高冲突登记 + 红线区 + 漂移 D1/D2 |
 | v1.2 | 2026-06-12 | 登记 software_deployment（deploy）· 依赖矩阵扩列 · 漂移 D3 device_install |
+| v1.3 | 2026-06-18 | P3 目录发现：真相源 `_specs`→`discovery`；§1 补登 system_design/contract_boq/proposal_gen（8 模块）；§4/§6 反映 P2/P3 零改（__init__.py/module.tsx）；漂移 D3 关闭 + D4/D5 |

@@ -12,29 +12,27 @@
 
 | 层                           | 位置                         | 职责                                                                                          | source of truth   |
 | --------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- | ----------------- |
-| **A 层 · Claude Code Skill** | `~/.claude/skills/<name>/` | 给 Claude Code / LLM 路由用的「门面」：SKILL.md frontmatter（name + description + 触发词）+ references/ 文档 | ✅ **唯一真相**        |
+| **A 层 · 门面（SKILL.md）** | `agent/skills/<name>/SKILL.md`（就近·源真相；bootstrap 同步部署副本到 `~/.claude/skills/<name>/`） | 给 Claude Code / LLM 路由用的「门面」：SKILL.md frontmatter（name/description/version/enabled/ui/runtime + 触发词）+ references/ 文档 | ✅ **唯一真相**        |
 | **B 层 · LangGraph 原生**      | `agent/skills/<name>/`     | 真正的执行代码：BaseSkill + BaseStep + run() 业务逻辑                                                   | 只放代码，不重复 metadata |
-| **接缝**                      | `agent/skills/_loader.py`  | BaseSkill 启动时解析 A 层 SKILL.md frontmatter，注入 self.metadata.description                       | 同步靠代码、不靠人         |
+| **接缝**                      | `agent/skills/_loader.py`  | BaseSkill 启动时经 `default_skill_md_path` 就近解析（agent/skills/<name>/ → ~/.claude 副本 → 历史 skills/<name>/）frontmatter，注入 metadata                       | 同步靠代码、不靠人         |
 
 
 ### 1.2 核心文件布局
 
 ```
-~/.claude/skills/zhgk/                          ← A 层
-├── SKILL.md                                    （frontmatter: name/description/触发词）
-└── references/                                 （流程参考文档）
-    ├── scene-filter.md
-    ├── survey-build.md
-    ├── report-gen.md
-    └── report-distribute.md
-
-agent/skills/                                   ← B 层
+agent/skills/                                   ← A+B 就近同目录（推荐约定）
 ├── __init__.py                                 SkillRegistry 启动注册
 ├── base.py                                     BaseSkill / BaseStep / SkillContext / SkillState
-├── _loader.py                                  SKILL.md frontmatter 轻量 YAML 解析
+├── _loader.py                                  default_skill_md_path 就近优先 + frontmatter 轻量解析
 ├── _registry.py                                SkillRegistry · 渐进式暴露门面
 └── zhgk/
-    ├── skill.py                                ZhgkSkill 定义
+    ├── SKILL.md                                ← A 层门面（frontmatter: name/version/enabled/ui/runtime + 触发词）
+    ├── references/                             ← A 层流程参考文档
+    │   ├── scene-filter.md
+    │   ├── survey-build.md
+    │   ├── report-gen.md
+    │   └── report-distribute.md
+    ├── skill.py                                ZhgkSkill 定义（B 层）
     ├── prompts/__init__.py                     ASSESSMENT/RISK SYSTEM+USER 模板
     └── steps/                                  全部原生 Python（Phase 2 已去 subprocess）
         ├── preflight.py                        环境预检 + LLM 摘要
@@ -43,6 +41,10 @@ agent/skills/                                   ← B 层
         ├── report_gen.py                       LLM 评估 + 风险 + docx
         └── report_distribute.py                审批包 + 收件人筛选（邮件默认关）
 ```
+
+> **就近约定**：A 层门面 `SKILL.md`（+ `references/`）与 B 层 `skill.py` 同放 `agent/skills/<name>/`（单一真相、易管理）。
+> bootstrap 启动时自动把门面同步成部署副本到 `~/.claude/skills/<name>/` 与 `~/.nanobot/workspace/skills/<name>/`，供 nanobot / Claude Code 运行时读取（**副本勿手改**）。
+> 运行时 `default_skill_md_path` 解析顺序：就近 `agent/skills/<name>/` → `~/.claude` 副本 → 历史 `skills/<name>/`（仅 software_deployment / xtsj 等未就近化的 skill 仍用历史布局）。
 
 ### 1.3 关键抽象 · `BaseSkill` / `BaseStep`
 

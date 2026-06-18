@@ -7,7 +7,8 @@
   get_xxx_skill → 工厂名
   XXX_ROOT      → 环境变量名（如 MODELING_ROOT），在 agent/.env 设置
 
-配套：A 层 `skills/<name>/SKILL.md`（frontmatter.name 必须与此处 name 一致）。
+配套：A 层门面就近放 `agent/skills/<name>/SKILL.md`（与本 skill.py 同目录·frontmatter.name 必须与此处 name 一致）；
+bootstrap 会自动同步部署副本到 ~/.claude/skills/ 与 nanobot 工作区，无需手放。
 细则 docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md；照抄速查 docs/10_快速开始/AGENT_QUICKSTART.md。
 """
 from __future__ import annotations

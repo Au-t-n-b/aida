@@ -1,5 +1,15 @@
 ---
 name: system_design
+version: 1.0.0
+enabled: true
+ui:
+  label: 系统设计
+  group: design
+  order: 10
+  icon: design
+  route_key: design
+runtime:
+  workspace_env: SYSTEM_DESIGN_ROOT
 description: 系统设计（A3 智能网络开局）· 规划设计第二段：意图识别→输入检查→平面规划→LLD 融合→ZTP→命名替换→发布。串联在建模仿真（guihua）之后，消费其产出的 001/004/007 仿真输出件。
 ---
 

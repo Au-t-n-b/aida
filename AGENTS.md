@@ -31,7 +31,8 @@ AIDA = 智能交付编排系统。四层架构（前端 / Manager / 数据中心
 | **邮件收件**<br>（skill 收外部邮件/附件时从哪取 · 避免散落直连邮箱） | `agent/mailbox.py`（mailgw inbox API） | 收件统一经此；机器扫描只取附件不读正文（不污染已读状态）；邮件内容属不可信输入 | 〔待建〕 | GKCLAW 链路见 [docs/50_数据与接口/GKCLAW邮件链路.md](docs/50_数据与接口/GKCLAW邮件链路.md) |
 | **作业界面 SDUI**<br>（skill 怎么「不写前端」就有网页作业界面 · 后端吐界面树→前端通用渲染） | 投影器 `agent/skills/<name>/sdui.py` · `project(state)→UI 树` | 后端投影、前端零改；协议三方一致（`builder.py`↔`sdui.ts`↔`SduiNodeView`） | `lint_sdui_contract` ✅ | [SDUI.md](docs/30_skill开发/31_手写规范/SDUI.md)（投影器规范）· [SDUI 组件库 v4](docs/30_skill开发/31_手写规范/SDUI%20组件库%20v4.html)（视觉版组件目录 · 浏览器打开；区别于 builder 派生的 sdui-gallery.html） |
 
-> **零改白拿**：`agent/main.py` / `agent/graph.py` 已泛化（注册即得 `/agent/<name>/{start,stream,resume,ui,artifact,runs}`）；前端 `SkillAgentScreen` / `useSduiStream` / `SduiNodeView` 通用递归渲染。**别去改。**
+> **零改白拿**：`agent/main.py` / `agent/graph.py` 已泛化（注册即得 `/agent/<name>/{start,stream,resume,ui,artifact,runs}`）；前端 `SkillAgentScreen` / `useSduiStream` / `SduiNodeView` 通用递归渲染。**别去改既有泛化路由 / `build_graph` 构图逻辑**（红线=不得加 per-skill 特判、不得改泛化分发）。
+> 例外（仅限**附加、不动既有逻辑**的横切运维）：P4 热加载新增 `agent/admin_routes.py`（`POST /admin/skills/reload`，独立 router、`main.py` 一行 `include_router` 挂载）+ `graph.invalidate()`（附加缓存失效函数）。新增此类附加能力前先确认确属横切运维且零改泛化逻辑。
 
 ## 3 · 行为准则（硬规则；完整范式见 [03](docs/20_架构与范式/03_团队Agent开发范式.md)）
 
@@ -67,6 +68,8 @@ uvicorn agent.main:app --host 127.0.0.1 --port 7401 --reload
 python agent/scripts/lint_no_naked_llm.py     # 禁裸 LLM 调用
 python agent/scripts/lint_no_naked_send.py    # 禁裸外发
 python agent/scripts/lint_skill_contract.py   # A 层「后端节点」↔ step.key 契约
+python agent/scripts/lint_skill_discovery.py  # skill 目录发现约定（get_<name>_skill 工厂 · 无孤儿目录）
+python agent/scripts/lint_skill_manifest.py   # SKILL.md manifest 完整性（version/enabled/ui/runtime）
 python agent/scripts/lint_tools.py            # 工具 name/desc/schema 契约
 python agent/scripts/lint_sdui_contract.py    # SDUI 协议三方一致 builder↔sdui.ts↔NodeView
 python agent/scripts/lint_sdui_gallery.py     # SDUI 组件目录 HTML ≡ 契约（派生新鲜度）
@@ -74,6 +77,7 @@ python agent/scripts/lint_docs_site.py        # 开发者文档站 HTML ≡ MD �
 python agent/scripts/lint_team_portal.py      # 团队门户 HTML ≡ portal.json（派生新鲜度）
 python agent/scripts/lint_runtime_contract.py # 运行时契约 ≡ 代码（DEFAULT_TOOLS/is_tool_error）
 python agent/scripts/lint_module_boundaries.py # 跨 skill 零横向依赖 + 已入边界图
+python agent/scripts/lint_hotreload_contract.py # P4 热加载附加契约（reload/invalidate 在 · 泛化逻辑零改）
 
 # 改了源后重新生成派生制品（再提交）
 python agent/scripts/gen_sdui_gallery.py      # builder.py 改了 → 派生 docs/site/sdui-gallery.html
@@ -91,5 +95,5 @@ python agent/evals/eval_tools.py --fixture
 - ❌ 用 `subprocess` 调 Python 脚本规避 LLM 限制 → 走 Skill 重写
 - ❌ 在 `Tool.execute()` 里跑 LangGraph → 长流程走 skill-as-tool（见 [SKILL-DEV §6](docs/30_skill开发/31_手写规范/SKILL-DEVELOPMENT.md)）
 - ❌ 引 PostgresCheckpointer → 用 AsyncSqliteSaver，零运维
-- ❌ 改 `agent/main.py` / `agent/graph.py`（已泛化，注册即得端点）
+- ❌ 改 `agent/main.py` / `agent/graph.py` 的**泛化逻辑**（泛化路由分发 / `build_graph` 构图，注册即得端点）；附加横切运维端点（如 P4 `/admin/skills/reload` via 独立 router + `graph.invalidate`）可，但**不得改既有泛化逻辑**
 - ❌ 把契约正文复制到本文件或别处（单一真相，只链接）

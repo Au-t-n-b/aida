@@ -19,6 +19,7 @@ import { WorkspaceNavLink } from '@/lib/workspace-nav-link';
 import { useNavPath } from '@/compat/navigation';
 import { MODULE_STATUS } from '../data/journey-data';
 import { NAV_TWIN, type NavSubItem as SharedNavSubItem } from '../data/left-nav-items';
+import { useSkillRegistry, selectNavItems } from '../data/skill-registry';
 import { getLeftNavScrollTop, setLeftNavScrollTop } from '@/lib/left-nav-scroll';
 import {
   type NavExpandedState,
@@ -343,6 +344,7 @@ function FdyNavLeaf({
 export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
   const navPath = useNavPath();
   const pathname = navPath.split('?')[0] ?? navPath;
+  const skills = useSkillRegistry();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [navTheme, setNavTheme] = useState<LeftNavTheme>(() => readLeftNavTheme());
 
@@ -438,12 +440,12 @@ export function LeftNavFdy({ collapsed, onToggle }: { collapsed: boolean; onTogg
     { name: '计划排期', href: '/plan', status: MODULE_STATUS.plan?.state, statusLabel: MODULE_STATUS.plan?.label },
     { name: '风险报告', href: '/plan-risk-report', status: 'alert', statusLabel: '待办' },
   ];
-  const navOps: FdySubItem[] = [
-    { name: '智慧工勘', key: 'survey', status: MODULE_STATUS.survey?.state, statusLabel: MODULE_STATUS.survey?.label },
-    { name: '规划设计', key: 'modeling', status: MODULE_STATUS.modeling?.state, statusLabel: MODULE_STATUS.modeling?.label },
-    { name: '设备安装', key: 'install', status: MODULE_STATUS.install?.state, statusLabel: MODULE_STATUS.install?.label },
-    { name: '部署调测', key: 'deploy', status: MODULE_STATUS.deploy?.state, statusLabel: MODULE_STATUS.deploy?.label },
-  ];
+  // 交付作业子项由后端 /agent/skills manifest 驱动（group=ops），状态灯仍取本地 MODULE_STATUS。
+  // 新增 skill 写好 manifest 即在此自动出现，前端无需改动；拉取未完成时回落 OPS_FALLBACK。
+  const navOps: FdySubItem[] = selectNavItems(skills, 'ops').map((it) => {
+    const st = MODULE_STATUS[it.key as keyof typeof MODULE_STATUS];
+    return { name: it.name, key: it.key, status: st?.state, statusLabel: st?.label };
+  });
   const navDocs: FdySubItem[] = [
     { name: '项目管理类', href: '/assets?cat=mgmt', status: 'ok', statusLabel: 'PD / TD' },
     { name: '工勘类', href: '/assets?cat=survey', status: 'ok', statusLabel: 'TL 现场' },

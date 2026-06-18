@@ -10,7 +10,9 @@ export default defineConfig(({ mode }) => {
   console.log(`[vite] Manager proxy → ${managerBase}`);
 
   return {
-    base: './',
+    // 部署在站点根路径（:8080/）时用 '/'；勿用 './'——深链刷新（如 /module/survey）
+    // 会把 ./assets/*.js 解析成 /module/assets/*.js → 404 → 白屏。
+    base: '/',
     plugins: [react()],
     resolve: {
       alias: {

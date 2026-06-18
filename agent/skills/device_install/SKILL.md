@@ -1,5 +1,15 @@
 ---
 name: device_install
+version: 1.0.0
+enabled: true
+ui:
+  label: 设备安装
+  group: ops
+  order: 30
+  icon: install
+  route_key: install
+runtime:
+  workspace_env: DEVICE_INSTALL_ROOT
 description: 设备安装（Skill-First · 新范式单流水线）—— 数据中心工程安装全流程编排。主建设流程：解析交付计划表→指派责任人→确认实施计划→计划下发→SN扫码表生成→ESN填写；辅助流：进展反馈/进展查询/计划查询/计划调整/设备总览。当用户说「设备安装 / 责任人信息表 / 实施计划 / 任务下发 / SN扫码表 / ESN / 进展反馈 / 进展查询 / 计划调整 / 设备总览 / 完工清单」等时调用。
 idle_screen:
   icon_key: device_install

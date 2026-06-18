@@ -40,6 +40,10 @@ jobs:
         run: python agent/scripts/lint_no_naked_send.py
       - name: 守门 · SKILL.md ↔ steps 契约
         run: python agent/scripts/lint_skill_contract.py
+      - name: 守门 · skill 目录发现约定（get_<name>_skill 工厂 · 无孤儿目录）
+        run: python agent/scripts/lint_skill_discovery.py
+      - name: 守门 · SKILL.md manifest 完整性（version/enabled/ui/runtime · 驱动前端导航）
+        run: python agent/scripts/lint_skill_manifest.py
       - name: 守门 · 工具 name/desc/schema 契约
         run: python agent/scripts/lint_tools.py
       - name: 守门 · SDUI 协议三方一致（builder ↔ sdui.ts ↔ NodeView）
@@ -52,6 +56,8 @@ jobs:
         run: python agent/scripts/lint_team_portal.py
       - name: 守门 · 运行时契约 ≡ 代码（DEFAULT_TOOLS / is_tool_error · 给三种工具+工厂对齐）
         run: python agent/scripts/lint_runtime_contract.py
+      - name: 守门 · P4 热加载附加契约（reload/invalidate 在 · 泛化逻辑零改）
+        run: python agent/scripts/lint_hotreload_contract.py
       - name: 评测回归（zhgk golden · 离线 fixture）
         run: python agent/evals/eval_zhgk.py --fixture
       - name: 单元测试（工勘孪生 SOG 资产）

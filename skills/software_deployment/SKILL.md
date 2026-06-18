@@ -1,5 +1,15 @@
 ---
 name: software_deployment
+version: 1.0.0
+enabled: true
+ui:
+  label: 部署调测
+  group: ops
+  order: 40
+  icon: deploy
+  route_key: deploy
+runtime:
+  workspace_env: SOFTWARE_DEPLOYMENT_ROOT
 description: 软件部署与调测全流程——计划 1～3、CloudOps 4～6、Toolkit 7～8、init_install 四条检查命令、调测报告汇总。关键词：部署调测 / CloudOps / Toolkit / 连线检查 / 弱光检查 / 调测报告。
 ---
 

@@ -1,5 +1,15 @@
 ---
 name: xtsj
+version: 0.1.0
+enabled: false
+ui:
+  label: 系统设计(PoC)
+  group: design
+  order: 90
+  icon: design
+  route_key: design_xtsj
+runtime:
+  workspace_env: XTSJ_ROOT
 description: 系统设计（a3 智能网络开局）—— 命令分发式编排器。当用户说「系统设计 / 网络开局 / 地址规划 / 互联规划 / LLD 生成 / 检查输入件 / ZTP 配置 / 设备命名」，或者描述中包含「CSM / CC-GLM / CC-YBM / CPM-LQ / DW 管理 / GCM / L2/L3 互联 / 开局 LLD / ZTP cfg / ZTP lld / IP 规划 / ASN 分配 / 网络平面 / 计算面 / 存储面」等术语时调用本 skill。与 zhgk/guihua 线性流水线不同，本 skill 是命令分发模式（dispatch_mode=True）：用户按需触发任一命令（如 input_check / address_plan），每条命令对应一个 step handler，多条命令可任意顺序多次执行。基础命令 PoC 实装 input_check；后续 10+ 子能力按 A3-MIGRATION-PLAN §3 逐步追加。
 ---
 

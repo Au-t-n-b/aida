@@ -69,6 +69,24 @@ async def get_graph_async(skill_id: str = "zhgk"):
     return _compiled_async[skill_id]
 
 
+def invalidate(skill_id: str | None = None) -> None:
+    """失效编译图缓存（P4 热加载第 ③ 层）。
+
+    下次 `get_graph` / `get_graph_async` 会用 registry 的**最新工厂**重建图，
+    从而让 reload 后的 skill 代码生效。`skill_id=None` → 清全部。
+
+    共享的 `_async_saver` / `_async_conn` **不动**（checkpoint 持久，旧 run 不丢）；
+    本函数只附加缓存失效，不改既有泛化构图逻辑（`build_graph` 一行不动）。
+    正在执行的 run 已持有旧图引用，不受影响（自然跑完）。
+    """
+    if skill_id is None:
+        _compiled.clear()
+        _compiled_async.clear()
+    else:
+        _compiled.pop(skill_id, None)
+        _compiled_async.pop(skill_id, None)
+
+
 async def close_graph_async():
     """FastAPI shutdown 时关闭 aiosqlite 连接"""
     global _async_conn, _async_saver, _compiled_async

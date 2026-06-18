@@ -1,6 +1,7 @@
 /** 左侧导航子项 · 与 left-nav-fdy 共用（ClawRail 标题同步导航栏名称） */
 
 import { getModuleLabel } from './claw-seeds';
+import { getSkillLabelByRouteKeySync } from './skill-registry';
 
 export type NavSubItem = {
   name: string;
@@ -108,6 +109,13 @@ function findActiveSub(navPath: string, sub: NavSubItem[], hrefPrefix?: string):
 /** 当前路由对应的侧栏子项名称；未命中时回落到模块级标签 */
 export function getNavLabel(navPath: string): string {
   if (!navPath) return getModuleLabel('');
+
+  // 交付作业 /module/<route_key> 标题由 skill manifest 驱动（含动态新增 skill）
+  const modMatch = navPath.match(/^\/module\/([^/?#]+)/);
+  if (modMatch?.[1]) {
+    const label = getSkillLabelByRouteKeySync(modMatch[1]);
+    if (label) return label;
+  }
 
   if (navPath === '/plan-risk-report' || navPath.startsWith('/plan-risk-report?')) {
     return '风险报告';

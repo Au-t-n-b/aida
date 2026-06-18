@@ -1,5 +1,15 @@
 ---
 name: xxx
+version: 0.1.0                 # 语义化版本（manifest，热加载/兼容用；每次发布递增）
+enabled: true                  # 软开关：false 则前端不挂入口（无需删目录即可下线）
+ui:                            # 导航元数据（驱动前端，前端不再硬编码；lint_skill_manifest 校验）
+  label: <模块中文名>          # 导航显示名
+  group: ops                   # 分组：ops=交付作业 · design=规划设计 · early=早期介入
+  order: 50                    # 同组内排序（小在前）
+  icon: <icon_key>             # 前端 ICON_MAP 键；未知则用 fallback 通用图标
+  route_key: xxx               # 前端 /module/<route_key> 入口键；须全局唯一（缺省=name）
+runtime:
+  workspace_env: XXX_ROOT      # 工作区根环境变量（与 skill.py 的解析逻辑一致）
 description: <模块一句话定位 + 触发关键词（决定召回，照 zhgk 写法堆全业务关键词）>。本 skill 通过 AIDA Agent 后端（LangGraph）顺序执行 N 个 step：① … ② …。支持从任意步骤切入、HITL 文件补齐、增量重跑、全流程一键执行。
 ---
 

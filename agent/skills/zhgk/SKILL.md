@@ -1,5 +1,15 @@
 ---
 name: zhgk
+version: 1.0.0
+enabled: true
+ui:
+  label: 智慧工勘
+  group: ops
+  order: 10
+  icon: survey
+  route_key: survey
+runtime:
+  workspace_env: ZHGK_ROOT
 description: 智慧工勘（Skill-First · v4 意图驱动）—— 数据中心机房工勘全流程编排。支持 4 种意图：全流程工勘（建表→勘测→评估→报告）、场景建议、补充勘测、报告生成。当用户说「开始工勘 / 全流程工勘 / 生成工勘报告 / 场景建议 / 补充勘测 / 工勘审批分发 / 代际制冷 / AI评估 / 机房满足度 / 入场评估标准表 / BOQ」等时调用。
 ---
 

@@ -1,5 +1,15 @@
 ---
 name: guihua
+version: 1.0.0
+enabled: true
+ui:
+  label: 规划设计
+  group: ops
+  order: 20
+  icon: modeling
+  route_key: modeling
+runtime:
+  workspace_env: GUIHUA_ROOT
 description: 规划设计（建模仿真，jmfz）—— 数据中心机房建模仿真全流程编排（规划设计前半段）。当用户说 "开始规划设计 / 建模仿真 / 跑 jmfz / 设备适配 / 适配信息表 / 创建超节点 / 机柜落位 / 移交设备安装 / 建模仿真资料包"，或描述含「BOQ / 设备信息表 / 超节点 / 灵衢 / 机柜 / 适配 / nVisual / 仿真软件 / batchCreateCombo / batchMoveNodes」等术语时调用本 skill。本 skill 通过 AIDA Agent 后端（LangGraph）顺序执行 5 个 step：① 设备适配（解析设备信息表 + 调仿真 API 匹配型号/板卡 → 适配信息表）② 数据确认（HITL）③ 创建超节点（batchCreateCombo×5）④ 机柜落位（刷新 nVisual 后 batchMoveNodes×162，HITL 门）⑤ 移交设备安装（HITL 边界 + 结题）。支持从任意步骤切入、HITL 文件/确认补齐、增量重跑、断点续跑、全流程一键执行。
 ---
 

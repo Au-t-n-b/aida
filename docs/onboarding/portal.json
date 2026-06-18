@@ -197,9 +197,9 @@
           "prompt": [
             "@docs/20_架构与范式/architecture/00_ARCHITECT_SOP.md",
             "文档和代码脱节了，照 Workflow C 以代码为准刷新两张地图：",
-            "1) 扫 agent/skills/__init__.py 的 registry.register 得到当前模块全集；",
+            "1) 扫 agent/skills/ 目录（discovery 发现，P3 起替代 _specs）得到当前模块全集；",
             "2) 逐模块核对 SKILL.md「后端节点」↔ agent/skills/<id>/steps/ 的 step.key；",
-            "3) 扫前端 MODULE_TO_SKILL ↔ MODULE_SCHEMAS 键的漂移，不一致登记到 02 §8；",
+            "3) 扫前端导航元数据（/agent/skills manifest，P2 起驱动）↔ MODULE_SCHEMAS 键的漂移，不一致登记到 02 §8；",
             "4) 跑 Workflow B 全套 lint 验证刷新后「文档 ≡ 代码」。"
           ],
           "done": "两张地图对齐代码现状，漂移已登记 02 §8，lint 全绿。"
@@ -297,7 +297,7 @@
             "@docs/10_快速开始/AGENT_QUICKSTART.md",
             "帮我把 agent/skills/_template/ 复制成 agent/skills/<name>/，全局替换 xxx→<name>、Xxx→类名前缀。",
             "然后照「碰这些文件」表逐项列出我要改的 9 个点，标明哪些必改、哪些可选。",
-            "重点提醒：① SKILL.md「后端节点」表的 key 必须和 step.key 逐一对应（lint_skill_contract 双向校验）；② SKILL.md 要部署两处（skills/<name>/ 和 ~/.claude/skills/<name>/）；③ 在 agent/skills/__init__.py 加一行 registry.register。"
+            "重点提醒：① SKILL.md「后端节点」表的 key 必须和 step.key 逐一对应（lint_skill_contract 双向校验）；② SKILL.md 要部署两处（skills/<name>/ 和 ~/.claude/skills/<name>/）；③ 目录就位即注册——放到 agent/skills/<name>/（含 skill.py 暴露 get_<name>_skill）即被目录发现自动注册（P3 起，无需改 __init__.py）；SKILL.md frontmatter 写好 ui manifest 即驱动前端导航（P2，无需改前端）。"
           ],
           "commands": [
             "curl http://127.0.0.1:7401/agent/skills   # 看到 <name> = 注册成功",

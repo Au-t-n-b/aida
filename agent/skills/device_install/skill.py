@@ -36,7 +36,7 @@ from .steps import (
 
 class DeviceInstallSkill(BaseSkill):
     name = "device_install"
-    skill_md_path = Path(__file__).resolve().parents[3] / "skills" / "device_install" / "SKILL.md"
+    # SKILL.md 就近放在本目录（agent/skills/device_install/SKILL.md），由 default_skill_md_path 自动解析
     description = (
         "设备安装（新范式 · 单流水线）。主建设流程：接收上游实施计划→计划下发→"
         "SN扫码表生成→ESN填写；辅助流：进展反馈/进展查询/计划查询/"

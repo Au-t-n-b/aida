@@ -54,8 +54,11 @@
 python agent/scripts/lint_no_naked_llm.py
 python agent/scripts/lint_no_naked_send.py
 python agent/scripts/lint_skill_contract.py    # 需 venv
+python agent/scripts/lint_skill_discovery.py   # 纯 stdlib · skill 目录发现约定（get_<name>_skill 工厂）
+python agent/scripts/lint_skill_manifest.py    # 纯 stdlib · SKILL.md manifest 完整性
 python agent/scripts/lint_tools.py             # 需 venv
 python agent/scripts/lint_sdui_contract.py     # 需 venv
 python agent/scripts/lint_runtime_contract.py  # 需 venv · 契约≡代码（给三种工具 + 工厂对齐）
+python agent/scripts/lint_hotreload_contract.py # 纯 stdlib · P4 热加载附加契约（泛化逻辑零改）
 python agent/evals/eval_zhgk.py --fixture      # 评测回归
 ```

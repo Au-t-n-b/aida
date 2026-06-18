@@ -9,7 +9,7 @@
      对齐 docs/20_架构与范式/architecture/02_module_boundaries.md §3 依赖矩阵。
 
   2) 注册表 ↔ 边界图（硬阻断）
-     agent/skills/__init__.py 里每个 registry.register("<id>", ...) 的 <id>
+     目录发现（discovery.discover_skill_specs，P3 起替代硬编码 _specs）扫到的每个内置 <id>
      必须出现在 docs/20_架构与范式/architecture/02_module_boundaries.md（§1 模块清单）。
 
   3) A 层门面（仅告警）
@@ -33,7 +33,6 @@ except Exception:
 
 REPO = Path(__file__).resolve().parents[2]
 SKILLS_DIR = REPO / "agent" / "skills"
-REGISTRY_INIT = SKILLS_DIR / "__init__.py"
 BOUNDARIES = REPO / "docs" / "20_架构与范式" / "architecture" / "02_module_boundaries.md"
 SKILL_MD_DIR = REPO / "skills"
 
@@ -54,9 +53,25 @@ def _read(path: Path) -> str:
         return ""
 
 
+def _load_discovery_module():
+    """按文件加载 discovery.py（纯 stdlib，不触发 agent.skills 包 import / 无需 venv）。"""
+    import importlib.util
+    path = SKILLS_DIR / "discovery.py"
+    spec = importlib.util.spec_from_file_location("_aida_skill_discovery", path)
+    mod = importlib.util.module_from_spec(spec)
+    # 注册到 sys.modules：@dataclass 内部会按 cls.__module__ 反查模块命名空间（Py3.12+ 必需）
+    sys.modules[spec.name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def registered_skill_ids() -> list[str]:
-    text = _read(REGISTRY_INIT)
-    return re.findall(r'registry\.register\(\s*["\']([a-z0-9_]+)["\']', text)
+    """已注册 skill id —— 来自目录发现（P3 起 __init__.py 不再有字面 registry.register）。
+
+    只取内置（builtin）：本守门校验仓内模块图，外部 AIDA_SKILLS_PATH skill 不在 SKILLS_DIR。
+    """
+    discovery = _load_discovery_module()
+    return [s.name for s in discovery.discover_skill_specs() if s.builtin]
 
 
 def scan_cross_skill_imports(skill_id: str, others: set[str]) -> list[tuple[str, int, str]]:
@@ -84,7 +99,7 @@ def main() -> int:
 
     ids = registered_skill_ids()
     if not ids:
-        print("[module-boundaries] SKIP · 注册表为空（agent/skills/__init__.py 无 registry.register）")
+        print("[module-boundaries] SKIP · 目录发现为空（agent/skills/ 下无含 skill.py 的模块目录）")
         return 0
 
     id_set = set(ids)
@@ -114,10 +129,15 @@ def main() -> int:
                     f"{BOUNDARIES.relative_to(REPO)} §1 模块清单 —— 跑 Workflow C 基线重置补登"
                 )
 
-    # (3) A 层门面（告警）
+    # (3) A 层门面（告警）：就近(agent/skills/<id>/) 或 历史(skills/<id>/) 任一存在即可
     for sid in ids:
-        if not (SKILL_MD_DIR / sid / "SKILL.md").is_file():
-            warnings.append(f"  模块 '{sid}' 缺 skills/{sid}/SKILL.md（A 层门面建议补齐）")
+        if not (
+            (SKILLS_DIR / sid / "SKILL.md").is_file()
+            or (SKILL_MD_DIR / sid / "SKILL.md").is_file()
+        ):
+            warnings.append(
+                f"  模块 '{sid}' 缺 SKILL.md（agent/skills/{sid}/ 或 skills/{sid}/ · A 层门面建议补齐）"
+            )
 
     for w in warnings:
         print(f"[module-boundaries] WARN\n{w}")

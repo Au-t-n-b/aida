@@ -471,6 +471,15 @@ class BaseSkill(abc.ABC):
         from ._loader import load_skill_md, default_skill_md_path
         md_path = self.skill_md_path or default_skill_md_path(self.name)
         self.metadata = load_skill_md(md_path)
+        # ── runtime.workspace_env 接线（P4 收尾）：manifest 声明的环境变量若已设置，
+        #    即作为 work_root 唯一真相（覆盖工厂默认）；未声明/未设置则保留工厂传入值。
+        #    让 manifest.runtime 真被消费，而非仅文档声明（向后兼容：现有 skill 工厂多已读同名 env，结果一致）。
+        _rt = self.metadata.runtime if isinstance(self.metadata.runtime, dict) else {}
+        _ws_env = str(_rt.get("workspace_env") or "").strip()
+        if _ws_env:
+            _ws_raw = os.environ.get(_ws_env, "").strip()
+            if _ws_raw:
+                self.work_root = Path(_ws_raw)
         # 若 SKILL.md 给了 description，覆盖类属性（保持 A 层唯一真相）
         if self.metadata.description:
             self.description = self.metadata.description

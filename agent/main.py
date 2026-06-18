@@ -49,6 +49,7 @@ from .routers.proposal_mock import router as proposal_mock_router
 from .routers.datacenter_files import router as datacenter_files_router
 from .routers.proposal_files import router as proposal_files_router
 from .schedule.router import configure_schedule, router as schedule_router
+from .admin_routes import router as admin_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
@@ -161,6 +162,39 @@ def _resolve_skill_artifact_file(skill_obj: Any, path: str) -> Path:
     return full
 
 
+# ── P4.1：skill 软下线闸 + run 版本钉住（热加载安全网 · 唯一活跃执行入口处生效）──
+_RUN_SKILL_VERSION: dict[str, str] = {}   # run_id → 启动时钉住的 skill version
+
+
+def _skill_enabled_version(skill_id: str) -> tuple[bool, bool, str]:
+    """返回 (registered, enabled, version)。未注册/取不到 → (False, False, "")。"""
+    from .skills import registry
+    try:
+        md = registry.get(skill_id).metadata
+    except Exception:  # noqa: BLE001
+        return (False, False, "")
+    return (True, bool(getattr(md, "enabled", True)), str(getattr(md, "version", "") or ""))
+
+
+def _skill_run_gate(run_id: str, skill_id: str) -> str | None:
+    """运行前闸：未注册/已热卸载 → 阻断；enabled=false → 阻断；
+    版本较本 run 启动时变化（热更新）→ 阻断并提示重开。返回错误文案或 None（放行）。
+    首次运行时钉住版本，供后续 resume 比对。"""
+    registered, enabled, version = _skill_enabled_version(skill_id)
+    if not registered:
+        return f"skill「{skill_id}」未注册（可能已被热卸载），无法运行。"
+    if not enabled:
+        return f"skill「{skill_id}」已下线（enabled=false），暂不可启动。"
+    prev = _RUN_SKILL_VERSION.get(run_id)
+    if prev is not None and prev != version:
+        return (
+            f"该任务对应的 skill「{skill_id}」已热更新（版本 {prev} → {version}），"
+            "运行状态可能不兼容，请重新开始一个新任务。"
+        )
+    _RUN_SKILL_VERSION[run_id] = version
+    return None
+
+
 # ─── 全局 ───
 
 logging.basicConfig(
@@ -179,6 +213,7 @@ app.include_router(proposal_mock_router)
 app.include_router(datacenter_files_router)
 configure_schedule(app)
 app.include_router(schedule_router)
+app.include_router(admin_router)  # P4：附加 skill 热加载端点（不动泛化路由）
 
 # 允许前端 (Next.js dev server) 跨域
 app.add_middleware(
@@ -1648,6 +1683,12 @@ async def _run_graph_streaming(run_id: str, init_state: AgentState, thread_id: s
 
     queue: asyncio.Queue = RUNS[run_id]["queue"]
     skill_id = init_state.get("skill_id", "zhgk")
+    # ── P4.1 闸：enabled 软下线 + 版本钉住（覆盖 start/chat/resume，唯一活跃执行入口）──
+    _gate_msg = _skill_run_gate(run_id, skill_id)
+    if _gate_msg is not None:
+        await queue.put({"event": "error", "data": {"error": _gate_msg}})
+        await queue.put(None)  # sentinel：关闭 SSE
+        return
     graph = await get_graph_async(skill_id)
     proj = init_state.get("project", {}) or {}
     # 顶层 config：注入 Langfuse callbacks + 整个 run 的元数据
