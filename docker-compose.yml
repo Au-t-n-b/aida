@@ -7,7 +7,7 @@
 # 容器内仍可用 8080/8081/7401（仅 aida-net 内网 DNS），与宿主机不冲突。
 #
 # 对外入口：https://aida.rnd.huawei.com
-#   nginx-backend（nginx-231-internal）→ aida-frontend:8080（容器内，非宿主机 8080）
+#   nginx-backend（nginx-internal）→ aida-frontend:8080（容器内，非宿主机 8080）
 #   frontend 容器内再反代 manager:8081 / agent:7401（均不暴露宿主机）
 # 宿主机不映射 8080/8081/7401；可选调试 ports: "18080:8080"（+10000 偏移）。
 # 访问宿主机数据中心 API：agent/.env 设 DATA_CENTER_BASE_URL=http://host.docker.internal:8000
@@ -87,7 +87,7 @@ services:
     container_name: aida-frontend
     restart: unless-stopped
     logging: *default-logging
-    # 正式流量走 nginx-231-internal；仅调试时取消下一行注释
+    # 正式流量走 nginx-internal；仅调试时取消下一行注释
     # ports:
     #   - "18080:8080"
     depends_on:
@@ -97,7 +97,7 @@ services:
         condition: service_healthy
     networks:
       - aida-net
-      - nginx-231-internal
+      - nginx-internal
 
 volumes:
   aida-data:
@@ -106,6 +106,6 @@ volumes:
 networks:
   aida-net:
     driver: bridge
-  nginx-231-internal:
+  nginx-internal:
     external: true
-    name: nginx-231-internal
+    name: nginx-internal
