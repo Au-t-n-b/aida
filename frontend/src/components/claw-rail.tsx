@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigation } from 'react-router-dom';
+import { useNavigation, useNavigate } from 'react-router-dom';
 import { usePathname, useNavPath } from '@/compat/navigation';
 import {
   getSeedForPath,
@@ -10,6 +10,7 @@ import {
 } from '../data/claw-seeds';
 import { getNavLabel } from '../data/left-nav-items';
 import { skillIdFromModulePath } from '@/data/module-skill-map';
+import { getSkillModulePath } from '@/data/skill-registry';
 import { refreshEvals } from '@/lib/eval-refresh';
 import { setSkillRun, useSkillRunStore, updateSkillRun } from '@/lib/skillRunStore';
 import { useRunLogStore } from '@/lib/runLogStore';
@@ -611,6 +612,8 @@ function SkillRunBanner({
   scenarioRun?: string;
   autoStart?: boolean;
 }) {
+  const navigate = useNavigate();
+  const pathname = usePathname() ?? '';
   const info     = useSkillRunStore();
   const myInfo   = info?.skillId === skillId ? info : null;
   const myRunId  = myInfo?.runId;
@@ -635,6 +638,11 @@ function SkillRunBanner({
         });
         setSkillRun(skillId, runId, 'chat');
         updateSkillRun({ phase: 'running' });
+        const modulePath = getSkillModulePath(skillId);
+        const onTargetModule = skillIdFromModulePath(pathname) === skillId;
+        if (modulePath && !onTargetModule) {
+          navigate(modulePath);
+        }
       } catch (err) {
         updateSkillRun({
           phase: 'error',
@@ -642,7 +650,7 @@ function SkillRunBanner({
         });
       }
     })();
-  }, [autoStart, skillId, projectCode, scenarioRun, myRunId]);
+  }, [autoStart, skillId, projectCode, scenarioRun, myRunId, navigate, pathname]);
 
   const phase    = myInfo?.phase           ?? 'starting';
   const progress = myInfo?.progress        ?? 0;

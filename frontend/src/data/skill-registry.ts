@@ -154,6 +154,23 @@ export function getRouteSkillMapSync(): Record<string, string> {
   return selectRouteMap(_skills);
 }
 
+/** skill_id → route_key（如 zhgk → survey）；未注册返回 null。 */
+export function getRouteKeyBySkillId(skillId: string): string | null {
+  const sid = skillId.trim();
+  if (!sid) return null;
+  const map = getRouteSkillMapSync();
+  for (const [routeKey, name] of Object.entries(map)) {
+    if (name === sid) return routeKey;
+  }
+  return null;
+}
+
+/** skill 对应作业模块路径（如 /module/survey）；无映射返回 null。 */
+export function getSkillModulePath(skillId: string): string | null {
+  const routeKey = getRouteKeyBySkillId(skillId);
+  return routeKey ? `/module/${routeKey}` : null;
+}
+
 /** 同步取某 route_key 的导航显示名（ClawRail 标题用）；未命中返回 null。 */
 export function getSkillLabelByRouteKeySync(routeKey: string): string | null {
   if (_skills) {
