@@ -143,9 +143,10 @@ function makeRunUnavailableDoc(skillId: string, runId: string, message: string):
 import { ensureAgentBase } from '@/lib/agentBase';
 import { agentBase } from '@/lib/runtimeBase';
 
-// 后端 aida/agent 地址：默认同源反代；本地/演示可用 VITE_AGENT_BASE 覆盖。
-// system_design 走 ensureAgentBase（可探测 7402+）；其余 skill / 旧调用点用此常量。
-export const AGENT_BASE = agentBase();
+// 后端 aida/agent 地址：enter-project 后读 session container_endpoint；调用处请用 agentBase()。
+export function getAgentBase(): string {
+  return agentBase();
+}
 
 const RUN_LOG_SKILLS = new Set(['device_install']);
 
@@ -688,7 +689,7 @@ export async function fetchRunStatus(
   runId: string,
 ): Promise<RunStatusSnapshot | null> {
   try {
-    const res = await fetch(`${AGENT_BASE}/agent/${skillId}/status/${runId}`);
+    const res = await fetch(`${agentBase()}/agent/${skillId}/status/${runId}`);
     if (!res.ok) return null;
     return await res.json() as RunStatusSnapshot;
   } catch {

@@ -15,6 +15,9 @@ from manager.datacenter_client import (
     register_user,
 )
 from manager.http_errors import dc_http_exception
+from manager.config import aida_agent_base, claw_orchestration_enabled
+from manager.orchestrator import destroy_all_for_user, destroy_for_session
+from manager.session_resolve import resolve_manager_session
 from manager.sessions import create_session, delete_session, get_by_token, get_session
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -76,23 +79,7 @@ class MeResponse(BaseModel):
     global_roles: list[dict[str, Any]] = Field(default_factory=list)
     project_roles: list[dict[str, Any]] = Field(default_factory=list)
 
-
-def _primary_role(profile: dict[str, Any]) -> str:
-    if profile.get("isAdmin"):
-        return "admin"
-    global_roles = profile.get("globalRoles") or []
-    if global_roles:
-        first = global_roles[0]
-        if isinstance(first, dict) and first.get("roleCode"):
-            return str(first["roleCode"])
-    project_roles = profile.get("projectRoles") or []
-    if project_roles:
-        first = project_roles[0]
-        if isinstance(first, dict) and first.get("roleCode"):
-            return str(first["roleCode"])
-    return "user"
-
-
+from manager.profile_roles import primary_role
 def _profile_from_claw_user(user: dict[str, Any]) -> dict[str, Any]:
     return {
         "userId": user.get("userId"),
@@ -161,7 +148,7 @@ async def auth_login(body: LoginRequest) -> LoginResponse:
         raise dc_http_exception(e) from e
 
     user_id = int(profile.get("userId") or 0)
-    role = _primary_role(profile)
+    role = primary_role(profile)
     sess = create_session(
         access_token=token,
         user_id=user_id,
@@ -219,16 +206,47 @@ async def auth_logout(
     body: LogoutRequest,
     authorization: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    sess = get_session(body.session_id)
+    user_id = 0
+    username = ""
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization[7:].strip()
-        if sess and sess.access_token != token:
-            raise HTTPException(status_code=403, detail="session 与 token 不匹配")
+        try:
+            sess = await resolve_manager_session(body.session_id, token)
+            user_id = sess.user_id
+            username = sess.username
+        except HTTPException:
+            raise
+        except Exception:
+            sess = get_session(body.session_id)
+            if sess and sess.access_token != token:
+                raise HTTPException(status_code=403, detail="session 与 token 不匹配")
+            if sess:
+                user_id = sess.user_id
+                username = sess.username
+    else:
+        sess = get_session(body.session_id)
+        if sess:
+            user_id = sess.user_id
+            username = sess.username
+
+    containers_destroyed = 0
+    if claw_orchestration_enabled() and user_id > 0:
+        destroy_for_session(body.session_id)
+        containers_destroyed = destroy_all_for_user(user_id, username)
+        logger.info(
+            "logout user_id=%s session=%s containers_destroyed=%s",
+            user_id,
+            body.session_id[:16],
+            containers_destroyed,
+        )
+
     deleted = delete_session(body.session_id)
     return {
         "session_id": body.session_id,
         "archived": False,
         "destroyed": deleted,
+        "container_destroyed": containers_destroyed > 0,
+        "containers_destroyed": containers_destroyed,
     }
 
 
@@ -251,7 +269,7 @@ async def auth_me(authorization: str | None = Header(default=None)) -> MeRespons
         except DataCenterError as e:
             raise dc_http_exception(e) from e
         project_code = ""
-        role = _primary_role(profile)
+        role = primary_role(profile)
         user_id = int(profile.get("userId") or 0)
         username = str(profile.get("username") or "")
 

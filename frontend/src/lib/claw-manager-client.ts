@@ -187,6 +187,73 @@ export function managerBase(): string {
   return managerBaseUrl();
 }
 
+export type EnterProjectResponse = {
+  container_endpoint: string;
+  routing_key: string;
+  reused: boolean;
+  host_port?: number | null;
+  container_ready?: boolean;
+};
+
+export function isManagerSessionExpired(err: unknown): boolean {
+  if (err instanceof ApiRequestError && err.detail.httpStatus === 401) return true;
+  if (err instanceof Error) {
+    const msg = err.message;
+    return msg.includes('会话无效') || msg.includes('已过期') || msg.includes('缺少 Authorization');
+  }
+  return false;
+}
+
+export async function enterProject(input: {
+  accessToken: string;
+  sessionId: string;
+  projectId: string;
+  projectCode?: string;
+}): Promise<EnterProjectResponse> {
+  return request<EnterProjectResponse>('/api/v1/session/enter-project', {
+    method: 'POST',
+    accessToken: input.accessToken,
+    body: JSON.stringify({
+      session_id: input.sessionId,
+      project_id: input.projectId,
+      project_code: input.projectCode ?? input.projectId,
+    }),
+  });
+}
+
+export async function sessionHeartbeat(input: {
+  accessToken: string;
+  sessionId: string;
+  projectId?: string;
+  projectCode?: string;
+}): Promise<{ ok: boolean; container_endpoint?: string | null; container_ready?: boolean }> {
+  const body: Record<string, string> = { session_id: input.sessionId };
+  if (input.projectId?.trim()) {
+    body.project_id = input.projectId.trim();
+    body.project_code = (input.projectCode ?? input.projectId).trim();
+  }
+  return request('/api/v1/session/heartbeat', {
+    method: 'POST',
+    accessToken: input.accessToken,
+    body: JSON.stringify(body),
+  });
+}
+
+/** 轮询直到 Claw 容器 /healthz/ready（enter-project 异步拉起后调用）。 */
+export async function waitContainerReady(input: {
+  accessToken: string;
+  sessionId: string;
+  timeoutMs?: number;
+}): Promise<void> {
+  const deadline = Date.now() + (input.timeoutMs ?? 120_000);
+  while (Date.now() < deadline) {
+    const hb = await sessionHeartbeat(input);
+    if (hb.container_ready) return;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+  }
+  throw new Error('项目环境启动超时，请稍后重试');
+}
+
 export async function loginToClawManager(input: {
   username: string;
   password: string;

@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -10,8 +11,12 @@ import {
   loginToClawManager,
   logoutFromClawManager,
   requestChatAccess,
+  enterProject,
+  sessionHeartbeat,
+  waitContainerReady,
   type ChatAccessResponse,
   type ClawUserProfile,
+  type EnterProjectResponse,
 } from './claw-manager-client';
 
 export type AidaSessionState = {
@@ -32,9 +37,13 @@ type AidaSessionContextValue = {
   logout: () => Promise<void>;
   logoutLocal: () => void;
   getChatAccess: () => Promise<ChatAccessResponse>;
+  enterProject: (projectId: string, projectCode?: string) => Promise<EnterProjectResponse>;
 };
 
 const STORAGE_KEY = 'aida:session';
+const PROJECT_STORAGE_KEY = 'aida:current-project';
+const HEARTBEAT_IN_PROJECT_MS = 60 * 1000;
+const HEARTBEAT_IDLE_MS = 5 * 60 * 1000;
 const AidaSessionContext = createContext<AidaSessionContextValue | null>(null);
 
 export function AidaSessionProvider({ children }: { children: ReactNode }) {
@@ -101,9 +110,75 @@ export function AidaSessionProvider({ children }: { children: ReactNode }) {
     return access;
   }, [session]);
 
+  const enterProjectForSession = useCallback(
+    async (projectId: string, projectCode?: string) => {
+      if (!session) {
+        throw new Error('请先登录 AIDA');
+      }
+      const resp = await enterProject({
+        accessToken: session.accessToken,
+        sessionId: session.sessionId,
+        projectId,
+        projectCode,
+      });
+      if (!resp.container_ready) {
+        await waitContainerReady({
+          accessToken: session.accessToken,
+          sessionId: session.sessionId,
+        });
+      }
+      const next: AidaSessionState = {
+        ...session,
+        containerEndpoint: resp.container_endpoint,
+        chatAccess: null,
+      };
+      setSession(next);
+      storeSession(next);
+      return resp;
+    },
+    [session],
+  );
+
+  useEffect(() => {
+    if (!session?.sessionId || !session.accessToken) return undefined;
+    const tick = () => {
+      const project = readStoredProjectSnapshot();
+      void sessionHeartbeat({
+        accessToken: session.accessToken,
+        sessionId: session.sessionId,
+        projectId: project?.id,
+        projectCode: project?.projectCode || project?.code,
+      }).then((hb) => {
+        if (hb.container_endpoint) {
+          setSession((prev) => {
+            if (!prev || prev.containerEndpoint === hb.container_endpoint) return prev;
+            const next = { ...prev, containerEndpoint: hb.container_endpoint };
+            storeSession(next);
+            return next;
+          });
+        }
+      }).catch(() => {
+        // 心跳失败不打断作业
+      });
+    };
+    tick();
+    const intervalMs = readStoredProjectSnapshot()?.id || session.containerEndpoint
+      ? HEARTBEAT_IN_PROJECT_MS
+      : HEARTBEAT_IDLE_MS;
+    const id = window.setInterval(tick, intervalMs);
+    return () => window.clearInterval(id);
+  }, [session?.sessionId, session?.accessToken, session?.containerEndpoint]);
+
   const value = useMemo(
-    () => ({ session, login, logout, logoutLocal, getChatAccess }),
-    [session, login, logout, logoutLocal, getChatAccess],
+    () => ({
+      session,
+      login,
+      logout,
+      logoutLocal,
+      getChatAccess,
+      enterProject: enterProjectForSession,
+    }),
+    [session, login, logout, logoutLocal, getChatAccess, enterProjectForSession],
   );
 
   return <AidaSessionContext.Provider value={value}>{children}</AidaSessionContext.Provider>;
@@ -140,4 +215,23 @@ function readStoredSession(): AidaSessionState | null {
 function storeSession(session: AidaSessionState): void {
   if (typeof window === 'undefined') return;
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+}
+
+type ProjectSnapshot = { id: string; code?: string; projectCode?: string };
+
+function readStoredProjectSnapshot(): ProjectSnapshot | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(PROJECT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ProjectSnapshot>;
+    if (!parsed.id?.trim()) return null;
+    return {
+      id: parsed.id.trim(),
+      code: parsed.code,
+      projectCode: parsed.projectCode,
+    };
+  } catch {
+    return null;
+  }
 }

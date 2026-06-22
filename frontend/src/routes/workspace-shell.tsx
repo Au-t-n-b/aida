@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigation } from 'react-router-dom';
 import { AppShell } from '@/components/app-shell';
 import ClawRail from '@/components/claw-rail';
 import { useCurrentProject } from '@/lib/current-project';
+import { useAidaSession } from '@/lib/aida-session';
 import { useTweaks } from '@/lib/tweaks-context';
 import { getWorkspaceMeta } from '@/lib/workspace-meta';
 import { navDebug, navDebugDomSnapshot, navDebugHintOnce, navDebugWarn } from '@/lib/nav-debug';
@@ -35,8 +36,23 @@ export default function WorkspaceShell() {
   const location = useLocation();
   const navigation = useNavigation();
   const { project } = useCurrentProject();
+  const { session, enterProject } = useAidaSession();
   const { tweaks, setTweak } = useTweaks();
   const prevPathRef = useRef('');
+  const clawBoundRef = useRef('');
+
+  useEffect(() => {
+    if (!session?.accessToken || !project?.id) return;
+    const bindKey = `${session.sessionId}:${project.id}`;
+    if (clawBoundRef.current === bindKey) return;
+    clawBoundRef.current = bindKey;
+    void enterProject(
+      project.id,
+      project.projectCode || (String(project.code ?? '').startsWith('PROP-') ? undefined : project.code),
+    ).catch(() => {
+      clawBoundRef.current = '';
+    });
+  }, [session?.accessToken, session?.sessionId, project?.id, project?.projectCode, project?.code, enterProject]);
 
   const meta = getWorkspaceMeta(location.pathname, location.search, project);
   const pathKey = workspaceRoutePathKey(location.pathname, location.search);

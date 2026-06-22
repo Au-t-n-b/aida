@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 """
-AIDA + nanobot 融合启动器。
+AIDA 全栈启动器。
 
-1. bootstrap nanobot workspace / config.json
-2. 启动 nanobot serve (:8900) — 自由聊天引擎
-3. 启动 AIDA FastAPI (:7401) — LangGraph + SDUI，聊天代理到 nanobot
-4. 启动 Manager (:8081) — UX 鉴权，代理数据中心
-5. 启动 mailgw 团队邮箱 (:8025) — GKCLAW 邮件网关（需 mailgw/config.yaml）
-6. 启动 ontology backend_app (:8011) — 数据中心 / 本体 API
-7. 启动前端静态服务 (:8080)
+非容器模式（默认）：
+  nanobot :8900 + agent :7401 + Manager + ontology + mailgw + frontend
 
-ontology 手工等价命令（服务器 ontology 目录下）：
-  nohup python3 -m uvicorn backend_app:app --host 0.0.0.0 --port 8011 &
+容器编排模式（AIDA_CLAW_ORCHESTRATION=1）：
+  宿主机仅 Manager + ontology + mailgw + frontend；
+  agent + nanobot 由 Manager 按项目拉起 aida/claw_liwen 容器（enter-project）。
 """
 from __future__ import annotations
 
@@ -71,7 +67,15 @@ def _nanobot_python() -> str:
     return sys.executable
 
 
+def _claw_orchestration_enabled() -> bool:
+    return os.environ.get("AIDA_CLAW_ORCHESTRATION", "").strip().lower() in ("1", "true", "yes")
+
+
 def bootstrap() -> None:
+    if _claw_orchestration_enabled():
+        _load_agent_env()
+        print("[bootstrap] AIDA_CLAW_ORCHESTRATION=1 — skip host nanobot bootstrap (Claw 容器内自举)")
+        return
     _load_agent_env()
     sys.path.insert(0, str(ROOT))
     subprocess.run([sys.executable, str(ROOT / "scripts" / "remove_nanobot_builtin_skills.py")], check=True)
@@ -249,17 +253,33 @@ def verify(*, mailgw_started: bool = False) -> bool:
     # 本机健康检查不走 HTTP_PROXY（与 nanobot_chat 一致）
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     ok = True
-    checks = [
+    checks: list[tuple[str, str]] = [
         ("manager", f"http://127.0.0.1:{_manager_port()}/health"),
-        ("nanobot", "http://127.0.0.1:8900/health"),
-        ("backend", "http://127.0.0.1:7401/healthz"),
+    ]
+    if _claw_orchestration_enabled():
+        checks.append(("claw-image", "docker-image-check"))
+    else:
+        checks.extend([
+            ("nanobot", "http://127.0.0.1:8900/health"),
+            ("backend", "http://127.0.0.1:7401/healthz"),
+        ])
+    if mailgw_started:
+        checks.append(("mailgw", f"http://127.0.0.1:{_mailgw_port()}/admin"))
+    checks.extend([
         ("ontology", f"http://127.0.0.1:{_backend_app_port()}/api/v2/ontologies"),
         ("frontend", "http://127.0.0.1:8080/"),
         ("frontend-spa", "http://127.0.0.1:8080/proposal"),
-    ]
-    if mailgw_started:
-        checks.insert(3, ("mailgw", f"http://127.0.0.1:{_mailgw_port()}/admin"))
+    ])
     for name, url in checks:
+        if url == "docker-image-check":
+            img = os.environ.get("CLAW_IMAGE", "aida/claw_liwen:dev").strip()
+            proc = subprocess.run(["docker", "image", "inspect", img], capture_output=True)
+            if proc.returncode == 0:
+                print(f"[verify] claw-image: {img} OK")
+            else:
+                print(f"[verify] claw-image FAIL: {img} not found — docker build -f deploy/claw/Dockerfile -t {img} .")
+                ok = False
+            continue
         try:
             with opener.open(url, timeout=10) as r:
                 print(f"[verify] {name}: HTTP {r.status}")
@@ -280,7 +300,7 @@ def verify(*, mailgw_started: bool = False) -> bool:
     return ok
 
 
-def stop_old() -> None:
+def stop_old(*, remove_claw_containers: bool = False) -> None:
     patterns = [
         "uvicorn manager.main",
         "uvicorn agent.main",
@@ -299,6 +319,19 @@ def stop_old() -> None:
             check=False,
         )
     time.sleep(2)
+    if remove_claw_containers or _claw_orchestration_enabled():
+        subprocess.run(
+            ["bash", "-c", "docker ps -aq --filter name=aida-claw | xargs -r docker rm -f; docker ps -aq --filter name=claw-u | xargs -r docker rm -f"],
+            check=False,
+        )
+        subprocess.run(
+            ["bash", "-c", "docker ps -aq --filter name=claw-smoke | xargs -r docker rm -f"],
+            check=False,
+        )
+        subprocess.run(
+            ["bash", "-c", "docker ps -aq --filter name=claw-debug | xargs -r docker rm -f"],
+            check=False,
+        )
 
 
 def main() -> int:
@@ -317,13 +350,15 @@ def main() -> int:
     bootstrap()
     procs: list[subprocess.Popen] = []
 
-    nb = start_nanobot_serve()
-    if nb:
-        procs.append(nb)
-        time.sleep(5)
-
-    procs.append(start_aida())
-    time.sleep(3)
+    if _claw_orchestration_enabled():
+        print("[start] AIDA_CLAW_ORCHESTRATION=1 — 宿主机不启 agent:7401 / nanobot:8900（进项目后 Manager 起 claw_liwen 容器）")
+    else:
+        nb = start_nanobot_serve()
+        if nb:
+            procs.append(nb)
+            time.sleep(5)
+        procs.append(start_aida())
+        time.sleep(3)
 
     procs.append(start_manager())
     time.sleep(2)
@@ -351,6 +386,8 @@ def main() -> int:
         return 1
 
     print("[ok] running PIDs:", [p.pid for p in procs])
+    if _claw_orchestration_enabled():
+        print("[ok] claw mode: 登录 → 选项目 → POST /session/enter-project 拉起 claw_liwen 容器")
     return 0
 
 

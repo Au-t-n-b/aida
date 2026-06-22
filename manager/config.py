@@ -107,3 +107,164 @@ def ssl_verify() -> bool:
     if v in ("0", "false", "no"):
         return False
     return http_proxy() is None
+
+
+def claw_orchestration_enabled() -> bool:
+    return os.environ.get("AIDA_CLAW_ORCHESTRATION", "").strip().lower() in ("1", "true", "yes")
+
+
+def claw_image() -> str:
+    return os.environ.get("CLAW_IMAGE", "aida/claw_liwen:dev").strip()
+
+
+def claw_data_mount() -> str:
+    return os.environ.get("CLAW_DATA_MOUNT", "/opt/aida/aida-data").strip()
+
+
+def claw_port_pool_start() -> int:
+    return int(os.environ.get("CLAW_PORT_POOL_START", "17501"))
+
+
+def claw_port_pool_end() -> int:
+    return int(os.environ.get("CLAW_PORT_POOL_END", "17600"))
+
+
+def claw_edge_base() -> str:
+    return os.environ.get("CLAW_EDGE_BASE_URL", "http://10.143.2.231").rstrip("/")
+
+
+def claw_edge_mode() -> str:
+    """port = 直连 host port；path = nginx /claw/{key}/"""
+    return os.environ.get("CLAW_EDGE_MODE", "port").strip().lower()
+
+
+def claw_idle_seconds() -> int:
+    return int(os.environ.get("CLAW_IDLE_SECONDS", "1800"))
+
+
+def nginx_conf_dir() -> Path | None:
+    raw = os.environ.get("NGINX_CONF_DIR", "").strip()
+    if not raw:
+        return None
+    return Path(raw)
+
+
+def nginx_reload_cmd() -> str | None:
+    return os.environ.get("NGINX_RELOAD_CMD", "nginx -s reload").strip() or None
+
+
+def container_endpoint_url(routing_key: str, host_port: int) -> str:
+    if claw_edge_mode() == "path":
+        return f"{claw_edge_base()}/claw/{routing_key}/"
+    return f"{claw_edge_base()}:{host_port}/"
+
+
+def claw_checkpoint_path(user_id: int, project_id: str) -> str:
+    from manager.registry import sanitize_project_id
+
+    pid = sanitize_project_id(project_id)
+    mount = claw_data_mount()
+    return f"{mount}/runtime/checkpoints/u{user_id}-p{pid}.db"
+
+
+def claw_org_assets_bind() -> str:
+    return f"{claw_data_mount()}/business/org-assets"
+
+
+def claw_container_project_bind() -> str:
+    return f"{claw_data_mount()}/business/project"
+
+
+def claw_host_project_path(project_id: str) -> str:
+    from manager.registry import project_filesystem_id
+
+    pid = project_filesystem_id(project_id)
+    return f"{claw_data_mount()}/business/projects/{pid}"
+
+
+def claw_skills_host_bind() -> str:
+    return os.environ.get("CLAW_SKILLS_HOST", f"{claw_data_mount()}/skill/org").strip()
+
+
+def claw_skills_container_bind() -> str:
+    return os.environ.get("CLAW_SKILLS_CONTAINER", "/app/agent/skills").strip()
+
+
+def aida_repo_root() -> str:
+    return os.environ.get("AIDA_REPO_ROOT", "/opt/aida_liwen").strip()
+
+
+def claw_legacy_skill_volumes() -> dict[str, dict[str, str]]:
+    """挂载仍依赖 skills/<name>/ 原始工作区的 skill（如 software_deployment runtime/ProjectData）。"""
+    root = aida_repo_root()
+    out: dict[str, dict[str, str]] = {}
+    for name in ("software_deployment",):
+        host = f"{root}/skills/{name}"
+        container = f"/app/skills/{name}"
+        out[host] = {"bind": container, "mode": "rw"}
+    return out
+
+
+def claw_container_volumes(project_id: str) -> dict[str, dict[str, str]]:
+    """Claw bind-mount：org-assets、项目目录、checkpoint、skill/org → /app/agent/skills。"""
+    mount = claw_data_mount()
+    org = claw_org_assets_bind()
+    host_proj = claw_host_project_path(project_id)
+    container_proj = claw_container_project_bind()
+    checkpoints = f"{mount}/runtime/checkpoints"
+    skills_host = claw_skills_host_bind()
+    skills_container = claw_skills_container_bind()
+    volumes = {
+        org: {"bind": org, "mode": "rw"},
+        host_proj: {"bind": container_proj, "mode": "rw"},
+        checkpoints: {"bind": checkpoints, "mode": "rw"},
+        skills_host: {"bind": skills_container, "mode": "rw"},
+    }
+    volumes.update(claw_legacy_skill_volumes())
+    return volumes
+
+
+def claw_env_for_container(user_id: int, project_id: str, checkpoint_db: str) -> dict[str, str]:
+    from manager.registry import project_filesystem_id
+
+    mount = claw_data_mount()
+    org_root = claw_org_assets_bind()
+    proj_root = claw_container_project_bind()
+    env: dict[str, str] = {
+        "AIDA_BUSINESS_ROOT": f"{mount}/business",
+        "AIDA_CHECKPOINT_DB": checkpoint_db,
+        "AIDA_PROJECT_ID": project_filesystem_id(project_id),
+        "ORG_ROOT": org_root,
+        "PROJ_ROOT": proj_root,
+        "AIDA_USE_NANOBOT_LLM": "1",
+        "AIDA_CHAT_VIA_NANOBOT": "1",
+        "NANOBOT_API_URL": "http://127.0.0.1:8900",
+        "NO_PROXY": "127.0.0.1,localhost,host.docker.internal",
+        "no_proxy": "127.0.0.1,localhost,host.docker.internal",
+    }
+    for key in (
+        "ZHIPU_API_KEY",
+        "ZHIPU_BASE_URL",
+        "ZHIPU_MODEL",
+        "DATA_CENTER_BASE_URL",
+        "MAILGW_BASE_URL",
+        "LANGFUSE_PUBLIC_KEY",
+        "LANGFUSE_SECRET_KEY",
+        "LANGFUSE_HOST",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+    ):
+        val = os.environ.get(key, "").strip()
+        if val:
+            env[key] = val
+    dc = env.get("DATA_CENTER_BASE_URL", "")
+    if dc and "host.docker.internal" not in dc and _is_local_host(dc):
+        env["DATA_CENTER_BASE_URL"] = dc.replace("127.0.0.1", "host.docker.internal").replace(
+            "localhost", "host.docker.internal"
+        )
+    mg = env.get("MAILGW_BASE_URL", "")
+    if mg and _is_local_host(mg):
+        env["MAILGW_BASE_URL"] = mg.replace("127.0.0.1", "host.docker.internal").replace(
+            "localhost", "host.docker.internal"
+        )
+    return env

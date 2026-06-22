@@ -624,3 +624,164 @@ Step 4 文档
 - 明确风险报告 AI 总结运行环境配置，包括 `BAILIAN_API_KEY`、模型名、超时与无 key 时 503 提示。
 - 排期完成态按钮文案仍可能显示“解析中...”，需要收口为明确完成态。
 - 风险报告页与排期页的“确认&下发”闭环入口需要进一步打通，确保 UI 可稳定读取下发快照。
+
+---
+
+## Claw 容器编排 · P0→P4 可执行实现计划（2026-06-18）
+
+> **架构真相**：[docs/60_部署运维/04_容器化部署与运行时架构.md](docs/60_部署运维/04_容器化部署与运行时架构.md)  
+> **当前焦点**：**P0 镜像** → **P1 单机闭环**（P2–P4 仅列验收，不并行开工）  
+> **红线**：不改 `agent/main.py` / `agent/graph.py` 泛化路由；容器化 = 外层打包 + Manager 编排。
+
+### 已拍板决策（勿在实现中漂移）
+
+| 项 | 决策 |
+|----|------|
+| 容器内容 | **agent + nanobot**；ontology/数据中心(:8000/:8011)、mailgw(:8025) 保持宿主机共享单例 |
+| 路由 | **nginx + 动态端口**；浏览器只见 `https://<edge>/claw/{routing_key}/` |
+| 多机 | **Phase 4 Docker Swarm**；P0–P1 仅单机 |
+| 数据挂载 | 宿主机 `/opt/aida/aida-data` → 容器内**同路径**；`AIDA_BUSINESS_ROOT=/opt/aida/aida-data/business` |
+| Checkpoint | 每 `(user_id, project_id)` 独立 `AIDA_CHECKPOINT_DB=.../runtime/checkpoints/u{uid}-p{pid8}.db` |
+| 触发 | 选项目后 `POST /session/enter-project` 拉起/复用；`logout` 同步销毁 |
+| 容器名 | `claw-u{uid}-p{pid8}`；routing_key = `{uid}-{pid8}` |
+
+### 依赖关系
+
+```
+P0 镜像 ──► P1 Manager 编排 + nginx ──► P2 前端 endpoint + 心跳回收
+                                              │
+                                              ▼
+                                        P3 边缘鉴权 + 资源限额
+                                              │
+                                              ▼
+                                        P4 NFS + Swarm + Redis 注册表
+```
+
+---
+
+### P0 · Claw 镜像（agent + nanobot）
+
+**目标**：一条 `docker build` + `docker run` 能在本机起健康容器，SSE 与 skill 列表可用；**不依赖 Manager**。
+
+| # | 任务 | 产出文件 | 验收 |
+|---|------|----------|------|
+| P0-1 | 新建 Claw 镜像目录（基于 `agent/Dockerfile` 扩展） | `deploy/claw/Dockerfile` | `docker build -f deploy/claw/Dockerfile -t aida/claw:dev .` 成功 |
+| P0-2 | 进程监督：nanobot(8900) → bootstrap → agent(7401) | `deploy/claw/claw-supervisor.conf` | 容器内 `supervisorctl status` 两进程 RUNNING |
+| P0-3 | 入口脚本：写 env、等 nanobot、跑 bootstrap、起 uvicorn | `deploy/claw/claw_entrypoint.sh` | 冷启动 ≤120s 内 `curl :7401/health` 200 |
+| P0-4 | 运行时 env 模板（挂载 + checkpoint + 共享服务 URL） | `deploy/claw/.env.container.example` | 文档列全必填项，无密钥入库 |
+| P0-5 | 本地 smoke 脚本（build → run → 断言） | `scripts/claw_container_smoke.py` | 退出码 0：`GET /agent/skills` 非空；`POST /agent/zhgk/start` fixture 可跑 |
+| P0-6 | 挂载契约文档化 | 更新 `deploy/claw/README.md` | 写明 bind：`/opt/aida/aida-data`、checkpoint 路径、指向宿主机 nanobot/DC/mailgw 的 URL |
+
+**P0 阶段验收（全绿才进 P1）** — 代码已落地，待有 Docker 环境执行 build/smoke
+
+- [ ] `docker run --rm -p 17401:7401 -v /opt/aida/aida-data:/opt/aida/aida-data:rw ... aida/claw:dev` → health 200
+- [ ] 容器内 `AIDA_BUSINESS_ROOT` 下能读到项目目录；zhgk `work_root` 不写死绝对路径
+- [ ] SSE：`curl -N http://127.0.0.1:17401/agent/zhgk/stream?...` 能收到事件（`proxy_buffering` 在 P1 nginx 再验）
+- [ ] 镜像体积与构建时间在 README 记录基线（供 P4 CI 对比）
+
+**P0 环境变量（容器内）**
+
+| 变量 | 示例 | 说明 |
+|------|------|------|
+| `AIDA_BUSINESS_ROOT` | `/opt/aida/aida-data/business` | 业务数据根 |
+| `AIDA_CHECKPOINT_DB` | `.../runtime/checkpoints/u42-pK1903abcd.db` | 每用户+项目隔离 |
+| `NANOBOT_BASE_URL` | `http://host.docker.internal:8900` 或宿主机 IP | 共享 nanobot |
+| `DATA_CENTER_BASE_URL` | `http://host.docker.internal:8000` | 共享数据中心 |
+| `MAILGW_BASE_URL` | `http://host.docker.internal:8025` | 共享 mailgw（可选） |
+
+---
+
+### P1 · Manager 单机编排闭环
+
+**目标**：登录 → 选项目 → Manager 拉起容器 + 写 nginx → 前端经 `/claw/{key}/` 访问专属 agent；logout 销毁；两用户两容器互不干扰。
+
+| # | 任务 | 产出文件 | 验收 |
+|---|------|----------|------|
+| P1-1 | Docker SDK 封装：create/start/stop/remove/logs | `manager/orchestrator.py` | 单元测试 mock Docker；集成测试真起一个 `claw-u*-p*` |
+| P1-2 | 端口池 + 内存注册表（routing_key → port/container_id） | `manager/registry.py` | 分配不冲突；重复 enter 同一 `(uid,pid)` 返回同 port + `reused=true` |
+| P1-3 | nginx 动态配置写入 + reload | `manager/nginx_writer.py`、`deploy/nginx/claw-location.conf.tpl` | 写入 `conf.d/claw-{key}.conf` 后 `nginx -s reload`；`location ^~ /claw/{key}/` + `proxy_buffering off` |
+| P1-4 | 会话模型扩展：`user_id` + `project_id` + `routing_key` + `container_port` | `manager/sessions.py` | `ManagerSession` 字段齐全；logout 可查到待销毁容器 |
+| P1-5 | **新端点** `POST /api/v1/session/enter-project` | `manager/routes/session.py` | body: `{project_id, project_code?}`；响应含 `container_endpoint`、`reused` |
+| P1-6 | `auth/login` 不再伪造 endpoint；`chat/access` 返回真实 `container_endpoint` | `manager/routes/auth.py`、`manager/routes/chat.py` | 未 enter-project 时 endpoint 为 null 或 409 提示先选项目 |
+| P1-7 | `auth/logout` 钩子：stop + remove 容器 + 删 nginx 片段 + 释放端口 | `manager/routes/auth.py` | logout 后 `docker ps` 无对应容器；端口回池 |
+| P1-8 | Manager 配置项 | `manager/config.py`、`.env.example` | `CLAW_IMAGE`、`CLAW_DATA_MOUNT`、`NGINX_CONF_DIR`、`PORT_POOL_START/END`、`CLAW_EDGE_BASE_URL` |
+| P1-9 | 依赖 | `manager/requirements.txt` | 增加 `docker` SDK |
+| P1-10 | 前端：选项目后调 enter-project；`agentBase()` 优先 `container_endpoint` | `frontend/src/lib/runtimeBase.ts`、`aida-session.tsx`、`landing.tsx` 或 `current-project.tsx` | 选项目后 Network 请求走 `/claw/{key}/agent/...` |
+| P1-11 | 单机联调 compose（可选） | `deploy/compose/claw-p1.yml` | 一条 `docker compose up` 可演示 Manager + nginx + 1 claw |
+
+**P1 阶段验收（全绿才进 P2）**
+
+- [ ] 用户 A 选项目 P1 → `enter-project` 返回 `https://<host>/claw/{keyA}/`；`GET .../agent/skills` 200
+- [ ] 用户 B 选项目 P2 → 不同 `routing_key`、不同 host port；A 的 zhgk run 不影响 B
+- [ ] 同一用户再次 enter 同一项目 → `reused: true`，容器未重建
+- [ ] 用户 A logout → 容器消失、nginx 片段删除、B 仍可用
+- [ ] SSE 经 nginx：`/claw/{key}/agent/zhgk/stream` 持续收事件，无缓冲截断
+- [ ] Manager 重启后：已运行容器可被发现（P1 最小实现：启动时 `docker ps --filter name=claw-u` 重建 registry；完整重建放 P2）
+- [ ] **守门**：现有 13 条 backend lint 仍全绿；**未改** `agent/main.py`/`graph.py` 泛化逻辑
+
+**P1 API 契约草案**
+
+```
+POST /api/v1/session/enter-project
+Authorization: Bearer <token>
+{ "project_id": "K1903", "project_code": "K1903" }
+
+→ 200 {
+  "container_endpoint": "https://10.143.2.231/claw/42-K1903abcd/",
+  "routing_key": "42-K1903abcd",
+  "reused": false
+}
+```
+
+---
+
+### P2 · 前端闭环 + 生命周期（待 P1 完成后开工）
+
+| # | 任务 | 验收 |
+|---|------|------|
+| P2-1 | `agentBase()` / SDUI stream / artifact 下载全走 `container_endpoint` | DevTools 无直连 `:7401`（除本地 dev 回退） |
+| P2-2 | 心跳 `POST /session/heartbeat` + Manager 续期 | 活跃会话容器不被误杀 |
+| P2-3 | 空闲回收（默认 30min 无心跳） | 容器停止、nginx 清理、端口释放 |
+| P2-4 | Manager 冷启动：扫描 `claw-u*-p*` 重建 registry + nginx | 重启 Manager 后旧会话可继续或明确 409 要求重进项目 |
+
+**P2 阶段验收**
+
+- [ ] 开 zhgk 全流程经容器 endpoint 跑通（含 HITL upload/resume）
+- [ ] 30min 无操作后容器被回收；再 enter 自动新建
+
+---
+
+### P3 · 边缘安全 + 资源治理（待 P2 完成后开工）
+
+| # | 任务 | 验收 |
+|---|------|------|
+| P3-1 | nginx `auth_request` 或 Manager 签发短期 claw token | 无 session 不能访问他人 `/claw/{key}/` |
+| P3-2 | routing_key 与 session 绑定校验 | 篡改 URL path 返回 403 |
+| P3-3 | 容器 cgroup：`mem_limit` / `cpus` | 单容器 OOM 不影响宿主机及其他容器 |
+| P3-4 | 每用户最大并发容器数 = 1（或 N，可配置） | 超限时 enter 返回 429 + 明确文案 |
+
+---
+
+### P4 · 多机 Swarm + 共享存储（待 P3 完成后开工）
+
+| # | 任务 | 验收 |
+|---|------|------|
+| P4-1 | NFS/CEPH：`/opt/aida/aida-data` 多节点同路径 | 容器调度到任意节点，数据一致 |
+| P4-2 | Docker Swarm service create（替代 raw `docker run`） | 节点故障后 Manager 可在另一节点重建 |
+| P4-3 | Redis 注册表替代进程内 dict | 多 Manager 实例不重复分配端口 |
+| P4-4 | CI 构建推送 `harbor.../aida/claw:{git_sha}` | 部署可版本回滚 |
+
+---
+
+### 实现顺序（本周建议）
+
+1. **P0-1 → P0-3 → P0-5**（镜像可跑）
+2. **P1-1 → P1-3 → P1-5 → P1-7**（后端闭环）
+3. **P1-10**（前端接 endpoint）
+4. 联调记录写入 `deploy/claw/README.md` §联调
+
+### 明确不做（本计划范围内）
+
+- 不把 ontology / 数据中心 / mailgw 打进 Claw 镜像
+- 不在 P1 做 Swarm / Redis / NFS
+- 不改 skill 热加载泛化逻辑（P4 热加载仍用 `/admin/skills/reload`）

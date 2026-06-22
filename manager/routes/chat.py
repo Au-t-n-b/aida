@@ -7,7 +7,8 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from manager.config import aida_agent_base
-from manager.sessions import get_by_token, get_session
+from manager.orchestrator import endpoint_for_session
+from manager.session_resolve import resolve_manager_session
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
@@ -33,15 +34,13 @@ async def chat_access(
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="缺少 Authorization")
     token = authorization[7:].strip()
-    sess = get_session(body.session_id)
-    if not sess or sess.access_token != token:
-        sess = get_by_token(token)
-    if not sess:
-        raise HTTPException(status_code=401, detail="会话无效或已过期")
+    sess = await resolve_manager_session(body.session_id, token)
+
+    endpoint = endpoint_for_session(sess.session_id) or aida_agent_base()
 
     return ChatAccessResponse(
         session_id=sess.session_id,
-        endpoint=aida_agent_base(),
+        endpoint=endpoint,
         token=token,
         expires_at=int(sess.expires_at),
         protocol="aida",

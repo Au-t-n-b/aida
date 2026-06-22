@@ -59,14 +59,24 @@ def _sync_facades(dst_root: Path) -> None:
 def _agent_env() -> dict[str, str]:
     env_path = _repo_root() / "agent" / ".env"
     out: dict[str, str] = {}
-    if not env_path.exists():
-        return out
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        out[k.strip()] = v.strip()
+    if env_path.is_file():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, _, v = line.partition("=")
+            out[k.strip()] = v.strip()
+    # 容器运行时 docker --env-file / -e 注入优先于文件
+    for key in (
+        "ZHIPU_API_KEY",
+        "ZHIPU_BASE_URL",
+        "ZHIPU_MODEL",
+        "DATA_CENTER_BASE_URL",
+        "MAILGW_BASE_URL",
+    ):
+        v = os.environ.get(key, "").strip()
+        if v:
+            out[key] = v
     return out
 
 
@@ -123,6 +133,8 @@ def bootstrap_nanobot_workspace(
     config_path: Path | None = None,
     workspace: Path | None = None,
     overwrite_config: bool = False,
+    skip_skill_sync: bool = False,
+    skip_claude_sync: bool = False,
 ) -> Path:
     """
     确保 ~/.nanobot/config.json 与 workspace/skills 就绪。
@@ -140,8 +152,9 @@ def bootstrap_nanobot_workspace(
     skills_dst = workspace / "skills"
     skills_dst.mkdir(parents=True, exist_ok=True)
 
-    # 同步 AIDA A 层 skills（历史 skills/ 树 + 就近 agent/skills/<name>/ 门面）
-    _sync_facades(skills_dst)
+    if not skip_skill_sync:
+        # 同步 AIDA A 层 skills（历史 skills/ 树 + 就近 agent/skills/<name>/ 门面）
+        _sync_facades(skills_dst)
 
     env = _agent_env()
     api_key = env.get("ZHIPU_API_KEY", "")
@@ -172,8 +185,9 @@ def bootstrap_nanobot_workspace(
             data.setdefault("api", {"host": "127.0.0.1", "port": 8900, "timeout": 300})
         config_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    # ~/.claude/skills 兼容 AIDA lint（同样含历史树 + 就近门面）
-    claude_skills = Path.home() / ".claude" / "skills"
-    _sync_facades(claude_skills)
+    # ~/.claude/skills 兼容 AIDA lint（容器运行时跳过，省一次全盘拷贝）
+    if not skip_claude_sync:
+        claude_skills = Path.home() / ".claude" / "skills"
+        _sync_facades(claude_skills)
 
     return config_path

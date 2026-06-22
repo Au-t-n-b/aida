@@ -36,8 +36,6 @@ import { useCurrentProject, type CurrentProject } from '@/lib/current-project';
 import { useSessionUser } from '@/hooks/useSessionUser';
 import { getUploadMeta, setUploadMetaDoc } from '@/lib/proposal-data-service';
 
-const AGENT_BASE = agentBaseSync();
-
 // ── Types ───────────────────────────────────────────────────────────────────
 
 interface ToolEvent {
@@ -1101,14 +1099,6 @@ export default function ClawRail({
   }, [pathname]);
 
   const activeModuleSkillId = skillIdFromModulePath(pathname);
-  const isZhgkModule = activeModuleSkillId === 'zhgk';
-
-  // 智慧工勘：左侧仅保留技能进度卡 + HITL，不展示通用对话历史
-  useEffect(() => {
-    if (!isZhgkModule) return;
-    clearClawChatSession(pathname, projectScopeRef.current);
-    setChatMsgs([]);
-  }, [isZhgkModule, pathname, projectScope]);
 
   // 右侧模块页启动的 run：固定渲染在对话流底部（不注入消息流，避免路由切换后丢失）
   const uiSkillRun =
@@ -1149,7 +1139,7 @@ export default function ClawRail({
         pendingApproval: { ...m.pendingApproval, decided: approved ? 'approved' : 'denied' },
       };
     }));
-    await fetch(`${AGENT_BASE}/agent/chat/approve-tool`, {
+    await fetch(`${agentBaseSync()}/agent/chat/approve-tool`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ approval_id: approvalId, approved }),
@@ -1202,7 +1192,11 @@ export default function ClawRail({
     setChatMsgs(prev => [...prev, { role: 'ai', body: '', ts: nowTs(), isStreaming: true, toolEvents: [] }]);
 
     try {
-      const res = await fetch(`${AGENT_BASE}/agent/chat/stream`, {
+      const base = agentBaseSync();
+      if (!base) {
+        throw new Error('Claw 容器未就绪，请先进入项目并等待作业环境准备完成');
+      }
+      const res = await fetch(`${base}/agent/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: trimmed, conv_id: convId, context: { page: streamPath } }),
@@ -1363,7 +1357,6 @@ export default function ClawRail({
         skillConv.runtime.onAction({ kind: 'post_user_message', text });
         return;
       }
-      if (skillIdFromModulePath(pathname) === 'zhgk') return;
       void sendText(text);
     };
     window.addEventListener(RAIL_SEND_EVENT, onRailSend);
@@ -1465,7 +1458,7 @@ export default function ClawRail({
       <>
       {/* thread */}
       <div className="claw-thread" ref={threadRef}>
-        {!isZhgkModule && allMsgs.map((m, i) => (
+        {allMsgs.map((m, i) => (
           <div key={i} className={`cmsg ${m.role}`}>
             <div className="meta">
               {m.role === 'ai' ? 'AIDA · ' : chatMetaPrefix}{displayMsgTs(m.ts)}
@@ -1595,7 +1588,7 @@ export default function ClawRail({
       </div>
 
       {/* suggestion chips */}
-      {!hideSuggests && !isZhgkModule && (
+      {!hideSuggests && (
         <div className="claw-suggests">
           {suggestsForPath.map((s, i) => (
             <button key={i} className="sug-chip" onClick={() => setDraft(s)}>
@@ -1606,7 +1599,6 @@ export default function ClawRail({
       )}
 
       {/* input */}
-      {!isZhgkModule && (
       <div className="claw-input-wrap">
         <div className="claw-input">
           <textarea
@@ -1637,7 +1629,6 @@ export default function ClawRail({
           </div>
         </div>
       </div>
-      )}
       </>
       )}
     </aside>

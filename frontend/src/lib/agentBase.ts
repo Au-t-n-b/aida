@@ -2,6 +2,7 @@
  * Agent 后端地址解析。
  * 演示/生产默认走同源反代；需要直连本地 Agent 时显式配置 VITE_AGENT_BASE。
  */
+import { agentBase as runtimeAgentBase } from '@/lib/runtimeBase';
 const LOCAL_PROBE_PORTS = [7402, 7403, 7404, 7401] as const;
 
 let _resolvedBase: string | null = null;
@@ -17,13 +18,17 @@ function isSystemDesignReady(workRoot: string): boolean {
   return norm.includes('file_path');
 }
 
-/** 同步回落（探测完成前）；优先 VITE_AGENT_BASE，否则同源。 */
+/** 同步回落（探测完成前）；优先 container_endpoint / VITE_AGENT_BASE，否则同源。 */
 export function agentBaseSync(): string {
+  const runtime = runtimeAgentBase();
+  if (runtime) return runtime;
   return envBase() ?? _resolvedBase ?? '';
 }
 
-/** 解析可用 Agent 基址；system_design 跳过仍使用 ProjectData 的旧实例。空串 = 同源（走 Vite /agent 代理）。 */
+/** 解析可用 Agent 基址；enter-project 后优先 container_endpoint。 */
 export async function ensureAgentBase(skillId = 'system_design'): Promise<string> {
+  const fromRuntime = runtimeAgentBase();
+  if (fromRuntime) return fromRuntime;
   const fromEnv = envBase();
   if (fromEnv) return fromEnv;
   // 开发期默认走 Vite /agent 代理（与页面同源），避免预览直连错误端口导致 403/404

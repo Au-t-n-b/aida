@@ -38,7 +38,10 @@ function boqAttachments(b) {
 }
 
 const ATTACH_PREVIEWABLE = ['xlsx', 'xls', 'csv'];
-const AGENT_BASE = agentBase();
+
+function previewAgentBase(): string {
+  return agentBase();
+}
 const DEFAULT_PREVIEW_PROJECT = {
   proposalId: 'PROP-2026-K1903',
   projectName: '京东三期',
@@ -53,11 +56,11 @@ function fileExt(name) {
 }
 
 function previewBoqFileUrl(path) {
-  return `${AGENT_BASE}/agent/preview/boq/file?path=${encodeURIComponent(path)}`;
+  return `${previewAgentBase()}/agent/preview/boq/file?path=${encodeURIComponent(path)}`;
 }
 
 function previewProjectInfoUrl(path) {
-  return `${AGENT_BASE}/agent/preview/project-info?path=${encodeURIComponent(path)}`;
+  return `${previewAgentBase()}/agent/preview/project-info?path=${encodeURIComponent(path)}`;
 }
 
 function normalizePreviewProjectInfo(data) {
@@ -334,7 +337,7 @@ function ContractTab({ projectInfo }) {
   useEffect(() => {
     let cancelled = false;
     const params = new URLSearchParams({ proposal_id: proposalId });
-    fetch(`${AGENT_BASE}/agent/preview/contracts?${params}`)
+    fetch(`${previewAgentBase()}/agent/preview/contracts?${params}`)
       .then(async (resp) => {
         if (!resp.ok) throw new Error(await errorMessage(resp));
         return resp.json();
@@ -347,7 +350,7 @@ function ContractTab({ projectInfo }) {
       .catch(() => {
         if (!cancelled) setContractRecords(CONTRACT_MAP[proposalId] || []);
       });
-    fetch(`${AGENT_BASE}/agent/preview/boq?${params}`)
+    fetch(`${previewAgentBase()}/agent/preview/boq?${params}`)
       .then(async (resp) => {
         if (!resp.ok) throw new Error(await errorMessage(resp));
         return resp.json();
@@ -377,7 +380,7 @@ function ContractTab({ projectInfo }) {
       const form = new FormData();
       form.append('proposal_id', proposalId);
       files.forEach(file => form.append('files', file));
-      const resp = await fetch(`${AGENT_BASE}/agent/preview/boq/upload`, {
+      const resp = await fetch(`${previewAgentBase()}/agent/preview/boq/upload`, {
         method: 'POST',
         body: form,
       });

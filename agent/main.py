@@ -435,6 +435,46 @@ def _on_startup() -> None:
 
 # ─── 健康检查 ───
 
+def _nanobot_reachable() -> bool:
+    if os.environ.get("AIDA_USE_NANOBOT_LLM", "").strip() not in ("1", "true", "yes"):
+        return True
+    import urllib.error
+    import urllib.request
+
+    base = os.environ.get("NANOBOT_API_URL", "http://127.0.0.1:8900").rstrip("/")
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    try:
+        with opener.open(f"{base}/health", timeout=2) as resp:
+            return resp.status == 200
+    except (urllib.error.URLError, OSError, TimeoutError):
+        return False
+
+
+def _health_ready_payload() -> dict:
+    """轻量就绪探针：进程已起 + skill 工厂已注册 + LLM 配置 + nanobot（若启用）。"""
+    from .skills import registry
+
+    llm = llm_healthcheck()
+    skill_names = registry.names()
+    nanobot_ok = _nanobot_reachable()
+    ok = bool(skill_names) and bool(llm.get("configured")) and nanobot_ok
+    return {
+        "ok": ok,
+        "ready": ok,
+        "skill_count": len(skill_names),
+        "llm": llm,
+        "nanobot": nanobot_ok,
+    }
+
+
+@app.get("/healthz/ready")
+def healthz_ready():
+    """容器编排 / enter-project 就绪门：不实例化全部 skill、不扫 ProjectData。"""
+    body = _health_ready_payload()
+    code = 200 if body["ok"] else 503
+    return JSONResponse(status_code=code, content=body)
+
+
 @app.get("/healthz")
 def healthz():
     out: dict = {"ok": True}

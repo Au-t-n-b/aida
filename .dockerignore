@@ -10,6 +10,8 @@
 
 # 虚拟环境
 agent/.venv/
+nanobot-main/.venv/
+mailgw/.venv/
 **/__pycache__/
 **/*.pyc
 

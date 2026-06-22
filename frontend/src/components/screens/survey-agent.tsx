@@ -33,7 +33,7 @@ import {
   fetchUiSnapshot,
   fetchRunStatus,
   runStepOutcome,
-  AGENT_BASE,
+  getAgentBase,
   type StartReq,
 } from '@/hooks/useSduiStream';
 import { ZhgkRoomPicker, type ZhgkRoomCatalogItem } from '@/components/zhgk/ZhgkRoomPicker';
@@ -1037,10 +1037,12 @@ export default function SkillAgentScreen({
   description = 'AI 驱动的作业全流程',
   nextModule,
 }: SkillAgentScreenProps) {
-  // ── 模式检测：仅当 Manager 分配了容器 endpoint 时走任务 API；本地登录无容器仍直连 Agent
   const { session } = useAidaSession();
   const { project: currentProject } = useCurrentProject();
-  const useClawMode = !!session?.containerEndpoint;
+  // Claw 容器编排：enter-project 写入 session.containerEndpoint，agentBase() 会直连映射端口。
+  // Manager POST /api/v1/tasks 尚未落地，作业启停仍走容器内 agent（/agent/{skill}/start + SSE）。
+  const USE_MANAGER_TASK_API = false;
+  const useClawMode = USE_MANAGER_TASK_API && !!session?.containerEndpoint;
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -2103,7 +2105,7 @@ export default function SkillAgentScreen({
       if (text.startsWith('/download_')) {
         const rel = text.slice('/download_'.length).replace(/^\//, '');
         if (rel) {
-          const url = `${AGENT_BASE}/agent/${skillId}/artifact?path=${encodeURIComponent(rel)}`;
+          const url = `${getAgentBase()}/agent/${skillId}/artifact?path=${encodeURIComponent(rel)}`;
           window.open(url, '_blank', 'noopener,noreferrer');
         }
         return;

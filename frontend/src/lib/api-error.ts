@@ -1,4 +1,4 @@
-/** Manager / 数据中心 API 结构化错误（便于界面排障展示） */
+import { managerBaseUrl } from '@/lib/runtimeBase';
 
 export type ApiErrorDetail = {
   message: string;
@@ -79,7 +79,8 @@ export function applyApiError(
     return;
   }
   if (err instanceof TypeError && err.message === 'Failed to fetch') {
-    setMessage('无法连接登录服务，请确认 Manager 已启动（:8081）且网络可达');
+    const mgr = managerBaseUrl() || '（未配置 Manager 地址）';
+    setMessage(`无法连接登录服务，请确认 Manager 已启动且网络可达（${mgr}）`);
   } else if (err instanceof Error) {
     setMessage(err.message);
   } else {

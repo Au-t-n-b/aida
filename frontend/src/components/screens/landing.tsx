@@ -11,7 +11,7 @@ import { useLogout } from '@/lib/use-logout';
 import { useCurrentProject } from '@/lib/current-project';
 import { useAidaSession } from '@/lib/aida-session';
 import { useSessionUser } from '@/hooks/useSessionUser';
-import { fetchMyProjects } from '@/lib/claw-manager-client';
+import { fetchMyProjects, isManagerSessionExpired } from '@/lib/claw-manager-client';
 import {
   mapDcProjectToCard,
   projectToFormPreset,
@@ -146,10 +146,13 @@ export default function LandingScreen() {
   const { session } = useAidaSession();
   const sessionUser = useSessionUser();
   const { selectProject } = useCurrentProject();
+  const { enterProject, logoutLocal } = useAidaSession();
   const [projects, setProjects] = useState<LandingProjectCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+
+  const [preparing, setPreparing] = useState<{ id: string; name: string } | null>(null);
 
   const [modal, setModal] = useState({ open: false, mode: 'create', preset: null, projectId: null });
   const openCreate = () => setModal({ open: true, mode: 'create', preset: null, projectId: null });
@@ -190,9 +193,31 @@ export default function LandingScreen() {
     window.setTimeout(() => setFlash(null), 5000);
   }, [reloadProjects]);
 
-  const openProject = (id: string) => {
+  const openProject = async (id: string) => {
     const p = projects.find((x) => x.id === id);
-    if (!p || !p.canEnter) return;
+    if (!p || !p.canEnter || preparing) return;
+    setPreparing({ id: p.id, name: p.name });
+    setError(null);
+    try {
+      await enterProject(
+        p.id,
+        p.projectCode || (String(p.code).startsWith('PROP-') ? undefined : p.code) || p.id,
+      );
+    } catch (e) {
+      if (isManagerSessionExpired(e)) {
+        logoutLocal();
+        navigate('/login', { replace: true });
+        return;
+      }
+      if (e instanceof TypeError && e.message === 'Failed to fetch') {
+        setError('无法连接 Manager 或 Claw 容器启动超时，请稍后重试（首次进入项目约需 1–2 分钟）');
+        return;
+      }
+      setError(e instanceof Error ? e.message : '进入项目失败');
+      return;
+    } finally {
+      setPreparing(null);
+    }
     selectProject({
       id: p.id,
       name: p.name,
@@ -220,6 +245,16 @@ export default function LandingScreen() {
 
   return (
     <div className="lp-wrap">
+      {preparing && (
+        <div className="lp-preparing-overlay" role="status" aria-live="polite">
+          <div className="lp-preparing-card">
+            <div className="lp-preparing-spinner" aria-hidden />
+            <p className="lp-preparing-title">项目数据准备中，请稍等</p>
+            <p className="lp-preparing-sub">{preparing.name}</p>
+            <p className="lp-preparing-hint">正在启动专属计算环境，请稍候…</p>
+          </div>
+        </div>
+      )}
       <header className="lp-top">
         <div className="lp-top-brand">
           <AidaMark size={22} />

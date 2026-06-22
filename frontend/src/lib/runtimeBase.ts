@@ -20,12 +20,32 @@ function bareMetalServiceBase(servicePort: number): string {
   return '';
 }
 
+/**
+ * Agent / Claw 后端基址。
+ * 优先 session 中的 container_endpoint（enter-project 后），其次 VITE_AGENT_BASE / bareMetal。
+ */
+function readContainerEndpoint(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const raw = sessionStorage.getItem('aida:session');
+    if (!raw) return undefined;
+    const parsed = JSON.parse(raw) as { containerEndpoint?: string | null };
+    return cleanBase(parsed.containerEndpoint);
+  } catch {
+    return undefined;
+  }
+}
+
 export function agentBase(): string {
-  return cleanBase(import.meta.env.VITE_AGENT_BASE) ?? bareMetalServiceBase(7401);
+  return (
+    readContainerEndpoint()
+    ?? cleanBase(import.meta.env.VITE_AGENT_BASE)
+    ?? bareMetalServiceBase(7401)
+  );
 }
 
 export function managerBaseUrl(): string {
-  return cleanBase(import.meta.env.VITE_CLAWMANAGER_BASE) ?? bareMetalServiceBase(8081);
+  return cleanBase(import.meta.env.VITE_CLAWMANAGER_BASE) ?? bareMetalServiceBase(8001);
 }
 
 export function ontologyBase(): string {
