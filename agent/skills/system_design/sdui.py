@@ -731,6 +731,17 @@ def _reconcile_delivery_from_disk(state: dict[str, Any]) -> None:
                     "files": [os.path.basename(p)],
                 })
                 known.add(item)
+        ic_planes = _interconnect_planes_on_disk()
+        ic_bn = next(
+            (fn for fn in (os.path.basename(p) for p in out_paths)
+             if fn in _MERGED_INTERCONNECT_FILENAMES),
+            "A3网络互联规划.xlsx",
+        )
+        for item, st in _interconnect_catalog_done_from_planes(ic_planes).items():
+            if item in known:
+                continue
+            commands.append({"command": item, "status": st, "files": [ic_bn]})
+            known.add(item)
         metrics["plan_commands"] = commands
         plane_rec["metrics"] = metrics
 
@@ -1397,6 +1408,75 @@ _CATALOG_FILE_KW: dict[str, list[list[str]]] = {
     for _grp, items in SD_PLAN_GROUPS for it in items
 }
 
+_MERGED_INTERCONNECT_FILENAMES = frozenset({
+    "A3网络互联规划.xlsx",
+    "A3网络互连规划.xlsx",
+})
+
+
+def _norm_plane_label(label: str) -> str:
+    return str(label or "").replace(" ", "").replace("面", "").strip()
+
+
+def _plane_labels_match(catalog_plane: str, resource_plane: str) -> bool:
+    a, b = _norm_plane_label(catalog_plane), _norm_plane_label(resource_plane)
+    if not a or not b:
+        return False
+    return a == b or a in b or b in a
+
+
+def _interconnect_planes_on_disk() -> frozenset[str]:
+    """读取合并互联表「网络平面」列，用于点亮 SDUI 互联目录项。"""
+    try:
+        from .pipelines.path_manifest import abs_artifacts_dir
+
+        out_dir = abs_artifacts_dir()
+        if not out_dir.is_dir():
+            return frozenset()
+        import pandas as pd
+
+        for fname in _MERGED_INTERCONNECT_FILENAMES:
+            path = out_dir / fname
+            if not path.is_file():
+                continue
+            df = pd.read_excel(path, sheet_name=0, header=0)
+            if "网络平面" not in df.columns:
+                continue
+            planes = {
+                str(v).strip()
+                for v in df["网络平面"].dropna()
+                if str(v).strip()
+            }
+            if planes:
+                return frozenset(planes)
+    except Exception:
+        pass
+    return frozenset()
+
+
+def _interconnect_catalog_done_from_planes(planes: frozenset[str]) -> dict[str, str]:
+    if not planes:
+        return {}
+    out: dict[str, str] = {}
+    for _grp, items in SD_PLAN_GROUPS:
+        for name in items:
+            if "互联" not in name:
+                continue
+            plane_part = name.split("互联", 1)[0]
+            if any(_plane_labels_match(plane_part, p) for p in planes):
+                out[name] = "done"
+    return out
+
+
+def _catalog_done_from_plan_commands(metrics: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for rec in metrics.get("plan_commands") or []:
+        if not isinstance(rec, dict) or rec.get("status") != "ok":
+            continue
+        for it in _match_catalog_items(str(rec.get("command") or "")):
+            out[it] = "done"
+    return out
+
 
 # 规划输出件去重：同一平面 legacy 名与 A3 名并存时只展示 A3 版本
 _PLAN_OUTPUT_CANONICAL: dict[str, str] = {
@@ -1451,13 +1531,17 @@ def _output_basenames(state: dict[str, Any] | None = None) -> list[str]:
 
 
 def _catalog_status_map(state: dict[str, Any]) -> dict[str, str]:
-    """目录任务名 → 状态（done/running/pending）· 点亮仅来自 output/ 磁盘文件名。"""
+    """目录任务名 → 状态（done/running/pending/error）。"""
     m = collect_metrics(state)
     out: dict[str, str] = {}
+
+    out.update(_catalog_done_from_plan_commands(m))
 
     out_names = _output_basenames()
     if out_names:
         for item, groups in _CATALOG_FILE_KW.items():
+            if out.get(item) == "done":
+                continue
             for grp in groups:
                 if any(all(tok in fn for tok in grp) for fn in out_names):
                     out[item] = "done"
@@ -1465,6 +1549,8 @@ def _catalog_status_map(state: dict[str, Any]) -> dict[str, str]:
         for p in _all_output_paths():
             for item in _catalog_items_from_output_basename(os.path.basename(p)):
                 out.setdefault(item, "done")
+
+    out.update(_interconnect_catalog_done_from_planes(_interconnect_planes_on_disk()))
 
     # 本批次失败指令 → 目录框标记 error（不覆盖已 done）
     for rec in (m.get("command_results") or []):

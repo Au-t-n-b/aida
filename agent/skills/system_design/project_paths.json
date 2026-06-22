@@ -1,20 +1,20 @@
 {
   "schema_version": "system_design.project_paths.v3",
-  "description": "系统设计 · 路径相对工程根（aida 仓库根）解析，与进程 CWD 无关。仿真三表扫 jmfz，测试用例扫 ht，上传落 input，产物落 output。",
-  "data_root": "data/system_design",
+  "description": "系统设计 · 全部为绝对路径。仿真三表扫 xmfz，测试用例扫 ht，上传落 input，产物落 output。",
+  "data_root": "/opt/aida/aida-data/business/projects/项目管理",
   "read": {
     "scan_by_tag": {
-      "resource": "data/system_design/input",
-      "Interconnection_Relationship": "data/system_design/jmfz",
-      "Device_Info": "data/system_design/jmfz",
-      "Location_Information": "data/system_design/jmfz",
-      "Test_Case": "data/system_design/ht"
+      "resource": "/opt/aida/aida-data/business/projects/交付作业/规划设计/输入文件",
+      "Interconnection_Relationship": "/opt/aida/aida-data/business/projects/交付作业/规划设计/输出结果/建模仿真",
+      "Device_Info": "/opt/aida/aida-data/business/projects/交付作业/规划设计/输出结果/建模仿真",
+      "Location_Information": "/opt/aida/aida-data/business/projects/交付作业/规划设计/输出结果/建模仿真",
+      "Test_Case": "/opt/aida/aida-data/business/projects/早期介入/交付预案/输出结果"
     }
   },
   "upload": {
-    "save_dir": "data/system_design/input"
+    "save_dir": "/opt/aida/aida-data/business/projects/交付作业/规划设计/输入文件"
   },
   "output": {
-    "artifacts_dir": "data/system_design/output"
+    "artifacts_dir": "/opt/aida/aida-data/business/projects/交付作业/规划设计/输出结果/系统设计"
   }
 }

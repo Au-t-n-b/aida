@@ -24,6 +24,11 @@ from ..pipelines.a3_bridge import (
     ensure_access_plan, intent_needs_access_plan, access_plan_exists,
     ensure_plane_address_repairs, rebuild_access_plan_from_outputs,
 )
+from ..pipelines.full_lld_profile import (
+    is_full_generate_intent,
+    is_integrate_only_intent,
+    run_full_lld_sequence,
+)
 from ..pipelines.delivery import has_mergeable_plane_artifacts
 from ..pipelines.exec_log import append_log, extract_actionable_error
 from ..pipelines.path_manifest import abs_artifacts_dir, abs_input_dir
@@ -268,8 +273,41 @@ class PlanePlanningStep(BaseStep):
                 rq = run_command(cmd, ctx.work_root, emit=emit)
                 results.append(rq)
                 queue_progress.append({"command": cmd, "status": rq.status})
+        elif mode == "full":
+            if is_integrate_only_intent(intent_cmd):
+                emit(f"[{self.key}] 融合意图 → 跳过 22 步序列，仅补跑接入底表")
+                repair_only = ensure_plane_address_repairs(ctx.work_root, emit=emit)
+                rebuild_access_plan_from_outputs(ctx.work_root, emit=emit)
+                results = list(repair_only or [])
+                plan_meta = {"full_lld_phase": "integrate_only"}
+                queue_progress = [{"command": r.command, "status": r.status} for r in results]
+            elif is_full_generate_intent(intent_cmd):
+                emit(f"[{self.key}] 完整 LLD 生成 → INSTRUCTION_SET 22 步 + 互联/接入 dispatch")
+                results, seq_meta = run_full_lld_sequence(ctx.work_root, emit=emit, keep_going=True)
+                plan_meta = dict(seq_meta)
+                queue_progress = list(seq_meta.get("full_lld_sequence") or [])
+            else:
+                anchor = resolve_dispatch_anchor(intent_cmd)
+                results, plan = run_dispatch(anchor, ctx.work_root, emit=emit, keep_going=True)
+                plan_meta = {
+                    "dispatch_anchor": plan.get("anchor_intent", anchor),
+                    "dispatch_phases": [
+                        {
+                            "l2": ph.get("l2_intent"),
+                            "strategy": ph.get("l2_strategy"),
+                            "status": ph.get("status"),
+                            "tasks": [
+                                {"intent": t.get("intent"), "status": t.get("status")}
+                                for t in (ph.get("tasks") or [])
+                            ],
+                        }
+                        for ph in (plan.get("phases") or [])
+                    ],
+                    "dispatch_errors": plan.get("errors") or [],
+                }
+                queue_progress = [{"command": r.command, "status": r.status} for r in results]
         else:
-            # ① 批次 / 完整：走 a3 编排器 plan + 进程内执行
+            # batch：走 a3 编排器 plan + 进程内执行
             anchor = resolve_dispatch_anchor(intent_cmd)
             results, plan = run_dispatch(anchor, ctx.work_root, emit=emit, keep_going=True)
             plan_meta = {
@@ -288,8 +326,8 @@ class PlanePlanningStep(BaseStep):
                 ],
                 "dispatch_errors": plan.get("errors") or [],
             }
-            # batch 模式：队列里的额外任务作为独立命令串行追加（full 模式不追加）
-            if mode == "batch" and queued_cmds:
+            # batch 模式：队列里的额外任务作为独立命令串行追加
+            if queued_cmds:
                 total_q = len(queued_cmds)
                 for i, cmd in enumerate(queued_cmds, 1):
                     emit(f"[{self.key}] 队列 {i}/{total_q}：执行「{cmd}」")
