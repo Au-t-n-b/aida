@@ -34,6 +34,7 @@ from agent.llm import get_llm
 from agent.tools import DEFAULT_TOOLS, ToolRegistry
 from agent.tools.trace import execute_traced
 from agent.conversation_store import get_conversation_store
+from agent.chat_sanitize import ThinkingStreamFilter
 
 # 需要用户确认才执行的工具（会在执行前 yield tool_approval_required 事件）
 TOOLS_REQUIRING_APPROVAL: frozenset[str] = frozenset({"send_mail", "send_welink"})
@@ -106,13 +107,16 @@ def run_chat(
         for _ in range(MAX_TOOL_ROUNDS):
             # ── 流式生成本轮（边出 token 边累积 tool_calls）──
             gathered = None
+            thinking_filter = ThinkingStreamFilter()
             for chunk in bound.stream(messages, config=stream_config):
                 gathered = chunk if gathered is None else gathered + chunk
                 if chunk.content:
                     text = chunk.content if isinstance(chunk.content, str) else str(chunk.content)
                     if text:
-                        ai_text_parts.append(text)
-                        yield {"type": "token", "text": text}
+                        visible = thinking_filter.feed(text)
+                        if visible:
+                            ai_text_parts.append(visible)
+                            yield {"type": "token", "text": visible}
 
             tcs = getattr(gathered, "tool_calls", None) or []
             if not tcs:
@@ -221,13 +225,16 @@ async def run_chat_async(
         for _ in range(MAX_TOOL_ROUNDS):
             # ── 异步流式生成 ──
             gathered = None
+            thinking_filter = ThinkingStreamFilter()
             async for chunk in bound.astream(messages, config=stream_config):
                 gathered = chunk if gathered is None else gathered + chunk
                 if chunk.content:
                     text = chunk.content if isinstance(chunk.content, str) else str(chunk.content)
                     if text:
-                        ai_text_parts.append(text)
-                        yield {"type": "token", "text": text}
+                        visible = thinking_filter.feed(text)
+                        if visible:
+                            ai_text_parts.append(visible)
+                            yield {"type": "token", "text": visible}
 
             if gathered is None:
                 break

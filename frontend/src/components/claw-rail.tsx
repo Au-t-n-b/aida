@@ -35,6 +35,7 @@ import {
 import { useCurrentProject, type CurrentProject } from '@/lib/current-project';
 import { useSessionUser } from '@/hooks/useSessionUser';
 import { getUploadMeta, setUploadMetaDoc } from '@/lib/proposal-data-service';
+import { stripThinkingContent } from '@/lib/strip-thinking';
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
@@ -902,7 +903,7 @@ export default function ClawRail({
   const mountedRef = useRef(true);
   const chatMsgsRef = useRef<Msg[]>([]);
   const convIdRef = useRef('');
-  const tokenBufRef = useRef('');
+  const rawTokenBufRef = useRef('');
   const tokenRafRef = useRef<number | null>(null);
 
   const pathname = usePathname() ?? '';
@@ -921,7 +922,7 @@ export default function ClawRail({
       cancelAnimationFrame(tokenRafRef.current);
       tokenRafRef.current = null;
     }
-    tokenBufRef.current = '';
+    rawTokenBufRef.current = '';
     if (mountedRef.current) setIsStreaming(false);
   }, []);
 
@@ -1154,6 +1155,7 @@ export default function ClawRail({
     const controller = new AbortController();
     streamAbortRef.current = controller;
     const streamPath = pathname;
+    rawTokenBufRef.current = '';
 
     // Patch the last streaming AI message
     const patch = (fn: (m: Msg) => Msg) => {
@@ -1169,17 +1171,16 @@ export default function ClawRail({
     };
 
     const flushTokenBuf = () => {
-      if (!tokenBufRef.current || !mountedRef.current) {
-        tokenBufRef.current = '';
+      if (!rawTokenBufRef.current || !mountedRef.current) {
+        rawTokenBufRef.current = '';
         return;
       }
-      const chunk = tokenBufRef.current;
-      tokenBufRef.current = '';
-      patch(m => ({ ...m, body: m.body + chunk }));
+      const visible = stripThinkingContent(rawTokenBufRef.current);
+      patch(m => ({ ...m, body: visible }));
     };
 
     const enqueueToken = (text: string) => {
-      tokenBufRef.current += text;
+      rawTokenBufRef.current += text;
       if (tokenRafRef.current != null) return;
       tokenRafRef.current = requestAnimationFrame(() => {
         tokenRafRef.current = null;
@@ -1475,7 +1476,7 @@ export default function ClawRail({
                     return acc;
                   }, [])}
                 </>
-              ) : m.body}
+              ) : m.role === 'ai' ? stripThinkingContent(m.body) : m.body}
               {/* Tool call indicators for streaming AI messages */}
               {m.toolEvents && m.toolEvents.length > 0 && (
                 <div className="tool-events">

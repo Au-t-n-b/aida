@@ -10,6 +10,7 @@ import { SduiNodeView } from '@/components/sdui/SduiNodeView';
 import { SduiRuntimeContext, type SduiRuntime } from '@/components/sdui/SduiContext';
 import { useSduiStream, resumeRun, uploadBatch } from '@/hooks/useSduiStream';
 import { useChatStream } from '@/hooks/useChatStream';
+import { stripThinkingContent } from '@/lib/strip-thinking';
 import { useSessionUser } from '@/hooks/useSessionUser';
 import type { ChatMessage, SkillLaunchInfo, ToolApprovalInfo } from '@/hooks/useChatStream';
 import type { SduiAction } from '@/lib/sdui';
@@ -171,7 +172,7 @@ function MessageBubble({ msg, onDecide }: { msg: ChatMessage; onDecide: (id: str
             borderRadius: isUser ? '12px 12px 3px 12px' : '3px 12px 12px 12px',
             fontSize: 'var(--text-sm)', lineHeight: 1.6, whiteSpace: 'pre-wrap',
           }}>
-            {msg.text}
+            {isUser ? msg.text : stripThinkingContent(msg.text)}
             {msg.isStreaming && <span className="claw-dot claw-dot--running" style={{ marginLeft: 4 }} />}
           </div>
         )}

@@ -7,6 +7,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { agentBase } from '@/lib/runtimeBase';
+import { stripThinkingContent } from '@/lib/strip-thinking';
 
 const AGENT_BASE = agentBase();
 
@@ -95,6 +96,7 @@ export function useChatStream() {
   const abortRef = useRef<AbortController | null>(null);
   // 用 ref 存当前 AI 消息 id，避免闭包过期
   const aiMsgIdRef = useRef<string>('');
+  const rawAiTextRef = useRef('');
 
   const send = useCallback(async (userText: string, opts: SendOptions = {}) => {
     // 取消上一次未完成的请求
@@ -105,6 +107,7 @@ export function useChatStream() {
     const userId = `u-${Date.now()}`;
     const aiId = `a-${Date.now()}`;
     aiMsgIdRef.current = aiId;
+    rawAiTextRef.current = '';
 
     setState(prev => ({
       ...prev,
@@ -161,10 +164,12 @@ export function useChatStream() {
 
           if (type === 'token') {
             const text = (ev.text as string) ?? '';
+            rawAiTextRef.current += text;
+            const visible = stripThinkingContent(rawAiTextRef.current);
             setState(prev => ({
               ...prev,
               messages: prev.messages.map(m =>
-                m.id === currentAiId ? { ...m, text: m.text + text } : m,
+                m.id === currentAiId ? { ...m, text: visible } : m,
               ),
             }));
           } else if (type === 'tool_call') {
