@@ -35,7 +35,7 @@ PATH_QUERY_SLOT = "/wapi/v1/ai/model/querySlotMapping"
 PATH_CREATE_COMBO = "/wapi/v1/ai/combo/batchCreateCombo"
 PATH_MOVE_NODES = "/wapi/v1/ai/nodes/batchMoveNodes"
 
-_CALL_LOG_REL = "ProjectData/RunTime/sim_api_calls.jsonl"
+_CALL_LOG_REL = "sim_api_calls.jsonl"
 
 
 def is_live() -> bool:
@@ -66,11 +66,9 @@ class SimApiClient:
 
     # ── 留痕 ──────────────────────────────────────────────────────────────────
     def _log_call(self, record: dict[str, Any]) -> None:
-        if not self.work_root:
-            return
-        log_path = self.work_root / _CALL_LOG_REL
         try:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
+            from ..path_config import get_parse_dir
+            log_path = get_parse_dir() / _CALL_LOG_REL
             with log_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception:

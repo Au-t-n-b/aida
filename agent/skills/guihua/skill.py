@@ -15,12 +15,12 @@ GuihuaSkill · 规划设计（建模仿真）· AIDA 第二个业务场景 Skill
 """
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import Any
 
 from ..base import BaseSkill
 from . import files as _guihua_files
+from .bridge import get_guihua_root
+from .path_config import get_input_dir, get_output_dir, get_parse_dir
 from .sdui import project as _sdui_project
 from .steps import (
     AdaptBuildStep,
@@ -39,15 +39,6 @@ _GATE_OF_STEP = {
 }
 
 
-def _get_guihua_root() -> Path:
-    """规划设计工作区根。优先 env GUIHUA_ROOT，否则复用 nanobot jmfz 工作区
-    （已含 ProjectData/Input 等）。不存在则创建，保证 registry.get('guihua') 不抛。"""
-    raw = os.environ.get("GUIHUA_ROOT", "").strip()
-    root = Path(raw) if raw else Path.home() / ".nanobot" / "workspace" / "skills" / "jmfz"
-    root.mkdir(parents=True, exist_ok=True)
-    return root.resolve()
-
-
 class GuihuaSkill(BaseSkill):
     name = "guihua"
     description = "规划设计（建模仿真）· 设备适配→数据确认→创建超节点→机柜落位→移交设备安装（jmfz 线下移植）"
@@ -59,8 +50,14 @@ class GuihuaSkill(BaseSkill):
         HandoffStep(),
     ]
     sdui_projector = staticmethod(_sdui_project)
-    file_handler = _guihua_files            # 资料包上传（设备信息表/机房机柜表 → Input/）
+    file_handler = _guihua_files            # 资料包上传（设备信息表/机房机柜表 → 输入文件/）
     # 确认门走 full_restart（adapt_build 确定性重生成）；副作用步 sentinel 按 run_id 幂等。
+
+    def prepare_work_root(self) -> None:
+        """按规范初始化三个标准子目录（输入文件 / 解析结果 / 输出结果/建模仿真）。"""
+        get_input_dir()
+        get_parse_dir()
+        get_output_dir()
 
     def initial_project(self, payload: dict[str, Any]) -> dict[str, Any]:
         p = dict(payload or {})
@@ -116,4 +113,4 @@ class GuihuaSkill(BaseSkill):
 def get_guihua_skill():
     """单例工厂 · 延迟加载 llm_factory。注册见 agent/skills/__init__.py。"""
     from ...llm import get_llm
-    return GuihuaSkill(work_root=_get_guihua_root(), llm_factory=get_llm)
+    return GuihuaSkill(work_root=get_guihua_root(), llm_factory=get_llm)

@@ -138,13 +138,19 @@ def _resolve_skill_artifact_file(skill_obj: Any, path: str) -> Path:
         raise HTTPException(404, "not found")
     handler = getattr(skill_obj, "file_handler", None)
     if handler is not None and hasattr(handler, "resolve_artifact_path"):
-        for candidate_path in (raw, f"ProjectData/Output/{Path(raw.replace('\\', '/')).name}"):
-            try:
-                full = handler.resolve_artifact_path(skill_obj.work_root, candidate_path)
-                if full.is_file():
-                    return full.resolve()
-            except (ValueError, FileNotFoundError, OSError):
-                continue
+        try:
+            full = handler.resolve_artifact_path(skill_obj.work_root, raw)
+            if full.is_file():
+                return full.resolve()
+            # resolve_artifact_path 返回路径但文件不存在（vendor 样本目录缺失）
+            raise HTTPException(404, f"artifact not found: {Path(raw).name}")
+        except HTTPException:
+            raise
+        except (ValueError, OSError):
+            pass
+        except FileNotFoundError:
+            # file_handler 明确报告文件不存在（非路径穿越），直接 404
+            raise HTTPException(404, f"artifact not found: {Path(raw).name}")
     # system_design：input/jmfz/ht/output 相对 data_root（work_root）· 勿误拦为 ProjectData 外
     root = Path(skill_obj.work_root).resolve()
     full = (root / raw.replace("\\", "/")).resolve()

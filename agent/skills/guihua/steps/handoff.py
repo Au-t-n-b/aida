@@ -15,22 +15,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_output_dir, get_parse_dir
 from ..services import VENDOR_CSMRACK
 from ..services.sentinel import is_same_run, read_json
 from ..services.sim_api import is_live
 from ..services.subproc import run_script
 
-CREATED_REL = "ProjectData/RunTime/combo_created.json"
-PROGRESS_REL = "ProjectData/RunTime/move_progress.json"
-CSM_DONE_REL = "ProjectData/RunTime/csm_done.json"
-REPORT_REL = "ProjectData/Output/modeling_simulation_workbench_report.md"
-
 
 class HandoffStep(BaseStep):
     key = "handoff"
     name = "生成参数面设备"
-    artifacts_pattern = [REPORT_REL, CSM_DONE_REL]
-
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         confs = (ctx.project or {}).get("confirmations") or {}
         if confs.get("handoff"):
@@ -51,7 +45,7 @@ class HandoffStep(BaseStep):
         }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
-        sentinel = ctx.work_root / CSM_DONE_REL
+        sentinel = get_parse_dir() / "csm_done.json"
         redo = bool((ctx.project or {}).get("_redo_handoff"))
 
         prev = read_json(sentinel)
@@ -76,11 +70,9 @@ class HandoffStep(BaseStep):
             "live": is_live(),
             **summary,
         }
-        sentinel.parent.mkdir(parents=True, exist_ok=True)
         sentinel.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        report = ctx.work_root / REPORT_REL
-        report.parent.mkdir(parents=True, exist_ok=True)
+        report = get_output_dir() / "modeling_simulation_workbench_report.md"
         report.write_text(self._markdown(ctx, record), encoding="utf-8")
 
         if not record["ok"]:
@@ -131,7 +123,7 @@ class HandoffStep(BaseStep):
             "topo_ok": record.get("topo_ok", 0),
             "topo_total": record.get("topo_total", 0),
             "completed": record.get("ok", False),
-            "report": REPORT_REL,
+            "report": "输出结果/建模仿真/modeling_simulation_workbench_report.md",
         }
 
     @staticmethod
@@ -144,8 +136,9 @@ class HandoffStep(BaseStep):
         return {}
 
     def _markdown(self, ctx: SkillContext, record: dict) -> str:
-        created = self._load(ctx.work_root / CREATED_REL)
-        progress = self._load(ctx.work_root / PROGRESS_REL)
+        parse_dir = get_parse_dir()
+        created = self._load(parse_dir / "combo_created.json")
+        progress = self._load(parse_dir / "move_progress.json")
         combo = created.get("combo_base", "") or "待确认"
         pod_count = created.get("pod_count", 0)
         ts = datetime.now(timezone.utc).isoformat(timespec="seconds")

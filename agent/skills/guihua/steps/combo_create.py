@@ -13,19 +13,16 @@ import json
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir
 from ..services import VENDOR_AUTODRAGD
 from ..services.sentinel import is_same_run, read_json
 from ..services.sim_api import is_live
 from ..services.subproc import run_script, _subproc_failure_hint
 
-REQUESTS_REL = "ProjectData/RunTime/requests.json"
-CREATED_REL = "ProjectData/RunTime/combo_created.json"
-
 
 class ComboCreateStep(BaseStep):
     key = "combo_create"
     name = "创建超节点"
-    artifacts_pattern = [CREATED_REL]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         confs = (ctx.project or {}).get("confirmations") or {}
@@ -50,7 +47,7 @@ class ComboCreateStep(BaseStep):
         }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
-        sentinel = ctx.work_root / CREATED_REL
+        sentinel = get_parse_dir() / "combo_created.json"
         redo = bool((ctx.project or {}).get("_redo_create"))
         meta = self._requests_meta()
 
@@ -80,7 +77,6 @@ class ComboCreateStep(BaseStep):
             hint = _subproc_failure_hint(result)
             emit(f"[{self.key}] ⚠ 创建失败：{hint}")
             record["error"] = hint
-        sentinel.parent.mkdir(parents=True, exist_ok=True)
         sentinel.write_text(json.dumps(record, ensure_ascii=False, indent=2), encoding="utf-8")
 
         if not record["ok"]:
