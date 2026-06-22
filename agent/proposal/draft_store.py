@@ -4,7 +4,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import shutil
 import time
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
@@ -15,6 +14,14 @@ from typing import Any
 
 from agent.config import BUSINESS_ROOT
 from agent.constants.project_paths import proposal_paths
+from agent.proposal.dc_store import (
+    get_dc_project_id,
+    get_dc_token,
+    load_json_at,
+    path_exists as dc_path_exists,
+    save_json_at,
+)
+from agent.proposal.errors import ProposalApiError
 
 
 CHAPTER_02_FILE = "2.设备配置信息.json"
@@ -135,7 +142,10 @@ def device_boq_parse_dir(project_id: str) -> Path:
 
 
 def product_basic_info_path(project_id: str) -> Path:
-    return physical_project_root(project_id) / Path(_paths(project_id)["product_basic_info"])
+    del project_id  # cross-project org asset under BUSINESS_ROOT/org-assets
+    from agent.constants.org_assets_paths import org_assets_path
+
+    return org_assets_path("产品基本信息表")
 
 
 def device_table_xlsx_path(project_id: str, version: str | None = None) -> Path:
@@ -153,15 +163,48 @@ def _ensure_parent(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
+def _require_dc_context() -> str:
+    pid = get_dc_project_id()
+    token = get_dc_token()
+    if not pid or not token:
+        raise ProposalApiError(
+            401,
+            "DC_TOKEN_REQUIRED",
+            "交付预案已切换为数据中心存储，请携带 Authorization: Bearer <token>",
+        )
+    return pid
+
+
 def load_json(path: Path, default: Any) -> Any:
-    if not path.exists():
-        return default
-    return json.loads(path.read_text(encoding="utf-8"))
+    pid = _require_dc_context()
+    try:
+        rel = path.relative_to(physical_project_root(pid)).as_posix()
+    except ValueError as exc:
+        raise ProposalApiError(500, "DC_PATH_ERROR", f"无法映射路径: {path}") from exc
+    return load_json_at(pid, rel, default)
 
 
 def save_json(path: Path, data: Any) -> None:
-    _ensure_parent(path)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    pid = _require_dc_context()
+    try:
+        rel = path.relative_to(physical_project_root(pid)).as_posix()
+    except ValueError as exc:
+        raise ProposalApiError(500, "DC_PATH_ERROR", f"无法映射路径: {path}") from exc
+    save_json_at(pid, rel, data)
+
+
+def _json_path_exists(project_id: str, path: Path) -> bool:
+    pid = _require_dc_context()
+    if pid != project_id:
+        raise ProposalApiError(
+            400,
+            "DC_CONTEXT_MISMATCH",
+            f"请求项目 {project_id} 与上下文项目 {pid} 不一致",
+        )
+    try:
+        return dc_path_exists(project_id, path)
+    except ValueError:
+        return False
 
 
 def _now_iso() -> str:
@@ -279,7 +322,7 @@ def load_chapter_02(project_id: str, version: str = "draft") -> dict[str, Any]:
     if version == "draft":
         return load_json(chapter_02_draft_path(project_id), {"rows": []})
     path = chapter_02_output_path(project_id, version)
-    if not path.exists():
+    if not _json_path_exists(project_id, path):
         _debug_log(
             "H15",
             "agent/proposal/draft_store.py:load_chapter_02",
@@ -302,7 +345,7 @@ def load_chapter_81(project_id: str, version: str = "draft") -> dict[str, Any]:
     if version == "draft":
         return load_json(chapter_81_draft_path(project_id), {"rows": []})
     path = chapter_81_output_path(project_id, version)
-    if not path.exists():
+    if not _json_path_exists(project_id, path):
         _debug_log(
             "H15",
             "agent/proposal/draft_store.py:load_chapter_81",
@@ -325,7 +368,7 @@ def load_chapter_82(project_id: str, version: str = "draft") -> dict[str, Any]:
     if version == "draft":
         return load_json(chapter_82_draft_path(project_id), {"rows": []})
     path = chapter_82_output_path(project_id, version)
-    if not path.exists():
+    if not _json_path_exists(project_id, path):
         _debug_log(
             "H15",
             "agent/proposal/draft_store.py:load_chapter_82",
@@ -348,7 +391,7 @@ def load_chapter_83(project_id: str, version: str = "draft") -> dict[str, Any]:
     if version == "draft":
         return load_json(chapter_83_draft_path(project_id), {"rows": []})
     path = chapter_83_output_path(project_id, version)
-    if not path.exists():
+    if not _json_path_exists(project_id, path):
         _debug_log(
             "H15",
             "agent/proposal/draft_store.py:load_chapter_83",
@@ -375,7 +418,7 @@ def load_chapter_84(project_id: str, version: str = "draft") -> dict[str, Any]:
     if version == "draft":
         return load_json(chapter_84_draft_path(project_id), _default_chapter_84())
     path = chapter_84_output_path(project_id, version)
-    if not path.exists():
+    if not _json_path_exists(project_id, path):
         _debug_log(
             "H15",
             "agent/proposal/draft_store.py:load_chapter_84",
@@ -460,7 +503,7 @@ def _rebuild_chapter_draft(
     save_draft_fn,
 ) -> None:
     src = output_path_fn(project_id, version)
-    if src.exists():
+    if _json_path_exists(project_id, src):
         payload = load_json(src, {"rows": []})
         for raw in payload.get("rows") or []:
             raw["proposalVersion"] = None
@@ -504,14 +547,8 @@ def rebuild_draft_from_version(project_id: str, version: str, *, updated_by: str
 
 
 def archive_draft_snapshot(project_id: str, version: str) -> None:
-    src = draft_dir(project_id)
-    if not src.exists():
-        return
-    archive_name = f"draft.archive.{version.replace('/', '_')}"
-    dest = draft_dir(project_id).parent / archive_name
-    if dest.exists():
-        shutil.rmtree(dest)
-    shutil.copytree(src, dest, ignore=shutil.ignore_patterns("draft.archive.*"))
+    """Draft snapshot archive deprecated under datacenter-only storage."""
+    del project_id, version
 
 
 def assert_draft_editable(project_id: str, version: str) -> None:

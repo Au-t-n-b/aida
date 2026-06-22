@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from shared.datacenter.types import SemanticFileRef
 
-# 组织资产（跨项目）
-RACI_TEMPLATE_LOGICAL = "组织资产/责任矩阵/责任矩阵模板.xlsx"
+# 组织资产（跨项目）— 物理根 org-assets/，与数据中心 moduleCode 一致
+RACI_TEMPLATE_LOGICAL = "org-assets/责任矩阵/责任矩阵模板.xlsx"
 
 # 项目内相对路径后缀（不含项目根前缀）
 SUFFIX_RACI_OUT = "早期介入/交付预案/输出结果/项目责任矩阵.xlsx"

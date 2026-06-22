@@ -23,10 +23,10 @@ from agent.proposal.draft_store import (
     load_chapter_84,
     load_manifest,
     load_version_info,
-    physical_project_root,
     save_manifest,
     _now_iso,
 )
+from agent.proposal.dc_store import get_dc_token, read_bytes
 from agent.proposal.errors import ProposalApiError
 from agent.proposal.version_info_store import (
     DRAFT_VERSION_LABEL,
@@ -39,6 +39,7 @@ from agent.proposal.version_info_store import (
     sync_xlsx,
 )
 from agent.constants.project_paths import proposal_paths
+from agent.services.dc_path_mapper import map_project_relative
 
 CHAPTER_LABELS: dict[str, str] = {
     "2": "2 设备配置信息",
@@ -77,38 +78,11 @@ def _debug_log(hypothesis_id: str, location: str, message: str, data: dict[str, 
     # endregion
 
 
-def _contract_basic_dir(project_id: str) -> Path:
-    rel = proposal_paths("")["contract_project_basic_out"]
-    return physical_project_root(project_id) / Path(rel)
+def _read_xlsx_basic_bytes(content: bytes) -> dict[str, str] | None:
+    import io
 
-
-def _read_json_basic(path: Path) -> dict[str, str] | None:
-    if not path.with_suffix(".json").exists():
-        return None
-    data = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
-    if isinstance(data, list) and data:
-        data = data[0]
-    if not isinstance(data, dict):
-        return None
-    return {
-        "projectId": str(
-            data.get("项目ID")
-            or data.get("projectId")
-            or data.get("项目编码")
-            or ""
-        ),
-        "projectName": str(
-            data.get("项目名称") or data.get("projectName") or ""
-        ),
-    }
-
-
-def _read_xlsx_basic(path: Path) -> dict[str, str] | None:
-    xlsx = path.with_suffix(".xlsx")
-    if not xlsx.exists():
-        return None
     try:
-        wb = load_workbook(xlsx, read_only=True, data_only=True)
+        wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
         ws = wb.active
         rows = list(ws.iter_rows(min_row=1, max_row=2, values_only=True))
         wb.close()
@@ -134,10 +108,43 @@ def _read_xlsx_basic(path: Path) -> dict[str, str] | None:
     return {"projectId": project_id, "projectName": project_name}
 
 
+def _read_json_basic_dict(data: Any) -> dict[str, str] | None:
+    if isinstance(data, list) and data:
+        data = data[0]
+    if not isinstance(data, dict):
+        return None
+    return {
+        "projectId": str(
+            data.get("项目ID")
+            or data.get("projectId")
+            or data.get("项目编码")
+            or ""
+        ),
+        "projectName": str(
+            data.get("项目名称") or data.get("projectName") or ""
+        ),
+    }
+
+
 def read_project_basic_info(project_id: str) -> tuple[dict[str, str], list[dict[str, str]]]:
     """Return (basic_info, dependencies)."""
-    base_dir = _contract_basic_dir(project_id)
-    info = _read_xlsx_basic(base_dir) or _read_json_basic(base_dir)
+    rel_base = proposal_paths("")["contract_project_basic_out"]
+    info: dict[str, str] | None = None
+
+    for suffix in (".xlsx", ".json"):
+        mapped = map_project_relative(project_id, f"{rel_base}{suffix}")
+        if not mapped or not mapped.ref.file_name:
+            continue
+        raw = read_bytes(mapped.ref)
+        if not raw:
+            continue
+        if suffix == ".xlsx":
+            info = _read_xlsx_basic_bytes(raw)
+        else:
+            info = _read_json_basic_dict(json.loads(raw.decode("utf-8")))
+        if info:
+            break
+
     dependencies: list[dict[str, str]] = []
     pid = (info.get("projectId") if info else None) or project_id
     pname = (info.get("projectName") if info else None) or f"{project_id}项目"

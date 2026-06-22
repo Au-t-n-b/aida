@@ -53,7 +53,14 @@ from .schedule.router import configure_schedule, router as schedule_router
 from .admin_routes import router as admin_router
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DELIVERY_PLAN_PATH = PROJECT_ROOT / "data" / "delivery" / "delivery-plan.xlsx"
+
+
+def _delivery_plan_path(project_id: str) -> Path:
+    """Project-local delivery plan workbook (IPO: 项目管理/计划/输入文件/交付计划表.xlsx)."""
+    from agent.services.proposal_project_paths import project_relative
+    from shared.datacenter import ipo_paths
+
+    return project_relative(project_id, ipo_paths.SUFFIX_PLAN_SCHEDULE)
 
 
 def _get_sdui_projector(skill_id: str):
@@ -3054,10 +3061,11 @@ def _excel_date(value) -> str:
 def _delivery_plan_snapshot(project_id: str) -> dict:
     from openpyxl import load_workbook
 
-    if not DELIVERY_PLAN_PATH.is_file():
+    plan_path = _delivery_plan_path(project_id)
+    if not plan_path.is_file():
         raise HTTPException(status_code=404, detail="delivery plan workbook not found")
 
-    sheet = load_workbook(DELIVERY_PLAN_PATH, data_only=True, read_only=True).active
+    sheet = load_workbook(plan_path, data_only=True, read_only=True).active
     rows = list(sheet.iter_rows(values_only=True))
     headers = {name: index for index, name in enumerate(rows[0])}
     records = [{name: row[index] for name, index in headers.items()} for row in rows[1:]]
@@ -3109,7 +3117,7 @@ def _delivery_plan_snapshot(project_id: str) -> dict:
             }
         if all(key in stages and stages[key]["expectedEnd"] for key in matchers):
             pod_items.append({"pod": pod, "batch": pod.split("-")[0], "stages": stages})
-    return {"projectId": project_id, "sourceLabel": "data/delivery/delivery-plan.xlsx", "pods": pod_items}
+    return {"projectId": project_id, "sourceLabel": str(plan_path), "pods": pod_items}
 
 
 @app.get("/api/v1/projects/{project_id}/delivery-plan/milestones")
@@ -3123,10 +3131,11 @@ def get_delivery_plan_milestones(project_id: str):
 @app.get("/api/v1/projects/{project_id}/delivery-plan.xlsx")
 def get_delivery_plan_excel(project_id: str):
     """Return the project-local delivery plan workbook used by the dashboard."""
-    if not DELIVERY_PLAN_PATH.is_file():
+    plan_path = _delivery_plan_path(project_id)
+    if not plan_path.is_file():
         raise HTTPException(status_code=404, detail="delivery plan workbook not found")
     return FileResponse(
-        DELIVERY_PLAN_PATH,
+        plan_path,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         filename="delivery-plan.xlsx",
         headers={"Cache-Control": "no-store"},

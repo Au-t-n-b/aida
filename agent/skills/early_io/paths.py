@@ -63,12 +63,16 @@ class EarlyIoPaths:
     proposal_acceptance_parse: Path
     proposal_hld_parse: Path
     proposal_maint_proposal_parse: Path
+    proposal_draft_dir: Path
 
     def rel(self, path: Path) -> str:
         return str(path.relative_to(self.project_root))
 
     def proposal_output_table(self, xlsx_name: str) -> Path:
         return self.proposal_output_root / xlsx_name
+
+    def proposal_draft_json(self, json_name: str) -> Path:
+        return self.proposal_draft_dir / json_name
 
 
 def resolve_early_io_paths(project: dict[str, Any] | None) -> EarlyIoPaths | None:
@@ -97,4 +101,19 @@ def resolve_early_io_paths(project: dict[str, Any] | None) -> EarlyIoPaths | Non
         proposal_acceptance_parse=parse_root / "验收策略解析结果",
         proposal_hld_parse=parse_root / "HLD解析结果",
         proposal_maint_proposal_parse=parse_root / "维保建议书解析结果",
+        proposal_draft_dir=root / p["proposal_draft_dir"],
     )
+
+
+def ensure_proposal_ipo_dirs(project: dict[str, Any] | None) -> None:
+    """Ensure standard 输入/解析/输出 + 预案草稿 dirs exist for a project."""
+    io = resolve_early_io_paths(project)
+    if io is None:
+        return
+    for path in (
+        io.proposal_parse_root / "预案草稿",
+        io.proposal_output_root,
+        io.proposal_tech_proposal_in,
+        io.proposal_testcases_in,
+    ):
+        path.mkdir(parents=True, exist_ok=True)

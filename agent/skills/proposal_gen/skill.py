@@ -1,11 +1,12 @@
 """proposal_gen · early.proposal.table_gen LangGraph Skill。"""
 from __future__ import annotations
 
-import os
-from pathlib import Path
 from typing import Any
 
+from agent.config import BUSINESS_ROOT
+
 from ..base import BaseSkill
+from ..early_io.paths import ensure_proposal_ipo_dirs
 from .sdui import project as _sdui_project
 from .steps import (
     AssembleDeviceTableStep,
@@ -16,13 +17,6 @@ from .steps import (
     PreflightStep,
     TableGenReleaseStep,
 )
-
-
-def _get_proposal_gen_root() -> Path:
-    raw = os.environ.get("PROPOSAL_GEN_ROOT", "").strip()
-    if raw:
-        return Path(raw).resolve()
-    return (Path.home() / ".aida" / "skills" / "proposal_gen").resolve()
 
 
 class ProposalGenSkill(BaseSkill):
@@ -41,6 +35,10 @@ class ProposalGenSkill(BaseSkill):
         TableGenReleaseStep(),
     ]
     sdui_projector = staticmethod(_sdui_project)
+
+    def prepare_work_root(self) -> None:
+        """Steps resolve per-project paths via early_io; no ProjectData subtree."""
+        pass
 
     def apply_resume_payload(
         self, project: dict[str, Any], payload: dict[str, Any], hitl_step: str
@@ -69,4 +67,9 @@ class ProposalGenSkill(BaseSkill):
 def get_proposal_gen_skill():
     from ...llm import get_llm
 
-    return ProposalGenSkill(work_root=_get_proposal_gen_root(), llm_factory=get_llm)
+    return ProposalGenSkill(work_root=BUSINESS_ROOT, llm_factory=get_llm)
+
+
+def ensure_proposal_gen_dirs(project: dict[str, Any] | None) -> None:
+    """Public helper for preflight / external callers."""
+    ensure_proposal_ipo_dirs(project)

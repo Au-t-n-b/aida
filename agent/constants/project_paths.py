@@ -108,7 +108,7 @@ def proposal_paths(project_root: str) -> ProposalPaths:
         # BOQ 原始解析结果统一归档在合同模块，交付预案只读取不重复落盘。
         "device_boq_parse": contract["boq_device_parse"],
         "contract_service_boq_parse": contract["service_boq_parse"],
-        "product_basic_info": "组织资产/产品基本信息表",
+        "product_basic_info": "org-assets/产品基本信息表",
         "device_table_out": _join_path(triple["out"], "设备信息表.xlsx"),
         # Keep key for backward compatibility with current assemblers/readers.
         "service_boq_parse": contract["service_boq_parse"],

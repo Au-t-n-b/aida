@@ -20,8 +20,11 @@ import type {
   RaciRow,
 } from '@/types/domain';
 import type { ProjectDataContext } from '@/lib/datacenter/types';
-import { syncProposalLocalFiles } from '@/lib/datacenter/client';
-import { DEFAULT_PROJECT_ROOT } from '@/data/project-paths';
+import {
+  buildProposalHeaders,
+  fetchDraft,
+  mapProposalRole,
+} from '@/lib/proposal-api';
 import {
   applyTestCasesFromUpload,
   buildProjectDataContext,
@@ -45,6 +48,7 @@ import {
   setTestCasesSessionCache,
   testCaseKey,
 } from '@/lib/proposal-data-service';
+import { asAcceptanceItems, asRaciRows, asTestCases } from '@/lib/xlsx-io';
 import { navDebug } from '@/lib/nav-debug';
 
 export interface ProposalDataContextValue {
@@ -79,6 +83,43 @@ function tcKey(c: AcceptanceTestCase, i: number): string {
   return testCaseKey(c, i);
 }
 
+async function loadDraftChapterRows(
+  projectId: string,
+  headers: HeadersInit,
+): Promise<{
+  raci: RaciRow[] | null;
+  acceptance: AcceptanceItem[] | null;
+  testCases: AcceptanceTestCase[] | null;
+  selectedKeys: Set<string> | null;
+}> {
+  try {
+    const draft = await fetchDraft(projectId, headers);
+    const ch9 = draft.chapters?.['9'] as { rows?: unknown[] } | undefined;
+    const ch11 = draft.chapters?.['11'] as { rows?: unknown[] } | undefined;
+    const ch12 = draft.chapters?.['12'] as { rows?: unknown[] } | undefined;
+    const raci = ch9?.rows?.length ? asRaciRows(ch9.rows) : null;
+    const acceptance = ch11?.rows?.length
+      ? asAcceptanceItems(ch11.rows).filter((r) => r.cat?.trim() || r.scheme?.trim())
+      : null;
+    let testCases: AcceptanceTestCase[] | null = null;
+    let selectedKeys: Set<string> | null = null;
+    if (ch12?.rows?.length) {
+      const raw = ch12.rows as Array<Record<string, unknown>>;
+      testCases = asTestCases(raw);
+      selectedKeys = new Set<string>();
+      testCases.forEach((c, i) => {
+        const sel = raw[i]?.selected;
+        if (sel !== false && sel !== '否' && sel !== '0' && sel !== 'false') {
+          selectedKeys!.add(tcKey(c, i));
+        }
+      });
+    }
+    return { raci, acceptance, testCases, selectedKeys };
+  } catch {
+    return { raci: null, acceptance: null, testCases: null, selectedKeys: null };
+  }
+}
+
 export function ProposalDataProvider({ children }: { children: ReactNode }) {
   const { session } = useAidaSession();
   const { project } = useCurrentProject();
@@ -89,7 +130,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       token: session?.accessToken,
       dcProjectId: project.id,
       projectName: project.name,
-      projectCode: DEFAULT_PROJECT_ROOT,
+      projectCode: project.id,
     });
   }, [project?.id, project?.name, project?.code, session?.accessToken]);
 
@@ -124,18 +165,21 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     navDebug('proposal-data loadAll start', { projectName });
     try {
-      const syncResult = await syncProposalLocalFiles(projectCtx);
-      if (isAborted()) return;
-      if (syncResult.warnings.length) {
-        setDataWarnings(syncResult.warnings);
-      }
       const stored = getStoredVersions(projectName);
       const scale = await loadCardScale(projectCtx);
       if (isAborted()) return;
-      const [raci, plan] = await Promise.all([
+      const proposalHeaders = buildProposalHeaders(
+        mapProposalRole(session?.role),
+        session?.user?.username ?? session?.user?.display_name,
+      );
+      const draftChapters = await loadDraftChapterRows(projectCtx.dcProjectId, proposalHeaders);
+      const [raciFallback, plan] = await Promise.all([
         loadRaciMatrix(projectCtx),
         loadPlan(projectCtx),
       ]);
+      const raci = draftChapters.raci?.length
+        ? { rows: draftChapters.raci, version: stored.raci || 1 }
+        : raciFallback;
       if (isAborted()) return;
       setCardScale(scale);
       setRaciRows(raci.rows);
@@ -146,8 +190,10 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       });
       setPlanRows(plan);
 
-      if (isTechProposalUploaded(projectName)) {
-        const items = await loadAcceptance(projectCtx);
+      if (isTechProposalUploaded(projectName) || draftChapters.acceptance?.length) {
+        const items = draftChapters.acceptance?.length
+          ? draftChapters.acceptance
+          : await loadAcceptance(projectCtx);
         if (isAborted()) return;
         setAcceptanceItems(items);
         setAcceptanceReady(items.length > 0);
@@ -156,14 +202,24 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
         setAcceptanceReady(false);
       }
 
-      if (isTestCasesUploaded(projectName)) {
-        const loaded = await loadTestCasesIfReady(projectCtx, scale);
-        if (isAborted()) return;
-        setTestCases(loaded.cases);
-        setSelectedTcKeys(
-          loaded.selectedKeys ?? new Set(loaded.cases.map((c, i) => tcKey(c, i))),
-        );
-        setTestCasesReady(loaded.cases.length > 0);
+      if (isTestCasesUploaded(projectName) || draftChapters.testCases?.length) {
+        if (draftChapters.testCases?.length) {
+          if (isAborted()) return;
+          setTestCases(draftChapters.testCases);
+          setSelectedTcKeys(
+            draftChapters.selectedKeys
+              ?? new Set(draftChapters.testCases.map((c, i) => tcKey(c, i))),
+          );
+          setTestCasesReady(true);
+        } else {
+          const loaded = await loadTestCasesIfReady(projectCtx, scale);
+          if (isAborted()) return;
+          setTestCases(loaded.cases);
+          setSelectedTcKeys(
+            loaded.selectedKeys ?? new Set(loaded.cases.map((c, i) => tcKey(c, i))),
+          );
+          setTestCasesReady(loaded.cases.length > 0);
+        }
       } else {
         setTestCases([]);
         setSelectedTcKeys(new Set());
@@ -179,7 +235,7 @@ export function ProposalDataProvider({ children }: { children: ReactNode }) {
       }
       if (loadInflight.current === ac) loadInflight.current = null;
     }
-  }, [projectCtx, projectName]);
+  }, [projectCtx, projectName, session?.role, session?.user?.display_name, session?.user?.username]);
 
   const revealAcceptance = useCallback(async () => {
     if (!projectCtx) return;

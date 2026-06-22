@@ -1,6 +1,7 @@
 """Chapter JSON + XLSX co-located storage (draft / version folders)."""
 from __future__ import annotations
 
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,18 @@ from agent.proposal.draft_store import (
     output_version_dir,
     proposal_output_dir,
     save_json,
+    _json_path_exists,
 )
+from agent.proposal.dc_store import (
+    get_dc_token,
+    exists,
+    list_file_names,
+    path_to_ref,
+    read_bytes,
+    write_bytes,
+)
+from agent.services.dc_path_mapper import map_project_relative
+from shared.datacenter.types import SemanticFileRef
 
 
 def chapter_storage_dir(project_id: str, version: str = "draft") -> Path:
@@ -65,11 +77,11 @@ def _json_path(project_id: str, spec: ChapterSpec, version: str) -> Path:
 def _resolve_read_path(project_id: str, spec: ChapterSpec, version: str) -> Path | None:
     base = chapter_storage_dir(project_id, version)
     primary = base / spec.json_file
-    if primary.exists():
+    if _json_path_exists(project_id, primary):
         return primary
     if spec.legacy_json:
         legacy = base / spec.legacy_json
-        if legacy.exists():
+        if _json_path_exists(project_id, legacy):
             return legacy
     return None
 
@@ -107,11 +119,21 @@ def save_chapter_payload(
         enriched["proposalVersion"] = "草稿"
 
     json_path = _json_path(project_id, spec, version)
-    json_path.parent.mkdir(parents=True, exist_ok=True)
     save_json(json_path, enriched)
     # 元数据章节不再使用独立元数据信息.xlsx，避免继续写入无效产物。
     if spec.key != "meta":
-        export_chapter_xlsx(json_path.with_suffix(".xlsx"), spec, enriched)
+        xlsx_path = json_path.with_suffix(".xlsx")
+        if get_dc_token():
+            with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+                tmp_path = Path(tmp.name)
+            try:
+                export_chapter_xlsx(tmp_path, spec, enriched)
+                ref = path_to_ref(project_id, xlsx_path)
+                write_bytes(ref, tmp_path.read_bytes(), ref.file_name or xlsx_path.name)
+            finally:
+                tmp_path.unlink(missing_ok=True)
+        else:
+            export_chapter_xlsx(xlsx_path, spec, enriched)
     return json_path
 
 
@@ -137,6 +159,8 @@ def sync_all_chapter_excel(project_id: str, version: str = "draft") -> list[str]
         json_path = save_chapter_payload(project_id, spec.key, version, payload)
         written.append(str(json_path.with_suffix(".xlsx")))
 
+    if get_dc_token():
+        return written
     base = chapter_storage_dir(project_id, version)
     if not base.exists():
         return written
@@ -167,7 +191,12 @@ def promote_draft_chapters_to_version(project_id: str, new_version: str) -> list
             continue
         dest = save_chapter_payload(project_id, spec.key, new_version, payload)
         saved.append(str(dest))
-    # Also pick up any extra *.json in draft (forward compatible)
+    # Also pick up any extra *.json in draft (forward compatible).
+    # Under datacenter-only runtime, only registry chapters are promoted.
+    if get_dc_token():
+        return saved
+
+    # Local compatibility path (legacy tools only).
     draft_base = draft_dir(project_id)
     for json_path in sorted(draft_base.glob("*.json")):
         if json_path.name in SKIP_JSON_NAMES:
@@ -196,6 +225,60 @@ def promote_draft_chapters_to_version(project_id: str, new_version: str) -> list
 def _chapter_output_xlsx_path(project_id: str, spec: ChapterSpec) -> Path:
     file_name = OUTPUT_XLSX_NAME_BY_KEY.get(spec.key, spec.json_file.replace(".json", ".xlsx"))
     return chapter_output_xlsx_dir(project_id) / file_name
+
+
+def _output_xlsx_mapped(project_id: str, spec: ChapterSpec):
+    file_name = OUTPUT_XLSX_NAME_BY_KEY.get(spec.key, spec.json_file.replace(".json", ".xlsx"))
+    rel = f"早期介入/交付预案/输出结果/{file_name}"
+    return map_project_relative(project_id, rel), file_name
+
+
+def _read_xlsx_sidecar(path: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    return read_rows_from_xlsx(path), read_header_keys_from_xlsx(path)
+
+
+def _read_output_xlsx_state(
+    project_id: str,
+    spec: ChapterSpec,
+) -> tuple[list[dict[str, Any]], bool, list[str]]:
+    mapped, _ = _output_xlsx_mapped(project_id, spec)
+    if get_dc_token() and mapped and mapped.ref.file_name:
+        if not exists(mapped.ref):
+            return [], False, []
+        raw = read_bytes(mapped.ref)
+        if not raw:
+            return [], True, []
+        with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            tmp_path.write_bytes(raw)
+            rows, headers = _read_xlsx_sidecar(tmp_path)
+            return rows, True, headers
+        finally:
+            tmp_path.unlink(missing_ok=True)
+
+    xlsx_path = _chapter_output_xlsx_path(project_id, spec)
+    if not xlsx_path.is_file():
+        return [], False, []
+    rows, headers = _read_xlsx_sidecar(xlsx_path)
+    return rows, True, headers
+
+
+def _write_output_xlsx(project_id: str, spec: ChapterSpec, enriched: dict[str, Any]) -> str:
+    mapped, _ = _output_xlsx_mapped(project_id, spec)
+    with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        export_chapter_xlsx(tmp_path, spec, enriched)
+        if get_dc_token() and mapped and mapped.ref.file_name:
+            write_bytes(mapped.ref, tmp_path.read_bytes(), mapped.ref.file_name)
+            return mapped.logical_path
+        xlsx_path = _chapter_output_xlsx_path(project_id, spec)
+        xlsx_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.replace(xlsx_path)
+        return str(xlsx_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def _normalize_output_excel_names(project_id: str) -> None:
@@ -271,18 +354,13 @@ def sync_output_chapter_excels(
     proposal_version: str,
     source_version: str = "draft",
 ) -> list[str]:
-    """Sync chapter excels in 输出结果 root without creating version folders.
-
-    Rules:
-    - If 输出结果 has no chapter xlsx, initialize all chapter xlsx.
-    - If not empty, only update already existing chapter xlsx files.
-    """
-    out_dir = chapter_output_xlsx_dir(project_id)
-    out_dir.mkdir(parents=True, exist_ok=True)
-    _normalize_output_excel_names(project_id)
+    """Sync chapter excels in 输出结果 root without creating version folders."""
+    if not get_dc_token():
+        out_dir = chapter_output_xlsx_dir(project_id)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        _normalize_output_excel_names(project_id)
 
     targets: list[ChapterSpec] = [spec for spec in LEAF_CHAPTERS if spec.key != "meta"]
-
     written: list[str] = []
     for spec in targets:
         payload = load_chapter_payload(project_id, spec.key, source_version)
@@ -290,24 +368,22 @@ def sync_output_chapter_excels(
         enriched.setdefault("chapterKey", spec.key)
         enriched.setdefault("chapterTitle", spec.label)
         enriched["proposalVersion"] = proposal_version
-        xlsx_path = _chapter_output_xlsx_path(project_id, spec)
         template_keys = chapter_template_keys(spec.key)
-        locked_keys = template_keys or read_header_keys_from_xlsx(xlsx_path)
+        existing_rows, xlsx_exists, locked_keys = _read_output_xlsx_state(project_id, spec)
+        locked_keys = template_keys or locked_keys
         has_structured_payload = bool(
             isinstance(enriched.get("rows"), list)
             or (isinstance(enriched.get("fields"), dict) and enriched.get("fields"))
             or (isinstance(enriched.get("extras"), dict) and enriched.get("extras"))
         )
 
-        # Do not wipe existing chapter excel when this round has no backend payload.
-        # This protects chapters currently rendered by frontend-local/legacy data sources.
-        if not has_structured_payload and xlsx_path.exists():
-            written.append(str(xlsx_path))
+        if not has_structured_payload and xlsx_exists:
+            mapped, _ = _output_xlsx_mapped(project_id, spec)
+            written.append(mapped.logical_path if mapped else str(_chapter_output_xlsx_path(project_id, spec)))
             continue
 
         rows = enriched.get("rows")
         if isinstance(rows, list):
-            existing_rows = read_rows_from_xlsx(xlsx_path)
             merged_rows = _merge_versioned_rows(
                 existing_rows,
                 rows,
@@ -316,6 +392,5 @@ def sync_output_chapter_excels(
             )
             enriched["rows"] = merged_rows
 
-        export_chapter_xlsx(xlsx_path, spec, enriched)
-        written.append(str(xlsx_path))
+        written.append(_write_output_xlsx(project_id, spec, enriched))
     return written

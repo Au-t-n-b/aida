@@ -4,7 +4,7 @@ import asyncio
 import io
 import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from openpyxl import Workbook
 
@@ -91,65 +91,65 @@ def test_extract_pod_names_from_device_boq_filenames() -> None:
     assert extract_pod_names(names) == ["POD01", "POD09"]
 
 
-def test_upload_output_keeps_local_file_when_remote_upload_fails() -> None:
-    content = b"local-first"
+def test_upload_output_returns_error_when_remote_upload_fails() -> None:
+    content = b"dc-only"
     client = AsyncMock()
     client.upload_file.side_effect = RuntimeError("data center unavailable")
 
-    with (
-        patch.object(Path, "mkdir") as mkdir,
-        patch.object(Path, "write_bytes") as write_bytes,
-        patch("agent.services.proposal_chapter_files.DataCenterClient", return_value=client),
-    ):
+    with patch("agent.services.proposal_chapter_files.DataCenterClient", return_value=client):
         result = asyncio.run(
             upload_output(
                 "token",
+                DC_PROJECT_ID,
                 DC_PROJECT_ID,
                 "测试目录",
                 "test.xlsx",
                 content,
-                Path("早期介入/交付预案/输出结果/测试目录"),
+                "早期介入/交付预案/输出结果/测试目录/test.xlsx",
             )
         )
 
-    mkdir.assert_called_once_with(parents=True, exist_ok=True)
-    write_bytes.assert_called_once_with(content)
     assert result["uploaded"] is False
     assert "远端上传失败" in result["warning"]
 
 
-def test_upload_output_writes_local_before_remote_upload() -> None:
-    order: list[str] = []
+def test_upload_output_uploads_to_datacenter_only() -> None:
     client = AsyncMock()
+    client.upload_file.return_value = {"logicalPath": "remote/test.xlsx"}
 
-    async def remote_upload(*args, **kwargs):
-        order.append("remote")
-        return {"logicalPath": "remote/test.xlsx"}
-
-    def local_write(path: Path, content: bytes) -> int:
-        order.append("local")
-        return len(content)
-
-    client.upload_file.side_effect = remote_upload
-    with (
-        patch.object(Path, "mkdir"),
-        patch.object(Path, "write_bytes", local_write),
-        patch("agent.services.proposal_chapter_files.DataCenterClient", return_value=client),
-    ):
+    with patch("agent.services.proposal_chapter_files.DataCenterClient", return_value=client):
         result = asyncio.run(
             upload_output(
                 "token",
                 DC_PROJECT_ID,
+                DC_PROJECT_ID,
                 "测试目录",
                 "test.xlsx",
-                b"local-first",
-                Path("早期介入/交付预案/输出结果/测试目录"),
+                b"dc-only",
+                "早期介入/交付预案/输出结果/测试目录/test.xlsx",
             )
         )
 
-    assert order == ["local", "remote"]
     assert result["uploaded"] is True
     assert result["logical_path"] == "remote/test.xlsx"
+    client.upload_file.assert_awaited_once()
+
+
+def test_upload_output_requires_token() -> None:
+    result = asyncio.run(
+        upload_output(
+            None,
+            DC_PROJECT_ID,
+            DC_PROJECT_ID,
+            "测试目录",
+            "test.xlsx",
+            b"content",
+            "早期介入/交付预案/输出结果/测试目录/test.xlsx",
+        )
+    )
+
+    assert result["uploaded"] is False
+    assert "token" in result["warning"]
 
 
 def test_dc_project_id_requires_uuid32() -> None:
@@ -161,11 +161,19 @@ def test_remote_read_uses_dc_uuid_not_local_project_code() -> None:
     client = AsyncMock()
     client.download_file.return_value = _workbook_bytes()
 
+    artifact_path = MagicMock()
+    artifact_path.is_file.return_value = False
+
     with (
         patch("agent.services.proposal_chapter_files.DataCenterClient", return_value=client),
-        patch("agent.services.proposal_chapter_files._NET_PLANE_OUTPUT",
-              new_callable=lambda: type("P", (), {"is_file": lambda self: False})),
-        patch.object(Path, "is_file", return_value=False),
+        patch(
+            "agent.services.proposal_chapter_files.chapter_artifact_path",
+            return_value=artifact_path,
+        ),
+        patch(
+            "agent.services.proposal_chapter_files.device_table_output_path",
+            return_value=Path("/nonexistent/device.xlsx"),
+        ),
     ):
         rows = asyncio.run(load_net_plane_rows("token", "56A0TXN", DC_PROJECT_ID))
 
@@ -176,12 +184,12 @@ def test_remote_read_uses_dc_uuid_not_local_project_code() -> None:
 
 def test_sync_proposal_slots_isolates_slot_failure() -> None:
     with patch(
-        "agent.services.proposal_dc_files.ensure_slot_local",
-        new=AsyncMock(side_effect=RuntimeError("data center unavailable")),
+        "agent.services.proposal_dc_files._fetch_slot_bytes",
+        new=AsyncMock(return_value=None),
     ):
         results, warnings = asyncio.run(
             sync_proposal_slots("token", DC_PROJECT_ID, "project", "56A0TXN", ["acceptance_out"])
         )
 
-    assert results["acceptance_out"]["status"] == "missing"
-    assert warnings == ["acceptance_out: data center unavailable"]
+    assert results["acceptance_out"]["status"] == "optional_missing"
+    assert warnings == []

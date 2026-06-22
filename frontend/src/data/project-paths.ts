@@ -30,11 +30,11 @@ function ipoTriple(root: string, domain: string, module: string) {
   };
 }
 
-/** 组织资产（跨项目，无项目根前缀） */
+/** 组织资产（跨项目，物理根 org-assets/，与数据中心 moduleCode 一致） */
 export const OrgAssets = {
-  root: '组织资产',
-  raciTemplate: '组织资产/责任矩阵/责任矩阵模板.xlsx',
-  productBasicInfo: '组织资产/产品基本信息表',
+  root: 'org-assets',
+  raciTemplate: 'org-assets/责任矩阵/责任矩阵模板.xlsx',
+  productBasicInfo: 'org-assets/产品基本信息表',
 } as const;
 
 /** 项目内各 module_id 的 IPO 路径 */

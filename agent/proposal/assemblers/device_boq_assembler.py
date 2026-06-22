@@ -13,8 +13,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from agent.proposal.draft_store import device_boq_parse_dir
+from shared.datacenter.types import SemanticFileRef
+
+from agent.proposal.dc_store import list_file_names, read_bytes
 from agent.proposal.models import DataSource, HardwareSubtype, ProductPartCategory
+from agent.services.dc_path_mapper import map_project_relative
 
 SERVICE_FILE_MARKERS = ("Service", "SBOQ", "CCAE", "年费", "集成", "布线")
 SERVICE_CATEGORY_MARKERS = ("服务", "集成", "布线", "年费", "SBOQ")
@@ -43,16 +46,29 @@ DEFAULT_SUPERPOD_PACKAGING = {
 }
 
 
-def normalized_json_paths(project_id: str) -> list[Path]:
-    parse_dir = device_boq_parse_dir(project_id)
-    if not parse_dir.exists():
+def normalized_json_payloads(project_id: str) -> list[tuple[str, dict[str, Any]]]:
+    mapped = map_project_relative(project_id, "早期介入/合同/解析结果/BOQ设备解析原始结果")
+    if mapped is None:
         return []
-    return sorted(
-        p
-        for p in parse_dir.glob("*.normalized.json")
-        if not p.name.endswith(".normalized.consistency.json")
-        and not _is_service_file(p.name)
+    folder_ref = SemanticFileRef(
+        project_id=mapped.ref.project_id,
+        module_code=mapped.ref.module_code,
+        file_stage=mapped.ref.file_stage,
+        folder_sub_path=mapped.ref.folder_sub_path,
     )
+    names = sorted(
+        name
+        for name in list_file_names(folder_ref)
+        if name.endswith(".normalized.json")
+        and not name.endswith(".normalized.consistency.json")
+        and not _is_service_file(name)
+    )
+    payloads: list[tuple[str, dict[str, Any]]] = []
+    for name in names:
+        data = _load_json(folder_ref, name)
+        if data:
+            payloads.append((name, data))
+    return payloads
 
 
 def _is_service_file(name: str) -> bool:
@@ -60,10 +76,20 @@ def _is_service_file(name: str) -> bool:
     return any(marker.lower() in lowered for marker in SERVICE_FILE_MARKERS)
 
 
-def _load_json(path: Path) -> dict[str, Any] | None:
+def _load_json(folder_ref: SemanticFileRef, file_name: str) -> dict[str, Any] | None:
+    ref = SemanticFileRef(
+        project_id=folder_ref.project_id,
+        module_code=folder_ref.module_code,
+        file_stage=folder_ref.file_stage,
+        folder_sub_path=folder_ref.folder_sub_path,
+        file_name=file_name,
+    )
+    raw = read_bytes(ref)
+    if not raw:
+        return None
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     return data if isinstance(data, dict) else None
 
@@ -258,8 +284,8 @@ def _counts_toward_device_quantity(leaf: dict[str, Any], product: dict[str, Any]
     return False
 
 
-def _device_role(path: Path, product: dict[str, Any]) -> str:
-    name = path.name
+def _device_role(source_name: str, product: dict[str, Any]) -> str:
+    name = source_name
     sheet = str(product.get("sheet") or product.get("product_head") or "")
     text = f"{name} {sheet}"
     if "网络" in text or "CE" in text or "CloudEngine" in text or "XH" in text:
@@ -309,10 +335,7 @@ def assemble_device_info(project_id: str) -> list[dict[str, Any]]:
     aggregated: dict[tuple[str, str], dict[str, Any]] = {}
     packaging_rules = _load_superpod_packaging_rules()
 
-    for path in normalized_json_paths(project_id):
-        data = _load_json(path)
-        if not data:
-            continue
+    for source_name, data in normalized_json_payloads(project_id):
         for product in data.get("products") or []:
             if not isinstance(product, dict):
                 continue
@@ -323,7 +346,7 @@ def assemble_device_info(project_id: str) -> list[dict[str, Any]]:
                 continue
 
             qty = _product_block_quantity(product, packaging_rules)
-            role = _device_role(path, product)
+            role = _device_role(source_name, product)
             part_code = _primary_part_code(product)
 
             for device_model in device_models:
@@ -350,15 +373,15 @@ def assemble_device_info(project_id: str) -> list[dict[str, Any]]:
                         "partCode": part_code,
                         "hardwareSubtype": HardwareSubtype.MAIN_DEVICE.value,
                         "deviceRole": role,
-                        "sourceFile": path.name,
+                        "sourceFile": source_name,
                         "categoryName": category_name,
                         "pbiProductName": device_model,
                     }
                 else:
                     source = aggregated[key].get("sourceFile") or ""
-                    if path.name not in source.split(";"):
+                    if source_name not in source.split(";"):
                         aggregated[key]["sourceFile"] = (
-                            f"{source};{path.name}" if source else path.name
+                            f"{source};{source_name}" if source else source_name
                         )
                     if not aggregated[key].get("partCode") and part_code:
                         aggregated[key]["partCode"] = part_code

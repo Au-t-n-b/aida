@@ -36,7 +36,7 @@ class AssembleDeviceTableStep(BaseStep):
         if io is None:
             return {"error": "路径解析失败"}
 
-        draft_path = io.project_root / "早期介入/交付预案/解析结果/预案草稿/2.设备配置信息.json"
+        draft_path = io.proposal_draft_json("2.设备配置信息.json")
         draft_path.parent.mkdir(parents=True, exist_ok=True)
         draft_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
         rel = io.rel(draft_path)
