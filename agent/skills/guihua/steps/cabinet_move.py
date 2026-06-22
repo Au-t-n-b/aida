@@ -16,34 +16,32 @@ import re
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir
 from ..services import VENDOR_AUTODRAGD
 from ..services.sentinel import is_same_run, read_json
 from ..services.sim_api import is_live
 from ..services.subproc import run_script, _subproc_failure_hint
 
-CREATED_REL = "ProjectData/RunTime/combo_created.json"
-PROGRESS_REL = "ProjectData/RunTime/move_progress.json"
 _MOVE_RE = re.compile(r"\[移动\s+(\d+)\s*/\s*(\d+)\]")
 
 
 class CabinetMoveStep(BaseStep):
     key = "cabinet_move"
     name = "机柜落位"
-    artifacts_pattern = [PROGRESS_REL]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         confs = (ctx.project or {}).get("confirmations") or {}
         if confs.get("move"):
             return {"ok": True, "missing": [], "found": ["confirmations.move"], "note": ""}
         if confs.get("combo"):
-            created = read_json(ctx.work_root / CREATED_REL)
+            created = read_json(get_parse_dir() / "combo_created.json")
             if not created.get("ok"):
                 code = created.get("exit_code")
                 err = (created.get("error") or "").strip()
                 detail = err or (f"exit_code={code}" if code is not None else "未写入成功留痕")
                 return {
                     "ok": False,
-                    "missing": [CREATED_REL],
+                    "missing": ["解析结果/combo_created.json"],
                     "found": [],
                     "note": (
                         f"超节点创建尚未成功（{detail}）。"
@@ -66,7 +64,7 @@ class CabinetMoveStep(BaseStep):
         }
 
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
-        progress = ctx.work_root / PROGRESS_REL
+        progress = get_parse_dir() / "move_progress.json"
         redo = bool((ctx.project or {}).get("_redo_move"))
         total = self._move_total()
 

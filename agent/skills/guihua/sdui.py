@@ -173,7 +173,7 @@ def _build_sim_tabs(state: dict[str, Any]) -> SduiTabGroupNode | None:
             if m.get("compat_table_truncated"):
                 body.append(SduiTextNode(
                     id="compat-trunc", variant="caption", color="subtle",
-                    content="表格较长已截断，完整见 ProjectData/RunTime/compat_table.md"))
+                    content="表格较长已截断，完整见 解析结果/compat_table.md"))
         # 右下角「设备数据准确」按钮：仅在「数据准确？」确认门待办时出现，点击 = 确认 data 门。
         if hitl_step == "data_confirm":
             body.append(SduiRowNode(

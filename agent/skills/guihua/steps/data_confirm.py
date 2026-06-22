@@ -8,12 +8,9 @@ data_confirm · 建模仿真第 2 步「数据确认」（确认型 HITL 门 · 
 """
 from __future__ import annotations
 
-from pathlib import Path
-
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
+from ..path_config import get_parse_dir
 from ..services.compat_table import _parse_combo_from_md
-
-COMPAT_TABLE_REL = "ProjectData/RunTime/compat_table.md"
 
 
 class DataConfirmStep(BaseStep):
@@ -26,7 +23,7 @@ class DataConfirmStep(BaseStep):
             return {"ok": True, "missing": [], "found": ["confirmations.data"], "note": ""}
 
         combo = ""
-        compat = ctx.work_root / COMPAT_TABLE_REL
+        compat = get_parse_dir() / "compat_table.md"
         if compat.is_file():
             try:
                 combo = _parse_combo_from_md(compat)
