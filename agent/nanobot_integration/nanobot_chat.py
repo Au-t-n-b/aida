@@ -45,6 +45,15 @@ def _enabled() -> bool:
     return v not in ("0", "false", "no")
 
 
+def chat_via_nanobot_enabled() -> bool:
+    """通用对话是否走 nanobot AgentLoop（AIDA_CHAT_VIA_NANOBOT，默认开）。
+
+    供 main.py /agent/chat/stream 选择对话引擎：开 → nanobot AgentLoop；
+    关或 nanobot 不可达 → 回退 chat_engine（保证对话不硬失败）。
+    """
+    return _enabled()
+
+
 async def run_nanobot_chat_async(
     user_text: str,
     *,

@@ -68,9 +68,14 @@
 |------|------|---------|
 | ① 确定性流水线 | LangGraph 线性 DAG（`BaseSkill` 串 `BaseStep`） | `zhgk` / `guihua` |
 | ① · 分发变体 | dispatch（菜单命令路由，`dispatch_mode=True`） | `xtsj` |
-| ② 受控 ReAct | LLM↔工具循环（白名单 + 上限 + trace） | `chat_engine`（会话） |
+| ② 受控 ReAct | LLM↔工具循环（白名单 + 上限 + trace） | `chat_engine`（会话 · 现作降级） |
 | ③ 单点调用 | `chat_once` / `chat_stream` | 固定摘要/抽取 |
+
+> **通用对话引擎（v1.1）**：前端 ClawRail 通用对话（`/agent/chat/stream`）默认改走 **nanobot AgentLoop**（容器内 :8900，agent 经 `run_nanobot_chat_async` 代理；`AIDA_CHAT_VIA_NANOBOT=1` 默认开）。`chat_engine` ReAct 保留为 **降级路径**（标志关闭或 nanobot 不可达时启用），不再是通用对话主引擎。
+> - **skill 启动**：nanobot 经 `aida_agent` 工具调 `/agent/<skill>/start`（本进程建 run）；endpoint 在本轮结束 diff 出新 run，还原 `skill_launch` 事件（带 `run_id`），前端**采纳 run_id 并订阅**（不再二次 `/start`）。
+> - **行为差异**：`present_choices` 确认卡 / 敏感工具 `tool_approval` 为 chat_engine 专属，nanobot 路径下不再从通用对话触发；当前项目/页面上下文由 system 注入改为**折叠进 user 消息**（nanobot API 仅收单条 message + session）。
 
 | 版本 | 日期 | 变更 |
 |------|------|------|
+| v1.1 | 2026-06-22 | 通用对话引擎切到 nanobot AgentLoop（chat_engine 降级）；skill_launch 经 aida_agent + run 还原桥接 |
 | v1.0 | 2026-06-07 | 基线重置：运行时四层 + zhgk/guihua/xtsj 快照 + 泛化程度 + 编排分级 |

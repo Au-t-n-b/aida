@@ -40,6 +40,7 @@ from .graph import get_graph_async, close_graph_async
 from .state import AgentState
 from .llm import healthcheck as llm_healthcheck, get_langfuse_callbacks
 from .chat_engine import run_chat, run_chat_async, DEFAULT_SYSTEM
+from .nanobot_integration.nanobot_chat import run_nanobot_chat_async, chat_via_nanobot_enabled
 from .proposal.errors import ProposalApiError
 from .proposal.router import router as proposal_router
 from .proposal_routes import router as proposal_chapters_router
@@ -851,11 +852,12 @@ def _chat_system(context: dict) -> str:
 @app.post("/agent/chat/stream")
 async def chat_stream_endpoint(req: ChatReq):
     """
-    通用会话 SSE：异步流式 token + 工具调用事件。
-    前端用 fetch + ReadableStream 读 SSE（POST 带 body）。
+    通用会话 SSE：异步流式 token + 事件。前端用 fetch + ReadableStream 读 SSE（POST 带 body）。
 
-    skill-as-tool 检测到 launch_* 时自动启动 LangGraph，
-    skill_launch 事件携带 run_id，前端直接订阅 /agent/<skill>/stream/<run_id>。
+    引擎：默认走 nanobot AgentLoop（容器内 :8900，经 run_nanobot_chat_async 代理）；
+    AIDA_CHAT_VIA_NANOBOT=0 或 nanobot 不可达时回退 chat_engine ReAct。
+    skill 启动：nanobot 经 aida_agent 工具调 /agent/<skill>/start；本轮结束 diff 出新 run
+    还原 skill_launch 事件（携带 run_id），前端采纳 run_id 并订阅 /agent/<skill>/stream/<run_id>。
     """
     ctx = req.context or {}
     conv_id = (req.conv_id or "").strip()
@@ -903,19 +905,65 @@ async def chat_stream_endpoint(req: ChatReq):
                 _PENDING_APPROVALS.pop(approval_id, None)
 
         async def _chat_task() -> None:
+            # 通用对话引擎选择：默认走 nanobot AgentLoop（容器内 :8900），
+            # 关闭 AIDA_CHAT_VIA_NANOBOT 或 nanobot 不可达 → 回退 chat_engine ReAct（不硬失败）。
+            use_nanobot = chat_via_nanobot_enabled() and _nanobot_reachable()
+
+            # skill_launch 桥接（nanobot 路径）：nanobot 经 aida_agent 工具落地 skill 启动
+            # （POST /agent/<skill>/start，在本进程 RUNS 建 run）。本轮结束时 diff 出新建 run
+            # 还原 AIDA skill_launch 事件，前端凭此采纳 run_id 并导航（不再二次 /start）。
+            pre_runs = set(RUNS.keys())
+            launched: set[str] = set()
+
+            def _drain_launches() -> list[dict]:
+                evs: list[dict] = []
+                for rid in list(set(RUNS.keys()) - pre_runs - launched):
+                    launched.add(rid)
+                    st = (RUNS.get(rid) or {}).get("state") or {}
+                    proj = st.get("project") or {}
+                    evs.append({
+                        "type": "skill_launch",
+                        "skill": st.get("skill_id", ""),
+                        "run_id": rid,
+                        "project_code": proj.get("project_code", ""),
+                        "scenario_run": proj.get("scenario_run", ""),
+                        "project_name": proj.get("project_name", ""),
+                        "steps": st.get("steps", []),
+                    })
+                return evs
+
             try:
-                async for ev in run_chat_async(
-                    req.message,
-                    history=req.history or None,
-                    system=_chat_system(ctx),
-                    trace_meta={"scope": "chat", "page": ctx.get("page", "")},
-                    conv_id=conv_id or None,
-                    skill_launch_cb=_skill_launch_cb,
-                    approval_cb=_approval_cb,
-                ):
-                    if ev.get("type") == "tool_call":
-                        flags["had_tools"] = True
-                    await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
+                if use_nanobot:
+                    # nanobot API 仅收单条 user message + 用 session 维护多轮；
+                    # 当前项目/页面上下文（chat_engine 走 system 注入）这里折叠进消息文本。
+                    bits = []
+                    if ctx.get("project"):
+                        bits.append(f"当前项目：{ctx['project']}")
+                    if ctx.get("page"):
+                        bits.append(f"当前页面：{ctx['page']}")
+                    message = ("[上下文] " + " · ".join(bits) + "\n\n" + req.message) if bits else req.message
+                    async for ev in run_nanobot_chat_async(message, conv_id=conv_id or None):
+                        etype = ev.get("type")
+                        if etype == "done":
+                            for se in _drain_launches():
+                                flags["had_tools"] = True
+                                await output.put({"event": "skill_launch", "data": json.dumps(se, ensure_ascii=False, default=str)})
+                            await output.put({"event": "done", "data": json.dumps(ev, ensure_ascii=False, default=str)})
+                        else:
+                            await output.put({"event": etype or "message", "data": json.dumps(ev, ensure_ascii=False, default=str)})
+                else:
+                    async for ev in run_chat_async(
+                        req.message,
+                        history=req.history or None,
+                        system=_chat_system(ctx),
+                        trace_meta={"scope": "chat", "page": ctx.get("page", "")},
+                        conv_id=conv_id or None,
+                        skill_launch_cb=_skill_launch_cb,
+                        approval_cb=_approval_cb,
+                    ):
+                        if ev.get("type") == "tool_call":
+                            flags["had_tools"] = True
+                        await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
             except Exception as e:  # noqa: BLE001
                 await output.put({"event": "error", "data": json.dumps({"type": "error", "message": str(e)})})
             finally:
@@ -2113,11 +2161,12 @@ def _chat_system(context: dict) -> str:
 @app.post("/agent/chat/stream")
 async def chat_stream_endpoint(req: ChatReq):
     """
-    通用会话 SSE：异步流式 token + 工具调用事件。
-    前端用 fetch + ReadableStream 读 SSE（POST 带 body）。
+    通用会话 SSE：异步流式 token + 事件。前端用 fetch + ReadableStream 读 SSE（POST 带 body）。
 
-    skill-as-tool 检测到 launch_* 时自动启动 LangGraph，
-    skill_launch 事件携带 run_id，前端直接订阅 /agent/<skill>/stream/<run_id>。
+    引擎：默认走 nanobot AgentLoop（容器内 :8900，经 run_nanobot_chat_async 代理）；
+    AIDA_CHAT_VIA_NANOBOT=0 或 nanobot 不可达时回退 chat_engine ReAct。
+    skill 启动：nanobot 经 aida_agent 工具调 /agent/<skill>/start；本轮结束 diff 出新 run
+    还原 skill_launch 事件（携带 run_id），前端采纳 run_id 并订阅 /agent/<skill>/stream/<run_id>。
     """
     ctx = req.context or {}
     conv_id = (req.conv_id or "").strip()
@@ -2165,19 +2214,65 @@ async def chat_stream_endpoint(req: ChatReq):
                 _PENDING_APPROVALS.pop(approval_id, None)
 
         async def _chat_task() -> None:
+            # 通用对话引擎选择：默认走 nanobot AgentLoop（容器内 :8900），
+            # 关闭 AIDA_CHAT_VIA_NANOBOT 或 nanobot 不可达 → 回退 chat_engine ReAct（不硬失败）。
+            use_nanobot = chat_via_nanobot_enabled() and _nanobot_reachable()
+
+            # skill_launch 桥接（nanobot 路径）：nanobot 经 aida_agent 工具落地 skill 启动
+            # （POST /agent/<skill>/start，在本进程 RUNS 建 run）。本轮结束时 diff 出新建 run
+            # 还原 AIDA skill_launch 事件，前端凭此采纳 run_id 并导航（不再二次 /start）。
+            pre_runs = set(RUNS.keys())
+            launched: set[str] = set()
+
+            def _drain_launches() -> list[dict]:
+                evs: list[dict] = []
+                for rid in list(set(RUNS.keys()) - pre_runs - launched):
+                    launched.add(rid)
+                    st = (RUNS.get(rid) or {}).get("state") or {}
+                    proj = st.get("project") or {}
+                    evs.append({
+                        "type": "skill_launch",
+                        "skill": st.get("skill_id", ""),
+                        "run_id": rid,
+                        "project_code": proj.get("project_code", ""),
+                        "scenario_run": proj.get("scenario_run", ""),
+                        "project_name": proj.get("project_name", ""),
+                        "steps": st.get("steps", []),
+                    })
+                return evs
+
             try:
-                async for ev in run_chat_async(
-                    req.message,
-                    history=req.history or None,
-                    system=_chat_system(ctx),
-                    trace_meta={"scope": "chat", "page": ctx.get("page", "")},
-                    conv_id=conv_id or None,
-                    skill_launch_cb=_skill_launch_cb,
-                    approval_cb=_approval_cb,
-                ):
-                    if ev.get("type") == "tool_call":
-                        flags["had_tools"] = True
-                    await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
+                if use_nanobot:
+                    # nanobot API 仅收单条 user message + 用 session 维护多轮；
+                    # 当前项目/页面上下文（chat_engine 走 system 注入）这里折叠进消息文本。
+                    bits = []
+                    if ctx.get("project"):
+                        bits.append(f"当前项目：{ctx['project']}")
+                    if ctx.get("page"):
+                        bits.append(f"当前页面：{ctx['page']}")
+                    message = ("[上下文] " + " · ".join(bits) + "\n\n" + req.message) if bits else req.message
+                    async for ev in run_nanobot_chat_async(message, conv_id=conv_id or None):
+                        etype = ev.get("type")
+                        if etype == "done":
+                            for se in _drain_launches():
+                                flags["had_tools"] = True
+                                await output.put({"event": "skill_launch", "data": json.dumps(se, ensure_ascii=False, default=str)})
+                            await output.put({"event": "done", "data": json.dumps(ev, ensure_ascii=False, default=str)})
+                        else:
+                            await output.put({"event": etype or "message", "data": json.dumps(ev, ensure_ascii=False, default=str)})
+                else:
+                    async for ev in run_chat_async(
+                        req.message,
+                        history=req.history or None,
+                        system=_chat_system(ctx),
+                        trace_meta={"scope": "chat", "page": ctx.get("page", "")},
+                        conv_id=conv_id or None,
+                        skill_launch_cb=_skill_launch_cb,
+                        approval_cb=_approval_cb,
+                    ):
+                        if ev.get("type") == "tool_call":
+                            flags["had_tools"] = True
+                        await output.put({"event": ev["type"], "data": json.dumps(ev, ensure_ascii=False, default=str)})
             except Exception as e:  # noqa: BLE001
                 await output.put({"event": "error", "data": json.dumps({"type": "error", "message": str(e)})})
             finally:

@@ -51,6 +51,7 @@ interface SkillLaunch {
   projectCode: string;
   scenarioRun: string;
   steps: Array<{ step: string; name: string }>;
+  runId?: string;   // 后端（nanobot via aida_agent / chat skill-as-tool）已创建的 run，前端采纳而非二次启动
 }
 
 interface ChoiceOption {
@@ -605,11 +606,13 @@ function SkillRunBanner({
   skillId,
   projectCode = '',
   scenarioRun = '',
+  runId: launchedRunId,
   autoStart = false,
 }: {
   skillId: string;
   projectCode?: string;
   scenarioRun?: string;
+  runId?: string;
   autoStart?: boolean;
 }) {
   const navigate = useNavigate();
@@ -629,6 +632,17 @@ function SkillRunBanner({
     if (myRunId) return;          // '__starting__' 为 truthy → StrictMode 二次挂载会跳过
 
     startedRef.current = true;
+
+    // 后端已创建 run（nanobot via aida_agent / chat skill-as-tool）→ 直接采纳，避免重复 /start。
+    if (launchedRunId && !launchedRunId.startsWith('err-')) {
+      setSkillRun(skillId, launchedRunId, 'chat');
+      updateSkillRun({ phase: 'running' });
+      const modulePath = getSkillModulePath(skillId);
+      const onTargetModule = skillIdFromModulePath(pathname) === skillId;
+      if (modulePath && !onTargetModule) navigate(modulePath);
+      return;
+    }
+
     void (async () => {
       try {
         setSkillRun(skillId, '__starting__', 'chat'); // 占位，阻断二次启动
@@ -650,7 +664,7 @@ function SkillRunBanner({
         });
       }
     })();
-  }, [autoStart, skillId, projectCode, scenarioRun, myRunId, navigate, pathname]);
+  }, [autoStart, skillId, projectCode, scenarioRun, myRunId, navigate, pathname, launchedRunId]);
 
   const phase    = myInfo?.phase           ?? 'starting';
   const progress = myInfo?.progress        ?? 0;
@@ -1267,6 +1281,7 @@ export default function ClawRail({
                 projectCode: (ev.project_code as string) ?? '',
                 scenarioRun: (ev.scenario_run as string) ?? '',
                 steps: (ev.steps as Array<{ step: string; name: string }>) ?? [],
+                runId: (ev.run_id as string | undefined) || undefined,
               },
             }));
           } else if (type === 'choices') {
@@ -1530,6 +1545,7 @@ export default function ClawRail({
                 skillId={m.skillLaunch.skill}
                 projectCode={m.skillLaunch.projectCode}
                 scenarioRun={m.skillLaunch.scenarioRun}
+                runId={m.skillLaunch.runId}
                 autoStart={true}
               />
             )}
