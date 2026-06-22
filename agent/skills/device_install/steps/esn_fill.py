@@ -16,7 +16,7 @@ import os
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import tasks_state_path, refresh_task_metrics
-from ..path_config import get_output_dir, output_rel
+from .. import dc_io, dc_paths
 from ..services._common import as_str
 from ..services.sn_builder import validate_esn
 from ..services.completion_builder import generate_completion_checklist, generate_completion_report
@@ -57,7 +57,7 @@ def _try_rebuild_sn_tables(ctx: SkillContext) -> list[dict]:
     if sum(len(t.get("rows", [])) for t in tables) > 0:
         return tables
 
-    meta_path = ctx.runtime_dir / "sn_tables.json"
+    meta_path = dc_io.sn_tables_path(ctx)
     dispatch_tasks: list[dict] = []
     try:
         data = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -69,7 +69,7 @@ def _try_rebuild_sn_tables(ctx: SkillContext) -> list[dict]:
         dispatch_tasks = [
             t for t in (st.get("last_dispatch_tasks") or []) if isinstance(t, dict)
         ]
-    pool_path = ctx.runtime_dir / "sn_pool.json"
+    pool_path = dc_io.sn_pool_path(ctx)
     if not dispatch_tasks or not pool_path.is_file():
         return tables
 
@@ -79,13 +79,12 @@ def _try_rebuild_sn_tables(ctx: SkillContext) -> list[dict]:
 
     rebuilt = group_sn_rows_to_tables(filtered)
     payload = {"dispatch_tasks": dispatch_tasks, "tables": rebuilt}
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return rebuilt
 
 
 def _load_sn_tables(ctx: SkillContext) -> list[dict]:
-    p = ctx.runtime_dir / "sn_tables.json"
+    p = dc_io.sn_tables_path(ctx)
     try:
         data = json.loads(p.read_text(encoding="utf-8"))
     except Exception:
@@ -165,7 +164,7 @@ def _tables_with_filled(tables: list[dict], esn_rows: list[dict]) -> list[dict]:
 
 def _write_sn_tables_meta(ctx: SkillContext, tables: list[dict], *, dispatch_tasks: list | None = None) -> None:
     """持久化带 ESN 的分组表到 RunTime/sn_tables.json。"""
-    meta_path = ctx.runtime_dir / "sn_tables.json"
+    meta_path = dc_io.sn_tables_path(ctx)
     payload: dict = {"tables": tables}
     if dispatch_tasks is not None:
         payload["dispatch_tasks"] = dispatch_tasks
@@ -176,19 +175,18 @@ def _write_sn_tables_meta(ctx: SkillContext, tables: list[dict], *, dispatch_tas
                 payload["dispatch_tasks"] = old["dispatch_tasks"]
         except Exception:
             pass
-    ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _write_sn_xlsx_artifacts(ctx: SkillContext, tables: list[dict]) -> list[str]:
-    """回写 Output/SN扫码表_*.xlsx（含已填 ESN）。"""
+    """回写 SN扫码表_*.xlsx（含已填 ESN）并上传数据中心。"""
     from ..services.sn_builder import generate_sn_xlsx
 
     artifacts: list[str] = []
     for tbl in tables:
-        out = generate_sn_xlsx(tbl, str(get_output_dir(ctx.project)))
+        out = generate_sn_xlsx(tbl, str(dc_io.output_dir(ctx)))
         if out:
-            artifacts.append(output_rel(ctx.work_root, out))
+            artifacts.append(dc_io.publish_output(ctx, out))
     return artifacts
 
 
@@ -196,9 +194,9 @@ class EsnFillStep(BaseStep):
     key = "esn_fill"
     name = "ESN信息填写"
     artifacts_pattern = [
-        "ProjectData/Output/SN扫码表_*.xlsx",
-        "ProjectData/Output/完工清单_*.xlsx",
-        "ProjectData/Output/设备安装完工报告.xlsx",
+        f"{dc_paths.ARTIFACT_PREFIX}/SN扫码表_*.xlsx",
+        f"{dc_paths.ARTIFACT_PREFIX}/完工清单_*.xlsx",
+        f"{dc_paths.ARTIFACT_PREFIX}/设备安装完工报告.xlsx",
     ]
 
     def _need_edit(self, rows: list[dict], n_total: int, note: str = "", ctx: SkillContext | None = None) -> CheckResult:
@@ -306,12 +304,12 @@ class EsnFillStep(BaseStep):
 
         # 完工清单（按机房+设备大类）+ 完工报告（全项目汇总）
         for tbl in tables:
-            cl = generate_completion_checklist(tbl, str(get_output_dir(ctx.project)))
+            cl = generate_completion_checklist(tbl, str(dc_io.output_dir(ctx)))
             if cl and os.path.isfile(cl):
-                artifacts.append(output_rel(ctx.work_root, cl))
-        rep = generate_completion_report(tables, str(get_output_dir(ctx.project)))
+                artifacts.append(dc_io.publish_output(ctx, cl))
+        rep = generate_completion_report(tables, str(dc_io.output_dir(ctx)))
         if rep and os.path.isfile(rep):
-            artifacts.append(output_rel(ctx.work_root, rep))
+            artifacts.append(dc_io.publish_output(ctx, rep))
         emit(f"[esn_fill] ✓ 已生成完工清单 {len(tables)} 份 + 完工报告，标记 {done} 条任务完成")
 
         metrics = {"esn_devices": n_devices, "esn_tables": len(tables), "completed_now": done}

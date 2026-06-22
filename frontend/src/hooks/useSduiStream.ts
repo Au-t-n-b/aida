@@ -447,6 +447,10 @@ export function useSduiStream(skillId: string, runId: string | null, epoch = 0):
 
 export interface StartReq {
 
+  /** 数据中心语义寻址主键（UUID32）。生产由 Manager 经 runtime-context 注入容器 env；
+   *  前端从当前项目带入，供后端 resolve_project_id 使用。非 UUID32 不传。 */
+  project_id?: string;
+
   project_code?: string;
 
   project_name?: string;

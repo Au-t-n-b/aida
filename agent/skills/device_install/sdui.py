@@ -40,7 +40,7 @@ from agent.sdui.projector_base import (
 from .go_back import can_go_back
 from .pipeline import DI_STEP_NAMES, DI_STEP_ORDER
 from .bridge import get_device_install_root
-from .path_config import get_output_dir, output_rel
+from . import dc_io, dc_paths
 
 # ESN 完工后作业结果扫描（补全 step 记录未携带的 glob 产物，如多张 SN/完工清单）
 _OUTPUT_SCAN_PATTERNS = (
@@ -416,7 +416,11 @@ def _build_step_result_artifacts(state: dict[str, Any]) -> SduiCardNode | None:
     路径取自 hitl.need_edit.result_artifacts（由对应 step 在 check_inputs 里预生成后下发）。"""
     hitl = state.get("hitl") or {}
     spec = hitl.get("need_edit") or {}
-    paths = [p for p in (spec.get("result_artifacts") or []) if isinstance(p, str) and p]
+    paths = [
+        _normalize_artifact_api_path(p, state)
+        for p in (spec.get("result_artifacts") or [])
+        if isinstance(p, str) and p
+    ]
     if not paths:
         return None
     items = [
@@ -445,16 +449,30 @@ def _norm_artifact_path(path: str) -> str:
     return path.replace("\\", "/")
 
 
+def _normalize_artifact_api_path(path: str, state: dict[str, Any]) -> str:
+    """SDUI / /artifact 统一逻辑键（ops-install/输出结果/<文件名>）。"""
+    raw = (path or "").strip()
+    if not raw:
+        return raw
+    name = dc_paths.artifact_key_name(raw)
+    return dc_paths.artifact_key(name) if name else raw
+
+
 def _collect_di_artifact_paths(state: dict[str, Any]) -> list[str]:
     """汇总主建设流水线作业产物：已完成 step 记录 + ESN 完工后扫 Output 目录（glob 产物）。"""
+    project = state.get("project") or {}
+    work_root = Path(get_device_install_root())
     seen: set[str] = set()
     paths: list[str] = []
 
     def _add(p: str) -> None:
-        norm = _norm_artifact_path(p)
+        raw = _normalize_artifact_api_path(p, state)
+        if not raw:
+            return
+        norm = _norm_artifact_path(raw)
         if norm and norm not in seen:
             seen.add(norm)
-            paths.append(p)
+            paths.append(raw)
 
     # 每步取最后一次 completed 记录（resume 重跑时以最新为准）
     latest: dict[str, dict[str, Any]] = {}
@@ -469,18 +487,15 @@ def _collect_di_artifact_paths(state: dict[str, Any]) -> list[str]:
             if isinstance(p, str) and p:
                 _add(p)
 
-    # ESN 完工后：补扫 Output（step 记录可能缺 glob 产物或路径在外置目录）
+    # ESN 完工后：补扫已产出产物（step 记录可能缺 glob 产物）
     if _esn_fill_done(state) or _pipeline_done(state):
-        project = state.get("project") or {}
+        from fnmatch import fnmatch
         work_root = Path(get_device_install_root())
-        out_dir = get_output_dir(project)
-        for pat in _OUTPUT_SCAN_PATTERNS:
-            for f in sorted(out_dir.glob(pat)):
-                if not f.is_file():
-                    continue
-                if "模板" in f.name:
-                    continue
-                _add(output_rel(work_root, f))
+        for name in dc_io.list_output_names(work_root, project):
+            if "模板" in name:
+                continue
+            if any(fnmatch(name, pat) for pat in _OUTPUT_SCAN_PATTERNS):
+                _add(dc_paths.artifact_key(name))
 
     paths.sort(key=_artifact_sort_key)
     return paths
@@ -505,14 +520,38 @@ def _build_di_artifacts(state: dict[str, Any]) -> SduiCardNode | None:
     )
 
 
+def _pipeline_progress_pct(state: dict[str, Any]) -> int:
+    """主建设流水线进度（0–100），供左栏 SkillRunBanner · meta.progress。"""
+    if _pipeline_done(state):
+        return 100
+    total = len(DI_STEP_ORDER)
+    if not total:
+        return 0
+    by_key = {str(s.get("key") or ""): s for s in (state.get("steps") or [])}
+    done = sum(
+        1 for k in DI_STEP_ORDER
+        if by_key.get(k, {}).get("status") == "completed"
+    )
+    partial = 0.0
+    hitl_step = (state.get("hitl") or {}).get("step")
+    cur = str(state.get("current_step") or hitl_step or "")
+    if cur in DI_STEP_ORDER:
+        st = by_key.get(cur, {}).get("status")
+        if st in ("running", "hitl") or (hitl_step == cur and (state.get("hitl") or {})):
+            partial = 0.5
+    return int(min(100, max(0, round(100 * (done + partial) / total))))
+
+
 def _sdui_meta(state: dict[str, Any]) -> dict[str, Any]:
     """SDUI 文档 meta：前端布局策略（不写死 skillId）。"""
-    return {
+    meta: dict[str, Any] = {
         "skill": "device_install",
         "run_id": state.get("run_id", ""),
         "route_hitl_edit": "workbench",
         "workbench_class": "di",
+        "progress": _pipeline_progress_pct(state),
     }
+    return meta
 
 
 def _run_has_started(state: dict[str, Any]) -> bool:
@@ -545,9 +584,9 @@ def project(state: dict[str, Any]) -> dict[str, Any]:
         _build_di_stepper(state),
     ]
 
-    # 文件 / 确认型 HITL（在线编辑型走下方编辑卡）
+    # 确认型 HITL（ChoiceCard / HitlForm）；不上传文件型 HITL（上游三份表由预检读目录，不经 Input 上传）
     hitl = state.get("hitl") or {}
-    if hitl.get("step") and not hitl.get("need_edit"):
+    if hitl.get("step") and not hitl.get("need_edit") and not (hitl.get("need_files") or []):
         hitl_card = build_hitl(state, card_title="需要补充", default_choice_title="请选择")
         if hitl_card:
             nodes.append(hitl_card)

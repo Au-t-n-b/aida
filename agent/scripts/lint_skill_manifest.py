@@ -3,7 +3,8 @@ skill-manifest · SKILL.md frontmatter manifest 完整性守门（规范 5 守�
 
 背景：P1 起 SKILL.md frontmatter 升级为「skill 自描述清单（manifest）」，驱动前端导航与
 未来热加载/部署。每个已注册 skill 的 frontmatter 必须声明：
-  version（语义化）· enabled（bool）· ui{label,group,order:int,icon,route_key} · runtime{workspace_env}
+  version（语义化）· enabled（bool）· ui{label,group,order:int,icon,route_key} · runtime（对象，可空 {}）
+  注：runtime.workspace_env 自数据访问路径整改（§3.3）起为可选——DC API 化 skill 不声明工作区根。
 并保证 enabled skill 间 route_key 全局唯一（前端 /module/<route_key> 不冲突）。
 
 不一致即阻断（与 lint_skill_contract 同款守门）。
@@ -65,9 +66,11 @@ def check_manifest(name: str, meta) -> list[str]:
     if not isinstance(ui.get("order"), int):
         v.append(f"ui.order 缺失或非整数（当前: {ui.get('order')!r}）")
 
-    rt = meta.runtime if isinstance(meta.runtime, dict) else {}
-    if not str(rt.get("workspace_env", "")).strip():
-        v.append("runtime.workspace_env 缺失（声明工作区根环境变量，如 ZHGK_ROOT）")
+    # runtime.workspace_env 自数据访问路径整改（§3.3）起为「可选」：
+    # 数据中心 API 化的 skill（业务数据走 DATA_CENTER_BASE_URL，本地仅 scratch）
+    # 不再声明工作区根环境变量。仅校验 runtime 为 dict（声明即合法，含空 {}）。
+    if meta.runtime is not None and not isinstance(meta.runtime, dict):
+        v.append(f"runtime 须为对象/映射（当前: {meta.runtime!r}）")
 
     return v
 

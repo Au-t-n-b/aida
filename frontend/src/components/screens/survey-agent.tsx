@@ -63,7 +63,7 @@ import { setCommissionBusy, clearCommissionBusy, getCommissionBusy, useCommissio
 import { persistSkillRunId, readSkillRunId, clearPersistedSkillRun } from '@/lib/skillRunPersist';
 import { useClawTaskSdui } from '@/hooks/useClawTaskSdui';
 import { useAidaSession } from '@/lib/aida-session';
-import { resolveAgentStartProject, useCurrentProject } from '@/lib/current-project';
+import { resolveAgentProjectId, resolveAgentStartProject, useCurrentProject } from '@/lib/current-project';
 import { startClawTask, resumeClawTask } from '@/lib/claw-manager-client';
 import { useSkillRunStore, setSkillRun, updateSkillRun, clearSkillRun } from '@/lib/skillRunStore';
 import { setSkillHitl, clearSkillHitl, getSkillHitl } from '@/lib/skillHitlStore';
@@ -938,11 +938,19 @@ function extractProgressFromSdui(doc: SduiDocument): {
     if (node.type === 'ProgressBar' && typeof node.value === 'number') {
       r.progress = node.value;
     }
-    // Stepper → 当前步骤名 + 阶段
+    // Stepper → 当前步骤名 + 阶段 + 流水线进度（done / total）
     if (node.type === 'Stepper' && r.phase !== 'hitl') {
-      const errStep  = node.steps.find(s => s.status === 'error');
-      const runStep  = node.steps.find(s => s.status === 'running');
-      const allDone  = node.steps.length > 0 && node.steps.every(s => s.status === 'done');
+      const steps = node.steps ?? [];
+      const errStep  = steps.find(s => s.status === 'error');
+      const runStep  = steps.find(s => s.status === 'running');
+      const allDone  = steps.length > 0 && steps.every(s => s.status === 'done');
+      const doneCount = steps.filter(s => s.status === 'done').length;
+      const totalSteps = steps.length;
+      if (totalSteps > 0) {
+        const partial = runStep ? 0.5 : 0;
+        const stepPct = Math.round(100 * (doneCount + partial) / totalSteps);
+        r.progress = Math.max(r.progress ?? 0, Math.min(100, stepPct));
+      }
       if (errStep) {
         r.phase = 'error';
         r.errorMsg = `「${errStep.title}」执行失败`;
@@ -1391,8 +1399,21 @@ export default function SkillAgentScreen({
         // guihua（frozenTarget===0）靠冻结快照在创建超节点等执行过渡期保持左栏 HITL 对话卡，
         // 不能因实时 sduiDoc 暂无 hitl-card 就把 phase 抢成 running（否则左栏闪「执行中 0%」空卡）。
         // 解冻由下方 frozenTarget===0 护栏（workbench 推进 / 出现新交互卡）负责。
-        patch.phase = livePatch.phase || 'running';
-        patch.hitlType = null;
+        const editHitl = livePatch.hitlType === 'edit' || patch.hitlType === 'edit';
+        if (editHitl && routeHitlEdit === 'workbench') {
+          // 在线编辑 HITL 留在右侧大盘（device_install 等）：左栏勿误显「待文件 / 需上传」
+          patch.phase = 'running';
+          patch.hitlType = null;
+          patch.currentStepName = livePatch.currentStepName ?? patch.currentStepName;
+          patch.progress = Math.max(
+            livePatch.progress ?? 0,
+            patch.progress ?? 0,
+            extractProgressFromSdui(sduiDoc).progress ?? 0,
+          );
+        } else {
+          patch.phase = livePatch.phase || 'running';
+          patch.hitlType = livePatch.hitlType ?? null;
+        }
       }
     }
     // 有实质内容但无进度指标（如 guihua 三页签工作台）：至少标记 running，防止停留在 starting
@@ -1412,7 +1433,7 @@ export default function SkillAgentScreen({
       progressFloorRef.current = progress;
     }
     updateSkillRun({ ...patch, progress });
-  }, [displayDoc, sduiDoc, activeRunId, frozenDoc, usesDeliveryWorkbench]);
+  }, [displayDoc, sduiDoc, activeRunId, frozenDoc, usesDeliveryWorkbench, routeHitlEdit]);
 
   // 部署调测：右侧 FlowSteps/HITL 变化只向 deploy 左侧扩展发节点事件。
   useEffect(() => {
@@ -1465,9 +1486,13 @@ export default function SkillAgentScreen({
 
   // ── 启动 ──────────────────────────────────────────────────────────────────
   const handleStart = useCallback(async (req: StartReq = {}) => {
+    // projectId（UUID32）注入：数据中心语义寻址主键。当前项目是 UUID32 才带，
+    // 否则交由后端容器 env（AIDA_PROJECT_ID，Manager 经 runtime-context 注入）兜底。
+    const pid = resolveAgentProjectId(currentProject);
+    const withPid: StartReq = pid ? { project_id: pid } : {};
     const startReq: StartReq = skillId === 'zhgk'
-      ? { ...resolveAgentStartProject(currentProject), ...req }
-      : req;
+      ? { ...resolveAgentStartProject(currentProject), ...withPid, ...req }
+      : { ...withPid, ...req };
     // zhgk：选择机房后直接进入作业台，不再停留在「机房总览」页
     if (skillId === 'zhgk' && req.room_name) {
       setViewMode('work');

@@ -14,7 +14,7 @@ from __future__ import annotations
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import tasks_state_path, refresh_task_metrics
-from ..path_config import get_output_dir, output_rel
+from .. import dc_io, dc_paths
 from ..services._common import as_str, principal_display_name
 from ..services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
 from ..services.table_builder import generate_dispatch_plan_xlsx
@@ -106,20 +106,18 @@ def _task_matches_selection(t: dict, ids: set[str], act_keys: set[str]) -> bool:
 
 
 def _plan_artifact_rel(ctx: SkillContext) -> str | None:
-    """优先展示 Input 中上游交付的合并计划，否则 Output 下发后快照。"""
-    inp = ctx.input_dir / DISPATCH_PLAN_FILENAME
-    if inp.is_file():
-        return ctx.rel(inp)
-    out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
-    return output_rel(ctx.work_root, out) if out.is_file() else None
+    """展示已生成的合并实施计划（scratch out → 数据中心逻辑键）。"""
+    out = dc_io.output_dir(ctx) / DISPATCH_PLAN_FILENAME
+    if out.is_file():
+        return dc_paths.artifact_key(DISPATCH_PLAN_FILENAME)
+    return None
 
 
 class TaskDispatchStep(BaseStep):
     key = "task_dispatch"
     name = "计划下发"
-    # 默认布局（本地/评测）下的回退路径；服务器 DEVICE_INSTALL_OUTPUT_ROOT 外置时
-    # 由 run 返回的显式 artifacts 兜底（见 path_config.output_rel）。
-    artifacts_pattern = ["ProjectData/Output/设备安装实施计划.xlsx"]
+    # 产物经 run 返回显式 artifacts（数据中心逻辑键）；此处仅作回退标识。
+    artifacts_pattern = [dc_paths.artifact_key(DISPATCH_PLAN_FILENAME)]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -135,8 +133,8 @@ class TaskDispatchStep(BaseStep):
         if not tasks:
             return {
                 "ok": False,
-                "missing": [f"ProjectData/Input/{DISPATCH_PLAN_FILENAME}"],
-                "note": "请先完成「生成设备安装实施计划」。",
+                "missing": [],
+                "note": "请先完成「确认实施计划」。",
             }
 
         pending = [t for t in tasks if t.get("status") == "待下发"]
@@ -199,7 +197,7 @@ class TaskDispatchStep(BaseStep):
         st = load_tasks_state(state_path)
         tasks = [t for t in st.get("tasks", []) if isinstance(t, dict)]
 
-        out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
+        out = dc_io.output_dir(ctx) / DISPATCH_PLAN_FILENAME
         generate_dispatch_plan_xlsx(tasks, str(out))
 
         dispatched = 0
@@ -236,7 +234,7 @@ class TaskDispatchStep(BaseStep):
         ]
         save_tasks_state(state_path, st)
 
-        sn_meta = ctx.runtime_dir / "sn_tables.json"
+        sn_meta = dc_io.sn_tables_path(ctx)
         if sn_meta.exists():
             sn_meta.unlink()
 
@@ -246,7 +244,7 @@ class TaskDispatchStep(BaseStep):
         else:
             emit(f"[task_dispatch] ✓ 勾选 {n_sel} 条计划此前已下发（重放幂等）")
 
-        artifacts = [output_rel(ctx.work_root, out)] if out.exists() else []
+        artifacts = [dc_io.publish_output(ctx, out)] if out.exists() else []
         metrics = {"dispatched_count": dispatched}
         metrics.update(refresh_task_metrics(ctx))
         return {"artifacts": artifacts, "metrics": metrics}

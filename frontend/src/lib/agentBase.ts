@@ -42,9 +42,28 @@ export async function ensureAgentBase(skillId = 'system_design'): Promise<string
 
 /** GET /agent/{skill}/artifact?path= — base 为空时走同源代理。 */
 export function artifactUrl(base: string, skillId: string, path: string): string {
-  const q = encodeURIComponent(path);
+  const q = encodeURIComponent(normalizeArtifactPath(path));
   const prefix = base ? base.replace(/\/$/, '') : '';
   return `${prefix}/agent/${skillId}/artifact?path=${q}`;
+}
+
+/** 预览/下载统一逻辑路径；绝对路径或 输出结果/ 落盘 → ProjectData/Output/<文件名>。 */
+export function normalizeArtifactPath(path: string): string {
+  const raw = (path || '').trim();
+  if (!raw) return raw;
+  const norm = raw.replace(/\\/g, '/');
+  if (/^ProjectData\//i.test(norm)) return norm;
+  const name = norm.split('/').pop() ?? norm;
+  if (/^[a-zA-Z]:\//.test(norm) || norm.startsWith('/opt/') || norm.includes('输出结果/')) {
+    return `ProjectData/Output/${name}`;
+  }
+  return norm;
+}
+
+/** 从 artifact path 取展示用文件名（兼容 Windows 反斜杠绝对路径）。 */
+export function artifactDisplayName(path: string): string {
+  const norm = (path || '').replace(/\\/g, '/');
+  return norm.split('/').pop() ?? path;
 }
 
 async function probeLocalAgent(skillId: string): Promise<string> {

@@ -1,11 +1,11 @@
 """
 device_install 文件处理器（BaseSkill.file_handler 鸭子类型）。
 
-主流程由 plan_receive 从源文件目录（DEVICE_INSTALL_SOURCE_ROOT）读取上游《设备安装实施计划》；业务编辑走 EditableTable。
-本模块提供：
-  - 现场照片上传（Images/）
-  - 遗留 file_handler 端点兼容（/upload · /files/check）
-  - merge_run_patch（/run-patch · 任务进展改百分比等不重跑流水线的补丁，见 run_patch.py）
+数据中心 API 化后：
+  - 上游三表读取 / 产物写出统一走 dc_io（语义寻址，DC 不可达降级挂载盘）。
+  - 产物预览/下载（resolve_artifact_path）：scratch → DC → 挂载盘，按文件名解析逻辑键。
+  - 现场照片 / HITL 文件：上传到共享 scratch 上传区（run 内 fetch 会扫描）。
+  - merge_run_patch（/run-patch · 见 run_patch.py）。
 """
 from __future__ import annotations
 
@@ -14,6 +14,24 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import UploadFile
+
+from . import dc_io, dc_paths
+
+
+def resolve_artifact_path(work_root: Path, path: str) -> Path:
+    """产物预览/下载路径解析：按逻辑键文件名经 dc_io（scratch→DC→挂载盘）取本地文件。
+
+    projectId 由 dc_io 经 `resolve_project_id` 从容器 env `AIDA_PROJECT_ID` 解析——
+    生产一容器一项目，env 即当前项目（Manager 经 runtime-context 注入）。
+    `/artifact` 是泛化端点（固定签名 skill+path），不逐请求透传 project（不破坏泛化分发）。
+    """
+    name = dc_paths.artifact_key_name(path or "")
+    if not name:
+        raise FileNotFoundError(path)
+    hit = dc_io.fetch_output_by_name(work_root, name)
+    if hit and hit.is_file():
+        return hit.resolve()
+    raise FileNotFoundError(path)
 
 
 def infer_upload_kind(filename: str) -> str:
@@ -30,38 +48,24 @@ def _normalize_need_pattern(path: str) -> str:
     return p.replace("\\", "/")
 
 
-def _match_need_path(root: Path, pattern: str) -> tuple[bool, str | None]:
-    rel = _normalize_need_pattern(pattern)
-    if not rel:
-        return False, None
-    if "*" in rel:
-        matches = sorted(root.glob(rel))
-        if matches:
-            return True, str(matches[0].relative_to(root))
-        return False, None
-    full = root / rel
-    if full.is_file():
-        return True, str(full.relative_to(root))
-    return False, None
-
-
 def check_need_files(root: Path, need_files: list[str]) -> dict[str, Any]:
-    """按 HITL need_files 逐项检查（支持 glob）。"""
+    """按 HITL need_files 逐项检查（取文件名在共享上传区是否就绪）。"""
+    inbox = dc_io.shared_uploads_dir(root, "inbox")
     items: list[dict[str, Any]] = []
     found_count = 0
     for i, raw in enumerate(need_files):
         rel = _normalize_need_pattern(raw)
-        ok, matched = _match_need_path(root, raw)
+        name = Path(rel).name if rel else raw
+        ok = bool(name) and (inbox / name).is_file()
         if ok:
             found_count += 1
-        label = Path(rel).name if rel else raw
         items.append({
             "id": f"need-{i}",
-            "label": label,
+            "label": name,
             "path": raw,
-            "hint": "" if ok else "请上传到 Input/",
+            "hint": "" if ok else "请上传该文件",
             "found": ok,
-            "matched": matched,
+            "matched": name if ok else None,
         })
     total = len(items)
     return {
@@ -74,82 +78,72 @@ def check_need_files(root: Path, need_files: list[str]) -> dict[str, Any]:
 
 
 def check_project_files(root: Path) -> dict[str, Any]:
-    """扫描工作区：检查源文件目录是否已有上游《设备安装实施计划》。"""
-    from .services.source_files import check_dispatch_plan, get_source_dir
-    from .services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME
+    """扫描上游三份输入表是否已在数据中心 / 挂载盘就绪（只读）。
 
-    input_dir = root / "ProjectData" / "Input"
-    source_dir = get_source_dir(root)
-    src = check_dispatch_plan(source_dir)
-    items: list[dict[str, Any]] = [{
-        "id": "src-dispatch_plan",
-        "label": f"源目录·{src.get('label', DISPATCH_PLAN_FILENAME)}",
-        "path": str(src.get("path", "")),
-        "hint": "" if src.get("ok") else "请由上游模块产出并放入源文件目录",
-        "found": bool(src.get("ok")),
-        "matched": DISPATCH_PLAN_FILENAME if src.get("ok") else None,
-    }]
-
-    inp_matches = list(input_dir.glob(DISPATCH_PLAN_FILENAME)) if input_dir.exists() else []
-    items.append({
-        "id": "input-dispatch_plan",
-        "label": f"Input·{DISPATCH_PLAN_FILENAME}",
-        "path": f"ProjectData/Input/{DISPATCH_PLAN_FILENAME}",
-        "hint": "" if inp_matches else "启动后 plan_receive 将从源目录同步",
-        "found": bool(inp_matches),
-        "matched": str(inp_matches[0].relative_to(root)) if inp_matches else None,
-    })
-
+    projectId 经 dc_io 从容器 env `AIDA_PROJECT_ID` 解析（一容器一项目 · runtime-context 注入）。
+    `/files/check` 为泛化端点（固定签名），不逐请求透传 project。
+    """
+    checks = [
+        ("delivery_plan", "交付计划表", dc_paths.delivery_plan_loc(), ("交付计划", "delivery")),
+        ("position_table", "设备位置表", dc_paths.position_loc(), ("设备位置", "位置表", "position")),
+        ("arrival_table", "到货信息表", dc_paths.arrival_loc(), ("到货",)),
+    ]
+    items: list[dict[str, Any]] = []
+    for i, (_key, label, loc, keywords) in enumerate(checks):
+        found, where = dc_io.upstream_exists(loc, None, keywords=keywords)
+        items.append({
+            "id": f"upstream-{i}",
+            "label": label,
+            "path": where,
+            "hint": "" if found else "请由上游模块交付至该位置",
+            "found": found,
+            "matched": where if found else None,
+        })
     found_count = sum(1 for item in items if item["found"])
     return {
-        "ok": bool(src.get("ok")),
+        "ok": found_count == len(items),
         "found_count": found_count,
         "total": len(items),
         "items": items,
         "device_install_root": str(root),
-        "source_dir": src.get("source_dir", ""),
     }
 
 
 def reset_workspace(root: Path) -> dict[str, Any]:
-    """重置会话：清空工作区运行态与产物，保留 Input/ 输入文件。
+    """重置会话：清空本地 scratch 运行态与产物（保留共享上传区）+ 挂载盘降级产物。
 
-    清除 ProjectData 下 Output / RunTime / Start / Images；Input/ 不动。
-    上游源目录 DEVICE_INSTALL_SOURCE_ROOT 不在 work_root 内，不受影响。
+    上游数据在数据中心（不受影响）；DC 无删除接口，产物以重传覆盖。
     """
     root = Path(root).resolve()
-    pd = root / "ProjectData"
     removed: list[str] = []
 
-    def _clear_dir(rel: str) -> None:
-        d = pd / rel
-        if not d.is_dir():
-            return
-        for p in list(d.iterdir()):
-            if p.is_file() and not p.name.startswith("~$"):
+    # 各 run 的 scratch out/state/images
+    for run_dir in root.glob("*"):
+        if not run_dir.is_dir() or run_dir.name == "_uploads" or run_dir.name == "_preview":
+            continue
+        removed.extend(
+            dc_io.clear_run_scratch(root, run_dir.name, subdirs=("out", "state", "images"))
+        )
+
+    # 预览缓存
+    preview = root / "_preview"
+    if preview.is_dir():
+        for p in list(preview.iterdir()):
+            if p.is_file():
                 try:
                     p.unlink()
-                    removed.append(str(p.relative_to(root)))
+                    removed.append(p.name)
                 except OSError:
                     pass
 
-    for sub in ("Output", "RunTime", "Start", "Images"):
-        _clear_dir(sub)
-
-    # 输出目录被 DEVICE_INSTALL_OUTPUT_ROOT 外置（服务器/数据中心落点，
-    # 不在 ProjectData/Output 内）时，单独清理其中的产物文件。
-    from .path_config import get_output_dir
-    out_dir = get_output_dir().resolve()
-    if out_dir != (pd / "Output").resolve() and out_dir.is_dir():
-        for p in list(out_dir.iterdir()):
+    # 挂载盘降级产物目录
+    disk_out = dc_paths.install_output_loc().disk_dir()
+    if disk_out.is_dir():
+        for p in list(disk_out.iterdir()):
             if p.is_file() and not p.name.startswith("~$"):
                 try:
                     p.unlink()
-                    try:
-                        rel = str(p.relative_to(root))
-                    except ValueError:
-                        rel = str(p)
-                    removed.append(rel)
+                    removed.append(p.name)
                 except OSError:
                     pass
 
@@ -157,22 +151,21 @@ def reset_workspace(root: Path) -> dict[str, Any]:
         "ok": True,
         "removed_count": len(removed),
         "removed": removed,
-        "message": "已清空运行态与产物（Input 已保留），可重新启动主建设流程。",
+        "message": "已清空运行态与产物（上游数据保留在数据中心），可重新启动主建设流程。",
     }
 
 
 async def save_upload(root: Path, kind: str, file: UploadFile) -> dict[str, Any]:
-    """单文件落盘：图片 → Images/；其余 → Input/。"""
+    """单文件落盘到共享 scratch 上传区：图片 → images/；其余 → inbox/。"""
     import uuid
 
     if kind == "image":
-        dest_dir = root / "ProjectData" / "Images"
+        dest_dir = dc_io.shared_uploads_dir(root, "images")
         fname = file.filename or f"img-{uuid.uuid4().hex[:8]}.jpg"
     else:
-        dest_dir = root / "ProjectData" / "Input"
+        dest_dir = dc_io.shared_uploads_dir(root, "inbox")
         fname = file.filename or "uploaded.xlsx"
 
-    dest_dir.mkdir(parents=True, exist_ok=True)
     dest = dest_dir / fname
     content = await file.read()
     dest.write_bytes(content)
@@ -180,7 +173,7 @@ async def save_upload(root: Path, kind: str, file: UploadFile) -> dict[str, Any]
         "ok": True,
         "kind": kind,
         "filename": fname,
-        "path": str(dest.relative_to(root)),
+        "path": str(dest),
         "size": len(content),
     }
 

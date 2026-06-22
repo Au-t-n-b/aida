@@ -82,8 +82,11 @@ class PlanAdjustStep(_AuxBase):
     def run(self, ctx: SkillContext, state: SkillState, emit: Emit) -> StepResult:
         if should_skip(self.key, ctx.project):
             return {}
-        emit("[plan_adjust] 如需调整实施计划，请由上游模块重新产出《设备安装实施计划》"
-             "并放入 DEVICE_INSTALL_SOURCE_ROOT，再以 command=build 重新执行主建设流程。")
+        emit(
+            "[plan_adjust] 如需调整实施计划，请由上游重新交付《交付计划表》"
+            "（项目管理/计划/输出结果），必要时同步更新《设备位置表》《到货信息表》，"
+            "再以 command=build 重新执行主建设流程。"
+        )
         m = refresh_task_metrics(ctx)
         m["aux_view"] = "plan_adjust"
         return {"metrics": m}

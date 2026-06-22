@@ -21,7 +21,7 @@ from ._io import (
     find_position_table,
     find_arrival_table,
 )
-from ..path_config import get_output_dir, output_rel
+from .. import dc_io, dc_paths
 from ..services._common import as_str, principal_display_name
 from ..services.edit_fill import fill_tasks_rows
 from ..services.dispatch_plan_parser import DISPATCH_PLAN_FILENAME, save_sn_pool
@@ -64,17 +64,17 @@ def _build_plan_file(tasks: list[dict], ctx: SkillContext) -> tuple[str | None, 
     """生成自包含双 Sheet《设备安装实施计划.xlsx》，返回 (artifact_rel, sn_rows)。"""
     position_path = find_position_table(ctx) or ""
     arrival_path = find_arrival_table(ctx) or ""
-    out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
+    out = dc_io.output_dir(ctx) / DISPATCH_PLAN_FILENAME
     generate_dispatch_plan_with_sn_xlsx(tasks, position_path, arrival_path, str(out))
     sn_rows = build_sn_rows_for_plan(position_path, arrival_path, tasks)
-    rel = output_rel(ctx.work_root, out) if out.exists() else None
+    rel = dc_io.publish_output(ctx, out) if out.exists() else None
     return rel, sn_rows
 
 
 class TasksGenerateStep(BaseStep):
     key = "tasks_generate"
     name = "确认实施计划"
-    artifacts_pattern = [f"ProjectData/Output/{DISPATCH_PLAN_FILENAME}"]
+    artifacts_pattern = [dc_paths.artifact_key(DISPATCH_PLAN_FILENAME)]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -86,8 +86,8 @@ class TasksGenerateStep(BaseStep):
         if not tasks:
             return {
                 "ok": False,
-                "missing": ["ProjectData/Input/交付计划表.xlsx"],
-                "note": "请先完成「生成责任人信息表」。",
+                "missing": [],
+                "note": "请先完成「指派责任人」（或重新启动主建设流程）。",
             }
         rows = _rows_from_tasks(tasks)
         plan_rel, _sn = self._safe_build(tasks, ctx)
@@ -152,8 +152,7 @@ class TasksGenerateStep(BaseStep):
 
         plan_rel, sn_rows = _build_plan_file(tasks, ctx)
         # 落 SN 全量池，供「计划下发」勾选后按管理单元/计划行ID 过滤生成 SN 扫码表
-        out = get_output_dir(ctx.project) / DISPATCH_PLAN_FILENAME
-        save_sn_pool(ctx.runtime_dir / "sn_pool.json", source=str(out), rows=sn_rows)
+        save_sn_pool(dc_io.sn_pool_path(ctx), source=DISPATCH_PLAN_FILENAME, rows=sn_rows)
         emit(
             f"[tasks_generate] ✓ 已生成《设备安装实施计划》共 {len(tasks)} 条"
             f"（在线微调 {changed} 条），SN 全量池 {len(sn_rows)} 台设备"

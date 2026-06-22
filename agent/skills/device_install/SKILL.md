@@ -8,14 +8,13 @@ ui:
   order: 30
   icon: install
   route_key: install
-runtime:
-  workspace_env: DEVICE_INSTALL_ROOT
+runtime: {}
 description: 设备安装（Skill-First · 新范式单流水线）—— 数据中心工程安装全流程编排。主建设流程：解析交付计划表→指派责任人→确认实施计划→计划下发→SN扫码表生成→ESN填写；辅助流：进展反馈/进展查询/计划查询/计划调整/设备总览。当用户说「设备安装 / 责任人信息表 / 实施计划 / 任务下发 / SN扫码表 / ESN / 进展反馈 / 进展查询 / 计划调整 / 设备总览 / 完工清单」等时调用。
 idle_screen:
   icon_key: device_install
   title: 设备安装
   subtitle: 计划下发 · SN扫码 · ESN填写
-  files_hint: 启动前确认文件 · ProjectData/Input/
+  files_hint: 启动前确认上游三份文件 · 见各业务目录（无需上传 Input）
   steps:
     - key: preflight
       name: 环境预检
@@ -97,7 +96,7 @@ idle_screen:
 
 | 方法 | 路径 | 用途 |
 |------|------|------|
-| POST | `/agent/device_install/start`            | 启动 run（body: `{command, project_code, project_name}`） |
+| POST | `/agent/device_install/start`            | 启动 run（body: `{command, project_id(UUID32), project_code, project_name}`） |
 | GET  | `/agent/device_install/stream/{run_id}`  | SSE 实时事件流 |
 | POST | `/agent/device_install/resume`           | HITL 续跑（body: `{run_id, payload: {choice\|rows}}`） |
 | POST | `/agent/device_install/run-patch`        | 运行时补丁（body: `{run_id, payload: {action, rows}}` · 任务进展改百分比，不重跑流水线） |
@@ -107,27 +106,37 @@ idle_screen:
 
 ---
 
-## C. 数据目录结构
+## C. 数据访问（数据中心 API 化）
+
+业务数据一律走**数据中心 HTTP API**（语义寻址 `moduleCode`+`fileStage`+`projectId`，见 `dc_paths.py` / `dc_io.py`）。
+DC 不可达时降级到挂载盘 `{AIDA_BUSINESS_ROOT}/project/<域>/<模块>/<阶段>/`；二者都失败才报缺料。
+`projectId` **只认 UUID32**（数据中心语义寻址主键 · API 规范 §3.1/§5.2）。来源优先级：
+`/start` 载荷 `project_id`(UUID32) → 容器 env `AIDA_PROJECT_ID`。生产由 Manager 经
+`POST /api/v1/projects/runtime-context` 注入容器 env（`AIDA_PROJECT_ID`/`PROJ_ROOT`/`ORG_ROOT`），
+一容器一项目；`project_code`（如 K1903）仅作业务展示，**不参与寻址**。`/files/check`、`/artifact`
+为泛化端点，projectId 取自容器 env（不逐请求透传）。
 
 ```
-# 输入文件（ProjectData/Input/，上游交付）：
-#   交付计划表.xlsx（必需 · 数据中心导出，含 7.x 安装活动）
-#   建模仿真输出文档-设备位置表.xlsx（SN 扫码表来源）
-#   到货信息表.xlsx（设备大类映射）
+# 上游读取（3 表 · 语义键）
+#   《交付计划表》 → moduleCode=pm-plan     · fileStage=输出结果
+#   《到货信息表》 → moduleCode=pm-plan     · fileStage=输入文件
+#   《设备位置表》 → moduleCode=ops-design  · fileStage=输出结果 · folderSubPath=建模仿真
 
-# 作业产物输出目录（DEVICE_INSTALL_OUTPUT_ROOT）：
-#   下发后实施计划 / 全量任务 / 责任人表 / SN扫码表 / 完工清单·报告
-#   未配置时默认 = <work_root>/ProjectData/Output/
-#   指向 ProjectData/Output 之外（如数据中心 .../交付作业/设备安装/输出结果）时，
-#   文件按指定目录落盘，但网页端 /artifact 在线下载/预览失效（数据中心直接读盘）。
+# 作业产物写出（本模块）
+#   责任人信息表 / 设备安装实施计划 / SN扫码表 / 完工清单 / 完工报告
+#     → moduleCode=ops-install · fileStage=输出结果
+#   SDUI / /artifact 逻辑键： ops-install/输出结果/<文件名>
 
-# 工作区（DEVICE_INSTALL_ROOT）：运行态与产物
-ProjectData/
-  Input/    ← 上游交付计划表 / 设备位置表 / 到货信息表
-  Output/   ← 作业产物（DEVICE_INSTALL_OUTPUT_ROOT 未配置时的默认落点）
-  RunTime/  ← tasks_state.json / sn_pool.json（全量 SN）/ sn_tables.json（勾选后）
-  Images/   ← 现场照片（可选）
+# 本地 scratch（业务树之外，不进数据中心）：
+#   {AIDA_SCRATCH_DIR | agent/runtime/scratch}/device_install/<run_id>/
+#     inbox/  ← 上游下载缓冲     out/    ← 产物生成缓冲（生成后 publish_output 上传 DC）
+#     state/  ← tasks_state.json / sn_pool.json / sn_tables.json（运行态）
+#     images/ ← 现场照片
+#   _uploads/  ← HITL /upload 落点（run 内 fetch 一并扫描）
 ```
+
+环境：`DATA_CENTER_BASE_URL`（必填，本地 mock：`python agent/.local/mock_datacenter.py`）+ `AIDA_PROJECT_ID`（UUID32 · 本地单项目；生产经 runtime-context 注入）；
+可选 `AIDA_BUSINESS_ROOT`（挂载盘降级根）、`AIDA_SCRATCH_DIR`（scratch 根）、`DATA_CENTER_TOKEN`（§1.5 机机内网可空）。
 
 ---
 

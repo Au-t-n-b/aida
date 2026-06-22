@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from ..base import SkillContext
+from . import dc_io
 from .pipeline import DI_STEP_NAMES, DI_STEP_ORDER
 from .steps.task_dispatch import TaskDispatchStep
 from .steps.esn_fill import EsnFillStep
@@ -81,9 +82,13 @@ def _ctx(work_root: Path, run_state: dict[str, Any]) -> SkillContext:
     )
 
 
-def _revert_dispatch_batch(work_root: Path) -> int:
+def _tasks_state_path(work_root: Path, run_id: str) -> Path:
+    return dc_io.runtime_dir_for(work_root, run_id) / "tasks_state.json"
+
+
+def _revert_dispatch_batch(work_root: Path, run_id: str) -> int:
     """将上一轮下发批次的任务恢复为「待下发」，便于重新勾选。"""
-    path = work_root / "ProjectData" / "RunTime" / "tasks_state.json"
+    path = _tasks_state_path(work_root, run_id)
     st = load_tasks_state(str(path))
     tasks = [t for t in st.get("tasks", []) if isinstance(t, dict)]
     batch_ids = {
@@ -105,19 +110,14 @@ def _revert_dispatch_batch(work_root: Path) -> int:
     return n
 
 
-def _clear_downstream_artifacts(work_root: Path) -> None:
-    runtime = work_root / "ProjectData" / "RunTime"
-    output = work_root / "ProjectData" / "Output"
-    sn_meta = runtime / "sn_tables.json"
+def _clear_downstream_artifacts(work_root: Path, run_id: str) -> None:
+    sn_meta = dc_io.runtime_dir_for(work_root, run_id) / "sn_tables.json"
     if sn_meta.is_file():
         sn_meta.unlink()
-    if output.is_dir():
-        for pat in ("SN扫码表_*.xlsx", "完工清单_*.xlsx", "设备安装完工报告.xlsx"):
-            for f in output.glob(pat):
-                try:
-                    f.unlink()
-                except OSError:
-                    pass
+    dc_io.clear_output_patterns(
+        work_root, run_id,
+        ("SN扫码表_*.xlsx", "完工清单_*.xlsx", "设备安装完工报告.xlsx"),
+    )
 
 
 def _prepare_project_for_target(project: dict[str, Any], target: str) -> dict[str, Any]:
@@ -179,8 +179,9 @@ def apply_go_back(work_root: Path, run_state: dict[str, Any]) -> dict[str, Any]:
     project = _prepare_project_for_target(run_state.get("project") or {}, target)
     run_state["project"] = project
 
-    reverted = _revert_dispatch_batch(work_root)
-    _clear_downstream_artifacts(work_root)
+    run_id = run_state.get("run_id") or ""
+    reverted = _revert_dispatch_batch(work_root, run_id)
+    _clear_downstream_artifacts(work_root, run_id)
 
     ctx = _ctx(work_root, run_state)
     ctx.project = project
@@ -200,7 +201,7 @@ def apply_go_back(work_root: Path, run_state: dict[str, Any]) -> dict[str, Any]:
     )
 
     # 刷新聚合 metrics（任务进展表等）
-    ts_path = work_root / "ProjectData" / "RunTime" / "tasks_state.json"
+    ts_path = _tasks_state_path(work_root, run_id)
     st = load_tasks_state(str(ts_path))
     tasks = [t for t in (st.get("tasks") or []) if isinstance(t, dict)]
     summary = task_summary(tasks, state=st)

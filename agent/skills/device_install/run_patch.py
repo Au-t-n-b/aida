@@ -9,6 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from . import dc_io
 from .services.task_store import patch_task_progress as _patch_task_progress
 
 
@@ -24,7 +25,8 @@ def merge_run_patch(work_root: Path, run_state: dict[str, Any], payload: dict[st
 
 
 def _merge_task_progress(work_root: Path, run_state: dict[str, Any], rows: list) -> dict[str, Any]:
-    path = work_root / "ProjectData" / "RunTime" / "tasks_state.json"
+    run_id = run_state.get("run_id") or ""
+    path = dc_io.runtime_dir_for(work_root, run_id) / "tasks_state.json"
     metrics = _patch_task_progress(str(path), rows if isinstance(rows, list) else [])
     for s in run_state.get("steps") or []:
         if isinstance(s, dict):

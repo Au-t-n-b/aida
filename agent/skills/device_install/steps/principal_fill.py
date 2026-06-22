@@ -15,7 +15,7 @@ from __future__ import annotations
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import tasks_state_path, refresh_task_metrics, load_or_parse_delivery_tasks
-from ..path_config import get_output_dir, output_rel
+from .. import dc_io, dc_paths
 from ..services._common import as_str, principal_display_name
 from ..services.table_builder import generate_principal_table_by_activity
 from ..services.task_store import load_tasks_state, save_tasks_state, iso_now
@@ -69,15 +69,20 @@ def _rows_by_activity(tasks: list[dict], *, filled: bool) -> list[dict]:
 
 
 def _write_principal_table(rows: list[dict], ctx: SkillContext, filename: str) -> str | None:
-    out = get_output_dir(ctx.project) / filename
+    out = dc_io.output_dir(ctx) / filename
     generate_principal_table_by_activity(rows, str(out))
-    return output_rel(ctx.work_root, out) if out.exists() else None
+    if not out.exists():
+        return None
+    # 模板仅预览（scratch 内可解析），正式责任人信息表上传数据中心
+    if "模板" in filename:
+        return dc_paths.artifact_key(filename)
+    return dc_io.publish_output(ctx, out, display_name=filename)
 
 
 class PrincipalFillStep(BaseStep):
     key = "principal_fill"
     name = "指派责任人"
-    artifacts_pattern = ["ProjectData/Output/责任人信息表.xlsx"]
+    artifacts_pattern = [dc_paths.artifact_key("责任人信息表.xlsx")]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
@@ -89,13 +94,14 @@ class PrincipalFillStep(BaseStep):
         try:
             tasks = load_or_parse_delivery_tasks(ctx)
         except RuntimeError as e:
+            return {"ok": False, "missing": [], "note": str(e)}
+        if not tasks:
+            loc = dc_paths.delivery_plan_loc()
             return {
                 "ok": False,
-                "missing": ["ProjectData/Input/交付计划表.xlsx"],
-                "note": str(e),
+                "missing": [],
+                "note": f"未从《交付计划表》解析到安装任务，请检查 {loc.describe()} 内文件格式。",
             }
-        if not tasks:
-            return {"ok": False, "missing": ["ProjectData/Input/交付计划表.xlsx"]}
 
         rows = _rows_by_activity(tasks, filled=False)
         fill_rows = _rows_by_activity(tasks, filled=True)

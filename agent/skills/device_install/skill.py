@@ -60,11 +60,18 @@ class DeviceInstallSkill(BaseSkill):
     step_retry_keys: list[str] = []
     file_handler = _di_files
 
+    def prepare_work_root(self) -> None:
+        """业务数据走数据中心 API + 本地 scratch（按需创建），不建框架默认子目录。"""
+        return None
+
     def initial_project(self, payload: dict[str, Any]) -> dict[str, Any]:
         p = dict(payload or {})
         if p.pop("reset_workspace", None):
             summary = _di_files.reset_workspace(self.work_root)
             p["_last_reset"] = summary
+        # projectId 为数据中心语义寻址主键（UUID32）；生产由 Manager 经 runtime-context 注入，
+        # 本地/前端经 /start 载荷 project_id 透传。project_code 仅作业务展示，不参与寻址。
+        p.setdefault("project_id", "")
         p.setdefault("project_code", "")
         p.setdefault("project_name", "")
         p.setdefault("command", "build")

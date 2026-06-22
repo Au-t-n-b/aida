@@ -59,6 +59,7 @@ export function useCurrentProject(): CurrentProjectContextValue {
 
 import { DEFAULT_PROJECT_NAME } from '@/data/project-paths';
 import { PROJECT_LIST_MINI } from '@/data/topbar-projects';
+import { DEV_MOCK_PROJECT, isDevLocalAuthEnabled } from './dev-local-auth';
 
 /** 启动 Agent run 时写入 project 的项目名 / 编码（与 TopBar 当前项目对齐）。 */
 export function resolveAgentStartProject(
@@ -74,6 +75,20 @@ export function resolveAgentStartProject(
     || 'K1903'
   ).trim();
   return { project_name: name, project_code: code };
+}
+
+/** UUID32：32 位十六进制（无连字符）；亦兼容带连字符 UUID（去字符后判定）。 */
+const UUID32_RE = /^[0-9a-f]{32}$/i;
+
+/**
+ * 从当前项目解析数据中心 projectId（**只认 UUID32**）。
+ *
+ * 数据中心语义寻址（API 规范 §3.1/§5.2）要求 projectId 为 UUID32；业务短码（如 K1903）
+ * 不是寻址键。无合法 UUID32 时返回 `null`（本地单项目由后端 `AIDA_PROJECT_ID` env 兜底）。
+ */
+export function resolveAgentProjectId(project: CurrentProject | null): string | null {
+  const raw = (project?.id || '').trim().replace(/-/g, '');
+  return UUID32_RE.test(raw) ? raw.toLowerCase() : null;
 }
 
 /** 从编码字段推导业务短 id（如 PROP-2026-K1903 → K1903）。 */
@@ -93,9 +108,12 @@ function readStoredProject(): CurrentProject | null {
   if (typeof window === 'undefined') return null;
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as CurrentProject) : null;
+    if (!raw) {
+      return isDevLocalAuthEnabled() ? DEV_MOCK_PROJECT : null;
+    }
+    return JSON.parse(raw) as CurrentProject;
   } catch {
-    return null;
+    return isDevLocalAuthEnabled() ? DEV_MOCK_PROJECT : null;
   }
 }
 

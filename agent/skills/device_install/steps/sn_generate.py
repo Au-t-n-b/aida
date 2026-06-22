@@ -13,7 +13,7 @@ import json
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit, CheckResult
 from ._command_guard import should_skip
 from ._io import refresh_task_metrics, tasks_state_path, staged_cold_start_pace, SN_GENERATE_PACE_SEC
-from ..path_config import get_output_dir, output_rel
+from .. import dc_io, dc_paths
 from ..services._common import as_str
 from ..services.dispatch_plan_parser import (
     load_sn_pool, group_sn_rows_to_tables, filter_sn_pool_by_dispatch, plan_row_ids_for_task,
@@ -25,17 +25,17 @@ from ..services.task_store import load_tasks_state
 class SnGenerateStep(BaseStep):
     key = "sn_generate"
     name = "SN扫码表生成"
-    artifacts_pattern = ["ProjectData/Output/SN扫码表_*.xlsx"]
+    artifacts_pattern = [f"{dc_paths.ARTIFACT_PREFIX}/SN扫码表_*.xlsx"]
 
     def check_inputs(self, ctx: SkillContext) -> CheckResult:
         if should_skip(self.key, ctx.project):
             return {"ok": True, "missing": []}
-        pool_path = ctx.runtime_dir / "sn_pool.json"
+        pool_path = dc_io.sn_pool_path(ctx)
         if not pool_path.is_file():
             return {
                 "ok": False,
-                "missing": ["ProjectData/RunTime/sn_pool.json"],
-                "note": "缺少 SN 全量池，请先完成「生成设备安装实施计划」。",
+                "missing": [],
+                "note": "缺少 SN 全量池，请先完成「确认实施计划」。",
             }
         return {"ok": True, "missing": []}
 
@@ -66,7 +66,7 @@ class SnGenerateStep(BaseStep):
             metrics.update(refresh_task_metrics(ctx))
             return {"metrics": metrics}
 
-        pool_path = ctx.runtime_dir / "sn_pool.json"
+        pool_path = dc_io.sn_pool_path(ctx)
         all_sn = load_sn_pool(pool_path)
         filtered, used_task_level = filter_sn_pool_by_dispatch(dispatch_tasks, all_sn)
         dispatched_units = {
@@ -85,8 +85,7 @@ class SnGenerateStep(BaseStep):
                      f"{'…' if len(dispatched_units) > 4 else ''}）"
             )
             emit(f"[sn_generate] SN 全量池中未匹配到{scope_label}，跳过 SN 扫码表生成")
-            meta_path = ctx.runtime_dir / "sn_tables.json"
-            ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+            meta_path = dc_io.sn_tables_path(ctx)
             meta_path.write_text(
                 json.dumps({"dispatch_tasks": dispatch_tasks, "tables": []}, ensure_ascii=False, indent=2),
                 encoding="utf-8",
@@ -98,8 +97,7 @@ class SnGenerateStep(BaseStep):
         tables = group_sn_rows_to_tables(filtered)
         if not tables:
             emit("[sn_generate] 过滤后无 SN 设备行，跳过 SN 扫码表生成")
-            meta_path = ctx.runtime_dir / "sn_tables.json"
-            ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+            meta_path = dc_io.sn_tables_path(ctx)
             meta_path.write_text(
                 json.dumps({"dispatch_tasks": dispatch_tasks, "tables": []}, ensure_ascii=False, indent=2),
                 encoding="utf-8",
@@ -110,12 +108,11 @@ class SnGenerateStep(BaseStep):
 
         artifacts: list[str] = []
         for tbl in tables:
-            out = generate_sn_xlsx(tbl, str(get_output_dir(ctx.project)))
+            out = generate_sn_xlsx(tbl, str(dc_io.output_dir(ctx)))
             if out:
-                artifacts.append(output_rel(ctx.work_root, out))
+                artifacts.append(dc_io.publish_output(ctx, out))
 
-        meta_path = ctx.runtime_dir / "sn_tables.json"
-        ctx.runtime_dir.mkdir(parents=True, exist_ok=True)
+        meta_path = dc_io.sn_tables_path(ctx)
         meta_path.write_text(
             json.dumps(
                 {"dispatch_tasks": dispatch_tasks, "tables": tables},

@@ -10,7 +10,7 @@
  * 设计沿用 aida 浅色 token，不照搬 nanobot 深色主题。
  */
 import { useEffect, useState } from 'react';
-import { ensureAgentBase, artifactUrl } from '@/lib/agentBase';
+import { ensureAgentBase, artifactUrl, artifactDisplayName, normalizeArtifactPath } from '@/lib/agentBase';
 
 // 仅声明本组件实际调用的 API，避免依赖 xlsx/mammoth 自带类型（库未安装时也能编译）。
 interface XlsxLike {
@@ -59,7 +59,8 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
   const [errMsg, setErrMsg] = useState('');
   const [agentBase, setAgentBase] = useState('');
 
-  const fileName = path ? (path.split('/').pop() ?? path) : '';
+  const apiPath = path ? normalizeArtifactPath(path) : '';
+  const fileName = path ? artifactDisplayName(path) : '';
   const ext = (fileName.split('.').pop() ?? '').toLowerCase();
   const isImage = ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'gif' || ext === 'webp';
 
@@ -81,7 +82,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
         const fetchBase = import.meta.env.DEV ? '' : await ensureAgentBase(skillId);
         const dlBase = fetchBase || await ensureAgentBase(skillId);
         if (!cancelled) setAgentBase(dlBase);
-        const res = await fetch(artifactUrl(fetchBase, skillId, path));
+        const res = await fetch(artifactUrl(fetchBase, skillId, apiPath));
         if (!res.ok) throw new Error(`加载失败 (${res.status})`);
 
         if (ext === 'xlsx' || ext === 'xls' || ext === 'xlsm') {
@@ -200,7 +201,7 @@ export function SduiPreviewModal({ skillId, path, onClose }: Props) {
             {fileName}
           </span>
           <a
-            href={agentBase ? artifactUrl(agentBase, skillId, path) : '#'}
+            href={agentBase ? artifactUrl(agentBase, skillId, apiPath) : '#'}
             download={fileName}
             style={{
               padding: '5px 12px', borderRadius: 'var(--radius-md)',

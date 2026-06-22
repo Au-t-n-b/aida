@@ -1,8 +1,8 @@
-"""设备安装全流程自验证（临时用 DEVICE_INSTALL_SOURCE_ROOT，不改 path_config 代码）。
+"""设备安装全流程自验证（可用 env 覆盖三个上游目录或统一 DEVICE_INSTALL_SOURCE_ROOT）。
 
 用法（PowerShell）:
   $env:PYTHONPATH = "d:\\aida-feature_new\\aida"
-  $env:DEVICE_INSTALL_SOURCE_ROOT = "C:\\Users\\...\\ProjectData\\Input"
+  $env:DEVICE_INSTALL_SOURCE_ROOT = "C:\\Users\\...\\ProjectData\\Input"  # 交付计划表目录
   $env:DEVICE_INSTALL_ROOT = "C:\\Users\\...\\device_install"
   python agent/evals/verify_device_install_flow.py
 """
@@ -20,7 +20,7 @@ if str(_ROOT) not in sys.path:
 os.chdir(_AGENT)
 
 from agent.skills.base import SkillContext
-from agent.skills.device_install.path_config import resolve_upstream_input_dir
+from agent.skills.device_install import dc_paths
 from agent.skills.device_install.pipeline import DI_STEP_NAMES
 from agent.skills.device_install.sdui import project as sdui_project
 from agent.skills.device_install.skill import get_device_install_skill
@@ -100,24 +100,18 @@ def _assert(cond: bool, msg: str) -> None:
 
 
 def main() -> int:
-    source = os.environ.get("DEVICE_INSTALL_SOURCE_ROOT", "").strip()
-    work = os.environ.get("DEVICE_INSTALL_ROOT", "").strip()
-    if not source or not work:
-        print("FAIL: set DEVICE_INSTALL_SOURCE_ROOT and DEVICE_INSTALL_ROOT")
+    # 数据中心 API 化：业务数据走 DATA_CENTER_BASE_URL；本地验证可用挂载盘降级
+    # （AIDA_BUSINESS_ROOT/project/... 放入上游三表）。需任一可达。
+    dc = os.environ.get("DATA_CENTER_BASE_URL", "").strip()
+    biz = os.environ.get("AIDA_BUSINESS_ROOT", "").strip()
+    if not dc and not biz:
+        print("FAIL: set DATA_CENTER_BASE_URL（推荐 mock）或 AIDA_BUSINESS_ROOT（挂载盘降级）")
         return 1
 
-    source_p = Path(source).resolve()
-    work_p = Path(work).resolve()
-    _assert(source_p.is_dir(), f"source dir missing: {source_p}")
-    _assert(work_p.is_dir(), f"work root missing: {work_p}")
-
-    # 路径契约：仅 env 覆盖，resolve 逻辑不变
-    resolved = resolve_upstream_input_dir({}).resolve()
-    _assert(resolved == source_p, f"path mismatch: {resolved} != {source_p}")
-    print(f"[OK] path unchanged (env override): {resolved}")
+    loc = dc_paths.delivery_plan_loc()
+    print(f"[OK] 上游交付计划表语义位置: {loc.describe()}（挂载盘降级: {loc.disk_dir()}）")
 
     skill = get_device_install_skill()
-    skill.work_root = work_p
     project = skill.initial_project(
         {"command": "build", "project_name": "flow-verify", "reset_workspace": True}
     )
@@ -142,7 +136,7 @@ def main() -> int:
     PreflightStep().run(ctx, {}, logs.append)
     for token in (
         "正在扫描设备安装环境",
-        "正在校验上游交付计划表",
+        "正在校验三个上游输入文件",
         "交付计划表",
         "设备位置表",
         "到货信息表",

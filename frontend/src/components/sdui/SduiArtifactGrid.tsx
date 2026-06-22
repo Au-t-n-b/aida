@@ -7,7 +7,7 @@ import { useRef } from 'react';
 import { useSduiRuntime } from './SduiContext';
 import type { SduiArtifactItem, SduiArtifactKind } from '@/lib/sdui';
 
-import { agentBaseSync } from '@/lib/agentBase';
+import { agentBaseSync, artifactUrl as buildArtifactUrl, normalizeArtifactPath } from '@/lib/agentBase';
 
 const AGENT_BASE = agentBaseSync();
 
@@ -28,7 +28,11 @@ function kindToExt(kind?: SduiArtifactKind, label?: string): string {
 }
 
 function artifactUrl(skillId: string | undefined, path: string): string {
-  return `${AGENT_BASE}/agent/${skillId ?? ''}/artifact?path=${encodeURIComponent(path)}`;
+  return buildArtifactUrl(AGENT_BASE, skillId ?? 'device_install', path);
+}
+
+function previewPath(path: string): string {
+  return normalizeArtifactPath(path);
 }
 
 // ── input 模式：紧凑卡 ──────────────────────────────────────────────────────────
@@ -40,7 +44,7 @@ function InputCard({ item, index }: { item: SduiArtifactItem; index: number }) {
   return (
     <div
       title={item.label}
-      onClick={() => item.path && !isGenerating && onAction({ kind: 'open_preview', path: item.path })}
+      onClick={() => item.path && !isGenerating && onAction({ kind: 'open_preview', path: previewPath(item.path) })}
       style={{
         display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px',
         background: 'var(--zinc-100)', borderRadius: 'var(--radius-md)',
@@ -154,7 +158,7 @@ function OutputRow({ item, index }: { item: SduiArtifactItem; index: number }) {
       {!isGenerating && (
         <div style={{ flexShrink: 0, display: 'flex', gap: 6 }}>
           {item.path && (
-            <button style={btn} onClick={() => onAction({ kind: 'open_preview', path: item.path })}>预览</button>
+            <button style={btn} onClick={() => onAction({ kind: 'open_preview', path: previewPath(item.path) })}>预览</button>
           )}
           <button style={btn} disabled={!canOverride} onClick={() => canOverride && fileRef.current?.click()}>上传覆盖</button>
           {item.path && (
