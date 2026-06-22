@@ -1,4 +1,4 @@
-"""交付预案 · 数据中心表格读写与解析（第 9–12 章）。"""
+"""交付预案 · 数据中心表格读写与解析（第 9–12 章兼容层；主链路见 proposal/draft）。"""
 from __future__ import annotations
 
 import logging
@@ -72,7 +72,7 @@ class SyncBody(BaseModel):
 
 @router.post("/sync")
 async def sync_local_files(body: SyncBody, authorization: str | None = Header(default=None)):
-    """进入交付预案时：检查本地 mock 目录，缺失则从数据中心下载到固定路径。"""
+    """兼容：进入交付预案时预拉 slot 文件；主数据请读 /projects/{id}/proposal/draft。"""
     token = _extract_token(authorization)
     slots = body.slots or sorted(READ_SLOTS)
     unknown = [s for s in slots if s not in READ_SLOTS]
@@ -99,6 +99,7 @@ async def sync_local_files(body: SyncBody, authorization: str | None = Header(de
 
 @router.post("/tables/read")
 async def read_table(body: ReadTableBody, authorization: str | None = Header(default=None)):
+    """兼容只读：从 slot 读取历史输出；草稿请读 /projects/{id}/proposal/draft。"""
     if body.slot not in READ_SLOTS:
         raise HTTPException(400, f"unsupported slot: {body.slot}")
     token = _extract_token(authorization)
@@ -140,6 +141,7 @@ class WriteTableBody(BaseModel):
 
 @router.post("/tables/write")
 async def write_table(body: WriteTableBody, authorization: str | None = Header(default=None)):
+    """兼容旧前端 slot 写入；新代码请使用 PUT /api/v1/projects/{id}/proposal/draft。"""
     if body.slot not in WRITE_SLOTS:
         raise HTTPException(400, f"unsupported slot: {body.slot}")
     token = _extract_token(authorization)

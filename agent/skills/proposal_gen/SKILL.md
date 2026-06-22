@@ -8,8 +8,7 @@ ui:
   order: 20
   icon: proposal
   route_key: proposal_gen
-runtime:
-  workspace_env: PROPOSAL_GEN_ROOT
+runtime: {}
 description: 早期介入·交付预案生成（early.proposal.table_gen）。读取合同 BOQ 解析结果，解析技术建议书与测试用例，组装设备信息表等各章并落盘。当用户提到交付预案生成、设备信息表、验收策略、测试用例提取时触发。
 ---
 

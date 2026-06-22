@@ -1,5 +1,7 @@
 /**
- * 交付预案 · 数据加载/缓存/筛选/保存（数据中心优先，mock 降级由后端处理）
+ * 交付预案 · 数据加载/缓存/筛选/保存
+ * 主写入链路：PUT /api/v1/projects/{id}/proposal/draft（见 proposal-api.ts）
+ * 读取兼容：仍可从 slot 适配层拉取历史输出（只读）
  */
 import type { ProjectDataContext } from '@/lib/datacenter/types';
 import type {
@@ -16,7 +18,6 @@ import {
   asRaciRows,
   asTestCases,
   fetchTableSlot,
-  writeTableSlot,
   parseTestcasesUpload,
 } from '@/lib/xlsx-io';
 
@@ -479,11 +480,15 @@ export function setAcceptanceCache(projectName: string, items: AcceptanceItem[])
 }
 
 export async function saveRaciTable(
-  ctx: ProjectDataContext,
-  rows: RaciRow[],
+  _ctx: ProjectDataContext,
+  _rows: RaciRow[],
   version: number,
 ): Promise<void> {
-  await writeTableSlot(ctx, 'raci_out', 'raci', ctx.projectName, version, rows);
+  /** @deprecated 写入请走 proposal-screen → saveDraft；此处仅更新本地版本号 */
+  setStoredVersions(_ctx.projectName, {
+    ...getStoredVersions(_ctx.projectName),
+    raci: version,
+  });
 }
 
 export async function saveAcceptanceTable(
@@ -491,7 +496,11 @@ export async function saveAcceptanceTable(
   items: AcceptanceItem[],
   version: number,
 ): Promise<void> {
-  await writeTableSlot(ctx, 'acceptance_out', 'acceptance', ctx.projectName, version, items);
+  setAcceptanceCache(ctx.projectName, items);
+  setStoredVersions(ctx.projectName, {
+    ...getStoredVersions(ctx.projectName),
+    acceptance: version,
+  });
 }
 
 export async function saveTestCasesTable(
@@ -501,12 +510,12 @@ export async function saveTestCasesTable(
   keyOf: (c: AcceptanceTestCase, i: number) => string,
   version: number,
 ): Promise<void> {
-  const rows: SavedTestCaseRow[] = cases.map((c, i) => ({
-    ...c,
-    selected: selectedKeys.has(keyOf(c, i)),
-  }));
-  await writeTableSlot(ctx, 'testcases_out', 'testcases', ctx.projectName, version, rows);
   setTestCasesSessionCache(ctx.projectName, cases, selectedKeys);
+  setStoredVersions(ctx.projectName, {
+    ...getStoredVersions(ctx.projectName),
+    testCases: version,
+  });
+  void keyOf;
 }
 
 export function buildProjectDataContext(params: {

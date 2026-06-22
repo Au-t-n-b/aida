@@ -1,5 +1,6 @@
 /**
- * 交付预案 · xlsx 行映射 + 表格 IO（经数据中心 API）
+ * 交付预案 · xlsx 行映射 + 表格 IO
+ * 主写入已迁移至 proposal-api saveDraft；writeTableSlot 仅保留兼容导入场景。
  */
 import type {
   AcceptanceItem,
@@ -94,10 +95,11 @@ export async function writeTableSlot(
   ctx: ProjectDataContext,
   slot: 'raci_out' | 'acceptance_out' | 'testcases_out',
   kind: 'raci' | 'acceptance' | 'testcases',
-  projectName: string,
+  _projectName: string,
   version: number,
   rows: RaciRow[] | AcceptanceItem[] | SavedTestCaseRow[],
 ) {
+  /** @deprecated 请使用 proposal-api saveDraft；兼容旧脚本/导入仍可调 writeProposalTable */
   return writeProposalTable(ctx, slot, kind, rows, version);
 }
 

@@ -113,8 +113,6 @@ export default function ProposalScreen() {
     updateRaci,
     refreshAcceptance,
     updateTestCaseSelection,
-    saveDraftTables,
-    saveAndConfirmTables,
     setDirty: setTableDirty,
   } = useProposalData();
 
@@ -534,7 +532,6 @@ export default function ProposalScreen() {
     void (async () => {
       try {
         const result = await saveDraftWithEtagRetry();
-        await saveDraftTables();
         setDirty(false);
         setTableDirty(false);
         setEtag(result.etag);
@@ -571,7 +568,7 @@ export default function ProposalScreen() {
         saveInFlightRef.current = false;
       }
     })();
-  }, [fireDocToast, headers, isEditable, manifest, metadata, projectId, saveDraftTables, saveDraftWithEtagRetry, setTableDirty]);
+  }, [fireDocToast, headers, isEditable, manifest, metadata, projectId, saveDraftWithEtagRetry, setTableDirty]);
 
   const handleConfirm = useCallback(async () => {
     if (!isEditable) {
@@ -581,7 +578,6 @@ export default function ProposalScreen() {
     setActionBusy(true);
     try {
       await saveDraftWithEtagRetry();
-      await saveAndConfirmTables();
       await releaseAndDecide(projectId, headers, {
         changeRecords: manualLogToChangeRecords(manualChangeLog),
       });
@@ -597,7 +593,7 @@ export default function ProposalScreen() {
       requestTwinAutoBuild();
       workspaceNavigate(navigate, '/twin?view=build', location.pathname);
     }
-  }, [fireDocToast, headers, isEditable, location.pathname, manualChangeLog, navigate, projectId, saveAndConfirmTables, saveDraftWithEtagRetry]);
+  }, [fireDocToast, headers, isEditable, location.pathname, manualChangeLog, navigate, projectId, saveDraftWithEtagRetry]);
 
   const upsertDraftChapterRows = useCallback(
     (chapterKey: string, chapterTitle: string, rows: Array<Record<string, unknown>>) => {

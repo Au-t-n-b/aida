@@ -1,6 +1,7 @@
 """Chapter 2 设备配置信息 — business logic."""
 from __future__ import annotations
 
+import io
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -22,11 +23,12 @@ from agent.proposal.draft_store import (
     assert_draft_editable,
     load_chapter_02,
     manifest_activity_fields,
-    product_basic_info_path,
     save_chapter_02_draft,
     touch_draft_manifest,
 )
+from agent.proposal.dc_store import get_dc_token, read_bytes
 from agent.proposal.errors import ProposalApiError
+from agent.services.dc_path_mapper import org_assets_relative
 from agent.proposal.models import DataSource, DeviceInfoRow, PatchDeviceInfoBody
 
 
@@ -62,34 +64,9 @@ def _load_all_rows(project_id: str, version: str) -> list[dict[str, Any]]:
     return list(payload.get("rows") or [])
 
 
-def _candidate_product_basic_files(project_id: str) -> list[Path]:
-    base = product_basic_info_path(project_id)
-    candidates = [
-        base.with_suffix(".xlsx"),
-        base / "产品基本信息表.xlsx",
-        base / "records.xlsx",
-    ]
+def _parse_u_height_workbook(content: bytes) -> tuple[dict[str, float], bool]:
     try:
-        from agent.config import BUSINESS_ROOT
-
-        candidates.extend(
-            [
-                BUSINESS_ROOT / "组织资产" / "产品基本信息表.xlsx",
-                BUSINESS_ROOT / "组织资产" / "产品基本信息表" / "产品基本信息表.xlsx",
-            ]
-        )
-    except Exception:
-        pass
-    return candidates
-
-
-def _load_u_height_by_model(project_id: str) -> tuple[dict[str, float], bool]:
-    path = next((p for p in _candidate_product_basic_files(project_id) if p.exists()), None)
-    if path is None:
-        return {}, True
-
-    try:
-        wb = load_workbook(path, read_only=True, data_only=True)
+        wb = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
         wb.close()
@@ -131,6 +108,21 @@ def _load_u_height_by_model(project_id: str) -> tuple[dict[str, float], bool]:
     return result, False
 
 
+def _load_u_height_by_model(project_id: str) -> tuple[dict[str, float], bool]:
+    del project_id
+    for rel in (
+        "org-assets/产品基本信息表.xlsx",
+        "org-assets/产品基本信息表/产品基本信息表.xlsx",
+    ):
+        mapped = org_assets_relative(rel)
+        if not mapped or not mapped.ref.file_name:
+            continue
+        raw = read_bytes(mapped.ref)
+        if raw:
+            return _parse_u_height_workbook(raw)
+    return {}, True
+
+
 def _row_needs_enrichment(row: dict[str, Any]) -> bool:
     product_name = str(row.get("pbiProductName") or row.get("deviceModel") or "")
     if not product_name:
@@ -160,7 +152,7 @@ def _enrich_rows(
     if u_missing:
         dependencies.append({
             "code": "SYS_DEPENDENCY",
-            "message": "组织资产/产品基本信息表.xlsx 不可用，设备U高未补全",
+            "message": "org-assets/产品基本信息表.xlsx 不可用，设备U高未补全",
         })
     for row in rows:
         model = str(row.get("deviceModel") or "")

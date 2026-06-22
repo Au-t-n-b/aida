@@ -1,14 +1,18 @@
 """Unified storage for 预案版本信息表 (draft row + version snapshots)."""
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 from typing import Any
 
 from openpyxl import Workbook, load_workbook
 
+from agent.proposal.dc_store import get_dc_token, write_bytes
 from agent.proposal.draft_store import physical_project_root, save_json, load_json, _ensure_parent
+from agent.proposal.errors import ProposalApiError
 from agent.constants.project_paths import proposal_paths
+from agent.services.dc_path_mapper import map_project_relative
 
 RECORDS_FILE = "records.json"
 XLSX_FILE = "预案版本信息表.xlsx"
@@ -111,7 +115,6 @@ def sync_xlsx(project_id: str) -> Path:
     """Rewrite xlsx from records.json (draft first, then snapshots in order)."""
     store = load_store(project_id)
     path = xlsx_path(project_id)
-    _ensure_parent(path)
 
     wb = Workbook()
     ws = wb.active
@@ -125,7 +128,19 @@ def sync_xlsx(project_id: str) -> Path:
     for snap in store.get("snapshots") or []:
         ws.append(_row_to_xlsx_values(snap))
 
-    wb.save(path)
+    if not get_dc_token():
+        raise ProposalApiError(
+            401,
+            "DC_TOKEN_REQUIRED",
+            "交付预案已切换为数据中心存储，请携带 Authorization: Bearer <token>",
+        )
+    rel = _paths(project_id)["version_info_xlsx_out"]
+    mapped = map_project_relative(project_id, rel)
+    if not mapped or not mapped.ref.file_name:
+        raise ProposalApiError(500, "DC_PATH_ERROR", f"无法映射版本信息表路径: {rel}")
+    buf = io.BytesIO()
+    wb.save(buf)
+    write_bytes(mapped.ref, buf.getvalue(), mapped.ref.file_name)
     return path
 
 

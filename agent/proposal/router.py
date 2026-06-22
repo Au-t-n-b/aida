@@ -11,6 +11,7 @@ from agent.proposal.auth import (
     require_proposal_release,
     require_proposal_write,
 )
+from agent.proposal.dc_middleware import bind_proposal_dc
 from agent.proposal.errors import ProposalApiError
 from agent.proposal.models import (
     PatchDeviceInfoBody,
@@ -44,6 +45,7 @@ router = APIRouter(
     prefix="/api/v1/projects/{project_id}/proposal",
     tags=["proposal"],
     route_class=ProposalLoggingRoute,
+    dependencies=[Depends(bind_proposal_dc)],
 )
 
 
