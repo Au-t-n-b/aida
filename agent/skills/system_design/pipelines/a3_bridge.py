@@ -18,7 +18,7 @@ import runpy
 import shutil
 import sys
 import tempfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -30,7 +30,10 @@ from .a3_registry import (
 from .inputs import collect_inputs
 from .exec_log import append_log, extract_actionable_error
 from .path_manifest import abs_artifacts_dir, abs_upload_dir, ensure_dir
-from .sheet007_preflight import check_connect_sheet_preflight, is_skippable_007_error
+from .sheet007_preflight import check_connect_sheet_preflight, is_skippable_007_error, resolve_default_sheet_for_topology
+
+FULL_LLD_SEQUENCE_MARKER = "__full_lld_sequence__"
+INTEGRATE_ONLY_MARKER = "__integrate_only__"
 
 _SKIP_OUTPUT_NAMES = frozenset({
     "dispatch_plan.json", "workflow_plan.json", "manifest.json",
@@ -202,6 +205,7 @@ def run_command(
     *,
     emit: Callable[[str], None] | None = None,
     pass_prior: list[str] | None = None,
+    integrate_output: Path | None = None,
 ) -> A3RunResult:
     """执行一条 l3_skill_index 标准命令（进程内 runpy）。"""
     root = Path(work_root).resolve()
@@ -279,11 +283,12 @@ def run_command(
             _safe_emit(emit, f"[a3] - {cmd} 跳过 · {skip_reason}")
         return res
 
-    # argv_builder 期望 registry_loader.L3SkillDef；字段一致，构造兼容对象
-    a3_skill = skill  # 字段对齐，build_argv 只读属性
-
     ztp_lld = _find_artifact(out_dir, "ZTP_LLD")
-    lld_design = _find_artifact(out_dir, "LLD设计", "-LLD设计-")
+    from .lld_artifacts import resolve_lld_for_downstream
+
+    lld_design = resolve_lld_for_downstream(root) or _find_artifact(
+        out_dir, "LLD设计", "-LLD设计-",
+    )
     device_list = _find_artifact(out_dir, "设备清单")
     name_mapping = _find_artifact(out_dir, "命名映射", "naming")
 
@@ -293,6 +298,14 @@ def run_command(
     if skill.args_style in ("ztp_scan", "lq_open_scan"):
         raw_work = Path(tempfile.mkdtemp(prefix="aida_ztp_", dir=str(root)))
         exec_out_dir = raw_work
+
+    resolved_sheet = resolve_default_sheet_for_topology(
+        skill.default_sheet,
+        io.get("topology"),  # type: ignore[arg-type]
+    )
+    if resolved_sheet and resolved_sheet != skill.default_sheet:
+        skill = replace(skill, default_sheet=resolved_sheet)
+    a3_skill = skill
 
     argv = build_argv(
         a3_skill,  # type: ignore[arg-type]
@@ -308,6 +321,9 @@ def run_command(
         lld_design=lld_design,
         location_004=io["location_004"],
     )
+
+    if cmd == "融合完整LLD设计" and integrate_output is not None:
+        argv += ["--output", str(integrate_output.resolve())]
 
     if emit:
         _safe_emit(emit, f"[a3] > {cmd} · {package_dir.name}/{entrypoint.name}")
@@ -407,11 +423,20 @@ def run_command(
         return res
 
     if not new_files and skill.args_style not in ("input_check", "lld_generate"):
-        res.status = "error"
-        res.summary = f"`{cmd}` 完成但未发现新产物"
-        res.errors.append("empty output")
-        append_log(root, res.summary, level="ERROR", command=cmd, detail=res.log_tail)
-        return res
+        if skill.args_style == "mlag" and exit_code == 0:
+            canonical = out_dir / "A3交换机MLAG规划.xlsx"
+            stray = root / "A3交换机MLAG规划.xlsx"
+            if stray.is_file() and not canonical.is_file():
+                canonical.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(stray), str(canonical))
+            if canonical.is_file():
+                new_files = [str(canonical.resolve())]
+        if not new_files:
+            res.status = "error"
+            res.summary = f"`{cmd}` 完成但未发现新产物"
+            res.errors.append("empty output")
+            append_log(root, res.summary, level="ERROR", command=cmd, detail=res.log_tail)
+            return res
 
     res.status = "ok"
     res.summary = f"`{cmd}` 完成，产物 {len(new_files)} 个"
@@ -461,8 +486,8 @@ def resolve_plan_commands(intent_command: str | None) -> list[str]:
 
 # intent_command → dispatch 锚点（L1/L2 标准命令，喂给 a3 编排器 expand_dispatch）
 _INTENT_TO_DISPATCH_ANCHOR: dict[str, str] = {
-    "生成完整LLD设计": "地址规划",
-    "融合完整LLD设计": "地址规划",
+    "生成完整LLD设计": FULL_LLD_SEQUENCE_MARKER,
+    "融合完整LLD设计": INTEGRATE_ONLY_MARKER,
     "地址规划": "地址规划",
     "互联规划": "互联规划",
     "接入规划": "接入规划",
@@ -579,7 +604,10 @@ def resolve_dispatch_anchor(intent_command: str | None) -> str:
     3) 兜底地址规划。"""
     cmd = (intent_command or "").strip()
     if cmd in _INTENT_TO_DISPATCH_ANCHOR:
-        return _INTENT_TO_DISPATCH_ANCHOR[cmd]
+        anchor = _INTENT_TO_DISPATCH_ANCHOR[cmd]
+        if anchor in (FULL_LLD_SEQUENCE_MARKER, INTEGRATE_ONLY_MARKER):
+            return anchor
+        return anchor
     if cmd in _dispatch_anchors():
         return cmd
     # 按规划类型推断 L1 锚点（聚合命令未直接命中 tree 时，仍走对应类别批次，
@@ -640,19 +668,20 @@ _CPM_ADDR_MARKERS = ("A3超平面网络规划", "超平面网络规划")
 _PARAM_SHEET = "参数面端口互联"
 _HYPER_SHEET = "超平面端口互联"
 # Output 已有平面地址表但缺接入底表时，按 (地址表文件名关键词, plane_key, 007 sheet) 补写 emit
-_ACCESS_EMIT_SPECS: tuple[tuple[str, str, str], ...] = (
-    ("A3计算参数面地址规划", "计算参数面", "参数面端口互联"),
-    ("A3计算管理面地址规划", "计算管理面", "计算管理面端口互联"),
-    ("A3计算业务面地址规划", "计算业务面", "计算业务面端口互联"),
-    ("A3计算样本面地址规划", "计算样本面", "存储面端口互联"),
-    ("A3计算管存面地址规划", "计算管存面", "计算管存面端口互联"),
-    ("A3存储管理面地址规划", "存储管理面", "存储管理面端口互联"),
-    ("A3存储业务面地址规划", "存储业务面", "存储业务面端口互联"),
-    ("A3存储样本面地址规划", "存储样本面", "样本面端口互联"),
-    ("A3计算带外管理面地址规划", "计算带外管理面", "计算带外管理面端口互联"),
-    ("A3存储带外管理面地址规划", "存储带外管理面", "存储带外管理面端口互联"),
-    ("A3网络带外管理面地址规划", "网络带外管理面", "网络带外管理面端口互联"),
-    ("A3灵衢带外管理面地址规划", "灵衢带外管理面", "灵衢带外管理面端口互联"),
+# 每组关键词为 OR：任一地址表文件名命中即可（兼容 legacy 无 A3 前缀命名）
+_ACCESS_EMIT_SPECS: tuple[tuple[tuple[str, ...], str, str], ...] = (
+    (("A3计算参数面地址规划",), "计算参数面", "参数面端口互联"),
+    (("A3计算管理面地址规划", "A3计算管理面L2", "A3计算管理面L3"), "计算管理面", "计算管理面端口互联"),
+    (("A3计算业务面地址规划", "计算业务面_地址规划"), "计算业务面", "计算业务面端口互联"),
+    (("A3计算样本面地址规划", "计算样本面_地址规划"), "计算样本面", "存储面端口互联 | 样本面端口互联"),
+    (("A3计算管存面地址规划", "计算管存面_地址规划"), "计算管存面", "计算管存面端口互联"),
+    (("A3存储管理面地址规划", "A3存储管理面网段", "A3存储管理面IP"), "存储管理面", "存储管理面端口互联"),
+    (("A3存储业务面地址规划", "A3存储业务面网段", "A3存储业务面IP"), "存储业务面", "存储业务面端口互联"),
+    (("A3存储样本面地址规划", "A3存储样本面网段", "A3存储样本面IP"), "存储样本面", "样本面端口互联 | 数据面端口互联"),
+    (("A3计算带外管理面地址规划", "计算带外管理地址"), "计算带外管理面", "计算带外管理面端口互联"),
+    (("A3存储带外管理面地址规划", "A3存储带外管理地址规划"), "存储带外管理面", "存储带外管理面端口互联"),
+    (("A3网络带外管理面地址规划", "A3网络带外管理地址规划"), "网络带外管理面", "网络带外管理面端口互联"),
+    (("A3灵衢带外管理面地址规划", "A3灵衢带外管理地址规划"), "灵衢带外管理面", "灵衢带外管理面端口互联"),
 )
 
 
@@ -752,12 +781,15 @@ def rebuild_access_plan_from_outputs(
         return False
 
     emitted = False
-    for addr_marker, plane_key, sheet in _ACCESS_EMIT_SPECS:
-        if sheet not in sheets:
+    for addr_markers, plane_key, sheet in _ACCESS_EMIT_SPECS:
+        resolved_sheet = resolve_default_sheet_for_topology(sheet, topo) or sheet
+        if resolved_sheet not in sheets:
             continue
         candidates = [
             p for p in out_dir.rglob("*.xlsx")
-            if p.is_file() and addr_marker in p.name and not p.name.startswith("~$")
+            if p.is_file()
+            and not p.name.startswith("~$")
+            and any(m in p.name for m in addr_markers)
         ]
         if not candidates:
             continue
@@ -778,7 +810,7 @@ def rebuild_access_plan_from_outputs(
             out_dir,
             plane_key=plane_key,
             connect_path=Path(topo),  # type: ignore[arg-type]
-            connect_sheet=sheet,
+            connect_sheet=resolved_sheet,
             address_df=filter_assignable_address_rows(ip_df),
             search_dirs=[out_dir],
         )

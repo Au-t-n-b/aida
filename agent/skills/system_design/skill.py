@@ -495,9 +495,8 @@ class SystemDesignSkill(BaseSkill):
             m.update(step.get("metrics") or {})
         m["sd_mode"] = "full"
         if route == "lld_integrate":
-            m["intent_command"] = str(
-                (project or {}).get("text") or "生成完整LLD设计"
-            ).strip() or "生成完整LLD设计"
+            intent_text = str((project or {}).get("text") or "生成完整LLD设计").strip()
+            m["intent_command"] = intent_text or "生成完整LLD设计"
             # 保留 plane_planning 覆盖账本（collect_metrics 只读 steps[]）
             for rec in reversed(prev.get("steps") or []):
                 if rec.get("key") != "plane_planning":

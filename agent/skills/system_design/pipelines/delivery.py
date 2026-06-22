@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Any
 
 from .path_manifest import abs_artifacts_dir
+from .lld_artifacts import canonical_lld_abs, resolve_project_name
+from .lld_merge import should_skip_integrate
 
 # 与 SystemDesignSkill.steps[] 顺序一致
 DELIVERY_STEP_KEYS: list[str] = [
@@ -77,6 +79,9 @@ def lld_artifact_exists(work_root: Path | str, prev_state: dict[str, Any] | None
         m = step.get("metrics") or {}
         if str(m.get("lld_file") or "").strip() and step.get("status") == "completed":
             return True
+    canon = canonical_lld_abs(resolve_project_name(work_root))
+    if canon.is_file():
+        return True
     out = abs_artifacts_dir()
     if not out.is_dir():
         return False
@@ -176,9 +181,14 @@ def resolve_resume_route_to(
     """根据 HITL 步骤与用户选择，决定 full_restart 应从哪个 step 续跑（route_to）。"""
     text = _payload_intent_text(project, payload)
     if is_lld_delivery_intent(text):
+        normalized = text.replace(" ", "")
+        if normalized == "生成完整LLD设计":
+            skip, _ = should_skip_integrate(work_root)
+            if skip and lld_artifact_exists(work_root, prev_state):
+                return "stage_select"
+            return "plane_planning"
         if hitl_step == "plane_planning":
             return "lld_integrate"
-        # HITL 已清空 / 前端未带 from_step：已有平面表或刚完成规划 → 直达融合
         if has_mergeable_plane_artifacts(work_root) or _plane_planning_done(prev_state):
             return "lld_integrate"
 

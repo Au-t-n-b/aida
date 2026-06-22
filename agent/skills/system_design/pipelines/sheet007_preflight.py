@@ -111,6 +111,39 @@ def check_connect_sheet_preflight(
     return False, reason
 
 
+def resolve_default_sheet_for_topology(
+    default_sheet: str | None,
+    topology: Path | None,
+) -> str | None:
+    """将 l3_skill_index 中 ``A | B`` 形式 default_sheet 解析为 007 工作簿内实际 sheet 名。"""
+    if not default_sheet or "|" not in str(default_sheet):
+        return default_sheet
+    required = _resolve_required_sheets("", default_sheet)
+    if not required:
+        return default_sheet
+    if topology is None or not Path(topology).is_file():
+        return required[0]
+    try:
+        import pandas as pd
+
+        sheet_names = list(pd.ExcelFile(topology).sheet_names)
+    except Exception:
+        return required[0]
+    wb_set = set(sheet_names)
+    for item in required:
+        if item in wb_set:
+            return item
+    for item in required:
+        for name in sheet_names:
+            if item in name or name in item:
+                return name
+    if _sheet_eligible(required, sheet_names):
+        for item in required:
+            if item in wb_set:
+                return item
+    return required[0]
+
+
 def is_skippable_007_error(text: str) -> bool:
     """pipeline stderr/异常是否属于 007 sheet 物理缺失（应跳过而非整批失败）。"""
     s = str(text or "")

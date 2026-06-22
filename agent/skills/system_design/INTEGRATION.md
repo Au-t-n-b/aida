@@ -43,9 +43,10 @@ LangGraph system_design steps
 
 | 模式 | 触发意图 | plane_planning 行为 | 下游 lld/ztp/naming |
 |------|----------|---------------------|---------------------|
-| `full` | 生成/融合完整LLD设计、空 | run_dispatch(地址规划) | 全部执行（一条龙交付） |
-| `batch` | 地址规划 / 互联规划 / 接入规划 / 网管规划 / 路由规划 | run_dispatch(该 L1) | 自跳过（跑完即发布） |
-| `single` | 任一 l3_skill_index 单条命令 | run_command(该命令) | 自跳过（菜单式触发） |
+| `full` + 生成/空 | 生成完整LLD设计、空 | `run_full_lld_sequence`（INSTRUCTION_SET 22 步 + `run_dispatch(互联规划)` + `run_dispatch(接入规划)`） | 全部执行 |
+| `full` + 融合 | 融合完整LLD设计 | 跳过 22 步，仅 repair 接入底表 | lld_integrate 幂等融合 |
+| `batch` | 地址规划 / 互联规划 / … | run_dispatch(该 L1) | 自跳过 |
+| `single` | 任一 l3_skill_index 单条命令 | run_command(该命令) | 自跳过 |
 
 下游 step 读 `metrics["sd_mode"]`，在 single/batch 时返回 `*_status="skipped"`，不做无谓执行。
 

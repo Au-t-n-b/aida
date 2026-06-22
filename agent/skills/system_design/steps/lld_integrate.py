@@ -6,12 +6,15 @@ step 4 · LLD 融合（Raw Skill §6 lld_integrate · 确定性，无 LLM · A00
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from ...base import BaseStep, SkillContext, SkillState, StepResult, Emit
-from ..pipelines.a3_bridge import run_command, ensure_plane_address_repairs, rebuild_access_plan_from_outputs
+from ..pipelines.a3_bridge import ensure_plane_address_repairs, rebuild_access_plan_from_outputs
 from ..pipelines.delivery import has_mergeable_plane_artifacts, is_lld_delivery_intent
 from ..pipelines.exec_log import append_log, extract_actionable_error
+from ..pipelines.lld_artifacts import lld_rel_for_state
+from ..pipelines.lld_merge import run_integrate, should_skip_integrate
 from agent.sdui.projector_base import collect_metrics
 
 _PLAN_NEXT_OPTIONS = [
@@ -49,6 +52,7 @@ class LldIntegrateStep(BaseStep):
             or ""
         ).strip()
         force_lld = route == "lld_integrate" or is_lld_delivery_intent(intent_cmd)
+        force_integrate = force_lld or os.environ.get("AIDA_LLD_FORCE_INTEGRATE", "").strip() in ("1", "true", "yes")
         if m.get("sd_mode") in ("single", "batch") and not force_lld:
             emit(f"[{self.key}] 模式 {m.get('sd_mode')} → 跳过 LLD 融合（仅完整交付执行）")
             return {
@@ -115,16 +119,34 @@ class LldIntegrateStep(BaseStep):
             }
 
         cmd = "融合完整LLD设计"
+        skip, skip_reason = should_skip_integrate(ctx.work_root, force=force_integrate)
+        if skip:
+            from ..pipelines.lld_merge import canonical_lld_state_files
+
+            files = canonical_lld_state_files(ctx.work_root)
+            lld_rel = files.get("lld_file", "")
+            emit(f"[{self.key}] ○ {skip_reason}")
+            return {
+                "logs": [f"[lld_integrate] {skip_reason}"],
+                "metrics": {
+                    "lld_planes_merged": 0,
+                    "lld_file": lld_rel,
+                    "lld_warnings": [],
+                    "lld_status": "skipped_unchanged",
+                },
+                "files": files,
+                "route_to": "",
+            }
+
         emit(f"[{self.key}] 调用 A3 子 skill：{cmd}")
-        result = run_command(cmd, ctx.work_root, emit=emit)
+        result = run_integrate(ctx.work_root, emit=emit, force=force_integrate)
 
         warnings: list[str] = []
         lld_file = ""
         merged = 0
 
         if result.status == "ok" and result.output_files:
-            xlsx = [p for p in result.output_files if p.lower().endswith(".xlsx")]
-            lld_file = xlsx[-1] if xlsx else result.output_files[-1]
+            lld_file = lld_rel_for_state(result.output_files[0])
             merged = len([p for p in result.output_files if "A3" in Path(p).name or "LLD" in Path(p).name])
             emit(f"[{self.key}] 融合产物：{Path(lld_file).name}")
         else:

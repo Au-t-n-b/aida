@@ -150,6 +150,11 @@ def build_argv(
         layer_arg = (skill.default_layer or "l3").lower()
         out_file = out_dir / "A3网络互联规划.xlsx"
         argv += ["--layer", layer_arg, "--out", str(out_file), "--plan", intent]
+        if out_file.is_file():
+            argv += ["--merge-existing"]
+        access_plan = prior.get("prior_access") or _find_access_plan(out_dir)
+        if access_plan.is_file():
+            argv += ["--access-plan", str(access_plan)]
     elif style == "l2l3_sheet":
         sheet = skill.default_sheet or "计算管理面端口互联"
         argv += ["--sheet", sheet]
@@ -195,7 +200,14 @@ def build_argv(
         argv += ["--scan-dir", str(scan_dir or out_dir.parent if scan_dir is None else scan_dir)]
         argv += ["--out-dir", str(out_dir)]
     elif style == "mlag":
-        argv += ["--output-dir", str(out_dir)]
+        argv += [
+            "--output-dir",
+            str(out_dir),
+            "--out",
+            str(out_dir / "A3交换机MLAG规划.xlsx"),
+            "--temp",
+            str(out_dir / "交换机MLAG规划.xlsx"),
+        ]
     elif style == "planner":
         tail = _package_tail(skill.package)
         if tail == "dme-planning.code1":
